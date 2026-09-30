@@ -1,0 +1,15 @@
+{
+  "name": "OmniRoute Bandit Dashboard",
+  "short_name": "OmniRoute PWA",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#161b22",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/ios-filled/512/58a6ff/domain.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

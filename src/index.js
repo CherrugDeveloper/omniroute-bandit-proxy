@@ -1,9 +1,17 @@
 import "dotenv/config";
 import express from "express";
+import path from "path";
+import { fileURLToPath } from 'url';
 import { DiscountedUCB1Bandit } from "./bandit.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
+
+// Serviamo i file statici della PWA (manifest, sw, icone)
+app.use(express.static(path.join(__dirname, '../public')));
 
 const PORT = process.env.PORT || 8080;
 const bandit = new DiscountedUCB1Bandit();
@@ -47,10 +55,13 @@ app.get("/dashboard", (req, res) => {
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OmniRoute Bandit Dashboard</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#161b22">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
-        h1 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+        h1 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         h3 { margin-top: 0; color: #8b949e; }
         .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -62,10 +73,15 @@ app.get("/dashboard", (req, res) => {
         .badge-cooldown { background: #9e6a03; color: white; }
         .badge-banned { background: #da3633; color: white; }
         pre#logs-container { background: #010409; border: 1px solid #30363d; border-radius: 6px; padding: 15px; height: 250px; overflow-y: auto; font-family: monospace; font-size: 12px; color: #7ee787; margin: 0; }
+        #install-btn { background: #238636; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; display: none; }
+        #install-btn:hover { background: #2ea043; }
     </style>
 </head>
 <body>
-    <h1>OmniRoute Bandit Dashboard</h1>
+    <h1>
+        <span>OmniRoute Bandit Dashboard</span>
+        <button id="install-btn">Installa PWA</button>
+    </h1>
     
     <div class="card">
         <h3>Stato Generale</h3>
@@ -115,6 +131,35 @@ app.get("/dashboard", (req, res) => {
     </div>
 
     <script>
+        // Registrazione Service Worker per PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('Service Worker registrato con successo:', reg.scope))
+                    .catch(err => console.error('Registrazione Service Worker fallita:', err));
+            });
+        }
+
+        let deferredPrompt;
+        const installBtn = document.getElementById('install-btn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                console.log('Utente ha accettato l\\'installazione PWA');
+            }
+            deferredPrompt = null;
+            installBtn.style.display = 'none';
+        });
+
         function formatRemainingTime(seconds) {
             const h = Math.floor(seconds / 3600);
             const m = Math.floor((seconds % 3600) / 60);
@@ -333,7 +378,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         (data.error && data.error.code);
 
       if (isErrorPayload) {
-        console.error(`[UPSTREAM APP ERROR / 400] ${selectedModel} ha risposto con errore logico:`, JSON.stringify(data));
+        console.error(`[UPSTREAM APP ERROR / 400] ${selectedName_Or_Model = selectedModel} ha risposto con errore logico:`, JSON.stringify(data));
         bandit.recordFeedback(selectedModel, false);
         excludedModelsForRequest.add(selectedModel);
         continue;
