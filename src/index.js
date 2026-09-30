@@ -8,7 +8,6 @@ app.use(express.json({ limit: "50mb" }));
 const PORT = process.env.PORT || 8080;
 const bandit = new DiscountedUCB1Bandit();
 
-// Buffer circolare per i log (ultime 100 righe)
 const logBuffer = [];
 const MAX_LOGS = 100;
 
@@ -75,18 +74,17 @@ app.get("/dashboard", (req, res) => {
     </div>
 
     <div class="card">
-        <h3>Stato Provider & Rotazione (n+1)</h3>
+        <h3>Stato Provider & Rotazione</h3>
         <table>
             <thead>
                 <tr>
                     <th>Provider</th>
-                    <th>Puntatore Attivo (n+1)</th>
                     <th>Fallimenti Consecutivi</th>
                     <th>Stato / Cooldown Provider</th>
                 </tr>
             </thead>
             <tbody id="providers-table">
-                <tr><td colspan="4">Caricamento provider in corso...</td></tr>
+                <tr><td colspan="3">Caricamento provider in corso...</td></tr>
             </tbody>
         </table>
     </div>
@@ -137,7 +135,6 @@ app.get("/dashboard", (req, res) => {
                 
                 const nowSec = Date.now() / 1000;
 
-                // Renderizza Tabella Provider
                 const provTable = document.getElementById("providers-table");
                 provTable.innerHTML = "";
                 if (data.providers && data.providers.length > 0) {
@@ -153,17 +150,15 @@ app.get("/dashboard", (req, res) => {
                         const tr = document.createElement("tr");
                         tr.innerHTML = \`
                             <td><strong>\${p.provider}</strong></td>
-                            <td>\${p.pointer}</td>
                             <td>\${p.fails}</td>
                             <td>\${statusBadge}</td>
                         \`;
                         provTable.appendChild(tr);
                     });
                 } else {
-                    provTable.innerHTML = '<tr><td colspan="4">Nessun provider registrato</td></tr>';
+                    provTable.innerHTML = '<tr><td colspan="3">Nessun provider registrato</td></tr>';
                 }
 
-                // Renderizza Tabella Modelli
                 const tbody = document.getElementById("models-table");
                 tbody.innerHTML = "";
                 
@@ -233,92 +228,137 @@ app.get("/v1/logs", (req, res) => {
 
 app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const { messages, stream } = req.body || {};
-  
-  const selectedModel = bandit.selectModel() || "gpt-4o";
-  console.log(`[BANDIT] Selezionato modello: ${selectedModel} | Richiesta n. ${bandit.totalRequests}`);
-
   const omnirouteBaseUrl = process.env.OMNIROUTE_BASE_URL || "http://localhost:20128/v1";
   const omnirouteApiKey = process.env.OMNIROUTE_API_KEY;
 
-  const startTime = Date.now();
+  const excludedModelsForRequest = new Set();
+  const maxAttempts = 15;
+  let attempt = 0;
 
-  try {
-    const upstreamPayload = {
-      ...req.body,
-      model: selectedModel,
-      stream: Boolean(stream)
-    };
-
-    const headers = { "Content-Type": "application/json" };
-    if (omnirouteApiKey) headers["Authorization"] = `Bearer ${omnirouteApiKey}`;
-
-    const upstreamResponse = await fetch(`${omnirouteBaseUrl}/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(upstreamPayload)
-    });
-
-    const durationSec = (Date.now() - startTime) / 1000;
-
-    if (!upstreamResponse.ok) {
-      const errText = await upstreamResponse.text();
-      console.error(`[OMNIROUTE ERROR] HTTP ${upstreamResponse.status} su ${selectedModel}: ${errText}`);
-      bandit.recordFeedback(selectedModel, false);
-
-      return res.status(upstreamResponse.status).json({
-        error: {
-          message: `OmniRoute upstream error: ${errText}`,
-          status: upstreamResponse.status,
-          model: selectedModel
-        }
+  while (attempt < maxAttempts) {
+    attempt++;
+    const selectedModel = bandit.selectModel(excludedModelsForRequest);
+    
+    if (!selectedModel) {
+      console.error("[BANDIT] Nessun modello disponibile nel pool (tutti esclusi o in cooldown per questa richiesta).");
+      return res.status(503).json({
+        error: { message: "No available models left in pool due to failures/cooldowns", status: 503 }
       });
     }
 
-    if (stream) {
-      bandit.recordFeedback(selectedModel, true, durationSec, 30.0);
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      
-      const reader = upstreamResponse.body.getReader();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(value);
+    console.log(`[BANDIT] Selezionato modello: ${selectedModel} | Tentativo richiesta n. ${attempt}`);
+    const startTime = Date.now();
+
+    try {
+      const upstreamPayload = {
+        ...req.body,
+        model: selectedModel,
+        stream: Boolean(stream)
+      };
+
+      const headers = { "Content-Type": "application/json" };
+      if (omnirouteApiKey) headers["Authorization"] = `Bearer ${omnirouteApiKey}`;
+
+      const upstreamResponse = await fetch(`${omnirouteBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(upstreamPayload)
+      });
+
+      const durationSec = (Date.now() - startTime) / 1000;
+
+      if (!upstreamResponse.ok) {
+        const errText = await upstreamResponse.text();
+        console.error(`[OMNIROUTE ERROR] HTTP ${upstreamResponse.status} su ${selectedModel}: ${errText}`);
+        
+        bandit.recordFeedback(selectedModel, false);
+        excludedModelsForRequest.add(selectedModel);
+        continue;
+      }
+
+      if (stream) {
+        const reader = upstreamResponse.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulatedText = "";
+        let hasError = false;
+
+        const { value, done } = await reader.read();
+        if (!done && value) {
+          const firstChunkText = decoder.decode(value, { stream: true });
+          accumulatedText += firstChunkText;
+          if (
+            accumulatedText.includes('"error"') || 
+            accumulatedText.includes('"code":400') || 
+            accumulatedText.includes('"status":400') ||
+            accumulatedText.includes('Bad Request')
+          ) {
+            hasError = true;
+          }
         }
-      } catch (streamErr) {
-        console.error("[STREAM ERROR]", streamErr);
-      } finally {
-        res.end();
+
+        if (hasError) {
+          console.error(`[UPSTREAM STREAM ERROR DETECTED] ${selectedModel} ha restituito un errore nello stream.`);
+          bandit.recordFeedback(selectedModel, false);
+          excludedModelsForRequest.add(selectedModel);
+          continue;
+        }
+
+        bandit.recordFeedback(selectedModel, true, durationSec, 30.0);
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        
+        if (value) res.write(value);
+
+        try {
+          while (true) {
+            const { done: chunkDone, value: chunkVal } = await reader.read();
+            if (chunkDone) break;
+            res.write(chunkVal);
+          }
+        } catch (streamErr) {
+          console.error("[STREAM ERROR]", streamErr);
+        } finally {
+          res.end();
+        }
+        return;
       }
-      return;
-    }
 
-    const data = await upstreamResponse.json();
+      const data = await upstreamResponse.json();
+      const isErrorPayload = 
+        data.error || 
+        data.code === 400 || 
+        data.status === 400 || 
+        (data.choices && data.choices.length === 0) ||
+        (data.error && data.error.code);
 
-    if (data.error || (data.choices && data.choices.length === 0)) {
-      console.error(`[UPSTREAM APP ERROR] ${selectedModel} ha risposto con errore logico:`, JSON.stringify(data));
+      if (isErrorPayload) {
+        console.error(`[UPSTREAM APP ERROR / 400] ${selectedModel} ha risposto con errore logico:`, JSON.stringify(data));
+        bandit.recordFeedback(selectedModel, false);
+        excludedModelsForRequest.add(selectedModel);
+        continue;
+      }
+
+      bandit.recordFeedback(selectedModel, true, durationSec, 30.0);
+      return res.json(data);
+
+    } catch (err) {
+      console.error("[PROXY FETCH EXCEPTION]", err);
       bandit.recordFeedback(selectedModel, false);
-      return res.status(400).json(data);
+      excludedModelsForRequest.add(selectedModel);
     }
-
-    bandit.recordFeedback(selectedModel, true, durationSec, 30.0);
-    return res.json(data);
-
-  } catch (err) {
-    console.error("[PROXY FETCH EXCEPTION]", err);
-    bandit.recordFeedback(selectedModel, false);
-    return res.status(502).json({
-      error: {
-        message: `Proxy gateway connection failed: ${err.message}`,
-        model: selectedModel
-      }
-    });
   }
+
+  return res.status(502).json({
+    error: {
+      message: `All model attempts exhausted for this request after ${attempt} tries.`,
+    }
+  });
 });
 
-app.listen(PORT, "127.0.0.1", () => {
-  console.log(`[PROXY] OmniRoute Bandit Proxy attivo su http://127.0.0.1:${PORT}`);
-  console.log(`[DASHBOARD] Pannello disponibile su http://127.0.0.1:${PORT}/dashboard`);
+bandit.fetchAndSyncModels().then(() => {
+  app.listen(PORT, "127.0.0.1", () => {
+    console.log(`[PROXY] OmniRoute Bandit Proxy attivo su http://127.0.0.1:${PORT}`);
+    console.log(`[DASHBOARD] Pannello disponibile su http://127.0.0.1:${PORT}/dashboard`);
+  });
 });

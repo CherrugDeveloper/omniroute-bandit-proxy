@@ -1,269 +1,258 @@
-import Database from 'better-sqlite3';
+import Database from "better-sqlite3";
 
 export class DiscountedUCB1Bandit {
-  constructor(dbPath = './bandit_state.db', discountFactor = 0.98, explorationC = 0.25) {
-    this.discountFactor = discountFactor;
-    this.explorationC = explorationC;
-    this.totalRequests = 0;
-
-    this.modelsState = new Map();
-    this.providersState = new Map(); // providerId -> { fails, permanent, cooldownUntil, pointer }
-
+  constructor(dbPath = "bandit.db") {
     this.db = new Database(dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this._initDb();
-    this._loadState();
+    this.discountFactor = 0.99;
+    this.totalRequests = 0;
+    this._initDB();
   }
 
-  _initDb() {
+  _initDB() {
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS model_history (
-        model TEXT PRIMARY KEY,
-        fails INTEGER,
-        permanent INTEGER,
-        cooldown_until REAL,
-        n_count REAL,
-        r_sum REAL
+      CREATE TABLE IF NOT EXISTS models (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        N REAL DEFAULT 0,
+        sum_reward REAL DEFAULT 0,
+        fails INTEGER DEFAULT 0,
+        cooldown_until REAL DEFAULT 0,
+        permanent INTEGER DEFAULT 0
       );
+
       CREATE TABLE IF NOT EXISTS provider_history (
         provider TEXT PRIMARY KEY,
-        fails INTEGER,
-        permanent INTEGER,
-        cooldown_until REAL,
-        pointer INTEGER
+        fails INTEGER DEFAULT 0,
+        cooldown_until REAL DEFAULT 0,
+        pointer INTEGER DEFAULT 0,
+        permanent INTEGER DEFAULT 0
       );
     `);
   }
 
-  _loadState() {
-    const stmtModels = this.db.prepare('SELECT * FROM model_history');
-    for (const row of stmtModels.iterate()) {
-      this.modelsState.set(row.model, {
-        N: row.n_count,
-        R_sum: row.r_sum,
-        avg: row.n_count > 0 ? row.r_sum / row.n_count : 0.0,
-        fails: row.fails,
-        cooldownUntil: row.cooldown_until,
-        permanent: Boolean(row.permanent)
-      });
+  async fetchAndSyncModels() {
+    const omnirouteBaseUrl = process.env.OMNIROUTE_BASE_URL || "http://localhost:20128/v1";
+    const omnirouteApiKey = process.env.OMNIROUTE_API_KEY;
+
+    try {
+      const headers = { "Content-Type": "application/json" };
+      if (omnirouteApiKey) headers["Authorization"] = `Bearer ${omnirouteApiKey}`;
+
+      const res = await fetch(`${omnirouteBaseUrl}/models`, { headers });
+      if (!res.ok) {
+        console.error(`[BANDIT] Impossibile recuperare i modelli da OmniRoute: HTTP ${res.status}`);
+        return;
+      }
+
+      const data = await res.json();
+      const modelList = data.data || data.models || data;
+
+      if (Array.isArray(modelList)) {
+        const stmt = this.db.prepare(`
+          INSERT INTO models (id, provider) VALUES (?, ?)
+          ON CONFLICT(id) DO UPDATE SET provider=excluded.provider
+        `);
+
+        const pStmt = this.db.prepare(`
+          INSERT INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+          VALUES (?, 0, 0, 0, 0)
+          ON CONFLICT(provider) DO NOTHING
+        `);
+
+        const insertMany = this.db.transaction((models) => {
+          for (const m of models) {
+            const modelId = typeof m === 'string' ? m : (m.id || m.name);
+            if (!modelId) continue;
+            const provider = this._getProvider(modelId);
+            stmt.run(modelId, provider);
+            pStmt.run(provider);
+          }
+        });
+
+        insertMany(modelList);
+        console.log(`[BANDIT] Sincronizzati ${modelList.length} modelli da OmniRoute.`);
+      }
+    } catch (err) {
+      console.error("[BANDIT] Errore durante il fetch dei modelli da OmniRoute:", err.message);
     }
 
-    const stmtProviders = this.db.prepare('SELECT * FROM provider_history');
-    for (const row of stmtProviders.iterate()) {
-      this.providersState.set(row.provider, {
-        fails: row.fails,
-        permanent: Boolean(row.permanent),
-        cooldownUntil: row.cooldown_until,
-        pointer: row.pointer || 0
-      });
+    // Fallback di sicurezza se il database è vuoto
+    const count = this.db.prepare("SELECT COUNT(*) as cnt FROM models").get().cnt;
+    if (count === 0) {
+      const defaults = ["gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "deepseek-chat"];
+      const stmt = this.db.prepare("INSERT OR IGNORE INTO models (id, provider) VALUES (?, ?)");
+      const pStmt = this.db.prepare("INSERT OR IGNORE INTO provider_history (provider) VALUES (?)");
+      for (const m of defaults) {
+        const prov = this._getProvider(m);
+        stmt.run(m, prov);
+        pStmt.run(prov);
+      }
     }
-  }
-
-  _saveModel(model, st) {
-    const stmt = this.db.prepare(`
-      INSERT INTO model_history (model, fails, permanent, cooldown_until, n_count, r_sum)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(model) DO UPDATE SET
-        fails=excluded.fails,
-        permanent=excluded.permanent,
-        cooldown_until=excluded.cooldown_until,
-        n_count=excluded.n_count,
-        r_sum=excluded.r_sum
-    `);
-    stmt.run(model, st.fails, st.permanent ? 1 : 0, st.cooldownUntil, st.N, st.R_sum);
-  }
-
-  _saveProvider(provider, provSt) {
-    const stmt = this.db.prepare(`
-      INSERT INTO provider_history (provider, fails, permanent, cooldown_until, pointer)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(provider) DO UPDATE SET
-        fails=excluded.fails,
-        permanent=excluded.permanent,
-        cooldown_until=excluded.cooldown_until,
-        pointer=excluded.pointer
-    `);
-    stmt.run(provider, provSt.fails, provSt.permanent ? 1 : 0, provSt.cooldownUntil, provSt.pointer);
   }
 
   _getProvider(modelId) {
-    if (modelId.includes('/')) return modelId.split('/')[0];
-    if (modelId.startsWith('gpt-') || modelId.startsWith('o1-') || modelId.startsWith('o3-')) return 'openai';
-    if (modelId.startsWith('claude-')) return 'anthropic';
-    if (modelId.startsWith('gemini-')) return 'google';
-    if (modelId.startsWith('deepseek-')) return 'deepseek';
-    return 'default';
+    if (modelId.includes("/")) {
+      return modelId.split("/")[0];
+    }
+    const lower = modelId.toLowerCase();
+    if (lower.includes("gpt") || lower.includes("openai") || lower.includes("o1") || lower.includes("o3")) return "openai";
+    if (lower.includes("claude") || lower.includes("anthropic")) return "anthropic";
+    if (lower.includes("deepseek")) return "deepseek";
+    if (lower.includes("llama") || lower.includes("meta")) return "meta";
+    if (lower.includes("gemini") || lower.includes("google")) return "google";
+    return "default-provider";
   }
 
-  registerModels(modelIds) {
-    for (const id of modelIds) {
-      if (!this.modelsState.has(id)) {
-        this.modelsState.set(id, {
-          N: 0.0,
-          R_sum: 0.0,
-          avg: 0.0,
-          fails: 0,
-          cooldownUntil: 0.0,
-          permanent: false
-        });
+  selectModel(excludedModels = new Set()) {
+    const nowSec = Date.now() / 1000;
+    
+    // Recupera tutti i provider e controlla il loro stato di cooldown
+    const providers = this.db.prepare("SELECT * FROM provider_history").all();
+    const activeProviders = new Set();
+
+    for (const p of providers) {
+      if (p.permanent) continue;
+      if (p.cooldown_until && p.cooldown_until > nowSec) {
+        // Provider in cooldown
+        continue;
       }
-    }
-  }
-
-  selectModel() {
-    this.totalRequests++;
-    const now = Date.now() / 1000;
-
-    const providerMap = new Map();
-    for (const [id, st] of this.modelsState.entries()) {
-      if (st.permanent) continue;
-      const provider = this._getProvider(id);
-      
-      let provSt = this.providersState.get(provider);
-      if (!provSt) {
-        provSt = { fails: 0, permanent: false, cooldownUntil: 0.0, pointer: 0 };
-        this.providersState.set(provider, provSt);
-      }
-
-      if (provSt.permanent || now < provSt.cooldownUntil) continue;
-      if (now < st.cooldownUntil) continue;
-
-      if (!providerMap.has(provider)) {
-        providerMap.set(provider, []);
-      }
-      providerMap.get(provider).push({ id, st });
+      activeProviders.add(p.provider);
     }
 
-    if (providerMap.size === 0) return null;
+    // Prendi tutti i modelli validi non esclusi e il cui provider è attivo
+    const models = this.db.prepare("SELECT * FROM models WHERE permanent = 0").all();
+    const candidates = models.filter(m => {
+      if (excludedModels.has(m.id)) return false;
+      if (!activeProviders.has(m.provider)) return false;
+      if (m.cooldown_until && m.cooldown_until > nowSec) return false;
+      return true;
+    });
 
+    if (candidates.length === 0) {
+      // Se non ci sono candidati a causa dei cooldown, proviamo a sbloccare temporaneamente i provider scaduti o a restituire il meno peggio
+      return null;
+    }
+
+    // Calcolo UCB1 scontato
     let bestModel = null;
-    let bestScore = -Infinity;
+    let maxScore = -Infinity;
 
-    for (const [provider, models] of providerMap.entries()) {
-      let provSt = this.providersState.get(provider);
-      
-      if (provSt.pointer >= models.length) {
-        provSt.pointer = 0;
+    for (const m of candidates) {
+      let score;
+      if (m.N === 0) {
+        score = Infinity; // Esplorazione prioritaria per nuovi modelli
+      } else {
+        const avg = m.sum_reward / m.N;
+        const totalN = models.reduce((acc, curr) => acc + curr.N, 0) || 1;
+        const bonus = Math.sqrt((2 * Math.log(totalN)) / m.N);
+        score = avg + bonus;
       }
 
-      const targetModelObj = models[provSt.pointer];
-      const { id, st } = targetModelObj;
-
-      if (st.N === 0) return id;
-
-      const uncertainty = this.explorationC * Math.sqrt(Math.log(Math.max(1, this.totalRequests)) / st.N);
-      const score = st.avg + uncertainty;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestModel = id;
+      if (score > maxScore) {
+        maxScore = score;
+        bestModel = m.id;
       }
     }
 
     return bestModel;
   }
 
-  recordFeedback(model, success, ttft = 0.0, tps = 0.0) {
-    const now = Date.now() / 1000;
-    let st = this.modelsState.get(model);
-    if (!st) {
-      st = { N: 0.0, R_sum: 0.0, avg: 0.0, fails: 0, cooldownUntil: 0.0, permanent: false };
-      this.modelsState.set(model, st);
+  recordFeedback(modelId, success, durationSec = 1.0, timeoutSec = 30.0) {
+    this.totalRequests++;
+    const nowSec = Date.now() / 1000;
+    const model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
+    if (!model) return;
+
+    const providerName = model.provider;
+    let reward = success ? 1.0 : 0.0;
+
+    // Penalità temporale se fallisce o è lento
+    if (success && durationSec > timeoutSec) {
+      reward = 0.1;
     }
 
-    const provider = this._getProvider(model);
-    let provSt = this.providersState.get(provider);
-    if (!provSt) {
-      provSt = { fails: 0, permanent: false, cooldownUntil: 0.0, pointer: 0 };
-      this.providersState.set(provider, provSt);
-    }
+    // Applica discounting factor a N e sum_reward esistenti
+    this.db.prepare(`
+      UPDATE models 
+      SET N = N * ?, sum_reward = sum_reward * ?, fails = ? 
+      WHERE id = ?
+    `).run(
+      this.discountFactor, 
+      this.discountFactor, 
+      success ? 0 : model.fails + 1, 
+      modelId
+    );
 
-    const providerModels = [];
-    for (const [id] of this.modelsState.entries()) {
-      if (this._getProvider(id) === provider) providerModels.push(id);
-    }
+    // Aggiungi il nuovo campione
+    this.db.prepare(`
+      UPDATE models 
+      SET N = N + 1, sum_reward = sum_reward + ? 
+      WHERE id = ?
+    `).run(reward, modelId);
 
-    if (!success) {
-      st.fails += 1;
-      if (providerModels.length > 0) {
-        provSt.pointer = (provSt.pointer + 1) % providerModels.length;
-      }
-
-      provSt.fails += 1;
-      if (provSt.fails >= 3) {
-        if (provSt.fails >= 9) {
-          provSt.permanent = true;
-          console.log(`[PERMANENT BLACKLIST] Provider [${provider}] bandito definitivamente (Fallimenti totali: ${provSt.fails}).`);
+    // Gestione fallimenti a livello di Provider (soglia a 3 fallimenti)
+    const prov = this.db.prepare("SELECT * FROM provider_history WHERE provider = ?").get(providerName);
+    if (prov) {
+      if (!success) {
+        const newFails = prov.fails + 1;
+        if (newFails >= 3) {
+          // Cooldown esponenziale collettivo (es. 1 ora * 2^(fallimenti - 3))
+          const hours = Math.pow(2, newFails - 3);
+          const cooldownUntil = nowSec + (hours * 3600);
+          console.error(`[PROVIDER COOLDOWN] Provider [${providerName}] in pausa per ${hours}h a causa di ${newFails} fallimenti consecutivi.`);
+          
+          this.db.prepare(`
+            UPDATE provider_history 
+            SET fails = ?, cooldown_until = ? 
+            WHERE provider = ?
+          `).run(newFails, cooldownUntil, providerName);
         } else {
-          const cooldownSec = 3600 * Math.pow(6, Math.floor(provSt.fails / 3) - 1);
-          provSt.cooldownUntil = now + cooldownSec;
-          console.log(`[PROVIDER COOLDOWN] Provider [${provider}] in pausa per ${(cooldownSec / 3600).toFixed(1)}h | Fallimenti: ${provSt.fails}`);
+          this.db.prepare("UPDATE provider_history SET fails = ? WHERE provider = ?").run(newFails, providerName);
         }
+      } else {
+        // Successo: resetta i fallimenti del provider
+        this.db.prepare("UPDATE provider_history SET fails = 0, cooldown_until = 0 WHERE provider = ?").run(providerName);
       }
-
-      this._saveProvider(provider, provSt);
-    } else {
-      provSt.fails = Math.max(0, provSt.fails - 1);
-      this._saveProvider(provider, provSt);
-
-      st.N = (st.N * this.discountFactor) + 1.0;
-      const rTtft = Math.max(0.0, 1.0 - (ttft / 3.0));
-      const rTps = Math.min(1.0, tps / 40.0);
-      const reward = (0.5 * rTtft) + (0.5 * rTps);
-
-      st.R_sum = (st.R_sum * this.discountFactor) + reward;
-      st.avg = st.R_sum / st.N;
-
-      console.log(`[FEEDBACK SUCCESS] Modello: ${model.padEnd(20)} | Provider: ${provider} | TTFT: ${ttft.toFixed(2)}s | Reward: ${reward.toFixed(3)}`);
     }
-
-    this._saveModel(model, st);
   }
 
   getMetrics() {
-    const now = Date.now() / 1000;
-    const models = [];
-    
-    for (const [id, st] of this.modelsState.entries()) {
-      const provider = this._getProvider(id);
-      const provSt = this.providersState.get(provider) || { fails: 0, permanent: false, cooldownUntil: 0, pointer: 0 };
-      
-      const effectiveCooldown = Math.max(st.cooldownUntil, provSt.cooldownUntil);
-      const isPermanent = st.permanent || provSt.permanent;
+    const models = this.db.prepare("SELECT * FROM models").all();
+    const providers = this.db.prepare("SELECT * FROM provider_history").all();
+    const totalRequests = this.totalRequests;
 
-      const uncertainty = st.N > 0 ? this.explorationC * Math.sqrt(Math.log(Math.max(1, this.totalRequests)) / st.N) : 0;
-      const score = st.N > 0 ? st.avg + uncertainty : Infinity;
-      
-      models.push({
-        id,
-        provider,
-        N: st.N,
-        avg: st.avg,
-        fails: st.fails,
-        providerFails: provSt.fails,
-        cooldownUntil: effectiveCooldown,
-        permanent: isPermanent,
-        score: score
-      });
-    }
-
-    const providers = [];
-    for (const [prov, provSt] of this.providersState.entries()) {
-      providers.push({
-        provider: prov,
-        fails: provSt.fails,
-        permanent: provSt.permanent,
-        cooldownUntil: provSt.cooldownUntil,
-        pointer: provSt.pointer
-      });
-    }
+    const formattedModels = models.map(m => {
+      let score;
+      const totalN = models.reduce((acc, curr) => acc + curr.N, 0) || 1;
+      if (m.N === 0) {
+        score = Infinity;
+      } else {
+        const avg = m.sum_reward / m.N;
+        const bonus = Math.sqrt((2 * Math.log(totalN)) / m.N);
+        score = avg + bonus;
+      }
+      return {
+        id: m.id,
+        provider: m.provider,
+        N: m.N,
+        avg: m.N > 0 ? m.sum_reward / m.N : 0,
+        score: score,
+        fails: m.fails,
+        cooldownUntil: m.cooldown_until,
+        permanent: m.permanent
+      };
+    });
 
     return {
-      totalRequests: this.totalRequests,
-      explorationC: this.explorationC,
-      discountFactor: this.discountFactor,
-      providers,
-      models: models.sort((a, b) => b.score - a.score)
+      totalRequests,
+      models: formattedModels,
+      providers: providers.map(p => ({
+        provider: p.provider,
+        pointer: p.pointer,
+        fails: p.fails,
+        cooldownUntil: p.cooldown_until,
+        permanent: p.permanent
+      }))
     };
   }
 }
