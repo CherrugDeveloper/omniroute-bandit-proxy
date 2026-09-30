@@ -8,16 +8,43 @@ app.use(express.json({ limit: "50mb" }));
 const PORT = process.env.PORT || 8080;
 const bandit = new DiscountedUCB1Bandit();
 
+// Buffer circolare per i log (ultime 100 righe)
+const logBuffer = [];
+const MAX_LOGS = 100;
+
+function pushLog(message) {
+  const timestamp = new Date().toLocaleTimeString();
+  const line = `[${timestamp}] ${message}`;
+  logBuffer.push(line);
+  if (logBuffer.length > MAX_LOGS) {
+    logBuffer.shift();
+  }
+}
+
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = (...args) => {
+  const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
+  originalLog(...args);
+  pushLog(msg);
+};
+
+console.error = (...args) => {
+  const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
+  originalError(...args);
+  pushLog(`ERROR: ${msg}`);
+};
+
 app.use((req, res, next) => {
-  if (!req.url.startsWith("/v1/metrics")) {
+  if (!req.url.startsWith("/v1/metrics") && !req.url.startsWith("/v1/logs")) {
     console.log(`[PROXY INCOMING] ${req.method} ${req.url}`);
   }
   next();
 });
 
 app.get("/dashboard", (req, res) => {
-  res.send(`
-<!DOCTYPE html>
+  res.send(`<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
@@ -34,6 +61,7 @@ app.get("/dashboard", (req, res) => {
         .badge-active { background: #238636; color: white; }
         .badge-cooldown { background: #9e6a03; color: white; }
         .badge-banned { background: #da3633; color: white; }
+        pre#logs-container { background: #010409; border: 1px solid #30363d; border-radius: 6px; padding: 15px; height: 250px; overflow-y: auto; font-family: monospace; font-size: 12px; color: #7ee787; margin: 0; }
     </style>
 </head>
 <body>
@@ -61,8 +89,23 @@ app.get("/dashboard", (req, res) => {
             </tbody>
         </table>
     </div>
+    <div class="card">
+        <h3>Live Proxy Logs</h3>
+        <pre id="logs-container">Caricamento log in corso...</pre>
+    </div>
 
     <script>
+        function formatRemainingTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            let parts = [];
+            if (h > 0) parts.push(\`\${h}h\`);
+            if (m > 0 || h > 0) parts.push(\`\${m}m\`);
+            parts.push(\`\${s}s\`);
+            return parts.join(' ');
+        }
+
         async function fetchMetrics() {
             try {
                 const res = await fetch("/v1/metrics");
@@ -73,12 +116,15 @@ app.get("/dashboard", (req, res) => {
                 const tbody = document.getElementById("models-table");
                 tbody.innerHTML = "";
                 
+                const nowSec = Date.now() / 1000;
+                
                 data.models.forEach(m => {
                     let statusBadge = '<span class="badge badge-active">Attivo</span>';
                     if (m.permanent) {
                         statusBadge = '<span class="badge badge-banned">Bandito</span>';
-                    } else if (m.cooldownUntil && m.cooldownUntil > Date.now() / 1000) {
-                        statusBadge = '<span class="badge badge-cooldown">Cooldown</span>';
+                    } else if (m.cooldownUntil && m.cooldownUntil > nowSec) {
+                        const remaining = m.cooldownUntil - nowSec;
+                        statusBadge = \`<span class="badge badge-cooldown">Cooldown (\${formatRemainingTime(remaining)})</span>\`;
                     }
                     
                     const tr = document.createElement("tr");
@@ -96,13 +142,31 @@ app.get("/dashboard", (req, res) => {
                 console.error("Errore caricamento metriche:", err);
             }
         }
+
+        async function fetchLogs() {
+            try {
+                const res = await fetch("/v1/logs");
+                const logs = await res.json();
+                const container = document.getElementById("logs-container");
+                const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
+                
+                container.innerText = logs.join("\\n");
+                
+                if (isAtBottom) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            } catch (err) {
+                console.error("Errore caricamento log:", err);
+            }
+        }
         
         fetchMetrics();
+        fetchLogs();
         setInterval(fetchMetrics, 3000);
+        setInterval(fetchLogs, 2000);
     </script>
 </body>
-</html>
-  `);
+</html>`);
 });
 
 app.get("/v1/metrics", (req, res) => {
@@ -111,6 +175,10 @@ app.get("/v1/metrics", (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get("/v1/logs", (req, res) => {
+  res.json(logBuffer);
 });
 
 app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
@@ -179,7 +247,6 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
     const data = await upstreamResponse.json();
 
-    // Se l api restituisce un errore applicativo nel JSON (es. fallimento del provider a monte)
     if (data.error || (data.choices && data.choices.length === 0)) {
       console.error(`[UPSTREAM APP ERROR] ${selectedModel} ha risposto con errore logico:`, JSON.stringify(data));
       bandit.recordFeedback(selectedModel, false);
@@ -202,6 +269,6 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 });
 
 app.listen(PORT, "127.0.0.1", () => {
-  console.log(`[PROXY] OmniRoute Bandit Proxy attivo su http://0.0.0.0:${PORT}`);
-  console.log(`[DASHBOARD] Pannello disponibile su http://localhost:${PORT}/dashboard`);
+  console.log(`[PROXY] OmniRoute Bandit Proxy attivo su http://127.0.0.1:${PORT}`);
+  console.log(`[DASHBOARD] Pannello disponibile su http://127.0.0.1:${PORT}/dashboard`);
 });
