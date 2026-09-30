@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { DiscountedUCB1Bandit } from "./bandit.js";
 
@@ -54,6 +55,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], (req, res) => {
 
   // Selezione intelligente del modello tramite Bandit UCB1
   const selectedModel = bandit.selectModel() || "gpt-4o";
+  console.log(`[BANDIT] Selezionato modello: ${selectedModel} | Richiesta n. ${bandit.totalRequests}`);
   console.log(`[BANDIT ROUTING] Modello selezionato: ${selectedModel} | Prompt length: ${lastMessage.length}`);
 
   const responseText = `[OmniRoute Bandit] Elaborato tramite ${selectedModel}. Risposta generata con successo.`;

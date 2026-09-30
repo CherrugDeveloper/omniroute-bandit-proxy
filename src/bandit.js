@@ -89,6 +89,8 @@ export class DiscountedUCB1Bandit {
     let bestModel = null;
     let bestScore = -Infinity;
 
+    console.log(`[BANDIT STATE] Valutazione ${eligible.length} modelli idonei (Totale richieste: ${this.totalRequests})`);
+
     for (const id of eligible) {
       const st = this.modelsState.get(id);
 
@@ -103,6 +105,7 @@ export class DiscountedUCB1Bandit {
         bestScore = score;
         bestModel = id;
       }
+      // console.log(`[UCB1] Modello: ${id} -> avg: ${st.avg.toFixed(3)}, N: ${st.N.toFixed(1)}, score: ${score.toFixed(3)}`);
     }
 
     return bestModel || eligible[0];
@@ -120,24 +123,23 @@ export class DiscountedUCB1Bandit {
       st.fails += 1;
       if (st.fails >= 3) {
         st.permanent = true;
-        console.log(`[PERMANENT BLACKLIST] Modello ${model} eliminato definitivamente.`);
+        console.log(`[PERMANENT BLACKLIST] Modello ${model} bandito definitivamente (Fallimenti: ${st.fails}).`);
       } else {
-        // Cooldown esponenziale: 1h -> 6h -> 24h
         const cooldownSec = 3600 * Math.pow(6, st.fails - 1);
         st.cooldownUntil = now + cooldownSec;
-        console.log(`[COOLDOWN] Modello ${model} in pausa per ${(cooldownSec / 3600).toFixed(1)}h (Fallimento ${st.fails}/3).`);
+        console.log(`[COOLDOWN] Modello ${model} in pausa per ${(cooldownSec / 3600).toFixed(1)}h | Tentativi falliti: ${st.fails}/3`);
       }
     } else {
-      // Sconto storico (Discount Factor)
       st.N = (st.N * this.discountFactor) + 1.0;
 
-      // Reward da TTFT e Throughput (scaled 0..1)
       const rTtft = Math.max(0.0, 1.0 - (ttft / 3.0));
       const rTps = Math.min(1.0, tps / 40.0);
       const reward = (0.5 * rTtft) + (0.5 * rTps);
 
       st.R_sum = (st.R_sum * this.discountFactor) + reward;
       st.avg = st.R_sum / st.N;
+
+      console.log(`[FEEDBACK SUCCESS] Modello: ${model.padEnd(20)} | TTFT: ${ttft.toFixed(2)}s | TPS: ${tps.toFixed(1)} | Reward: ${reward.toFixed(3)} | New Avg: ${st.avg.toFixed(3)} | New N: ${st.N.toFixed(1)}`);
     }
 
     this._saveModel(model, st);
