@@ -5,11 +5,10 @@ export class DiscountedUCB1Bandit {
     this.discountFactor = discountFactor;
     this.explorationC = explorationC;
     this.totalRequests = 0;
-    
-    // In-memory state per 1480+ modelli (RAM < 5MB)
-    this.modelsState = new Map();
 
-    // SQLite su NVMe in WAL mode
+    this.modelsState = new Map();
+    this.providersState = new Map(); // providerId -> { fails, permanent, cooldownUntil, pointer }
+
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this._initDb();
@@ -25,13 +24,20 @@ export class DiscountedUCB1Bandit {
         cooldown_until REAL,
         n_count REAL,
         r_sum REAL
-      )
+      );
+      CREATE TABLE IF NOT EXISTS provider_history (
+        provider TEXT PRIMARY KEY,
+        fails INTEGER,
+        permanent INTEGER,
+        cooldown_until REAL,
+        pointer INTEGER
+      );
     `);
   }
 
   _loadState() {
-    const stmt = this.db.prepare('SELECT * FROM model_history');
-    for (const row of stmt.iterate()) {
+    const stmtModels = this.db.prepare('SELECT * FROM model_history');
+    for (const row of stmtModels.iterate()) {
       this.modelsState.set(row.model, {
         N: row.n_count,
         R_sum: row.r_sum,
@@ -39,6 +45,16 @@ export class DiscountedUCB1Bandit {
         fails: row.fails,
         cooldownUntil: row.cooldown_until,
         permanent: Boolean(row.permanent)
+      });
+    }
+
+    const stmtProviders = this.db.prepare('SELECT * FROM provider_history');
+    for (const row of stmtProviders.iterate()) {
+      this.providersState.set(row.provider, {
+        fails: row.fails,
+        permanent: Boolean(row.permanent),
+        cooldownUntil: row.cooldown_until,
+        pointer: row.pointer || 0
       });
     }
   }
@@ -55,6 +71,28 @@ export class DiscountedUCB1Bandit {
         r_sum=excluded.r_sum
     `);
     stmt.run(model, st.fails, st.permanent ? 1 : 0, st.cooldownUntil, st.N, st.R_sum);
+  }
+
+  _saveProvider(provider, provSt) {
+    const stmt = this.db.prepare(`
+      INSERT INTO provider_history (provider, fails, permanent, cooldown_until, pointer)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(provider) DO UPDATE SET
+        fails=excluded.fails,
+        permanent=excluded.permanent,
+        cooldown_until=excluded.cooldown_until,
+        pointer=excluded.pointer
+    `);
+    stmt.run(provider, provSt.fails, provSt.permanent ? 1 : 0, provSt.cooldownUntil, provSt.pointer);
+  }
+
+  _getProvider(modelId) {
+    if (modelId.includes('/')) return modelId.split('/')[0];
+    if (modelId.startsWith('gpt-') || modelId.startsWith('o1-') || modelId.startsWith('o3-')) return 'openai';
+    if (modelId.startsWith('claude-')) return 'anthropic';
+    if (modelId.startsWith('gemini-')) return 'google';
+    if (modelId.startsWith('deepseek-')) return 'deepseek';
+    return 'default';
   }
 
   registerModels(modelIds) {
@@ -76,28 +114,43 @@ export class DiscountedUCB1Bandit {
     this.totalRequests++;
     const now = Date.now() / 1000;
 
-    // Filtra modelli non in blacklist permanente e fuori dal cooldown
-    const eligible = [];
+    const providerMap = new Map();
     for (const [id, st] of this.modelsState.entries()) {
-      if (!st.permanent && now >= st.cooldownUntil) {
-        eligible.push(id);
+      if (st.permanent) continue;
+      const provider = this._getProvider(id);
+      
+      let provSt = this.providersState.get(provider);
+      if (!provSt) {
+        provSt = { fails: 0, permanent: false, cooldownUntil: 0.0, pointer: 0 };
+        this.providersState.set(provider, provSt);
       }
+
+      if (provSt.permanent || now < provSt.cooldownUntil) continue;
+      if (now < st.cooldownUntil) continue;
+
+      if (!providerMap.has(provider)) {
+        providerMap.set(provider, []);
+      }
+      providerMap.get(provider).push({ id, st });
     }
 
-    if (eligible.length === 0) return null;
+    if (providerMap.size === 0) return null;
 
     let bestModel = null;
     let bestScore = -Infinity;
 
-    console.log(`[BANDIT STATE] Valutazione ${eligible.length} modelli idonei (Totale richieste: ${this.totalRequests})`);
+    for (const [provider, models] of providerMap.entries()) {
+      let provSt = this.providersState.get(provider);
+      
+      if (provSt.pointer >= models.length) {
+        provSt.pointer = 0;
+      }
 
-    for (const id of eligible) {
-      const st = this.modelsState.get(id);
+      const targetModelObj = models[provSt.pointer];
+      const { id, st } = targetModelObj;
 
-      // Priorità ai modelli mai esplorati (senza cold prior)
       if (st.N === 0) return id;
 
-      // Discounted UCB1 Formula
       const uncertainty = this.explorationC * Math.sqrt(Math.log(Math.max(1, this.totalRequests)) / st.N);
       const score = st.avg + uncertainty;
 
@@ -105,10 +158,9 @@ export class DiscountedUCB1Bandit {
         bestScore = score;
         bestModel = id;
       }
-      // console.log(`[UCB1] Modello: ${id} -> avg: ${st.avg.toFixed(3)}, N: ${st.N.toFixed(1)}, score: ${score.toFixed(3)}`);
     }
 
-    return bestModel || eligible[0];
+    return bestModel;
   }
 
   recordFeedback(model, success, ttft = 0.0, tps = 0.0) {
@@ -119,19 +171,42 @@ export class DiscountedUCB1Bandit {
       this.modelsState.set(model, st);
     }
 
+    const provider = this._getProvider(model);
+    let provSt = this.providersState.get(provider);
+    if (!provSt) {
+      provSt = { fails: 0, permanent: false, cooldownUntil: 0.0, pointer: 0 };
+      this.providersState.set(provider, provSt);
+    }
+
+    const providerModels = [];
+    for (const [id] of this.modelsState.entries()) {
+      if (this._getProvider(id) === provider) providerModels.push(id);
+    }
+
     if (!success) {
       st.fails += 1;
-      if (st.fails >= 3) {
-        st.permanent = true;
-        console.log(`[PERMANENT BLACKLIST] Modello ${model} bandito definitivamente (Fallimenti: ${st.fails}).`);
-      } else {
-        const cooldownSec = 3600 * Math.pow(6, st.fails - 1);
-        st.cooldownUntil = now + cooldownSec;
-        console.log(`[COOLDOWN] Modello ${model} in pausa per ${(cooldownSec / 3600).toFixed(1)}h | Tentativi falliti: ${st.fails}/3`);
+      if (providerModels.length > 0) {
+        provSt.pointer = (provSt.pointer + 1) % providerModels.length;
       }
-    } else {
-      st.N = (st.N * this.discountFactor) + 1.0;
 
+      provSt.fails += 1;
+      if (provSt.fails >= 3) {
+        if (provSt.fails >= 9) {
+          provSt.permanent = true;
+          console.log(`[PERMANENT BLACKLIST] Provider [${provider}] bandito definitivamente (Fallimenti totali: ${provSt.fails}).`);
+        } else {
+          const cooldownSec = 3600 * Math.pow(6, Math.floor(provSt.fails / 3) - 1);
+          provSt.cooldownUntil = now + cooldownSec;
+          console.log(`[PROVIDER COOLDOWN] Provider [${provider}] in pausa per ${(cooldownSec / 3600).toFixed(1)}h | Fallimenti: ${provSt.fails}`);
+        }
+      }
+
+      this._saveProvider(provider, provSt);
+    } else {
+      provSt.fails = Math.max(0, provSt.fails - 1);
+      this._saveProvider(provider, provSt);
+
+      st.N = (st.N * this.discountFactor) + 1.0;
       const rTtft = Math.max(0.0, 1.0 - (ttft / 3.0));
       const rTps = Math.min(1.0, tps / 40.0);
       const reward = (0.5 * rTtft) + (0.5 * rTps);
@@ -139,9 +214,56 @@ export class DiscountedUCB1Bandit {
       st.R_sum = (st.R_sum * this.discountFactor) + reward;
       st.avg = st.R_sum / st.N;
 
-      console.log(`[FEEDBACK SUCCESS] Modello: ${model.padEnd(20)} | TTFT: ${ttft.toFixed(2)}s | TPS: ${tps.toFixed(1)} | Reward: ${reward.toFixed(3)} | New Avg: ${st.avg.toFixed(3)} | New N: ${st.N.toFixed(1)}`);
+      console.log(`[FEEDBACK SUCCESS] Modello: ${model.padEnd(20)} | Provider: ${provider} | TTFT: ${ttft.toFixed(2)}s | Reward: ${reward.toFixed(3)}`);
     }
 
     this._saveModel(model, st);
+  }
+
+  getMetrics() {
+    const now = Date.now() / 1000;
+    const models = [];
+    
+    for (const [id, st] of this.modelsState.entries()) {
+      const provider = this._getProvider(id);
+      const provSt = this.providersState.get(provider) || { fails: 0, permanent: false, cooldownUntil: 0, pointer: 0 };
+      
+      const effectiveCooldown = Math.max(st.cooldownUntil, provSt.cooldownUntil);
+      const isPermanent = st.permanent || provSt.permanent;
+
+      const uncertainty = st.N > 0 ? this.explorationC * Math.sqrt(Math.log(Math.max(1, this.totalRequests)) / st.N) : 0;
+      const score = st.N > 0 ? st.avg + uncertainty : Infinity;
+      
+      models.push({
+        id,
+        provider,
+        N: st.N,
+        avg: st.avg,
+        fails: st.fails,
+        providerFails: provSt.fails,
+        cooldownUntil: effectiveCooldown,
+        permanent: isPermanent,
+        score: score
+      });
+    }
+
+    const providers = [];
+    for (const [prov, provSt] of this.providersState.entries()) {
+      providers.push({
+        provider: prov,
+        fails: provSt.fails,
+        permanent: provSt.permanent,
+        cooldownUntil: provSt.cooldownUntil,
+        pointer: provSt.pointer
+      });
+    }
+
+    return {
+      totalRequests: this.totalRequests,
+      explorationC: this.explorationC,
+      discountFactor: this.discountFactor,
+      providers,
+      models: models.sort((a, b) => b.score - a.score)
+    };
   }
 }
