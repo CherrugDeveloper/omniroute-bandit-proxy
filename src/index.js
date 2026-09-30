@@ -294,6 +294,16 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     console.log(`[BANDIT] Selezionato modello: ${selectedModel} | Tentativo richiesta n. ${attempt}`);
     const startTime = Date.now();
 
+        const controller = new AbortController();
+    const timeoutMs = 20000; // 20s di timeout sul primo chunk (TTFT)
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    req.on("close", () => {
+      if (!res.writableEnded) {
+        controller.abort();
+      }
+    });
+
     try {
       const upstreamPayload = {
         ...req.body,
@@ -307,15 +317,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const upstreamResponse = await fetch(`${omnirouteBaseUrl}/chat/completions`, {
         method: "POST",
         headers,
-        body: JSON.stringify(upstreamPayload)
+        body: JSON.stringify(upstreamPayload),
+        signal: controller.signal
       });
 
+      clearTimeout(timer);
       const durationSec = (Date.now() - startTime) / 1000;
 
-      if (!upstreamResponse.ok) {
-        const errText = await upstreamResponse.text();
+      if (!upstreamResponse.ok || upstreamResponse.status === 499) {
+        const errText = await upstreamResponse.text().catch(() => "");
         console.error(`[OMNIROUTE ERROR] HTTP ${upstreamResponse.status} su ${selectedModel}: ${errText}`);
-        
+
         bandit.recordFeedback(selectedModel, false);
         excludedModelsForRequest.add(selectedModel);
         continue;
