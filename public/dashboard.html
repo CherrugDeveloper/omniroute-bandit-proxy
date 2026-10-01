@@ -48,6 +48,7 @@
         .ok { color: #3fb950; font-weight: bold; }
         .warn { color: #d29922; font-weight: bold; }
         .err { color: #f85149; font-weight: bold; }
+        .attention { color: #a371f7; font-weight: bold; }
         .muted { color: #8b949e; font-size: 12px; }
 
         .tabs {
@@ -179,7 +180,8 @@
                 <strong>Modelli:</strong>
                 <span id="active-models" class="ok">0</span> attivi /
                 <span id="cooldown-models" class="warn">0</span> cool /
-                <span id="banned-models" class="err">0</span> bannati
+                <span id="banned-models" class="err">0</span> bannati /
+                <span id="attention-models" class="attention">0</span> da config
                 <span class="muted">(su <span id="total-models">0</span> monitorati, <span id="catalog-models">0</span> in catalogo)</span>
             </div>
 
@@ -187,7 +189,8 @@
                 <strong>Provider:</strong>
                 <span id="active-providers" class="ok">0</span> attivi /
                 <span id="cooldown-providers" class="warn">0</span> cool /
-                <span id="banned-providers" class="err">0</span> bannati
+                <span id="banned-providers" class="err">0</span> bannati /
+                <span id="attention-providers" class="attention">0</span> da config
                 <span class="muted">(su <span id="total-providers">0</span> monitorati, <span id="catalog-providers">0</span> in catalogo)</span>
             </div>
         </div>
@@ -448,7 +451,8 @@
 
                 const isActive = (x) => !Number(x.permanent) && !Number(x.needs_attention) && (!Number(x.cooldown_until) || Number(x.cooldown_until) < now);
                 const isCooling = (x) => !Number(x.permanent) && !Number(x.needs_attention) && Number(x.cooldown_until) >= now;
-                const isBanned = (x) => !!Number(x.permanent);
+                const isBanned = (x) => !!Number(x.permanent) && !Number(x.needs_attention);
+                const isAttention = (x) => !!Number(x.needs_attention);
 
                 document.getElementById('total-req').textContent = d.totalRequests || 0;
                 document.getElementById('total-obs').textContent = d.totalObservations || 0;
@@ -456,15 +460,16 @@
                 document.getElementById('active-models').textContent = d.models.filter(isActive).length;
                 document.getElementById('cooldown-models').textContent = d.models.filter(isCooling).length;
                 document.getElementById('banned-models').textContent = d.models.filter(isBanned).length;
+                document.getElementById('attention-models').textContent = d.models.filter(isAttention).length;
                 document.getElementById('total-models').textContent = d.models.length;
                 document.getElementById('catalog-models').textContent = d.catalogCount ?? '?';
 
                 document.getElementById('active-providers').textContent = d.providers.filter(isActive).length;
                 document.getElementById('cooldown-providers').textContent = d.providers.filter(isCooling).length;
                 document.getElementById('banned-providers').textContent = d.providers.filter(isBanned).length;
+                document.getElementById('attention-providers').textContent = d.providers.filter(isAttention).length;
                 document.getElementById('total-providers').textContent = d.providers.length;
                 document.getElementById('catalog-providers').textContent = d.catalogProviderCount ?? '?';
-
                 renderProviders();
                 renderModels();
             } catch (e) { console.error('Errore fetch:', e); }
