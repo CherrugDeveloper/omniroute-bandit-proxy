@@ -12,6 +12,67 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
+// ========================================
+// CONTEXT COMPRESSION (sliding window per agent di coding)
+// ========================================
+// Mantiene: system + primo user + ultimi N messaggi.
+// Rispetta i confini dei blocchi tool_call/tool result (non li spezza mai).
+function compressBody(body, targetTokens) {
+  if (!body || typeof body !== "object") return null;
+  const messages = body.messages;
+  if (!Array.isArray(messages) || messages.length < 6) return null;
+
+  // 1. Prendi system + primo user (parte "fissa")
+  const head = [];
+  let i = 0;
+  while (i < messages.length && messages[i].role === "system") {
+    head.push(messages[i]);
+    i++;
+  }
+  if (i < messages.length && messages[i].role === "user") {
+    head.push(messages[i]);
+    i++;
+  }
+
+  // 2. Trova un boundary sicuro per la coda:
+  //    non deve iniziare con un "tool" orfano (deve essere user o assistant senza tool_calls pendenti).
+  const TAIL_TARGET = 8;
+  let tailStart = Math.max(i, messages.length - TAIL_TARGET);
+  while (tailStart > i && tailStart < messages.length) {
+    const m = messages[tailStart];
+    if (m.role === "user" || (m.role === "assistant" && !m.tool_calls)) break;
+    tailStart++;
+  }
+  // Se ci siamo spostati troppo avanti, non è comprimibile in modo sicuro
+  if (tailStart >= messages.length - 1) return null;
+  if (tailStart <= i) return null;
+
+  // 3. Verifica che head non finisca con un assistant con tool_calls (orfano)
+  //    Se sì, rimuovi l'ultimo elemento di head.
+  while (head.length > 0 && head[head.length - 1].role === "assistant" && head[head.length - 1].tool_calls) {
+    head.pop();
+  }
+
+  const tail = messages.slice(tailStart);
+  const omitted = tailStart - i;
+
+  const compressed = [
+    ...head,
+    {
+      role: "user",
+      content: `[Sistema: ${omitted} messaggi intermedi omessi per ridurre il contesto. Se hai bisogno di dettagli su passaggi precedenti, chiedili esplicitamente.]`
+    },
+    ...tail
+  ];
+
+  const newBody = { ...body, messages: compressed };
+  // Verifica dimensione risultante
+  const s = JSON.stringify(newBody);
+  const newTokens = Math.ceil(s.length / 3);
+  if (newTokens > targetTokens) return null;
+
+  return { body: newBody, omitted };
+}
 // Access log: solo le route API (v1), escludendo metriche e log (che vengono
 // pollate ogni secondo dalla dashboard). Esclude anche gli asset statici.
 app.use((req, res, next) => {
@@ -198,13 +259,36 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
   bandit.recordRequest(); // +1 per ogni richiesta ricevuta
 
+  // === Stima token e (eventuale) auto-compress del contesto ===
+  const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
+  let estimatedTokens = bandit.estimateTokens(req.body);
+  const maxCatalog = bandit.maxCatalogInput();
+
+  if (autoCompress && maxCatalog > 0 && estimatedTokens > maxCatalog) {
+    console.log(`[CONTEXT] Richiesta ${estimatedTokens} token > max catalogo ${maxCatalog}, tentativo di compressione`);
+    const compressed = compressBody(req.body, maxCatalog);
+    if (compressed) {
+      req.body = compressed.body;
+      estimatedTokens = bandit.estimateTokens(req.body);
+      console.log(`[CONTEXT] Compresso: ${compressed.omitted} messaggi rimossi, ora ${estimatedTokens} token`);
+    } else {
+      console.warn(`[CONTEXT] Compressione non possibile, procedo con contesto originale`);
+    }
+  }
+
+  // Header x-force-model: bypassa UCB1 al primo tentativo (per training manuale)
+  const forceModel = (req.get("x-force-model") || "").trim();
+  if (forceModel) {
+    console.log(`[FORCE] Modello forzato: ${forceModel}`);
+  }
+
   const excluded = new Set();
   let attempt = 0;
   let controller = null;
   let timeoutHandle = null;
 
   const providerCount = bandit.getProviderCount();
-  const maxAttempts = Math.min(500, providerCount * 4 + 100);
+  const maxAttempts = forceModel ? 1 : Math.min(500, providerCount * 4 + 100);
   const startedAt = Date.now();
   const MAX_TOTAL_MS = parseInt(process.env.MAX_TOTAL_MS) || 10 * 60 * 1000;
 
@@ -224,7 +308,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       return res.status(504).json({ error: { message: "Gateway timeout: nessun modello disponibile in tempo utile", status: 504 } });
     }
 
-    const model = bandit.selectModel(excluded);
+    let model;
+    if (attempt === 1 && forceModel) {
+      if (bandit.isModelAvailable(forceModel)) {
+        model = forceModel;
+      } else {
+        console.warn(`[FORCE] Modello ${forceModel} non disponibile, uso selezione normale`);
+        model = bandit.selectModel(excluded, null, estimatedTokens);
+      }
+    } else {
+      model = bandit.selectModel(excluded, null, estimatedTokens);
+    }
     if (!model) {
       cleanup();
       return res.status(503).json({ error: { message: "No models available", status: 503 } });
