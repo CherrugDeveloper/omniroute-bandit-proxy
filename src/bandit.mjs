@@ -271,7 +271,7 @@ export class DiscountedUCB1Bandit {
     return cooldowns[Math.min(fails, 3)];
   }
 
-  selectModel(excludedModels = [], forceProvider = null) {
+  selectModel(excludedModels = [], forceProvider = null, estimatedTokens = 0) {
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excludedModels);
 
@@ -314,7 +314,7 @@ export class DiscountedUCB1Bandit {
           console.log(`[BANDIT] Tutti i provider in cooldown, sblocco ${oldestProvider.provider}`);
           this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
             .run(0, oldestProvider.provider);
-          return this.selectModel(excludedModels, oldestProvider.provider);
+          return this.selectModel(excludedModels, oldestProvider.provider, estimatedTokens);
         }
         return null;
       }
@@ -324,7 +324,6 @@ export class DiscountedUCB1Bandit {
       let maxScore = -Infinity;
       const totalN = this.totalObservations || 1;
 
-      // Una query per provider (volutamente semplice)
       const modelsStmt = this.db.prepare(`
         SELECT c.id, c.provider,
                COALESCE(m.N, 0)             AS N,
@@ -333,7 +332,8 @@ export class DiscountedUCB1Bandit {
                COALESCE(m.cooldown_until,0) AS cooldown_until,
                COALESCE(m.permanent, 0)     AS permanent,
                COALESCE(m.last_used_index,0) AS last_used_index,
-               COALESCE(p.pointer, 0)       AS provider_pointer
+               COALESCE(p.pointer, 0)       AS provider_pointer,
+               COALESCE(c.max_input_tokens, 0) AS max_input_tokens
         FROM catalog c
         LEFT JOIN models m ON c.id = m.id
         LEFT JOIN provider_history p ON c.provider = p.provider
@@ -341,6 +341,7 @@ export class DiscountedUCB1Bandit {
           AND (m.cooldown_until IS NULL OR m.cooldown_until < ?)
           AND (m.permanent IS NULL OR m.permanent = 0)
           AND (p.needs_attention IS NULL OR p.needs_attention = 0)
+          AND (c.max_input_tokens = 0 OR c.max_input_tokens >= ?)
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,
@@ -348,7 +349,7 @@ export class DiscountedUCB1Bandit {
       `);
 
       for (const provider of providerList) {
-        const providerModels = modelsStmt.all(provider, now);
+        const providerModels = modelsStmt.all(provider, now, estimatedTokens);
 
         for (const m of providerModels) {
           if (excludeSet.has(m.id)) continue;
@@ -382,7 +383,7 @@ export class DiscountedUCB1Bandit {
             console.log(`[BANDIT] Nessun modello disponibile, sblocco ${oldestProvider.provider}`);
             this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
               .run(0, oldestProvider.provider);
-            return this.selectModel(excludedModels, oldestProvider.provider);
+            return this.selectModel(excludedModels, oldestProvider.provider, estimatedTokens);
           }
         }
         return null;
