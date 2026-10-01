@@ -12,9 +12,13 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
+// Access log: solo le route API (v1), escludendo metriche e log (che vengono
+// pollate ogni secondo dalla dashboard). Esclude anche gli asset statici.
 app.use((req, res, next) => {
-  if (req.path.endsWith(".html") || req.path === "/" || req.path === "/dashboard") {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  const isApi = req.path.startsWith("/v1/");
+  const isPolling = req.path.startsWith("/v1/metrics") || req.path.startsWith("/v1/logs");
+  if (isApi && !isPolling) {
+    console.log(`[PROXY] ${req.method} ${req.path}`);
   }
   next();
 });
@@ -104,13 +108,6 @@ console.warn = (...args) => { originalWarn(...args); pushLog("WARN: " + serializ
 // ========================================
 
 app.use((req, res, next) => {
-  if (!req.url.startsWith("/v1/metrics") && !req.url.startsWith("/v1/logs")) {
-    console.log(`[PROXY] ${req.method} ${req.url}`);
-  }
-  next();
-});
-
-app.use((req, res, next) => {
   if (req.method === "POST" && req.path.includes("/chat/completions")) {
     if (!req.body || typeof req.body !== "object") {
       return res.status(400).json({ error: { message: "Invalid request body" } });
@@ -169,6 +166,26 @@ app.post("/v1/reset/provider/:p", requireAuth, (req, res) => {
   }
 });
 
+app.post("/v1/provider/retry/:p", requireAuth, (req, res) => {
+  try {
+    const ok = bandit.clearProviderAttention(req.params.p);
+    res.json({ ok });
+  } catch (e) {
+    console.error("[API] Errore retry provider:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/v1/provider/ignore/:p", requireAuth, (req, res) => {
+  try {
+    const ok = bandit.ignoreProvider(req.params.p);
+    res.json({ ok });
+  } catch (e) {
+    console.error("[API] Errore ignore provider:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ========================================
 // PROXY ENDPOINT
 // ========================================
@@ -179,25 +196,34 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const apiKey = process.env.OMNIROUTE_API_KEY;
   const upstreamTimeoutMs = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000;
 
-  bandit.recordRequest(); // +1 per ogni richiesta ricevuta (anche se fallirà)
+  bandit.recordRequest(); // +1 per ogni richiesta ricevuta
 
   const excluded = new Set();
   let attempt = 0;
   let controller = null;
   let timeoutHandle = null;
 
+  const providerCount = bandit.getProviderCount();
+  const maxAttempts = Math.min(500, providerCount * 4 + 100);
+  const startedAt = Date.now();
+  const MAX_TOTAL_MS = parseInt(process.env.MAX_TOTAL_MS) || 10 * 60 * 1000;
+
   const cleanup = () => {
     if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
     if (controller) { controller.abort(); controller = null; }
   };
 
-  // Solo quando la RISPOSTA è chiusa senza essere stata completata
-  // → il client si è disconnesso davvero (e non è una normale fine della request)
   res.once("close", () => {
     if (!res.writableEnded) cleanup();
   });
 
-  while (++attempt <= 15) {
+  while (++attempt <= maxAttempts) {
+    if (Date.now() - startedAt > MAX_TOTAL_MS) {
+      console.warn(`[BANDIT] Limite tempo totale (${MAX_TOTAL_MS}ms) raggiunto dopo ${attempt} tentativi`);
+      cleanup();
+      return res.status(504).json({ error: { message: "Gateway timeout: nessun modello disponibile in tempo utile", status: 504 } });
+    }
+
     const model = bandit.selectModel(excluded);
     if (!model) {
       cleanup();
@@ -295,7 +321,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         const data = await r.json();
         if (data.error || data.code === 400 || (data.choices && data.choices.length === 0)) {
           console.error(`[APP ERR] ${model}:`, JSON.stringify(data).substring(0, 300));
-          bandit.recordFeedback(model, false, 0, { message: data.error?.message || "error" });
+          bandit.recordFeedback(model, false, 0, { message: data.error?.message || "error", status: data.error?.status });
           excluded.add(model);
           continue;
         }
@@ -321,7 +347,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
 
   cleanup();
-  res.status(502).json({ error: { message: `${attempt} attempts exhausted` } });
+  res.status(502).json({ error: { message: `${attempt} tentativi esauriti su ${maxAttempts}`, status: 502 } });
 });
 
 // ========================================
