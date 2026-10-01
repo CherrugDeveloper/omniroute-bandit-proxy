@@ -40,7 +40,8 @@ export class DiscountedUCB1Bandit {
 
         CREATE TABLE IF NOT EXISTS catalog (
           id TEXT PRIMARY KEY,
-          provider TEXT NOT NULL
+          provider TEXT NOT NULL,
+          max_input_tokens INTEGER DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
@@ -90,6 +91,19 @@ export class DiscountedUCB1Bandit {
         this.db.exec(`ALTER TABLE provider_history ADD COLUMN needs_attention INTEGER DEFAULT 0`);
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonna needs_attention:", err.message);
+        throw err;
+      }
+    }
+
+    const catalogColumns = this.db.pragma("table_info(catalog)");
+    const hasMaxInput = catalogColumns.some(col => col.name === "max_input_tokens");
+
+    if (!hasMaxInput) {
+      console.log("[BANDIT] Migrazione: aggiungo max_input_tokens a catalog");
+      try {
+        this.db.exec(`ALTER TABLE catalog ADD COLUMN max_input_tokens INTEGER DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonna max_input_tokens:", err.message);
         throw err;
       }
     }
@@ -157,17 +171,25 @@ export class DiscountedUCB1Bandit {
       }
 
       const insertStmt = this.db.prepare(`
-        INSERT INTO catalog (id, provider) VALUES (?, ?)
-        ON CONFLICT(id) DO UPDATE SET provider = excluded.provider
+        INSERT INTO catalog (id, provider, max_input_tokens) VALUES (?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, max_input_tokens = excluded.max_input_tokens
       `);
 
       const isChatModel = (m) => {
-        if (!m || typeof m !== "object") return true; // se è solo una stringa, teniamolo
-        // Escludi esplicitamente le immagini
-        if (m.type === "image") return false;
-        // Tieni solo se produce testo
+        if (!m || typeof m !== "object") return true;
+
+        // Escludi type non-chat espliciti (image, audio, video, music, tts, embedding, ...)
+        if (m.type && !["chat", "text"].includes(String(m.type).toLowerCase())) {
+          return false;
+        }
+
+        // Se il modello dichiara output_modalities, l'unico output ammesso è "text"
         const outputs = m.output_modalities;
-        if (Array.isArray(outputs) && !outputs.includes("text")) return false;
+        if (Array.isArray(outputs)) {
+          if (outputs.length !== 1 || String(outputs[0]).toLowerCase() !== "text") {
+            return false;
+          }
+        }
         return true;
       };
 
@@ -191,7 +213,8 @@ export class DiscountedUCB1Bandit {
           }
 
           const provider = this._getProvider(modelId);
-          insertStmt.run(modelId, provider);
+          const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
+          insertStmt.run(modelId, provider, maxInput);
           inserted++;
         }
         return { inserted, skipped };
@@ -248,7 +271,7 @@ export class DiscountedUCB1Bandit {
     return cooldowns[Math.min(fails, 3)];
   }
 
-  selectModel(excludedModels = [], forceProvider = null) {
+  selectModel(excludedModels = [], forceProvider = null, estimatedTokens = 0) {
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excludedModels);
 
@@ -291,7 +314,7 @@ export class DiscountedUCB1Bandit {
           console.log(`[BANDIT] Tutti i provider in cooldown, sblocco ${oldestProvider.provider}`);
           this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
             .run(0, oldestProvider.provider);
-          return this.selectModel(excludedModels, oldestProvider.provider);
+          return this.selectModel(excludedModels, oldestProvider.provider, estimatedTokens);
         }
         return null;
       }
@@ -301,7 +324,6 @@ export class DiscountedUCB1Bandit {
       let maxScore = -Infinity;
       const totalN = this.totalObservations || 1;
 
-      // Una query per provider (volutamente semplice)
       const modelsStmt = this.db.prepare(`
         SELECT c.id, c.provider,
                COALESCE(m.N, 0)             AS N,
@@ -310,7 +332,8 @@ export class DiscountedUCB1Bandit {
                COALESCE(m.cooldown_until,0) AS cooldown_until,
                COALESCE(m.permanent, 0)     AS permanent,
                COALESCE(m.last_used_index,0) AS last_used_index,
-               COALESCE(p.pointer, 0)       AS provider_pointer
+               COALESCE(p.pointer, 0)       AS provider_pointer,
+               COALESCE(c.max_input_tokens, 0) AS max_input_tokens
         FROM catalog c
         LEFT JOIN models m ON c.id = m.id
         LEFT JOIN provider_history p ON c.provider = p.provider
@@ -318,6 +341,7 @@ export class DiscountedUCB1Bandit {
           AND (m.cooldown_until IS NULL OR m.cooldown_until < ?)
           AND (m.permanent IS NULL OR m.permanent = 0)
           AND (p.needs_attention IS NULL OR p.needs_attention = 0)
+          AND (c.max_input_tokens = 0 OR c.max_input_tokens >= ?)
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,
@@ -325,7 +349,7 @@ export class DiscountedUCB1Bandit {
       `);
 
       for (const provider of providerList) {
-        const providerModels = modelsStmt.all(provider, now);
+        const providerModels = modelsStmt.all(provider, now, estimatedTokens);
 
         for (const m of providerModels) {
           if (excludeSet.has(m.id)) continue;
@@ -359,7 +383,7 @@ export class DiscountedUCB1Bandit {
             console.log(`[BANDIT] Nessun modello disponibile, sblocco ${oldestProvider.provider}`);
             this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
               .run(0, oldestProvider.provider);
-            return this.selectModel(excludedModels, oldestProvider.provider);
+            return this.selectModel(excludedModels, oldestProvider.provider, estimatedTokens);
           }
         }
         return null;
@@ -613,6 +637,8 @@ clearProviderAttention(provider) {
       /playwright is not available|playwright.*install/i.test(msg) ||
       /transport is not configured|missing url or token|not configured/i.test(msg) ||
       /cli is no longer supported|please upgrade|version.*not supported/i.test(msg) ||
+      /spawn.*enoent/i.test(msg) ||
+      /must be an absolute path|bridge sandbox|_home must be|env(ironment)? var/i.test(msg) ||
       status === 466
     ) {
       return { scope: "provider", action: "flag-provider", reason: "provider-misconfigured" };
@@ -811,6 +837,38 @@ clearProviderAttention(provider) {
   getProviderCount() {
     const row = this.db.prepare("SELECT COUNT(DISTINCT provider) AS n FROM catalog").get();
     return row ? row.n : 0;
+  }
+
+  isModelAvailable(id) {
+    if (!id || typeof id !== "string") return false;
+    const now = Date.now();
+    const row = this.db.prepare(`
+      SELECT c.id
+      FROM catalog c
+      LEFT JOIN models m ON c.id = m.id
+      LEFT JOIN provider_history p ON c.provider = p.provider
+      WHERE c.id = ?
+        AND (m.permanent IS NULL OR m.permanent = 0)
+        AND (p.needs_attention IS NULL OR p.needs_attention = 0)
+        AND (p.permanent IS NULL OR p.permanent = 0)
+    `).get(id, now);
+    return !!row;
+  }
+
+    estimateTokens(body) {
+    if (!body) return 0;
+    try {
+      const s = typeof body === "string" ? body : JSON.stringify(body);
+      // Stima conservativa: 1 token ~= 3 caratteri (misto testo/codice/JSON)
+      return Math.ceil(s.length / 3);
+    } catch {
+      return 0;
+    }
+  }
+
+  maxCatalogInput() {
+    const row = this.db.prepare("SELECT MAX(max_input_tokens) AS m FROM catalog").get();
+    return row?.m || 0;
   }
 
   close() {
