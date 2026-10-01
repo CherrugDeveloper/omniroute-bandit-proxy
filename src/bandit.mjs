@@ -217,9 +217,9 @@ export class DiscountedUCB1Bandit {
     if (fails >= 4) return null;
     const cooldowns = [
       0,
-      2 * 3600000,
-      6 * 3600000,
-      12 * 3600000
+      30 * 60000,    // 1° fail → 30 min
+      4 * 3600000,   // 2° fail → 4h
+      12 * 3600000   // 3° fail → 12h
     ];
     return cooldowns[Math.min(fails, 3)];
   }
@@ -228,9 +228,9 @@ export class DiscountedUCB1Bandit {
     if (fails >= 4) return null;
     const cooldowns = [
       0,
-      1 * 3600000,
-      3 * 3600000,
-      6 * 3600000
+      2 * 3600000,   // 1° fail → 2h
+      8 * 3600000,   // 2° fail → 8h
+      24 * 3600000   // 3° fail → 24h
     ];
     return cooldowns[Math.min(fails, 3)];
   }
@@ -367,44 +367,31 @@ export class DiscountedUCB1Bandit {
       return;
     }
 
-    let permanentBan = false;
+        let permanentBan = false;
     let specificCooldownMs = null;
 
     if (!success && errorDetails && typeof errorDetails === "object") {
-      const errorMsg = (errorDetails.message || errorDetails.error || "").toLowerCase();
-      const errorStatus = errorDetails.status || errorDetails.code;
+      const c = this._classifyError(errorDetails);
+      console.log(`[BANDIT] ${modelId}: ${c.action} (${c.reason})${c.cooldownMs ? ` per ${c.cooldownMs / 1000}s` : ""}`);
 
-      if (
-        errorMsg.includes("suspended") ||
-        errorMsg.includes("banned") ||
-        errorMsg.includes("account disabled") ||
-        errorMsg.includes("terminated") ||
-        errorStatus === 403
-      ) {
-        console.log(`[BANDIT] Ban permanente per ${modelId}: ${errorMsg.substring(0, 100)}`);
-        permanentBan = true;
+      switch (c.action) {
+        case "ban-model":
+          permanentBan = true;
+          break;
+        case "ban-provider":
+          this._banProvider(model.provider);
+          break;
+        case "cooldown-provider":
+          this._forceProviderCooldown(model.provider, c.cooldownMs);
+          break;
+        case "cooldown-model":
+          specificCooldownMs = c.cooldownMs;
+          break;
       }
 
-      const retryAfterMatch = errorMsg.match(/retry after (\d+)/i) || errorMsg.match(/wait (\d+) seconds/i);
-      if (retryAfterMatch) {
-        specificCooldownMs = parseInt(retryAfterMatch[1]) * 1000;
-        console.log(`[BANDIT] Cooldown specifico per ${modelId}: ${specificCooldownMs}ms`);
-      }
-
-      if (errorStatus === 429 && !specificCooldownMs) {
-        specificCooldownMs = 60000;
-      }
-
-      // Rileva "quota exhausted a livello account/provider"
-      const isProviderQuota =
-        errorStatus === 429 &&
-        /all\s+\S+\s+accounts?\s+have\s+exhausted|exhausted\s+their\s+quota|quota\s+exhausted/i.test(errorMsg);
-
-      if (isProviderQuota) {
-        // ... blocco esistente
-        this._forceProviderCooldown(model.provider, providerCooldownMs);
-      } else {
-        // Fail generico: accumula e, se supera soglia, mette in cooldown il provider
+      // In ogni caso incrementa il fail generico del provider,
+      // così dopo 3 fail consecutivi va in cooldown "di sicurezza"
+      if (c.action !== "ban-provider" && c.action !== "cooldown-provider") {
         this._recordProviderFailureGeneric(model.provider);
       }
     }
@@ -450,7 +437,7 @@ export class DiscountedUCB1Bandit {
     if (newPermanent === 1 && model.permanent === 0) {
       this._recordProviderFailure(model.provider);
     }
-    
+
     if (success) {
       this.totalObservations++;
       this._setMeta("totalObservations", this.totalObservations);
@@ -519,7 +506,125 @@ export class DiscountedUCB1Bandit {
     console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${info.changes} modelli aggiornati)`);
   }
 
-    _recordProviderFailureGeneric(provider, cooldownMs = 5 * 60 * 1000) {
+  _parseResetAfter(msg) {
+    // "reset after 5m" / "retry after 30s" / "wait 60 seconds" / "reset after 1m 59s"
+    const m1 = msg.match(/(?:reset|retry|wait)\s+(?:after\s+)?(\d+)\s*([smh])/i);
+    if (m1) {
+      const n = parseInt(m1[1], 10);
+      const u = m1[2].toLowerCase();
+      return u === "s" ? n * 1000 : u === "m" ? n * 60000 : n * 3600000;
+    }
+    // "wait 60 seconds"
+    const m2 = msg.match(/wait\s+(\d+)\s+seconds?/i);
+    if (m2) return parseInt(m2[1], 10) * 1000;
+    // "reset_seconds: 117" o "reset_seconds":117
+    const m3 = msg.match(/reset_?seconds"?\s*[:=]\s*(\d+)/i);
+    if (m3) return parseInt(m3[1], 10) * 1000;
+    // "reset after 1m 59s" (formato composto)
+    const m4 = msg.match(/reset\s+after\s+(\d+)m\s+(\d+)s/i);
+    if (m4) return (parseInt(m4[1], 10) * 60 + parseInt(m4[2], 10)) * 1000;
+    return null;
+  }
+
+  _classifyError(errorDetails) {
+    if (!errorDetails || typeof errorDetails !== "object") {
+      return { scope: "model", action: "cooldown-model", cooldownMs: 60 * 60000, reason: "no-details" };
+    }
+    const msg = String(errorDetails.message || errorDetails.error || "").toLowerCase();
+    const status = errorDetails.status || errorDetails.code;
+
+    // === BUG INTERNO UPSTREAM (non ritentare mai lo stesso modello) ===
+    if (/assignment to constant variable|is not a function|undefined is not|null is not|cannot read/i.test(msg)) {
+      return { scope: "model", action: "ban-model", reason: "upstream-bug" };
+    }
+
+    // === MODELLO NON ESISTENTE / NON SUPPORTATO ===
+    if (
+      (status === 404 && /does not exist|no access|not found|not supported/i.test(msg)) ||
+      (status === 400 && /not supported|invalid model|unsupported model/i.test(msg))
+    ) {
+      return { scope: "model", action: "ban-model", reason: "model-invalid" };
+    }
+
+    // === PROVIDER MISCONFIGURATO (auth, playwright, transport) ===
+    if (
+      /no auth provided|please log in|not authenticated|missing.*api.?key|invalid.*api.?key/i.test(msg) ||
+      /playwright is not available|playwright.*install/i.test(msg) ||
+      /transport is not configured|missing url or token|not configured/i.test(msg)
+    ) {
+      return { scope: "provider", action: "cooldown-provider", cooldownMs: 24 * 3600000, reason: "provider-misconfigured" };
+    }
+
+    // === PROVIDER BLOCCATO DA ANTI-ABUSE / CHALLENGE ===
+    if (
+      /anti-abuse|challenge failed|err_bn_limit|bot detection|captcha/i.test(msg) ||
+      status === 418
+    ) {
+      return { scope: "provider", action: "cooldown-provider", cooldownMs: 6 * 3600000, reason: "provider-blocked" };
+    }
+
+    // === ACCOUNT BANNATO ===
+    if (
+      /suspended|banned|account disabled|terminated/i.test(msg) ||
+      status === 403
+    ) {
+      return { scope: "provider", action: "ban-provider", reason: "account-banned" };
+    }
+
+    // === QUOTA ESAURITA PROVIDER (rispetta reset del server) ===
+    if (
+      status === 429 &&
+      /all\s+\S+\s+accounts?\s+have\s+exhausted|exhausted\s+their\s+quota|quota\s+exhausted/i.test(msg)
+    ) {
+      return {
+        scope: "provider",
+        action: "cooldown-provider",
+        cooldownMs: this._parseResetAfter(msg) || 15 * 60000,
+        reason: "quota-exhausted"
+      };
+    }
+
+    // === RATE LIMIT / COOLING DOWN (usa reset_seconds o reset_after) ===
+    if (status === 429 || /cooling down|rate limit|too many requests/i.test(msg)) {
+      let ms = this._parseResetAfter(msg);
+      // Prova reset_seconds (formato JSON OmniRoute)
+      if (!ms) {
+        const m = msg.match(/reset_?seconds"?\s*[:=]\s*(\d+)/i) || msg.match(/"reset_seconds":(\d+)/i);
+        if (m) ms = parseInt(m[1], 10) * 1000;
+      }
+      return {
+        scope: "model",
+        action: "cooldown-model",
+        cooldownMs: ms || 15 * 60000,
+        reason: "rate-limited"
+      };
+    }
+
+    // === TIMEOUT / ABORT ===
+    if (/timeout|aborted|abort/i.test(msg)) {
+      return { scope: "model", action: "cooldown-model", cooldownMs: 10 * 60000, reason: "timeout" };
+    }
+
+    // === 5xx TRANSITORI ===
+    if (typeof status === "number" && status >= 500 && status < 600) {
+      return { scope: "provider", action: "cooldown-provider", cooldownMs: 15 * 60000, reason: "server-error" };
+    }
+
+    // === FALLBACK ===
+    return { scope: "model", action: "cooldown-model", cooldownMs: 30 * 60000, reason: "unknown" };
+  }
+
+  _banProvider(provider) {
+    this.db.prepare(`
+      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+      VALUES (?, 0, 0, 0, 1)
+    `).run(provider);
+    this.db.prepare(`UPDATE provider_history SET permanent = 1 WHERE provider = ?`).run(provider);
+    this.db.prepare(`UPDATE models SET permanent = 1 WHERE provider = ?`).run(provider);
+    console.log(`[BANDIT] Provider ${provider} disabilitato permanentemente (ban account)`);
+  }
+
+    _recordProviderFailureGeneric(provider, cooldownMs = 30 * 60 * 1000) {
     const now = Date.now();
 
     // Assicura che il provider esista
@@ -613,6 +718,11 @@ export class DiscountedUCB1Bandit {
       WHERE provider = ?
     `).run(provider);
     console.log(`[BANDIT] Provider ${provider} resettato`);
+  }
+
+  getProviderCount() {
+    const row = this.db.prepare("SELECT COUNT(DISTINCT provider) AS n FROM catalog").get();
+    return row ? row.n : 0;
   }
 
   close() {
