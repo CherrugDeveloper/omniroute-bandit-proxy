@@ -29,3 +29,7 @@ bandit_state.db-shm
 bandit_state.db-wal
 data/
 *:Zone.Identifier
+
+# Training daemon
+.train-daemon.pid
+training.log
