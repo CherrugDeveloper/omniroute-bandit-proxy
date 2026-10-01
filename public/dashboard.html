@@ -106,6 +106,19 @@
         let sortCol = null;
         let sortDir = 'asc';
 
+        // === Auth token ===
+const API_TOKEN =
+  new URLSearchParams(location.search).get('token') ||
+  sessionStorage.getItem('api_token') ||
+  '';
+if (API_TOKEN) sessionStorage.setItem('api_token', API_TOKEN);
+
+function apiFetch(url, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (API_TOKEN) headers['x-api-token'] = API_TOKEN;
+  return fetch(url, { ...opts, headers });
+}
+
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -194,13 +207,13 @@
 
         async function resetModel(id) {
             if(!confirm('Resettare ' + id + '?')) return;
-            await fetch('/v1/reset/model/' + encodeURIComponent(id), {method:'POST'});
+            await apiFetch('/v1/reset/model/' + encodeURIComponent(id), {method:'POST'});
             refreshAll();
         }
 
         async function resetProvider(p) {
             if(!confirm('Resettare provider ' + p + '?')) return;
-            await fetch('/v1/reset/provider/' + encodeURIComponent(p), {method:'POST'});
+            await apiFetch('/v1/reset/provider/' + encodeURIComponent(p), {method:'POST'});
             refreshAll();
         }
 
@@ -216,7 +229,11 @@
 
         async function refreshAll() {
             try {
-                const r = await fetch('/v1/metrics');
+                const r = await apiFetch('/v1/metrics');
+                    if (r.status === 401) {
+                    document.body.innerHTML = '<div style="padding:40px;text-align:center"><h2>401 — Token mancante o errato</h2><p>Apri la dashboard con <code>?token=IL_TUO_TOKEN</code></p></div>';
+                    return;
+                    }
                 const d = await r.json();
                 allData = d;
                 const now = Date.now();
@@ -231,7 +248,7 @@
 
         async function fetchLogs() {
             try {
-                const r = await fetch('/v1/logs');
+                const r = await apiFetch('/v1/logs');
                 const d = await r.json();
                 const el = document.getElementById('logs');
                 el.textContent = d.length > 0 ? d.join('\n') : 'Attendendo log...';

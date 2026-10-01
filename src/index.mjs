@@ -18,8 +18,25 @@ const PORT = process.env.PORT || 8080;
 const bandit = new DiscountedUCB1Bandit();
 
 // ========================================
+// AUTH
+// ========================================
+
+const DASHBOARD_TOKEN = (process.env.DASHBOARD_TOKEN || "").trim();
+const REQUIRE_AUTH = DASHBOARD_TOKEN.length > 0;
+
+function requireAuth(req, res, next) {
+  if (!REQUIRE_AUTH) return next();
+  const token = req.get("x-api-token") || req.query.token;
+  if (token !== DASHBOARD_TOKEN) {
+    return res.status(401).json({ error: { message: "Unauthorized" } });
+  }
+  next();
+}
+
+// ========================================
 // RING BUFFER PER LOG CIRCOLARI
 // ========================================
+
 class RingBuffer {
   constructor(maxSize) {
     this.maxSize = maxSize;
@@ -54,6 +71,7 @@ function pushLog(message) {
 // ========================================
 // CONSOLE OVERRIDE CON TRUNCATURA
 // ========================================
+
 const originalLog = console.log;
 const originalError = console.error;
 const originalWarn = console.warn;
@@ -78,6 +96,7 @@ console.warn = (...args) => { originalWarn(...args); pushLog("WARN: " + serializ
 // ========================================
 // MIDDLEWARE
 // ========================================
+
 app.use((req, res, next) => {
   if (!req.url.startsWith("/v1/metrics") && !req.url.startsWith("/v1/logs")) {
     console.log(`[PROXY] ${req.method} ${req.url}`);
@@ -100,11 +119,12 @@ app.use((req, res, next) => {
 // ========================================
 // ROUTES
 // ========================================
+
 app.get("/dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/dashboard.html"));
 });
 
-app.get("/v1/metrics", (req, res) => {
+app.get("/v1/metrics", requireAuth, (req, res) => {
   try {
     res.json(bandit.getMetrics());
   } catch (e) {
@@ -113,7 +133,7 @@ app.get("/v1/metrics", (req, res) => {
   }
 });
 
-app.get("/v1/logs", (req, res) => {
+app.get("/v1/logs", requireAuth, (req, res) => {
   try {
     res.json(logBuffer.getAll());
   } catch (e) {
@@ -122,7 +142,7 @@ app.get("/v1/logs", (req, res) => {
   }
 });
 
-app.post("/v1/reset/model/:id", (req, res) => {
+app.post("/v1/reset/model/:id", requireAuth, (req, res) => {
   try {
     bandit.resetModel(req.params.id);
     res.json({ ok: true });
@@ -132,7 +152,7 @@ app.post("/v1/reset/model/:id", (req, res) => {
   }
 });
 
-app.post("/v1/reset/provider/:p", (req, res) => {
+app.post("/v1/reset/provider/:p", requireAuth, (req, res) => {
   try {
     bandit.resetProvider(req.params.p);
     res.json({ ok: true });
@@ -145,6 +165,7 @@ app.post("/v1/reset/provider/:p", (req, res) => {
 // ========================================
 // PROXY ENDPOINT
 // ========================================
+
 app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const { stream } = req.body || {};
   const baseUrl = process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128/v1";
@@ -293,6 +314,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 // ========================================
 // ERROR HANDLERS GLOBALI
 // ========================================
+
 process.on("unhandledRejection", (reason) => {
   console.error("[UNHANDLED REJECTION]", reason);
   process.exit(1);
@@ -319,6 +341,7 @@ process.on("SIGINT", () => {
 // ========================================
 // STARTUP
 // ========================================
+
 async function startServer() {
   try {
     console.log("[INIT] Sincronizzazione modelli in corso...");
@@ -335,6 +358,11 @@ async function startServer() {
     console.log(`[PROXY] ✓ Server avviato su http://127.0.0.1:${PORT}`);
     console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
     console.log(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
+    if (!REQUIRE_AUTH) {
+  console.warn("[SECURITY] DASHBOARD_TOKEN non configurato: le API di controllo sono esposte senza autenticazione");
+} else {
+  console.log("[SECURITY] Auth attiva sulle API di controllo");
+}
   });
 }
 
