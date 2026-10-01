@@ -179,6 +179,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const apiKey = process.env.OMNIROUTE_API_KEY;
   const upstreamTimeoutMs = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000;
 
+  bandit.recordRequest(); // +1 per ogni richiesta ricevuta (anche se fallirà)
+
   const excluded = new Set();
   let attempt = 0;
   let controller = null;
@@ -189,7 +191,11 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     if (controller) { controller.abort(); controller = null; }
   };
 
-  req.once("close", cleanup);
+  // Solo quando la RISPOSTA è chiusa senza essere stata completata
+  // → il client si è disconnesso davvero (e non è una normale fine della request)
+  res.once("close", () => {
+    if (!res.writableEnded) cleanup();
+  });
 
   while (++attempt <= 15) {
     const model = bandit.selectModel(excluded);

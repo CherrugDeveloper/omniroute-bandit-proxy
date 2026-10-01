@@ -62,12 +62,20 @@
     </div>
 
     <div class="tabs">
-        <button class="tab-btn active" data-tab="providers">🏢 Provider</button>
+        <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
+        <button class="tab-btn" data-tab="providers">🏢 Provider</button>
         <button class="tab-btn" data-tab="models">📦 Modelli</button>
-        <button class="tab-btn" data-tab="logs">📋 Live Logs</button>
     </div>
 
-    <div id="tab-providers" class="tab-content active">
+    <div id="tab-logs" class="tab-content active">
+        <div class="log-header">
+            <h3>Log Streaming</h3>
+            <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
+        </div>
+        <pre id="logs">Attendendo log...</pre>
+    </div>
+
+    <div id="tab-providers" class="tab-content">
         <div class="filter-bar">
             <input type="text" class="filter-input" id="filter-providers" placeholder="🔍 Filtra provider...">
         </div>
@@ -96,14 +104,6 @@
             <th>Stato</th>
             <th>Azioni</th>
         </tr></thead><tbody id="models-tbody"></tbody></table>
-    </div>
-
-    <div id="tab-logs" class="tab-content">
-        <div class="log-header">
-            <h3>Log Streaming</h3>
-            <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
-        </div>
-        <pre id="logs">Attendendo log...</pre>
     </div>
 
     <script>

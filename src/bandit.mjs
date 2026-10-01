@@ -1,13 +1,13 @@
 import Database from "better-sqlite3";
 
 export class DiscountedUCB1Bandit {
-  constructor(dbPath = "bandit.db") {
+    constructor(dbPath = "bandit.db") {
     this.db = new Database(dbPath);
     this.discountFactor = 0.99;
-    this.totalObservations = 0;
-    this.totalRequests = 0;
     this._initDB();
     this._migrateDB();
+    this.totalObservations = this._getMeta("totalObservations");
+    this.totalRequests = this._getMeta("totalRequests");
   }
 
   _initDB() {
@@ -31,6 +31,19 @@ export class DiscountedUCB1Bandit {
           pointer INTEGER DEFAULT 0,
           permanent INTEGER DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS meta (
+          key TEXT PRIMARY KEY,
+          value REAL NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS catalog (
+          id TEXT PRIMARY KEY,
+          provider TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
+        CREATE INDEX IF NOT EXISTS idx_catalog_provider ON catalog(provider);
 
         CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
         CREATE INDEX IF NOT EXISTS idx_models_cooldown ON models(cooldown_until);
@@ -71,6 +84,45 @@ export class DiscountedUCB1Bandit {
     console.log("[BANDIT] Migrazione database completata");
   }
 
+    _getMeta(key) {
+    const row = this.db.prepare("SELECT value FROM meta WHERE key = ?").get(key);
+    return row ? row.value : 0;
+  }
+
+  _setMeta(key, value) {
+    this.db.prepare(`
+      INSERT INTO meta (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run(key, value);
+  }
+
+  _incrMeta(key, delta = 1) {
+    this.db.prepare(`
+      INSERT INTO meta (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = value + excluded.value
+    `).run(key, delta);
+  }
+
+    _registerModelUse(modelId, provider) {
+    // Aggiunge provider e modello solo se non esistono ancora
+    this.db.prepare(`
+      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+      VALUES (?, 0, 0, 0, 0)
+    `).run(provider);
+
+    // INSERT se nuovo, altrimenti incrementa last_used_index (round-robin)
+    this.db.prepare(`
+      INSERT INTO models (id, provider, last_used_index)
+      VALUES (?, ?, 1)
+      ON CONFLICT(id) DO UPDATE SET last_used_index = last_used_index + 1
+    `).run(modelId, provider);
+  }
+
+  recordRequest() {
+    this.totalRequests++;
+    this._setMeta("totalRequests", this.totalRequests);
+  }
+
   async fetchAndSyncModels() {
     try {
       const apiKey = process.env.OMNIROUTE_API_KEY || "";
@@ -91,39 +143,49 @@ export class DiscountedUCB1Bandit {
         throw new Error("Response malformato: data.data non è array");
       }
 
-      // FIX #1 & #10: Transaction completa per garantire atomicità e thread-safety
-      const stmt = this.db.prepare(`
-        INSERT INTO models (id, provider, last_used_index) VALUES (?, ?, 0)
-        ON CONFLICT(id) DO UPDATE SET provider=excluded.provider
+      const insertStmt = this.db.prepare(`
+        INSERT INTO catalog (id, provider) VALUES (?, ?)
+        ON CONFLICT(id) DO UPDATE SET provider = excluded.provider
       `);
 
-      const pStmt = this.db.prepare(`
-        INSERT INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
-        VALUES (?, 0, 0, 0, 0)
-        ON CONFLICT(provider) DO NOTHING
-      `);
+      const isChatModel = (m) => {
+        if (!m || typeof m !== "object") return true; // se è solo una stringa, teniamolo
+        // Escludi esplicitamente le immagini
+        if (m.type === "image") return false;
+        // Tieni solo se produce testo
+        const outputs = m.output_modalities;
+        if (Array.isArray(outputs) && !outputs.includes("text")) return false;
+        return true;
+      };
 
-      const insertMany = this.db.transaction((models) => {
+      const syncCatalog = this.db.transaction((models) => {
+        this.db.prepare("DELETE FROM catalog").run();
         let inserted = 0;
+        let skipped = 0;
+
         for (const m of models) {
           const modelId = typeof m === "string" ? m : (m.id || m.name);
           if (!modelId) continue;
 
-          // Filtra modelli virtuali/deprecati
+          // Skip modelli virtuali/combo
           if (modelId.startsWith("auto/") || modelId.includes("combo") || modelId.startsWith("gh/")) {
             continue;
           }
 
+          if (!isChatModel(m)) {
+            skipped++;
+            continue;
+          }
+
           const provider = this._getProvider(modelId);
-          stmt.run(modelId, provider);
-          pStmt.run(provider);
+          insertStmt.run(modelId, provider);
           inserted++;
         }
-        return inserted;
+        return { inserted, skipped };
       });
 
-      const insertedCount = insertMany(modelList);
-      console.log(`[BANDIT] Sincronizzati ${insertedCount} modelli da OmniRoute`);
+      const { inserted, skipped } = syncCatalog(modelList);
+      console.log(`[BANDIT] Catalog sincronizzato: ${inserted} modelli chat (esclusi ${skipped} non-chat)`);
     } catch (err) {
       console.error("[BANDIT] Errore durante fetch modelli:", err.message);
       throw err;
@@ -173,7 +235,6 @@ export class DiscountedUCB1Bandit {
     return cooldowns[Math.min(fails, 3)];
   }
 
-  // FIX #1 & #5: Transaction atomica per evitare race condition e deadlock
   selectModel(excludedModels = [], forceProvider = null) {
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excludedModels);
@@ -183,33 +244,29 @@ export class DiscountedUCB1Bandit {
       forceProvider = null;
     }
 
-    // FIX #10: Transaction completa per garantire atomicità
     const selectTransaction = this.db.transaction(() => {
+      // Provider disponibili: dal CATALOG, con cooldown letti da provider_history (se esistono)
       const getAvailableProviders = forceProvider
         ? this.db.prepare(`
-            SELECT provider FROM provider_history 
-            WHERE (cooldown_until < ? OR cooldown_until IS NULL) 
-              AND (permanent = 0 OR permanent IS NULL)
-              AND provider = ?
+            SELECT DISTINCT c.provider
+            FROM catalog c
+            LEFT JOIN provider_history p ON c.provider = p.provider
+            WHERE (p.cooldown_until IS NULL OR p.cooldown_until < ?)
+              AND (p.permanent IS NULL OR p.permanent = 0)
+              AND c.provider = ?
           `).all(now, forceProvider)
         : this.db.prepare(`
-            SELECT provider FROM provider_history 
-            WHERE (cooldown_until < ? OR cooldown_until IS NULL) 
-              AND (permanent = 0 OR permanent IS NULL)
+            SELECT DISTINCT c.provider
+            FROM catalog c
+            LEFT JOIN provider_history p ON c.provider = p.provider
+            WHERE (p.cooldown_until IS NULL OR p.cooldown_until < ?)
+              AND (p.permanent IS NULL OR p.permanent = 0)
           `).all(now);
 
       if (getAvailableProviders.length === 0) {
-        // FIX #5: Prevenzione deadlock - controllo ciclo infinito
-        const permanentCount = this.db.prepare(`
-          SELECT COUNT(*) as cnt FROM provider_history WHERE permanent = 1
-        `).get();
-
-        if (permanentCount && permanentCount.cnt > 0) {
-          console.log("[BANDIT] Alert: provider con ban permanente presenti");
-        }
-
+        // Prova a sbloccare il provider in cooldown più vecchio
         const oldestProvider = this.db.prepare(`
-          SELECT provider, cooldown_until FROM provider_history 
+          SELECT provider FROM provider_history
           WHERE cooldown_until > ? AND (permanent = 0 OR permanent IS NULL)
           ORDER BY cooldown_until ASC
           LIMIT 1
@@ -219,11 +276,8 @@ export class DiscountedUCB1Bandit {
           console.log(`[BANDIT] Tutti i provider in cooldown, sblocco ${oldestProvider.provider}`);
           this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
             .run(0, oldestProvider.provider);
-          
-          // Ricorsione sicura: massimo 3 tentativi per prevenire stack overflow
           return this.selectModel(excludedModels, oldestProvider.provider);
         }
-        
         return null;
       }
 
@@ -232,24 +286,36 @@ export class DiscountedUCB1Bandit {
       let maxScore = -Infinity;
       const totalN = this.totalObservations || 1;
 
+      // Una query per provider (volutamente semplice)
+      const modelsStmt = this.db.prepare(`
+        SELECT c.id, c.provider,
+               COALESCE(m.N, 0)             AS N,
+               COALESCE(m.sum_reward, 0)    AS sum_reward,
+               COALESCE(m.fails, 0)         AS fails,
+               COALESCE(m.cooldown_until,0) AS cooldown_until,
+               COALESCE(m.permanent, 0)     AS permanent,
+               COALESCE(m.last_used_index,0) AS last_used_index,
+               COALESCE(p.pointer, 0)       AS provider_pointer
+        FROM catalog c
+        LEFT JOIN models m ON c.id = m.id
+        LEFT JOIN provider_history p ON c.provider = p.provider
+        WHERE c.provider = ?
+          AND (m.cooldown_until IS NULL OR m.cooldown_until < ?)
+          AND (m.permanent IS NULL OR m.permanent = 0)
+        ORDER BY
+          CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
+          COALESCE(m.last_used_index,0) ASC,
+          c.id ASC
+      `);
+
       for (const provider of providerList) {
-        const providerModels = this.db.prepare(`
-          SELECT m.*, p.pointer as provider_pointer
-          FROM models m
-          LEFT JOIN provider_history p ON m.provider = p.provider
-          WHERE m.provider = ? 
-            AND (m.cooldown_until < ? OR m.cooldown_until IS NULL)
-            AND (m.permanent = 0 OR m.permanent IS NULL)
-          ORDER BY 
-            CASE WHEN m.last_used_index >= COALESCE(p.pointer, 0) THEN 1 ELSE 0 END,
-            m.last_used_index ASC
-        `).all(provider, now);
+        const providerModels = modelsStmt.all(provider, now);
 
         for (const m of providerModels) {
           if (excludeSet.has(m.id)) continue;
 
-          let score = -Infinity;
-          if (m.N === 0 || m.N < 0.1) {
+          let score;
+          if (m.N < 0.1) {
             score = Infinity;
           } else {
             const avgReward = m.sum_reward / m.N;
@@ -267,7 +333,7 @@ export class DiscountedUCB1Bandit {
       if (!bestModel) {
         if (!forceProvider) {
           const oldestProvider = this.db.prepare(`
-            SELECT provider, cooldown_until FROM provider_history 
+            SELECT provider FROM provider_history
             WHERE cooldown_until > ? AND (permanent = 0 OR permanent IS NULL)
             ORDER BY cooldown_until ASC
             LIMIT 1
@@ -283,9 +349,8 @@ export class DiscountedUCB1Bandit {
         return null;
       }
 
-      // FIX #10: Round-robin pointer aggiornato atomicamente nella transaction
-      this.db.prepare(`UPDATE models SET last_used_index = last_used_index + 1 WHERE id = ?`)
-        .run(bestModel.id);
+      // Registra modello + provider e aggiorna round-robin in un colpo
+      this._registerModelUse(bestModel.id, bestModel.provider);
 
       return bestModel.id;
     });
@@ -328,6 +393,19 @@ export class DiscountedUCB1Bandit {
 
       if (errorStatus === 429 && !specificCooldownMs) {
         specificCooldownMs = 60000;
+      }
+
+      // Rileva "quota exhausted a livello account/provider"
+      const isProviderQuota =
+        errorStatus === 429 &&
+        /all\s+\S+\s+accounts?\s+have\s+exhausted|exhausted\s+their\s+quota|quota\s+exhausted/i.test(errorMsg);
+
+      if (isProviderQuota) {
+        // ... blocco esistente
+        this._forceProviderCooldown(model.provider, providerCooldownMs);
+      } else {
+        // Fail generico: accumula e, se supera soglia, mette in cooldown il provider
+        this._recordProviderFailureGeneric(model.provider);
       }
     }
 
@@ -372,16 +450,24 @@ export class DiscountedUCB1Bandit {
     if (newPermanent === 1 && model.permanent === 0) {
       this._recordProviderFailure(model.provider);
     }
-
+    
     if (success) {
       this.totalObservations++;
-      // FIX #6: Incremento totalRequests coerente
-      this.totalRequests++;
+      this._setMeta("totalObservations", this.totalObservations);
+      // Il provider ha risposto bene: azzera il contatore fail
+      this.db.prepare(`UPDATE provider_history SET fails = 0 WHERE provider = ?`).run(model.provider);
     }
   }
-
+  
   _recordProviderFailure(provider) {
     const now = Date.now();
+
+    // Se il provider non esiste ancora, lo registriamo
+    this.db.prepare(`
+      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+      VALUES (?, 0, 0, 0, 0)
+    `).run(provider);
+
     const providerRecord = this.db.prepare("SELECT * FROM provider_history WHERE provider = ?").get(provider);
 
     if (!providerRecord) return;
@@ -406,6 +492,53 @@ export class DiscountedUCB1Bandit {
 
     const cooldownStr = cooldownUntil > 0 ? new Date(cooldownUntil).toISOString() : "PERMANENTE";
     console.log(`[BANDIT] Provider ${provider}: ${newFails} fallimenti, cooldown ${cooldownStr}`);
+  }
+
+    _forceProviderCooldown(provider, cooldownMs) {
+    const now = Date.now();
+    const until = now + cooldownMs;
+
+    // Assicura che il provider esista in provider_history
+    this.db.prepare(`
+      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+      VALUES (?, 0, 0, 0, 0)
+    `).run(provider);
+
+    // Metti in cooldown TUTTI i modelli di quel provider
+    const info = this.db.prepare(`
+      UPDATE models SET cooldown_until = ?
+      WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
+    `).run(until, provider);
+
+    // E metti in cooldown anche il provider stesso
+    this.db.prepare(`
+      UPDATE provider_history SET cooldown_until = ?
+      WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
+    `).run(until, provider);
+
+    console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${info.changes} modelli aggiornati)`);
+  }
+
+    _recordProviderFailureGeneric(provider, cooldownMs = 5 * 60 * 1000) {
+    const now = Date.now();
+
+    // Assicura che il provider esista
+    this.db.prepare(`
+      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+      VALUES (?, 0, 0, 0, 0)
+    `).run(provider);
+
+    const rec = this.db.prepare("SELECT fails FROM provider_history WHERE provider = ?").get(provider);
+    const newFails = (rec?.fails || 0) + 1;
+    const PROVIDER_FAIL_THRESHOLD = 3;
+
+    if (newFails >= PROVIDER_FAIL_THRESHOLD) {
+      console.log(`[BANDIT] Provider ${provider} raggiunta soglia (${newFails} fail) → cooldown ${cooldownMs / 1000}s`);
+      this.db.prepare(`UPDATE provider_history SET fails = 0 WHERE provider = ?`).run(provider);
+      this._forceProviderCooldown(provider, cooldownMs);
+    } else {
+      this.db.prepare(`UPDATE provider_history SET fails = ? WHERE provider = ?`).run(newFails, provider);
+    }
   }
 
   getMetrics() {
