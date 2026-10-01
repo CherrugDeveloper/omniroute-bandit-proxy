@@ -175,10 +175,10 @@ export class DiscountedUCB1Bandit {
         ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, max_input_tokens = excluded.max_input_tokens
       `);
 
-      const isChatModel = (m) => {
+      const isChatModel = (m, id) => {
         if (!m || typeof m !== "object") return true;
 
-        // Escludi type non-chat espliciti (image, audio, video, music, tts, embedding, ...)
+        // Escludi type non-chat espliciti
         if (m.type && !["chat", "text"].includes(String(m.type).toLowerCase())) {
           return false;
         }
@@ -190,6 +190,17 @@ export class DiscountedUCB1Bandit {
             return false;
           }
         }
+
+        // Escludi ID con pattern non-chat (TTS, audio, image, batch, embedding, whisper...)
+        const lower = String(id).toLowerCase();
+        if (/:batch\b/.test(lower)) return false;
+        if (/(^|[-_/])tts([-_/]|$)|text-to-speech/.test(lower)) return false;
+        if (/(^|[-_/])audio([-_/]|$)|speech/.test(lower)) return false;
+        if (/(^|[-_/])image([-_/]|$)|dall-e|midjourney|stable-diffusion/.test(lower)) return false;
+        if (/(^|[-_/])embed([-_/]|$)/.test(lower)) return false;
+        if (/(^|[-_/])whisper([-_/]|$)/.test(lower)) return false;
+        if (/(^|[-_/])music([-_/]|$)|lyria|suno|udio/.test(lower)) return false;
+
         return true;
       };
 
@@ -207,7 +218,7 @@ export class DiscountedUCB1Bandit {
             continue;
           }
 
-          if (!isChatModel(m)) {
+          if (!isChatModel(m, modelId)) {
             skipped++;
             continue;
           }
@@ -631,6 +642,16 @@ clearProviderAttention(provider) {
       return { scope: "model", action: "ban-model", reason: "model-invalid" };
     }
 
+    // === ENDPOINT INCOMPATIBILE (es. modelli :batch non usabili con chat/completions) ===
+    if (/cannot be used with.*chat\/completions|adapter.*batch|not.*chat.*completion/i.test(msg)) {
+      return { scope: "model", action: "ban-model", reason: "endpoint-incompatible" };
+    }
+
+    // === POLICY / GUARDRAIL / DATA RESTRICTIONS (rifiuto permanente) ===
+    if (/guardrail|data policy|not available matching.*restriction|removed them for the following/i.test(msg)) {
+      return { scope: "model", action: "ban-model", reason: "policy-restricted" };
+    }
+
     // === PROVIDER MISCONFIGURATO (auth, playwright, transport, cli obsoleto) ===
     if (
       /no auth provided|please log in|not authenticated|missing.*api.?key|invalid.*api.?key/i.test(msg) ||
@@ -841,7 +862,6 @@ clearProviderAttention(provider) {
 
   isModelAvailable(id) {
     if (!id || typeof id !== "string") return false;
-    const now = Date.now();
     const row = this.db.prepare(`
       SELECT c.id
       FROM catalog c
@@ -851,7 +871,7 @@ clearProviderAttention(provider) {
         AND (m.permanent IS NULL OR m.permanent = 0)
         AND (p.needs_attention IS NULL OR p.needs_attention = 0)
         AND (p.permanent IS NULL OR p.permanent = 0)
-    `).get(id, now);
+    `).get(id);
     return !!row;
   }
 
