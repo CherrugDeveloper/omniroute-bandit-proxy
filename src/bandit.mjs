@@ -40,7 +40,8 @@ export class DiscountedUCB1Bandit {
 
         CREATE TABLE IF NOT EXISTS catalog (
           id TEXT PRIMARY KEY,
-          provider TEXT NOT NULL
+          provider TEXT NOT NULL,
+          max_input_tokens INTEGER DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
@@ -90,6 +91,19 @@ export class DiscountedUCB1Bandit {
         this.db.exec(`ALTER TABLE provider_history ADD COLUMN needs_attention INTEGER DEFAULT 0`);
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonna needs_attention:", err.message);
+        throw err;
+      }
+    }
+
+    const catalogColumns = this.db.pragma("table_info(catalog)");
+    const hasMaxInput = catalogColumns.some(col => col.name === "max_input_tokens");
+
+    if (!hasMaxInput) {
+      console.log("[BANDIT] Migrazione: aggiungo max_input_tokens a catalog");
+      try {
+        this.db.exec(`ALTER TABLE catalog ADD COLUMN max_input_tokens INTEGER DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonna max_input_tokens:", err.message);
         throw err;
       }
     }
@@ -157,17 +171,25 @@ export class DiscountedUCB1Bandit {
       }
 
       const insertStmt = this.db.prepare(`
-        INSERT INTO catalog (id, provider) VALUES (?, ?)
-        ON CONFLICT(id) DO UPDATE SET provider = excluded.provider
+        INSERT INTO catalog (id, provider, max_input_tokens) VALUES (?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, max_input_tokens = excluded.max_input_tokens
       `);
 
       const isChatModel = (m) => {
-        if (!m || typeof m !== "object") return true; // se è solo una stringa, teniamolo
-        // Escludi esplicitamente le immagini
-        if (m.type === "image") return false;
-        // Tieni solo se produce testo
+        if (!m || typeof m !== "object") return true;
+
+        // Escludi type non-chat espliciti (image, audio, video, music, tts, embedding, ...)
+        if (m.type && !["chat", "text"].includes(String(m.type).toLowerCase())) {
+          return false;
+        }
+
+        // Se il modello dichiara output_modalities, l'unico output ammesso è "text"
         const outputs = m.output_modalities;
-        if (Array.isArray(outputs) && !outputs.includes("text")) return false;
+        if (Array.isArray(outputs)) {
+          if (outputs.length !== 1 || String(outputs[0]).toLowerCase() !== "text") {
+            return false;
+          }
+        }
         return true;
       };
 
@@ -191,7 +213,8 @@ export class DiscountedUCB1Bandit {
           }
 
           const provider = this._getProvider(modelId);
-          insertStmt.run(modelId, provider);
+          const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
+          insertStmt.run(modelId, provider, maxInput);
           inserted++;
         }
         return { inserted, skipped };
