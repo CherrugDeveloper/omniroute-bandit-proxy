@@ -13,41 +13,159 @@
     <meta name="theme-color" content="#58a6ff">
     <style>
         * { box-sizing: border-box; }
-        body { font-family: -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
-        h1 { color: #58a6ff; }
-        h3 { color: #58a6ff; margin-top: 0; }
-        .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
-        .stats-container { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }
-        .stats { background: #21262d; padding: 10px 20px; border-radius: 6px; }
+        html, body {
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        body {
+            font-family: -apple-system, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        h1 { color: #58a6ff; margin: 0 0 8px 0; font-size: 20px; }
+        h3 { color: #58a6ff; margin: 0; font-size: 15px; }
+
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px 16px;
+            flex-shrink: 0;
+        }
+        .stats-container {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .stats { background: #21262d; padding: 6px 12px; border-radius: 6px; font-size: 13px; }
         .stats strong { color: #58a6ff; }
-        .tabs { display: flex; gap: 5px; border-bottom: 1px solid #30363d; }
-        .tab-btn { background: #21262d; border: 1px solid #30363d; border-bottom: none; padding: 10px 20px; color: #8b949e; cursor: pointer; border-radius: 6px 6px 0 0; }
+        .ok { color: #3fb950; font-weight: bold; }
+        .warn { color: #d29922; font-weight: bold; }
+        .err { color: #f85149; font-weight: bold; }
+        .muted { color: #8b949e; font-size: 12px; }
+
+        .tabs {
+            display: flex;
+            gap: 5px;
+            border-bottom: 1px solid #30363d;
+            flex-shrink: 0;
+        }
+        .tab-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-bottom: none;
+            padding: 8px 16px;
+            color: #8b949e;
+            cursor: pointer;
+            border-radius: 6px 6px 0 0;
+            font-size: 13px;
+            font-family: inherit;
+        }
         .tab-btn.active { background: #161b22; color: #58a6ff; }
-        .tab-content { display: none; border: 1px solid #30363d; border-top: none; background: #161b22; padding: 20px; border-radius: 0 0 6px 6px; }
-        .tab-content.active { display: block; }
+
+        .tab-content {
+            display: none;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            padding: 12px;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-bar {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .filter-input {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 6px 10px;
+            border-radius: 4px;
+            flex: 1;
+            max-width: 300px;
+            font-size: 13px;
+        }
+
+        .table-wrapper {
+            flex: 1;
+            overflow: auto;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+        }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #30363d; }
-        th { background: #21262d; cursor: pointer; user-select: none; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #30363d; font-size: 13px; }
+        th {
+            background: #21262d;
+            cursor: pointer;
+            user-select: none;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: 600;
+        }
         th:hover { background: #30363d; }
-        th.sort-asc::after { content: " ▲"; font-size: 10px; }
-        th.sort-desc::after { content: " ▼"; font-size: 10px; }
-        tr:hover { background: #21262d; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        th.sort-asc::after { content: " ▲"; font-size: 9px; }
+        th.sort-desc::after { content: " ▼"; font-size: 9px; }
+        tbody tr:hover { background: #21262d; }
+
+        .badge { padding: 3px 7px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap; }
         .badge-active { background: #238636; color: white; }
         .badge-cooldown { background: #9e6a03; color: white; }
         .badge-banned { background: #da3633; color: white; }
         .badge-attention { background: #d29922; color: white; }
-        .btn { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 12px; }
-        .btn-reset { background: #da3633; color: white; }
-        .btn-refresh { background: #1f6feb; color: white; }
-        .btn-copy { background: #238636; color: white; }
+
+        .btn {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: inherit;
+            color: white;
+        }
+        .btn-reset { background: #da3633; }
+        .btn-copy { background: #238636; }
         .btn:hover { opacity: 0.85; }
-        pre#logs { background: #010409; border: 1px solid #30363d; padding: 15px; height: 400px; overflow-y: auto; color: #7ee787; font-size: 12px; margin: 0; white-space: pre-wrap; word-break: break-all; }
+
+        pre#logs {
+            background: #010409;
+            border: 1px solid #30363d;
+            padding: 12px;
+            color: #7ee787;
+            font-size: 12px;
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+            flex: 1;
+            overflow-y: auto;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
         .empty { text-align: center; padding: 40px; color: #8b949e; }
-        .filter-bar { margin-bottom: 15px; display: flex; gap: 10px; }
-        .filter-input { background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 8px 12px; border-radius: 4px; flex: 1; max-width: 300px; }
         .mono { font-family: 'Courier New', monospace; }
-        .log-header { display: flex; justify-content: space-between; align-items: center; }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
@@ -73,8 +191,7 @@
                 <span class="muted">(su <span id="total-providers">0</span> monitorati, <span id="catalog-providers">0</span> in catalogo)</span>
             </div>
         </div>
-
-        <button class="btn btn-refresh" data-action="refresh-all">🔄 Aggiorna Dati</button>
+    </div>
 
     <div class="tabs">
         <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
@@ -94,31 +211,43 @@
         <div class="filter-bar">
             <input type="text" class="filter-input" id="filter-providers" placeholder="🔍 Filtra provider...">
         </div>
-        <table><thead><tr>
-            <th data-sort="provider">Provider</th>
-            <th data-sort="fails">Fallimenti</th>
-            <th data-sort="pointer">Puntatore</th>
-            <th data-sort="cooldownRemaining">Cooldown Rem.</th>
-            <th>Stato</th>
-            <th>Azioni</th>
-        </tr></thead><tbody id="providers-tbody"></tbody></table>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th data-sort="provider">Provider</th>
+                        <th data-sort="fails">Fallimenti</th>
+                        <th data-sort="pointer">Puntatore</th>
+                        <th data-sort="cooldownRemaining">Stato</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody id="providers-tbody"></tbody>
+            </table>
+        </div>
     </div>
 
     <div id="tab-models" class="tab-content">
         <div class="filter-bar">
             <input type="text" class="filter-input" id="filter-models" placeholder="🔍 Filtra modelli/provider...">
         </div>
-        <table><thead><tr>
-            <th data-sort="id">Modello</th>
-            <th data-sort="provider">Provider</th>
-            <th data-sort="N" class="mono">N</th>
-            <th data-sort="avg" class="mono">Avg Reward</th>
-            <th data-sort="score" class="mono">Score UCB1</th>
-            <th data-sort="fails">Fails</th>
-            <th data-sort="cooldownRemaining">Cooldown Rem.</th>
-            <th>Stato</th>
-            <th>Azioni</th>
-        </tr></thead><tbody id="models-tbody"></tbody></table>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th data-sort="id">Modello</th>
+                        <th data-sort="provider">Provider</th>
+                        <th data-sort="N" class="mono">N</th>
+                        <th data-sort="avg" class="mono">Avg Reward</th>
+                        <th data-sort="score" class="mono">Score UCB1</th>
+                        <th data-sort="fails">Fails</th>
+                        <th data-sort="cooldownRemaining">Stato</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody id="models-tbody"></tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -214,14 +343,13 @@
             let filtered = (allData.providers || []).filter(p => String(p.provider || '').toLowerCase().includes(filter));
             filtered = sortRows(filtered);
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty">Nessun provider rilevato.<br><em>I provider appariranno qui dopo il primo rilevamento</em></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessun provider rilevato.<br><em>I provider appariranno qui dopo il primo rilevamento</em></td></tr>';
                 return;
             }
             tbody.innerHTML = filtered.map(p => {
                 const safeName = escapeHtml(p.provider);
                 const fails = Number(p.fails) || 0;
                 const pointer = Number(p.pointer) || 0;
-                const cdRem = Number(p.cooldownRemaining) || 0;
                 let actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safeName + '">Reset</button>';
                 if (Number(p.needs_attention)) {
                     actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Riprova</button>' +
@@ -230,9 +358,8 @@
                 if (Number(p.permanent)) {
                     actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Ripristina</button>';
                 }
-                return '<tr><td><b>' + safeName + '</b></td><td>' + fails + '</td><td>' + pointer + '</td><td class="mono">' +
-                    (cdRem > 0 ? fmtTime(cdRem) : '-') + '</td><td>' + badge(p) +
-                    '</td><td>' + actions + '</td></tr>';
+                return '<tr><td><b>' + safeName + '</b></td><td>' + fails + '</td><td>' + pointer +
+                    '</td><td>' + badge(p) + '</td><td>' + actions + '</td></tr>';
             }).join('');
         }
 
@@ -245,19 +372,18 @@
             );
             filtered = sortRows(filtered);
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="empty">Nessun modello trovato.<br><em>I modelli appariranno qui dopo le prime selezioni</em></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="empty">Nessun modello trovato.<br><em>I modelli appariranno qui dopo le prime selezioni</em></td></tr>';
                 return;
             }
             tbody.innerHTML = filtered.map(m => {
                 const n = Number(m.N) || 0;
                 const avg = Number(m.avg) || 0;
                 const fails = Number(m.fails) || 0;
-                const cdRem = Number(m.cooldownRemaining) || 0;
                 const score = m.score === Infinity ? '∞' : (m.score == null || isNaN(m.score) ? '—' : Number(m.score).toFixed(3));
                 return '<tr><td><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
                     n.toFixed(1) + '</td><td class="mono">' + avg.toFixed(3) + '</td><td class="mono">' + score +
-                    '</td><td>' + fails + '</td><td class="mono">' + (cdRem > 0 ? fmtTime(cdRem) : '-') +
-                    '</td><td>' + badge(m) + '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
+                    '</td><td>' + fails + '</td><td>' + badge(m) +
+                    '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
             }).join('');
         }
 
@@ -304,11 +430,14 @@
             else if (a === 'reset-provider') resetProvider(btn.dataset.name);
             else if (a === 'retry-provider') retryProvider(btn.dataset.name);
             else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
-            else if (a === 'refresh-all') refreshAll();
             else if (a === 'copy-logs') copyLogs();
         });
 
+        // === Auto-refresh (con guardia anti-sovrapposizione) ===
+        let refreshing = false;
         async function refreshAll() {
+            if (refreshing) return;
+            refreshing = true;
             try {
                 const r = await apiFetch('/v1/metrics');
                 if (r.status === 401) { show401Banner(); return; }
@@ -339,6 +468,7 @@
                 renderProviders();
                 renderModels();
             } catch (e) { console.error('Errore fetch:', e); }
+            finally { refreshing = false; }
         }
 
         async function fetchLogs() {
@@ -357,8 +487,12 @@
         document.getElementById('filter-providers').addEventListener('input', renderProviders);
         document.getElementById('filter-models').addEventListener('input', renderModels);
 
+        // Avvio: prima fetch immediata, poi polling
         refreshAll();
+        fetchLogs();
+        setInterval(refreshAll, 2500);
         setInterval(fetchLogs, 1000);
     </script>
 </body>
 </html>
+HTMLEOF
