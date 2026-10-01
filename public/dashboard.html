@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OmniRoute Bandit Dashboard</title>
     <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="/icons/favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+    <link rel="shortcut icon" href="/icons/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-title" content="Bandit Proxy">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#58a6ff">
     <style>
         * { box-sizing: border-box; }
@@ -53,7 +59,7 @@
             <div class="stats"><strong>Modelli Attivi:</strong> <span id="active-models">0</span></div>
             <div class="stats"><strong>Provider Attivi:</strong> <span id="active-providers">0</span></div>
         </div>
-        <button class="btn btn-refresh" onclick="refreshAll()">🔄 Aggiorna Dati</button>
+        <button class="btn btn-refresh" data-action="refresh-all">🔄 Aggiorna Dati</button>
     </div>
 
     <div class="tabs">
@@ -96,7 +102,7 @@
     <div id="tab-logs" class="tab-content">
         <div class="log-header">
             <h3>Log Streaming</h3>
-            <button class="btn btn-copy" onclick="copyLogs()">📋 Copia Tutto</button>
+            <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
         </div>
         <pre id="logs">Attendendo log...</pre>
     </div>
@@ -169,7 +175,6 @@ function apiFetch(url, opts = {}) {
         });
 
         function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
-        function escapeJs(str) { return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
         function renderProviders() {
             const tbody = document.getElementById('providers-tbody');
@@ -183,7 +188,7 @@ function apiFetch(url, opts = {}) {
             tbody.innerHTML = filtered.map(p =>
                 '<tr><td><b>' + escapeHtml(p.provider) + '</b></td><td>' + p.fails + '</td><td>' + (p.pointer || 0) + '</td><td class="mono">' +
                 (p.cooldownRemaining > 0 ? fmtTime(p.cooldownRemaining) : '-') + '</td><td>' + badge(p) +
-                '</td><td><button class="btn btn-reset" onclick="resetProvider(\'' + escapeJs(p.provider) + '\')">Reset</button></td></tr>'
+                '</td><td><button class="btn btn-reset" data-action="reset-provider" data-name="' + escapeHtml(p.provider) + '">Reset</button></td></tr>'
             ).join('');
         }
 
@@ -201,7 +206,7 @@ function apiFetch(url, opts = {}) {
                 return '<tr><td><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
                     m.N.toFixed(1) + '</td><td class="mono">' + m.avg.toFixed(3) + '</td><td class="mono">' + score +
                     '</td><td>' + m.fails + '</td><td class="mono">' + (m.cooldownRemaining > 0 ? fmtTime(m.cooldownRemaining) : '-') +
-                    '</td><td>' + badge(m) + '</td><td><button class="btn btn-reset" onclick="resetModel(\'' + escapeJs(m.id) + '\')">Reset</button></td></tr>';
+                    '</td><td>' + badge(m) + '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
             }).join('');
         }
 
@@ -216,6 +221,21 @@ function apiFetch(url, opts = {}) {
             await apiFetch('/v1/reset/provider/' + encodeURIComponent(p), {method:'POST'});
             refreshAll();
         }
+
+        // Delega click sui pulsanti Reset (evita onclick inline → no XSS)
+        document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        if (btn.dataset.action === 'reset-model') {
+            resetModel(btn.dataset.id);
+        } else if (btn.dataset.action === 'reset-provider') {
+            resetProvider(btn.dataset.name);
+        } else if (btn.dataset.action === 'refresh-all') {
+            refreshAll();
+        } else if (btn.dataset.action === 'copy-logs') {
+  copyLogs();
+}
+});
 
         async function copyLogs() {
             try {
@@ -247,14 +267,16 @@ function apiFetch(url, opts = {}) {
         }
 
         async function fetchLogs() {
-            try {
-                const r = await apiFetch('/v1/logs');
-                const d = await r.json();
-                const el = document.getElementById('logs');
-                el.textContent = d.length > 0 ? d.join('\n') : 'Attendendo log...';
-                el.scrollTop = el.scrollHeight;
-            } catch(e) {}
-        }
+        try {
+            const r = await apiFetch('/v1/logs');
+            if (!r.ok) return;
+            const d = await r.json();
+            if (!Array.isArray(d)) return;
+            const el = document.getElementById('logs');
+            el.textContent = d.length > 0 ? d.join('\n') : 'Attendendo log...';
+            el.scrollTop = el.scrollHeight;
+        } catch(e) {}
+}
 
         document.getElementById('filter-providers').addEventListener('input', renderProviders);
         document.getElementById('filter-models').addEventListener('input', renderModels);

@@ -12,6 +12,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
+app.use((req, res, next) => {
+  if (req.path.endsWith(".html") || req.path === "/" || req.path === "/dashboard") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, "../public")));
 
 const PORT = process.env.PORT || 8080;
@@ -121,6 +127,7 @@ app.use((req, res, next) => {
 // ========================================
 
 app.get("/dashboard", (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.sendFile(path.join(__dirname, "../public/dashboard.html"));
 });
 
