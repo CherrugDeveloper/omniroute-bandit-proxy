@@ -375,100 +375,91 @@ export class DiscountedUCB1Bandit {
   }
 
   recordFeedback(modelId, success, reward = 1.0, errorDetails = null) {
-    const now = Date.now();
-    const model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
+    const tx = this.db.transaction(() => {
+      const now = Date.now();
+      const model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
 
-    if (!model) {
-      console.warn(`[BANDIT] recordFeedback: modello inesistente ${modelId}`);
-      return;
-    }
-
-        let permanentBan = false;
-    let specificCooldownMs = null;
-
-    if (!success && errorDetails && typeof errorDetails === "object") {
-      const c = this._classifyError(errorDetails);
-      console.log(`[BANDIT] ${modelId}: ${c.action} (${c.reason})${c.cooldownMs ? ` per ${c.cooldownMs / 1000}s` : ""}`);
-
-      switch (c.action) {
-        case "ban-model":
-          permanentBan = true;
-          break;
-        case "ban-provider":
-          this._banProvider(model.provider);
-          break;
-        case "cooldown-provider":
-          this._forceProviderCooldown(model.provider, c.cooldownMs);
-          break;
-        case "flag-provider":
-          this._flagProviderAttention(model.provider, c.reason);
-          break;
-        case "cooldown-model":
-          specificCooldownMs = c.cooldownMs;
-          break;
+      if (!model) {
+        console.warn(`[BANDIT] recordFeedback: modello inesistente ${modelId}`);
+        return;
       }
 
-      // In ogni caso incrementa il fail generico del provider,
-      // così dopo 3 fail consecutivi va in cooldown "di sicurezza"
-      // Incrementa il fail generico del provider, tranne quando l'errore
-      // è già gestito a monte (ban, cooldown provider, o flag attention)
-      if (
-        c.action !== "ban-provider" &&
-        c.action !== "cooldown-provider" &&
-        c.action !== "flag-provider"
-      ) {
-        this._recordProviderFailureGeneric(model.provider);
+      let permanentBan = false;
+      let specificCooldownMs = null;
+
+      if (!success && errorDetails && typeof errorDetails === "object") {
+        const c = this._classifyError(errorDetails);
+        console.log(`[BANDIT] ${modelId}: ${c.action} (${c.reason})${c.cooldownMs ? ` per ${c.cooldownMs / 1000}s` : ""}`);
+
+        switch (c.action) {
+          case "ban-model":
+            permanentBan = true;
+            break;
+          case "ban-provider":
+            this._banProvider(model.provider);
+            break;
+          case "cooldown-provider":
+            this._forceProviderCooldown(model.provider, c.cooldownMs);
+            break;
+          case "flag-provider":
+            this._flagProviderAttention(model.provider, c.reason);
+            break;
+          case "cooldown-model":
+            specificCooldownMs = c.cooldownMs;
+            break;
+        }
       }
-    }
 
-    const newFails = success ? 0 : model.fails + 1;
+      let newFails = success ? 0 : model.fails + 1;
 
-    let newN, newSumReward;
-    if (success) {
-      newN = model.N * this.discountFactor + 1;
-      newSumReward = model.sum_reward * this.discountFactor + reward;
-    } else {
-      newN = model.N * this.discountFactor;
-      newSumReward = model.sum_reward * this.discountFactor;
-    }
+      let newN, newSumReward;
+      if (success) {
+        newN = model.N * this.discountFactor + 1;
+        newSumReward = model.sum_reward * this.discountFactor + reward;
+      } else {
+        newN = model.N * this.discountFactor;
+        newSumReward = model.sum_reward * this.discountFactor;
+      }
 
-    let cooldownUntil = 0;
-    let newPermanent = model.permanent || 0;
+      let cooldownUntil = 0;
+      let newPermanent = model.permanent || 0;
 
-    if (success) {
-      cooldownUntil = 0;
-      newFails = 0;
-    } else if (permanentBan) {
-      newPermanent = 1;
-      cooldownUntil = 0;
-    } else if (specificCooldownMs) {
-      cooldownUntil = now + specificCooldownMs;
-    } else {
-      const cooldownMs = this._getModelCooldownMs(newFails);
-      if (cooldownMs === null) {
+      if (success) {
+        cooldownUntil = 0;
+        newFails = 0;
+      } else if (permanentBan) {
         newPermanent = 1;
         cooldownUntil = 0;
+      } else if (specificCooldownMs) {
+        cooldownUntil = now + specificCooldownMs;
       } else {
-        cooldownUntil = now + cooldownMs;
+        const cooldownMs = this._getModelCooldownMs(newFails);
+        if (cooldownMs === null) {
+          newPermanent = 1;
+          cooldownUntil = 0;
+        } else {
+          cooldownUntil = now + cooldownMs;
+        }
       }
-    }
 
-    this.db.prepare(`
-      UPDATE models 
-      SET N = ?, sum_reward = ?, fails = ?, cooldown_until = ?, permanent = ?
-      WHERE id = ?
-    `).run(newN, newSumReward, newFails, cooldownUntil, newPermanent, modelId);
+      this.db.prepare(`
+        UPDATE models
+        SET N = ?, sum_reward = ?, fails = ?, cooldown_until = ?, permanent = ?
+        WHERE id = ?
+      `).run(newN, newSumReward, newFails, cooldownUntil, newPermanent, modelId);
 
-    if (newPermanent === 1 && model.permanent === 0) {
-      this._recordProviderFailure(model.provider);
-    }
+      if (newPermanent === 1 && model.permanent === 0) {
+        this._recordProviderFailure(model.provider);
+      }
 
-    if (success) {
-      this.totalObservations++;
-      this._setMeta("totalObservations", this.totalObservations);
-      // Il provider ha risposto bene: azzera il contatore fail
-      this.db.prepare(`UPDATE provider_history SET fails = 0 WHERE provider = ?`).run(model.provider);
-    }
+      if (success) {
+        this.totalObservations++;
+        this._setMeta("totalObservations", this.totalObservations);
+        this.db.prepare(`UPDATE provider_history SET fails = 0 WHERE provider = ?`).run(model.provider);
+      }
+    });
+
+    return tx();
   }
   
   _recordProviderFailure(provider) {
@@ -484,7 +475,7 @@ export class DiscountedUCB1Bandit {
 
     if (!providerRecord) return;
 
-    const newFails = providerRecord.fails + 1;
+    let newFails = providerRecord.fails + 1;
     const cooldownMs = this._getProviderCooldownMs(newFails);
 
     let cooldownUntil = 0;
@@ -677,9 +668,15 @@ clearProviderAttention(provider) {
       return { scope: "model", action: "cooldown-model", cooldownMs: 10 * 60000, reason: "timeout" };
     }
 
-    // === 5xx TRANSITORI ===
+    // === 402 PAYMENT REQUIRED → il provider non ha credito, cooldown lungo ===
+    if (status === 402 || /insufficient.*(funds|credit|balance|quota)/i.test(msg)) {
+      return { scope: "provider", action: "cooldown-provider", cooldownMs: 6 * 3600000, reason: "no-credit" };
+    }
+
+    // === 5xx TRANSITORI su un modello specifico → cooldown SOLO il modello ===
+    // Non uccidere l'intero provider: altri modelli dello stesso provider possono funzionare.
     if (typeof status === "number" && status >= 500 && status < 600) {
-      return { scope: "provider", action: "cooldown-provider", cooldownMs: 15 * 60000, reason: "server-error" };
+      return { scope: "model", action: "cooldown-model", cooldownMs: 10 * 60000, reason: "server-error" };
     }
 
     // === FALLBACK ===
