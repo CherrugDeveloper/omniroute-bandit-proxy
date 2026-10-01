@@ -637,6 +637,8 @@ clearProviderAttention(provider) {
       /playwright is not available|playwright.*install/i.test(msg) ||
       /transport is not configured|missing url or token|not configured/i.test(msg) ||
       /cli is no longer supported|please upgrade|version.*not supported/i.test(msg) ||
+      /spawn.*enoent/i.test(msg) ||
+      /must be an absolute path|bridge sandbox|_home must be|env(ironment)? var/i.test(msg) ||
       status === 466
     ) {
       return { scope: "provider", action: "flag-provider", reason: "provider-misconfigured" };
@@ -835,6 +837,38 @@ clearProviderAttention(provider) {
   getProviderCount() {
     const row = this.db.prepare("SELECT COUNT(DISTINCT provider) AS n FROM catalog").get();
     return row ? row.n : 0;
+  }
+
+  isModelAvailable(id) {
+    if (!id || typeof id !== "string") return false;
+    const now = Date.now();
+    const row = this.db.prepare(`
+      SELECT c.id
+      FROM catalog c
+      LEFT JOIN models m ON c.id = m.id
+      LEFT JOIN provider_history p ON c.provider = p.provider
+      WHERE c.id = ?
+        AND (m.permanent IS NULL OR m.permanent = 0)
+        AND (p.needs_attention IS NULL OR p.needs_attention = 0)
+        AND (p.permanent IS NULL OR p.permanent = 0)
+    `).get(id, now);
+    return !!row;
+  }
+
+    estimateTokens(body) {
+    if (!body) return 0;
+    try {
+      const s = typeof body === "string" ? body : JSON.stringify(body);
+      // Stima conservativa: 1 token ~= 3 caratteri (misto testo/codice/JSON)
+      return Math.ceil(s.length / 3);
+    } catch {
+      return 0;
+    }
+  }
+
+  maxCatalogInput() {
+    const row = this.db.prepare("SELECT MAX(max_input_tokens) AS m FROM catalog").get();
+    return row?.m || 0;
   }
 
   close() {
