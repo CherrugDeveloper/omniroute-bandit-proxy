@@ -174,7 +174,7 @@
         <h1>🤖 OmniRoute Bandit Dashboard</h1>
         <div class="stats-container">
             <div class="stats"><strong>Richieste:</strong> <span id="total-req">0</span></div>
-            <div class="stats"><strong>Osservazioni:</strong> <span id="total-obs">0</span></div>
+            <div class="stats"><strong>Osservazioni:</strong> <span id="total-obs">0</span> <span class="muted" id="success-rate">(successo: —)</span></div>
 
             <div class="stats" title="Modelli attivi / monitorati / totale catalogo">
                 <strong>Modelli:</strong>
@@ -454,8 +454,20 @@
                 const isBanned = (x) => !!Number(x.permanent) && !Number(x.needs_attention);
                 const isAttention = (x) => !!Number(x.needs_attention);
 
-                document.getElementById('total-req').textContent = d.totalRequests || 0;
-                document.getElementById('total-obs').textContent = d.totalObservations || 0;
+                const reqs = Number(d.totalRequests) || 0;
+                const obs = Number(d.totalObservations) || 0;
+                document.getElementById('total-req').textContent = reqs;
+                document.getElementById('total-obs').textContent = obs;
+
+                const rateEl = document.getElementById('success-rate');
+                if (reqs === 0) {
+                    rateEl.textContent = '(successo: —)';
+                    rateEl.className = 'muted';
+                } else {
+                    const pct = Math.round((obs / reqs) * 100);
+                    rateEl.textContent = '(successo: ' + pct + '%)';
+                    rateEl.className = pct >= 90 ? 'ok' : pct >= 50 ? 'warn' : 'err';
+                }
 
                 document.getElementById('active-models').textContent = d.models.filter(isActive).length;
                 document.getElementById('cooldown-models').textContent = d.models.filter(isCooling).length;
