@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniRoute Bandit Dashboard</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#58a6ff">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
+        h1 { color: #58a6ff; }
+        h3 { color: #58a6ff; margin-top: 0; }
+        .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
+        .stats-container { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }
+        .stats { background: #21262d; padding: 10px 20px; border-radius: 6px; }
+        .stats strong { color: #58a6ff; }
+        .tabs { display: flex; gap: 5px; border-bottom: 1px solid #30363d; }
+        .tab-btn { background: #21262d; border: 1px solid #30363d; border-bottom: none; padding: 10px 20px; color: #8b949e; cursor: pointer; border-radius: 6px 6px 0 0; }
+        .tab-btn.active { background: #161b22; color: #58a6ff; }
+        .tab-content { display: none; border: 1px solid #30363d; border-top: none; background: #161b22; padding: 20px; border-radius: 0 0 6px 6px; }
+        .tab-content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #30363d; }
+        th { background: #21262d; cursor: pointer; user-select: none; }
+        th:hover { background: #30363d; }
+        th.sort-asc::after { content: " ▲"; font-size: 10px; }
+        th.sort-desc::after { content: " ▼"; font-size: 10px; }
+        tr:hover { background: #21262d; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .badge-active { background: #238636; color: white; }
+        .badge-cooldown { background: #9e6a03; color: white; }
+        .badge-banned { background: #da3633; color: white; }
+        .btn { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 12px; }
+        .btn-reset { background: #da3633; color: white; }
+        .btn-refresh { background: #1f6feb; color: white; }
+        .btn-copy { background: #238636; color: white; }
+        .btn:hover { opacity: 0.85; }
+        pre#logs { background: #010409; border: 1px solid #30363d; padding: 15px; height: 400px; overflow-y: auto; color: #7ee787; font-size: 12px; margin: 0; white-space: pre-wrap; word-break: break-all; }
+        .empty { text-align: center; padding: 40px; color: #8b949e; }
+        .filter-bar { margin-bottom: 15px; display: flex; gap: 10px; }
+        .filter-input { background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 8px 12px; border-radius: 4px; flex: 1; max-width: 300px; }
+        .mono { font-family: 'Courier New', monospace; }
+        .log-header { display: flex; justify-content: space-between; align-items: center; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🤖 OmniRoute Bandit Dashboard</h1>
+        <div class="stats-container">
+            <div class="stats"><strong>Richieste:</strong> <span id="total-req">0</span></div>
+            <div class="stats"><strong>Osservazioni:</strong> <span id="total-obs">0</span></div>
+            <div class="stats"><strong>Modelli Attivi:</strong> <span id="active-models">0</span></div>
+            <div class="stats"><strong>Provider Attivi:</strong> <span id="active-providers">0</span></div>
+        </div>
+        <button class="btn btn-refresh" onclick="refreshAll()">🔄 Aggiorna Dati</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="providers">🏢 Provider</button>
+        <button class="tab-btn" data-tab="models">📦 Modelli</button>
+        <button class="tab-btn" data-tab="logs">📋 Live Logs</button>
+    </div>
+
+    <div id="tab-providers" class="tab-content active">
+        <div class="filter-bar">
+            <input type="text" class="filter-input" id="filter-providers" placeholder="🔍 Filtra provider...">
+        </div>
+        <table><thead><tr>
+            <th data-sort="provider">Provider</th>
+            <th data-sort="fails">Fallimenti</th>
+            <th data-sort="pointer">Puntatore</th>
+            <th data-sort="cooldownRemaining">Cooldown Rem.</th>
+            <th>Stato</th>
+            <th>Azioni</th>
+        </tr></thead><tbody id="providers-tbody"></tbody></table>
+    </div>
+
+    <div id="tab-models" class="tab-content">
+        <div class="filter-bar">
+            <input type="text" class="filter-input" id="filter-models" placeholder="🔍 Filtra modelli/provider...">
+        </div>
+        <table><thead><tr>
+            <th data-sort="id">Modello</th>
+            <th data-sort="provider">Provider</th>
+            <th data-sort="N" class="mono">N</th>
+            <th data-sort="avg" class="mono">Avg Reward</th>
+            <th data-sort="score" class="mono">Score UCB1</th>
+            <th data-sort="fails">Fails</th>
+            <th data-sort="cooldownRemaining">Cooldown Rem.</th>
+            <th>Stato</th>
+            <th>Azioni</th>
+        </tr></thead><tbody id="models-tbody"></tbody></table>
+    </div>
+
+    <div id="tab-logs" class="tab-content">
+        <div class="log-header">
+            <h3>Log Streaming</h3>
+            <button class="btn btn-copy" onclick="copyLogs()">📋 Copia Tutto</button>
+        </div>
+        <pre id="logs">Attendendo log...</pre>
+    </div>
+
+    <script>
+        let allData = { providers: [], models: [] };
+        let sortCol = null;
+        let sortDir = 'asc';
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        function fmtTime(seconds) {
+            if(seconds < 60) return seconds + 's';
+            if(seconds < 3600) return Math.floor(seconds/60) + 'm' + (seconds % 60) + 's';
+            return Math.floor(seconds/3600) + 'h' + Math.floor((seconds % 3600) / 60) + 'm';
+        }
+
+        function badge(item) {
+            const now = Date.now();
+            if(item.permanent) return '<span class="badge badge-banned">🚫 PERMANENTE</span>';
+            if(item.cooldown_until && item.cooldown_until > now) return '<span class="badge badge-cooldown">⏱ ' + fmtTime(Math.round((item.cooldown_until - now) / 1000)) + '</span>';
+            return '<span class="badge badge-active">✓ Attivo</span>';
+        }
+
+        function sortRows(arr) {
+            if(!sortCol) return arr;
+            const sorted = [...arr];
+            sorted.sort((a, b) => {
+                let aVal = a[sortCol] !== undefined && a[sortCol] !== null ? a[sortCol] : '';
+                let bVal = b[sortCol] !== undefined && b[sortCol] !== null ? b[sortCol] : '';
+                if(typeof aVal === 'string') aVal = aVal.toLowerCase();
+                if(typeof bVal === 'string') bVal = bVal.toLowerCase();
+                if(aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+                if(aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+            return sorted;
+        }
+
+        document.querySelectorAll('th[data-sort]').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.sort;
+                if(sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                else { sortCol = col; sortDir = 'asc'; }
+                document.querySelectorAll('th[data-sort]').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
+                th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+                renderProviders();
+                renderModels();
+            });
+        });
+
+        function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+        function escapeJs(str) { return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+        function renderProviders() {
+            const tbody = document.getElementById('providers-tbody');
+            const filter = document.getElementById('filter-providers').value.toLowerCase();
+            let filtered = allData.providers.filter(p => p.provider.toLowerCase().includes(filter));
+            filtered = sortRows(filtered);
+            if(filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty">Nessun provider rilevato.<br><em>I provider appariranno qui dopo il primo rilevamento</em></td></tr>';
+                return;
+            }
+            tbody.innerHTML = filtered.map(p =>
+                '<tr><td><b>' + escapeHtml(p.provider) + '</b></td><td>' + p.fails + '</td><td>' + (p.pointer || 0) + '</td><td class="mono">' +
+                (p.cooldownRemaining > 0 ? fmtTime(p.cooldownRemaining) : '-') + '</td><td>' + badge(p) +
+                '</td><td><button class="btn btn-reset" onclick="resetProvider(\'' + escapeJs(p.provider) + '\')">Reset</button></td></tr>'
+            ).join('');
+        }
+
+        function renderModels() {
+            const tbody = document.getElementById('models-tbody');
+            const filter = document.getElementById('filter-models').value.toLowerCase();
+            let filtered = allData.models.filter(m => m.id.toLowerCase().includes(filter) || m.provider.toLowerCase().includes(filter));
+            filtered = sortRows(filtered);
+            if(filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="empty">Nessun modello trovato.<br><em>I modelli appariranno qui dopo le prime selezioni</em></td></tr>';
+                return;
+            }
+            tbody.innerHTML = filtered.map(m => {
+                const score = m.score === Infinity ? '∞' : (isNaN(m.score) ? '—' : m.score.toFixed(3));
+                return '<tr><td><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
+                    m.N.toFixed(1) + '</td><td class="mono">' + m.avg.toFixed(3) + '</td><td class="mono">' + score +
+                    '</td><td>' + m.fails + '</td><td class="mono">' + (m.cooldownRemaining > 0 ? fmtTime(m.cooldownRemaining) : '-') +
+                    '</td><td>' + badge(m) + '</td><td><button class="btn btn-reset" onclick="resetModel(\'' + escapeJs(m.id) + '\')">Reset</button></td></tr>';
+            }).join('');
+        }
+
+        async function resetModel(id) {
+            if(!confirm('Resettare ' + id + '?')) return;
+            await fetch('/v1/reset/model/' + encodeURIComponent(id), {method:'POST'});
+            refreshAll();
+        }
+
+        async function resetProvider(p) {
+            if(!confirm('Resettare provider ' + p + '?')) return;
+            await fetch('/v1/reset/provider/' + encodeURIComponent(p), {method:'POST'});
+            refreshAll();
+        }
+
+        async function copyLogs() {
+            try {
+                await navigator.clipboard.writeText(document.getElementById('logs').textContent);
+                const btn = document.querySelector('.btn-copy');
+                const orig = btn.textContent;
+                btn.textContent = '✅ Copiato!';
+                setTimeout(() => btn.textContent = orig, 1500);
+            } catch(e) { alert('Copia fallita: ' + e.message); }
+        }
+
+        async function refreshAll() {
+            try {
+                const r = await fetch('/v1/metrics');
+                const d = await r.json();
+                allData = d;
+                const now = Date.now();
+                document.getElementById('total-req').textContent = d.totalRequests || 0;
+                document.getElementById('total-obs').textContent = d.totalObservations || 0;
+                document.getElementById('active-models').textContent = d.models.filter(m => !m.permanent && (!m.cooldown_until || m.cooldown_until < now)).length;
+                document.getElementById('active-providers').textContent = d.providers.filter(p => !p.permanent && (!p.cooldown_until || p.cooldown_until < now)).length;
+                renderProviders();
+                renderModels();
+            } catch(e) { console.error('Errore fetch:', e); }
+        }
+
+        async function fetchLogs() {
+            try {
+                const r = await fetch('/v1/logs');
+                const d = await r.json();
+                const el = document.getElementById('logs');
+                el.textContent = d.length > 0 ? d.join('\n') : 'Attendendo log...';
+                el.scrollTop = el.scrollHeight;
+            } catch(e) {}
+        }
+
+        document.getElementById('filter-providers').addEventListener('input', renderProviders);
+        document.getElementById('filter-models').addEventListener('input', renderModels);
+
+        setInterval(fetchLogs, 1000);
+    </script>
+</body>
+</html>
