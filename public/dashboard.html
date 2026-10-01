@@ -36,6 +36,7 @@
         .badge-active { background: #238636; color: white; }
         .badge-cooldown { background: #9e6a03; color: white; }
         .badge-banned { background: #da3633; color: white; }
+        .badge-attention { background: #d29922; color: white; }
         .btn { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 12px; }
         .btn-reset { background: #da3633; color: white; }
         .btn-refresh { background: #1f6feb; color: white; }
@@ -55,11 +56,23 @@
         <div class="stats-container">
             <div class="stats"><strong>Richieste:</strong> <span id="total-req">0</span></div>
             <div class="stats"><strong>Osservazioni:</strong> <span id="total-obs">0</span></div>
-            <div class="stats"><strong>Modelli Attivi:</strong> <span id="active-models">0</span></div>
-            <div class="stats"><strong>Provider Attivi:</strong> <span id="active-providers">0</span></div>
+
+            <div class="stats" title="Modelli attivi / monitorati / totale catalogo">
+                <strong>Modelli:</strong>
+                <span id="active-models" class="ok">0</span> attivi /
+                <span id="cooldown-models" class="warn">0</span> cool /
+                <span id="banned-models" class="err">0</span> bannati
+                <span class="muted">(su <span id="total-models">0</span> monitorati, <span id="catalog-models">0</span> in catalogo)</span>
+            </div>
+
+            <div class="stats" title="Provider attivi / monitorati / totale catalogo">
+                <strong>Provider:</strong>
+                <span id="active-providers" class="ok">0</span> attivi /
+                <span id="cooldown-providers" class="warn">0</span> cool /
+                <span id="banned-providers" class="err">0</span> bannati
+                <span class="muted">(su <span id="total-providers">0</span> monitorati, <span id="catalog-providers">0</span> in catalogo)</span>
+            </div>
         </div>
-        <button class="btn btn-refresh" data-action="refresh-all">🔄 Aggiorna Dati</button>
-    </div>
 
     <div class="tabs">
         <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
@@ -111,19 +124,30 @@
         let sortCol = null;
         let sortDir = 'asc';
 
-        // === Auth token ===
-const API_TOKEN =
-  new URLSearchParams(location.search).get('token') ||
-  sessionStorage.getItem('api_token') ||
-  '';
-if (API_TOKEN) sessionStorage.setItem('api_token', API_TOKEN);
+        // === Auth token (persistente tra tab) ===
+        const API_TOKEN =
+            new URLSearchParams(location.search).get('token') ||
+            localStorage.getItem('api_token') ||
+            '';
+        if (API_TOKEN) localStorage.setItem('api_token', API_TOKEN);
 
-function apiFetch(url, opts = {}) {
-  const headers = { ...(opts.headers || {}) };
-  if (API_TOKEN) headers['x-api-token'] = API_TOKEN;
-  return fetch(url, { ...opts, headers });
-}
+        function apiFetch(url, opts = {}) {
+            const headers = { ...(opts.headers || {}) };
+            if (API_TOKEN) headers['x-api-token'] = API_TOKEN;
+            return fetch(url, { ...opts, headers });
+        }
 
+        let authBannerShown = false;
+        function show401Banner() {
+            if (authBannerShown) return;
+            authBannerShown = true;
+            const div = document.createElement('div');
+            div.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:12px;background:#f85149;color:white;text-align:center;font-weight:bold;z-index:9999';
+            div.innerHTML = '🔒 401 — Token mancante o errato. Riapri la dashboard con <code>?token=IL_TUO_TOKEN</code>';
+            document.body.appendChild(div);
+        }
+
+        // === Tabs ===
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -134,28 +158,31 @@ function apiFetch(url, opts = {}) {
         });
 
         function fmtTime(seconds) {
-            if(seconds < 60) return seconds + 's';
-            if(seconds < 3600) return Math.floor(seconds/60) + 'm' + (seconds % 60) + 's';
-            return Math.floor(seconds/3600) + 'h' + Math.floor((seconds % 3600) / 60) + 'm';
+            const s = Number(seconds) || 0;
+            if (s < 60) return s + 's';
+            if (s < 3600) return Math.floor(s / 60) + 'm' + (s % 60) + 's';
+            return Math.floor(s / 3600) + 'h' + Math.floor((s % 3600) / 60) + 'm';
         }
 
         function badge(item) {
             const now = Date.now();
-            if(item.permanent) return '<span class="badge badge-banned">🚫 PERMANENTE</span>';
-            if(item.cooldown_until && item.cooldown_until > now) return '<span class="badge badge-cooldown">⏱ ' + fmtTime(Math.round((item.cooldown_until - now) / 1000)) + '</span>';
+            if (Number(item.permanent)) return '<span class="badge badge-banned">🚫 IGNORATO</span>';
+            if (Number(item.needs_attention)) return '<span class="badge badge-attention">⚠️ DA CONFIGURARE</span>';
+            const cd = Number(item.cooldown_until) || 0;
+            if (cd > now) return '<span class="badge badge-cooldown">⏱ ' + fmtTime(Math.round((cd - now) / 1000)) + '</span>';
             return '<span class="badge badge-active">✓ Attivo</span>';
         }
 
         function sortRows(arr) {
-            if(!sortCol) return arr;
+            if (!sortCol) return arr;
             const sorted = [...arr];
             sorted.sort((a, b) => {
-                let aVal = a[sortCol] !== undefined && a[sortCol] !== null ? a[sortCol] : '';
-                let bVal = b[sortCol] !== undefined && b[sortCol] !== null ? b[sortCol] : '';
-                if(typeof aVal === 'string') aVal = aVal.toLowerCase();
-                if(typeof bVal === 'string') bVal = bVal.toLowerCase();
-                if(aVal < bVal) return sortDir === 'asc' ? -1 : 1;
-                if(aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+                let aVal = a[sortCol] != null ? a[sortCol] : '';
+                let bVal = b[sortCol] != null ? b[sortCol] : '';
+                if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
                 return 0;
             });
             return sorted;
@@ -164,7 +191,7 @@ function apiFetch(url, opts = {}) {
         document.querySelectorAll('th[data-sort]').forEach(th => {
             th.addEventListener('click', () => {
                 const col = th.dataset.sort;
-                if(sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
                 else { sortCol = col; sortDir = 'asc'; }
                 document.querySelectorAll('th[data-sort]').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
                 th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
@@ -173,68 +200,88 @@ function apiFetch(url, opts = {}) {
             });
         });
 
-        function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = String(str ?? '');
+            return div.innerHTML;
+        }
 
         function renderProviders() {
             const tbody = document.getElementById('providers-tbody');
             const filter = document.getElementById('filter-providers').value.toLowerCase();
-            let filtered = allData.providers.filter(p => p.provider.toLowerCase().includes(filter));
+            let filtered = (allData.providers || []).filter(p => String(p.provider || '').toLowerCase().includes(filter));
             filtered = sortRows(filtered);
-            if(filtered.length === 0) {
+            if (filtered.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="empty">Nessun provider rilevato.<br><em>I provider appariranno qui dopo il primo rilevamento</em></td></tr>';
                 return;
             }
-            tbody.innerHTML = filtered.map(p =>
-                '<tr><td><b>' + escapeHtml(p.provider) + '</b></td><td>' + p.fails + '</td><td>' + (p.pointer || 0) + '</td><td class="mono">' +
-                (p.cooldownRemaining > 0 ? fmtTime(p.cooldownRemaining) : '-') + '</td><td>' + badge(p) +
-                '</td><td><button class="btn btn-reset" data-action="reset-provider" data-name="' + escapeHtml(p.provider) + '">Reset</button></td></tr>'
-            ).join('');
+            tbody.innerHTML = filtered.map(p => {
+                const safeName = escapeHtml(p.provider);
+                const fails = Number(p.fails) || 0;
+                const pointer = Number(p.pointer) || 0;
+                const cdRem = Number(p.cooldownRemaining) || 0;
+                let actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safeName + '">Reset</button>';
+                if (Number(p.needs_attention)) {
+                    actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Riprova</button>' +
+                               ' <button class="btn btn-reset" data-action="ignore-provider" data-name="' + safeName + '">🚫 Ignora</button>';
+                }
+                if (Number(p.permanent)) {
+                    actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Ripristina</button>';
+                }
+                return '<tr><td><b>' + safeName + '</b></td><td>' + fails + '</td><td>' + pointer + '</td><td class="mono">' +
+                    (cdRem > 0 ? fmtTime(cdRem) : '-') + '</td><td>' + badge(p) +
+                    '</td><td>' + actions + '</td></tr>';
+            }).join('');
         }
 
         function renderModels() {
             const tbody = document.getElementById('models-tbody');
             const filter = document.getElementById('filter-models').value.toLowerCase();
-            let filtered = allData.models.filter(m => m.id.toLowerCase().includes(filter) || m.provider.toLowerCase().includes(filter));
+            let filtered = (allData.models || []).filter(m =>
+                String(m.id || '').toLowerCase().includes(filter) ||
+                String(m.provider || '').toLowerCase().includes(filter)
+            );
             filtered = sortRows(filtered);
-            if(filtered.length === 0) {
+            if (filtered.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="9" class="empty">Nessun modello trovato.<br><em>I modelli appariranno qui dopo le prime selezioni</em></td></tr>';
                 return;
             }
             tbody.innerHTML = filtered.map(m => {
-                const score = m.score === Infinity ? '∞' : (isNaN(m.score) ? '—' : m.score.toFixed(3));
+                const n = Number(m.N) || 0;
+                const avg = Number(m.avg) || 0;
+                const fails = Number(m.fails) || 0;
+                const cdRem = Number(m.cooldownRemaining) || 0;
+                const score = m.score === Infinity ? '∞' : (m.score == null || isNaN(m.score) ? '—' : Number(m.score).toFixed(3));
                 return '<tr><td><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
-                    m.N.toFixed(1) + '</td><td class="mono">' + m.avg.toFixed(3) + '</td><td class="mono">' + score +
-                    '</td><td>' + m.fails + '</td><td class="mono">' + (m.cooldownRemaining > 0 ? fmtTime(m.cooldownRemaining) : '-') +
+                    n.toFixed(1) + '</td><td class="mono">' + avg.toFixed(3) + '</td><td class="mono">' + score +
+                    '</td><td>' + fails + '</td><td class="mono">' + (cdRem > 0 ? fmtTime(cdRem) : '-') +
                     '</td><td>' + badge(m) + '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
             }).join('');
         }
 
         async function resetModel(id) {
-            if(!confirm('Resettare ' + id + '?')) return;
-            await apiFetch('/v1/reset/model/' + encodeURIComponent(id), {method:'POST'});
+            if (!confirm('Resettare ' + id + '?')) return;
+            await apiFetch('/v1/reset/model/' + encodeURIComponent(id), { method: 'POST' });
             refreshAll();
         }
 
         async function resetProvider(p) {
-            if(!confirm('Resettare provider ' + p + '?')) return;
-            await apiFetch('/v1/reset/provider/' + encodeURIComponent(p), {method:'POST'});
+            if (!confirm('Resettare provider ' + p + '?')) return;
+            await apiFetch('/v1/reset/provider/' + encodeURIComponent(p), { method: 'POST' });
             refreshAll();
         }
 
-        // Delega click sui pulsanti Reset (evita onclick inline → no XSS)
-        document.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        if (btn.dataset.action === 'reset-model') {
-            resetModel(btn.dataset.id);
-        } else if (btn.dataset.action === 'reset-provider') {
-            resetProvider(btn.dataset.name);
-        } else if (btn.dataset.action === 'refresh-all') {
+        async function retryProvider(p) {
+            if (!confirm('Sbloccare il provider ' + p + '? Verrà rimesso nel pool con cooldown azzerato.')) return;
+            await apiFetch('/v1/provider/retry/' + encodeURIComponent(p), { method: 'POST' });
             refreshAll();
-        } else if (btn.dataset.action === 'copy-logs') {
-  copyLogs();
-}
-});
+        }
+
+        async function ignoreProvider(p) {
+            if (!confirm('Ignorare permanentemente ' + p + '? Non verrà più utilizzato fino a quando non lo ripristini.')) return;
+            await apiFetch('/v1/provider/ignore/' + encodeURIComponent(p), { method: 'POST' });
+            refreshAll();
+        }
 
         async function copyLogs() {
             try {
@@ -243,43 +290,72 @@ function apiFetch(url, opts = {}) {
                 const orig = btn.textContent;
                 btn.textContent = '✅ Copiato!';
                 setTimeout(() => btn.textContent = orig, 1500);
-            } catch(e) { alert('Copia fallita: ' + e.message); }
+            } catch (e) { alert('Copia fallita: ' + e.message); }
         }
+
+        // === Click delegation ===
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const a = btn.dataset.action;
+            if (a === 'reset-model') resetModel(btn.dataset.id);
+            else if (a === 'reset-provider') resetProvider(btn.dataset.name);
+            else if (a === 'retry-provider') retryProvider(btn.dataset.name);
+            else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
+            else if (a === 'refresh-all') refreshAll();
+            else if (a === 'copy-logs') copyLogs();
+        });
 
         async function refreshAll() {
             try {
                 const r = await apiFetch('/v1/metrics');
-                    if (r.status === 401) {
-                    document.body.innerHTML = '<div style="padding:40px;text-align:center"><h2>401 — Token mancante o errato</h2><p>Apri la dashboard con <code>?token=IL_TUO_TOKEN</code></p></div>';
-                    return;
-                    }
+                if (r.status === 401) { show401Banner(); return; }
+                if (!r.ok) return;
                 const d = await r.json();
                 allData = d;
                 const now = Date.now();
+
+                const isActive = (x) => !Number(x.permanent) && !Number(x.needs_attention) && (!Number(x.cooldown_until) || Number(x.cooldown_until) < now);
+                const isCooling = (x) => !Number(x.permanent) && !Number(x.needs_attention) && Number(x.cooldown_until) >= now;
+                const isBanned = (x) => !!Number(x.permanent);
+
                 document.getElementById('total-req').textContent = d.totalRequests || 0;
                 document.getElementById('total-obs').textContent = d.totalObservations || 0;
-                document.getElementById('active-models').textContent = d.models.filter(m => !m.permanent && (!m.cooldown_until || m.cooldown_until < now)).length;
-                document.getElementById('active-providers').textContent = d.providers.filter(p => !p.permanent && (!p.cooldown_until || p.cooldown_until < now)).length;
+
+                document.getElementById('active-models').textContent = d.models.filter(isActive).length;
+                document.getElementById('cooldown-models').textContent = d.models.filter(isCooling).length;
+                document.getElementById('banned-models').textContent = d.models.filter(isBanned).length;
+                document.getElementById('total-models').textContent = d.models.length;
+                document.getElementById('catalog-models').textContent = d.catalogCount ?? '?';
+
+                document.getElementById('active-providers').textContent = d.providers.filter(isActive).length;
+                document.getElementById('cooldown-providers').textContent = d.providers.filter(isCooling).length;
+                document.getElementById('banned-providers').textContent = d.providers.filter(isBanned).length;
+                document.getElementById('total-providers').textContent = d.providers.length;
+                document.getElementById('catalog-providers').textContent = d.catalogProviderCount ?? '?';
+
                 renderProviders();
                 renderModels();
-            } catch(e) { console.error('Errore fetch:', e); }
+            } catch (e) { console.error('Errore fetch:', e); }
         }
 
         async function fetchLogs() {
-        try {
-            const r = await apiFetch('/v1/logs');
-            if (!r.ok) return;
-            const d = await r.json();
-            if (!Array.isArray(d)) return;
-            const el = document.getElementById('logs');
-            el.textContent = d.length > 0 ? d.join('\n') : 'Attendendo log...';
-            el.scrollTop = el.scrollHeight;
-        } catch(e) {}
-}
+            try {
+                const r = await apiFetch('/v1/logs');
+                if (r.status === 401) { show401Banner(); return; }
+                if (!r.ok) return;
+                const d = await r.json();
+                if (!Array.isArray(d)) return;
+                const el = document.getElementById('logs');
+                el.textContent = d.length > 0 ? d.join('\n') : 'Attendendo log...';
+                el.scrollTop = el.scrollHeight;
+            } catch (e) {}
+        }
 
         document.getElementById('filter-providers').addEventListener('input', renderProviders);
         document.getElementById('filter-models').addEventListener('input', renderModels);
 
+        refreshAll();
         setInterval(fetchLogs, 1000);
     </script>
 </body>

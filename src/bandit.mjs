@@ -29,7 +29,8 @@ export class DiscountedUCB1Bandit {
           fails INTEGER DEFAULT 0,
           cooldown_until REAL DEFAULT 0,
           pointer INTEGER DEFAULT 0,
-          permanent INTEGER DEFAULT 0
+          permanent INTEGER DEFAULT 0,
+          needs_attention INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS meta (
@@ -77,6 +78,18 @@ export class DiscountedUCB1Bandit {
         this.db.exec(`ALTER TABLE provider_history ADD COLUMN pointer INTEGER DEFAULT 0`);
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonna pointer:", err.message);
+        throw err;
+      }
+    }
+
+        const hasNeedsAttention = providerColumns.some(col => col.name === "needs_attention");
+
+    if (!hasNeedsAttention) {
+      console.log("[BANDIT] Migrazione: aggiungo needs_attention a provider_history");
+      try {
+        this.db.exec(`ALTER TABLE provider_history ADD COLUMN needs_attention INTEGER DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonna needs_attention:", err.message);
         throw err;
       }
     }
@@ -253,6 +266,7 @@ export class DiscountedUCB1Bandit {
             LEFT JOIN provider_history p ON c.provider = p.provider
             WHERE (p.cooldown_until IS NULL OR p.cooldown_until < ?)
               AND (p.permanent IS NULL OR p.permanent = 0)
+              AND (p.needs_attention IS NULL OR p.needs_attention = 0)
               AND c.provider = ?
           `).all(now, forceProvider)
         : this.db.prepare(`
@@ -261,6 +275,7 @@ export class DiscountedUCB1Bandit {
             LEFT JOIN provider_history p ON c.provider = p.provider
             WHERE (p.cooldown_until IS NULL OR p.cooldown_until < ?)
               AND (p.permanent IS NULL OR p.permanent = 0)
+              AND (p.needs_attention IS NULL OR p.needs_attention = 0)
           `).all(now);
 
       if (getAvailableProviders.length === 0) {
@@ -302,6 +317,7 @@ export class DiscountedUCB1Bandit {
         WHERE c.provider = ?
           AND (m.cooldown_until IS NULL OR m.cooldown_until < ?)
           AND (m.permanent IS NULL OR m.permanent = 0)
+          AND (p.needs_attention IS NULL OR p.needs_attention = 0)
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,
@@ -384,6 +400,9 @@ export class DiscountedUCB1Bandit {
         case "cooldown-provider":
           this._forceProviderCooldown(model.provider, c.cooldownMs);
           break;
+        case "flag-provider":
+          this._flagProviderAttention(model.provider, c.reason);
+          break;
         case "cooldown-model":
           specificCooldownMs = c.cooldownMs;
           break;
@@ -391,7 +410,13 @@ export class DiscountedUCB1Bandit {
 
       // In ogni caso incrementa il fail generico del provider,
       // così dopo 3 fail consecutivi va in cooldown "di sicurezza"
-      if (c.action !== "ban-provider" && c.action !== "cooldown-provider") {
+      // Incrementa il fail generico del provider, tranne quando l'errore
+      // è già gestito a monte (ban, cooldown provider, o flag attention)
+      if (
+        c.action !== "ban-provider" &&
+        c.action !== "cooldown-provider" &&
+        c.action !== "flag-provider"
+      ) {
         this._recordProviderFailureGeneric(model.provider);
       }
     }
@@ -506,6 +531,51 @@ export class DiscountedUCB1Bandit {
     console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${info.changes} modelli aggiornati)`);
   }
 
+    _flagProviderAttention(provider, reason = "unknown") {
+    this.db.prepare(`
+      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent, needs_attention)
+      VALUES (?, 0, 0, 0, 0, 1)
+    `).run(provider);
+
+    const info = this.db.prepare(`
+      UPDATE provider_history SET needs_attention = 1 WHERE provider = ?
+    `).run(provider);
+
+    // Metti in cooldown i modelli di quel provider finché l'utente non decide
+    // (evita di riprovarli inutilmente)
+    this.db.prepare(`
+      UPDATE models SET cooldown_until = ?
+      WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
+    `).run(Date.now() + 24 * 3600000, provider);
+
+    console.log(`[BANDIT] Provider ${provider} marcato needs_attention (${reason})`);
+  }
+
+clearProviderAttention(provider) {
+    if (!provider || typeof provider !== "string") return false;
+    const info = this.db.prepare(`
+      UPDATE provider_history SET needs_attention = 0, fails = 0, cooldown_until = 0, permanent = 0
+      WHERE provider = ?
+    `).run(provider);
+
+    this.db.prepare(`
+      UPDATE models SET cooldown_until = 0, fails = 0
+      WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
+    `).run(provider);
+
+    console.log(`[BANDIT] Provider ${provider} sbloccato manualmente`);
+    return info.changes > 0;
+  }
+
+  ignoreProvider(provider) {
+    if (!provider || typeof provider !== "string") return false;
+    this.db.prepare(`
+      UPDATE provider_history SET permanent = 1, needs_attention = 0 WHERE provider = ?
+    `).run(provider);
+    this.db.prepare(`UPDATE models SET permanent = 1 WHERE provider = ?`).run(provider);
+    console.log(`[BANDIT] Provider ${provider} ignorato permanentemente`);
+    return true;
+  }
   _parseResetAfter(msg) {
     // "reset after 5m" / "retry after 30s" / "wait 60 seconds" / "reset after 1m 59s"
     const m1 = msg.match(/(?:reset|retry|wait)\s+(?:after\s+)?(\d+)\s*([smh])/i);
@@ -546,13 +616,15 @@ export class DiscountedUCB1Bandit {
       return { scope: "model", action: "ban-model", reason: "model-invalid" };
     }
 
-    // === PROVIDER MISCONFIGURATO (auth, playwright, transport) ===
+    // === PROVIDER MISCONFIGURATO (auth, playwright, transport, cli obsoleto) ===
     if (
       /no auth provided|please log in|not authenticated|missing.*api.?key|invalid.*api.?key/i.test(msg) ||
       /playwright is not available|playwright.*install/i.test(msg) ||
-      /transport is not configured|missing url or token|not configured/i.test(msg)
+      /transport is not configured|missing url or token|not configured/i.test(msg) ||
+      /cli is no longer supported|please upgrade|version.*not supported/i.test(msg) ||
+      status === 466
     ) {
-      return { scope: "provider", action: "cooldown-provider", cooldownMs: 24 * 3600000, reason: "provider-misconfigured" };
+      return { scope: "provider", action: "flag-provider", reason: "provider-misconfigured" };
     }
 
     // === PROVIDER BLOCCATO DA ANTI-ABUSE / CHALLENGE ===
@@ -650,6 +722,8 @@ export class DiscountedUCB1Bandit {
     const now = Date.now();
     const models = this.db.prepare("SELECT * FROM models ORDER BY provider, id").all();
     const providers = this.db.prepare("SELECT * FROM provider_history ORDER BY fails DESC").all();
+    const catalogCount = this.db.prepare("SELECT COUNT(*) AS n FROM catalog").get().n;
+    const catalogProviderCount = this.db.prepare("SELECT COUNT(DISTINCT provider) AS n FROM catalog").get().n;
 
     const modelsWithScores = models.map(m => {
       const totalN = this.totalObservations || 1;
@@ -663,25 +737,42 @@ export class DiscountedUCB1Bandit {
         score = Infinity;
       }
 
+      const N = Number(m.N) || 0;
+      const sumReward = Number(m.sum_reward) || 0;
+      const fails = Number(m.fails) || 0;
+      const cooldownUntil = Number(m.cooldown_until) || 0;
+
       return {
         ...m,
-        avg: m.N > 0 ? m.sum_reward / m.N : 0,
+        N,
+        sum_reward: sumReward,
+        fails,
+        cooldown_until: cooldownUntil,
+        avg: N > 0 ? sumReward / N : 0,
         score,
-        cooldownRemaining: m.cooldown_until > now ? Math.round((m.cooldown_until - now) / 1000) : 0
+        cooldownRemaining: cooldownUntil > now ? Math.round((cooldownUntil - now) / 1000) : 0
       };
     });
 
-    const providersWithRemaining = providers.map(p => ({
-      ...p,
-      cooldownRemaining: p.cooldown_until > now ? Math.round((p.cooldown_until - now) / 1000) : 0
-    }));
+    const providersWithRemaining = providers.map(p => {
+      const cooldownUntil = Number(p.cooldown_until) || 0;
+      return {
+        ...p,
+        fails: Number(p.fails) || 0,
+        cooldown_until: cooldownUntil,
+        needs_attention: Number(p.needs_attention) || 0,
+        permanent: Number(p.permanent) || 0,
+        cooldownRemaining: cooldownUntil > now ? Math.round((cooldownUntil - now) / 1000) : 0
+      };
+    });
 
-    // FIX #6: totalRequests basato sul counter incrementale, non su N scontato
     return {
       totalRequests: this.totalRequests,
       models: modelsWithScores,
       providers: providersWithRemaining,
-      totalObservations: this.totalObservations
+      totalObservations: this.totalObservations,
+      catalogCount,
+      catalogProviderCount
     };
   }
 
