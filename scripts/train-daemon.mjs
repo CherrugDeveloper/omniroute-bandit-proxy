@@ -34,7 +34,10 @@ const TIMEOUT_MS  = parseInt(process.env.TIMEOUT_MS || "60000", 10);
 const CYCLE_DELAY = parseInt(process.env.CYCLE_DELAY|| "30000", 10);
 const SKIP_TESTED = String(process.env.SKIP_TESTED || "false").toLowerCase() === "true";
 const MAX_INPUT   = parseInt(process.env.MAX_INPUT  || "0", 10);
-const PROMPT      = process.env.PROMPT      || "Rispondi solo con: ok";
+const EXCLUDE_PROVIDERS = String(process.env.EXCLUDE_PROVIDERS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
 
 let running = true;
 let currentModel = null;
@@ -58,8 +61,14 @@ function loadModels() {
   try {
     const where = ["1=1"];
     if (PROVIDER) where.push(`c.provider = '${PROVIDER.replace(/'/g, "''")}'`);
+
+    if (EXCLUDE_PROVIDERS.length > 0) {
+      const list = EXCLUDE_PROVIDERS.map(p => `'${p.replace(/'/g, "''")}'`).join(",");
+      where.push(`c.provider NOT IN (${list})`);
+    }
     where.push("(p.needs_attention IS NULL OR p.needs_attention = 0)");
     where.push("(p.permanent IS NULL OR p.permanent = 0)");
+    where.push("(m.permanent IS NULL OR m.permanent = 0)");
     if (MAX_INPUT > 0) where.push(`c.max_input_tokens >= ${MAX_INPUT}`);
     if (SKIP_TESTED) where.push("c.id NOT IN (SELECT id FROM models)");
     if (String(process.env.ONLY_FREE || "false").toLowerCase() === "true") {
@@ -138,12 +147,14 @@ async function main() {
   log(`  Timeout:      ${TIMEOUT_MS}ms`);
   log(`  Skip tested:  ${SKIP_TESTED}`);
   log(`  Max input:    ${MAX_INPUT}`);
+  log(`  Exclude:      ${EXCLUDE_PROVIDERS.length > 0 ? EXCLUDE_PROVIDERS.join(", ") : "<nessuno>"}`);  
   log(`  PID:          ${process.pid}`);
   log("  (gli esiti per-model sono visibili sulla dashboard)");
   log("=================================================");
 
   let cycle = 0;
   let totalOk = 0, totalFail = 0;
+  let consecutive404 = 0;
 
   while (running) {
     cycle++;
@@ -161,10 +172,12 @@ async function main() {
 
     for (const model of models) {
       if (!running) break;
-      if (skippedProviders.has(model)) continue;  // salta modelli in errore
 
       const provider = model.split("/")[0];
+
+      if (skippedProviders.has(model)) continue;
       if (skippedProviders.has(provider)) continue;
+      if (skippedProviders.has("COOLDOWN:" + provider)) continue;
 
       currentModel = model;
       const result = await testModel(model);
@@ -172,19 +185,35 @@ async function main() {
 
       if (result.ok) {
         ok++; totalOk++;
+        consecutive404 = 0;
       } else {
         fail++; totalFail++;
+
+        // Timeout/5xx → marca il modello per skip immediato
+        if (result.status === 0 || result.status >= 500) {
+          skippedProviders.add(model);
+        }
+
         if (result.status === 404) {
+          consecutive404++;
           if (isProviderFlagged(provider)) {
             skippedProviders.add(provider);
             log(`  → provider ${provider} flaggato, salto il resto per questo ciclo`);
+          } else {
+            skippedProviders.add("COOLDOWN:" + provider);
           }
+        } else {
+          consecutive404 = 0;
         }
-        // Aggiungi qui: timeout/error → salta modello per questo ciclo
-        if (result.status === 0 || result.status >= 500) {
-          skippedProviders.add(model); // marca il MODELLO (non il provider)
+
+        // Se troppi 404 di fila → pausa
+        if (consecutive404 >= 10) {
+          log(`  → ${consecutive404} 404 di fila, pausa 60s`);
+          await sleep(60000);
+          consecutive404 = 0;
         }
       }
+
       if (running) await sleep(DELAY_MS).catch(() => {});
     }
 
