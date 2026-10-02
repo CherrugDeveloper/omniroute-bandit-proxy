@@ -272,7 +272,16 @@ export class DiscountedUCB1Bandit {
     if (modelId.includes("/")) {
       return modelId.split("/")[0];
     }
-    return "default";
+    // ID senza `/`: usa il primo segmento significativo come provider fittizio
+    // Es. gpt-5.6-luna-medium → gpt-5.6-luna, cosi un modello rotto
+    // non banna l'intero gruppo "default".
+    const parts = modelId.split("-");
+    // Rimuovi suffisso variante se è uno di quelli noti
+    const VARIANTS = new Set(["high", "low", "medium", "max", "minimal", "xhigh", "none", "ultra", "pro", "thinking", "1m", "latest", "flash", "luna", "sol", "terra"]);
+    if (parts.length > 1 && VARIANTS.has(parts[parts.length - 1].toLowerCase())) {
+      parts.pop();
+    }
+    return parts.slice(0, 2).join("-") || "default";
   }
 
   _normalizeExcludedModels(excludedModels) {
