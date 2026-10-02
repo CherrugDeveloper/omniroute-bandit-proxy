@@ -21,7 +21,8 @@ export class DiscountedUCB1Bandit {
           fails INTEGER DEFAULT 0,
           cooldown_until REAL DEFAULT 0,
           permanent INTEGER DEFAULT 0,
-          last_used_index INTEGER DEFAULT 0
+          last_used_index INTEGER DEFAULT 0,
+          consecutive_5xx INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS provider_history (
@@ -104,6 +105,18 @@ export class DiscountedUCB1Bandit {
         this.db.exec(`ALTER TABLE catalog ADD COLUMN max_input_tokens INTEGER DEFAULT 0`);
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonna max_input_tokens:", err.message);
+        throw err;
+      }
+    }
+
+        const hasConsecutive5xx = modelColumns.some(col => col.name === "consecutive_5xx");
+
+    if (!hasConsecutive5xx) {
+      console.log("[BANDIT] Migrazione: aggiungo consecutive_5xx a models");
+      try {
+        this.db.exec(`ALTER TABLE models ADD COLUMN consecutive_5xx INTEGER DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonna consecutive_5xx:", err.message);
         throw err;
       }
     }
@@ -439,9 +452,22 @@ export class DiscountedUCB1Bandit {
           case "flag-provider":
             this._flagProviderAttention(model.provider, c.reason);
             break;
-          case "cooldown-model":
-            specificCooldownMs = c.cooldownMs;
+          case "cooldown-model": {
+            // Se è un errore 5xx/transitorio, traccia ripetizioni
+            const isTransient5xx = ["server-error", "timeout", "unknown"].includes(c.reason);
+            const consec = (Number(model.consecutive_5xx) || 0) + 1;
+
+            if (isTransient5xx && consec >= 3) {
+              console.log(`[BANDIT] ${modelId}: 3+ errori transitori consecutivi → ban permanente`);
+              permanentBan = true;
+            } else {
+              specificCooldownMs = c.cooldownMs;
+              // Salva il contatore
+              this.db.prepare(`UPDATE models SET consecutive_5xx = ? WHERE id = ?`)
+                .run(isTransient5xx ? consec : 0, modelId);
+            }
             break;
+          }
         }
       }
 
@@ -491,6 +517,7 @@ export class DiscountedUCB1Bandit {
         this.totalObservations++;
         this._setMeta("totalObservations", this.totalObservations);
         this.db.prepare(`UPDATE provider_history SET fails = 0 WHERE provider = ?`).run(model.provider);
+        this.db.prepare(`UPDATE models SET consecutive_5xx = 0 WHERE id = ?`).run(modelId);
       }
     });
 
