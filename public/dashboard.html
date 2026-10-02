@@ -170,11 +170,46 @@
             margin-bottom: 10px;
             flex-shrink: 0;
         }
+        /* Pannello richieste attive */
+        .active-panel {
+            background: #1c2128;
+            border: 1px solid #d29922;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+        }
+        .active-header {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .active-request {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            border-top: 1px solid #30363d;
+        }
+        .active-request:first-child { border-top: none; }
+        .active-request .model { color: #58a6ff; flex: 1; }
+        .active-request .elapsed { color: #d29922; font-weight: bold; }
+        .active-request .attempt { color: #8b949e; }
+        .active-request .status { color: #7ee787; }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>🤖 OmniRoute Bandit Dashboard</h1>
+        <div id="active-panel" class="active-panel" style="display:none">
+            <div class="active-header">
+                <strong>⚡ In corso</strong> <span id="active-count" class="muted">0 richieste</span>
+            </div>
+            <div id="active-list"></div>
+        </div>
         <div class="stats-container">
             <div class="stats"><strong>Richieste:</strong> <span id="total-req">0</span></div>
             <div class="stats" title="Modello con lo score UCB1 più alto">
@@ -711,14 +746,49 @@
             } catch (e) {}
         }
 
+                async function fetchActive() {
+            try {
+                const r = await apiFetch('/v1/active');
+                if (!r.ok) return;
+                const d = await r.json();
+                const panel = document.getElementById('active-panel');
+                const list = document.getElementById('active-list');
+                const countEl = document.getElementById('active-count');
+
+                if (!d.requests || d.requests.length === 0) {
+                    panel.style.display = 'none';
+                    return;
+                }
+
+                panel.style.display = 'block';
+                countEl.textContent = d.count + ' ' + (d.count === 1 ? 'richiesta' : 'richieste');
+
+                list.innerHTML = d.requests.map(r => {
+                    const model = r.model || '(selezione...)';
+                    const attempt = r.attempt ? ' (#' + r.attempt + ')' : '';
+                    const status = r.status === 'success' ? '✅'
+                                 : r.status === 'fetching' ? '⏳'
+                                 : r.status?.startsWith('error') ? '❌'
+                                 : '•';
+                    return '<div class="active-request">' +
+                        '<span class="status">' + status + '</span>' +
+                        '<span class="model">' + escapeHtml(model) + extra + '</span>' +
+                        '<span class="attempt">' + attempt + '</span>' +
+                        '<span class="elapsed">' + r.elapsedSec + 's</span>' +
+                    '</div>';
+                }).join('');
+            } catch (e) {}
+        }
+
         document.getElementById('filter-providers').addEventListener('input', renderProviders);
         document.getElementById('filter-models').addEventListener('input', renderModels);
 
-        // Avvio: prima fetch immediata, poi polling
         refreshAll();
         fetchLogs();
+        fetchActive();
         setInterval(refreshAll, 2500);
         setInterval(fetchLogs, 1000);
+        setInterval(fetchActive, 500);   // 500ms → tracking fluido
     </script>
 </body>
 </html>

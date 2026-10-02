@@ -79,7 +79,7 @@ function compressBody(body, targetTokens) {
 // pollate ogni secondo dalla dashboard). Esclude anche gli asset statici.
 app.use((req, res, next) => {
   const isApi = req.path.startsWith("/v1/");
-  const isPolling = req.path.startsWith("/v1/metrics") || req.path.startsWith("/v1/logs");
+  const isPolling = req.path.startsWith("/v1/metrics") || req.path.startsWith("/v1/logs") || req.path.startsWith("/v1/active");
   if (isApi && !isPolling) {
     console.log(`[PROXY] ${req.method} ${req.path}`);
   }
@@ -161,6 +161,43 @@ class RingBuffer {
 
 const logBuffer = new RingBuffer(200);
 
+// ========================================
+// ACTIVE REQUESTS TRACKER
+// ========================================
+// Traccia le richieste in corso con: modello scelto, tentativo, tempo, tier
+const activeRequests = new Map(); // id -> { id, model, attempt, startTime, clientIp, stream, tier, compressed }
+
+let requestCounter = 0;
+function newRequestId() {
+  return `req-${Date.now()}-${++requestCounter}`;
+}
+
+function trackRequestStart(id, meta) {
+  activeRequests.set(id, {
+    id,
+    startTime: Date.now(),
+    ...meta
+  });
+}
+
+function trackRequestUpdate(id, patch) {
+  const r = activeRequests.get(id);
+  if (r) Object.assign(r, patch);
+}
+
+function trackRequestEnd(id) {
+  activeRequests.delete(id);
+}
+
+function getActiveRequestsSnapshot() {
+  const now = Date.now();
+  return Array.from(activeRequests.values()).map(r => ({
+    ...r,
+    elapsedMs: now - r.startTime,
+    elapsedSec: Math.round((now - r.startTime) / 100) / 10
+  })).sort((a, b) => b.startTime - a.startTime);
+}
+
 function pushLog(message) {
   const timestamp = new Date().toLocaleTimeString();
   logBuffer.push(`[${timestamp}] ${message}`);
@@ -238,6 +275,18 @@ app.get("/v1/logs", requireAuth, (req, res) => {
   }
 });
 
+app.get("/v1/active", requireAuth, (req, res) => {
+  try {
+    res.json({
+      count: activeRequests.size,
+      requests: getActiveRequestsSnapshot()
+    });
+  } catch (e) {
+    console.error("[API] Errore /v1/active:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/v1/reset/model/:id", requireAuth, (req, res) => {
   try {
     bandit.resetModel(req.params.id);
@@ -294,6 +343,19 @@ app.post("/v1/provider/ignore/:p", requireAuth, (req, res) => {
 
 app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const { stream } = req.body || {};
+  const requestId = newRequestId();
+
+  trackRequestStart(requestId, {
+    model: null,
+    attempt: 0,
+    stream: !!stream,
+    status: "starting",
+    clientIp: req.ip || req.connection?.remoteAddress || "?"
+  });
+
+  // Cleanup a fine richiesta (success, error, disconnect)
+  res.once("finish", () => trackRequestEnd(requestId));
+  res.once("close", () => trackRequestEnd(requestId));
   const baseUrl = process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128/v1";
   const apiKey = process.env.OMNIROUTE_API_KEY;
   const upstreamTimeoutMs = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000;
@@ -371,6 +433,11 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
 
     console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt})`);
+    trackRequestUpdate(requestId, {
+      model,
+      attempt,
+      status: "fetching",
+    });
     const start = Date.now();
     controller = new AbortController();
 
@@ -400,6 +467,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status });
         excluded.add(model);
         continue;
+                trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
       }
 
       if (stream) {
@@ -436,14 +504,16 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           }
 
           if (!streamFailed && streamStarted) {
-            const rewardScore = Math.max(0, 1.0 - (dur / 30));
-            bandit.recordFeedback(model, true, rewardScore, null);
-            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
+        const rewardScore = Math.max(0, 1.0 - (dur / 30));
+        bandit.recordFeedback(model, true, rewardScore, null);
+        console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
+        trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
           } else if (streamFailed) {
             bandit.recordFeedback(model, false, 0, { message: "stream error" });
             excluded.add(model);
             res.end();
             continue;
+                    trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
           }
 
           res.end();
@@ -456,6 +526,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           reader.cancel().catch(() => {});
           if (!res.writableEnded) res.end();
           continue;
+                  trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
         }
       } else {
         const data = await r.json();
@@ -464,11 +535,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           bandit.recordFeedback(model, false, 0, { message: data.error?.message || "error", status: data.error?.status });
           excluded.add(model);
           continue;
+                  trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
         }
 
         const rewardScore = Math.max(0, 1.0 - (dur / 30));
         bandit.recordFeedback(model, true, rewardScore, null);
         console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
+        trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
         cleanup();
         return res.json(data);
       }
@@ -487,7 +560,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
 
   cleanup();
-  res.status(502).json({ error: { message: `${attempt} tentativi esauriti su ${maxAttempts}`, status: 502 } });
+  res.status(502).json({ error: { message: `${attempt - 1} tentativi esauriti su ${maxAttempts}`, status: 502 } });
 });
 
 // ========================================
