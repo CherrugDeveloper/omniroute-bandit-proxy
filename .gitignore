@@ -33,3 +33,9 @@ data/
 # Training daemon
 .train-daemon.pid
 training.log
+
+# SQLite temporary files
+bandit.db-journal
+*.db-journal
+*.db-shm
+*.db-wal
