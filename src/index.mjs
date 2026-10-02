@@ -324,12 +324,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
     let model;
     if (attempt === 1 && forceModel) {
-      if (bandit.isModelAvailable(forceModel)) {
-        model = forceModel;
-      } else {
-        console.warn(`[FORCE] Modello ${forceModel} non disponibile, uso selezione normale`);
-        model = bandit.selectModel(excluded, null, estimatedTokens);
+      if (!bandit.isModelAvailable(forceModel)) {
+        cleanup();
+        return res.status(404).json({
+          error: { message: `Modello forzato ${forceModel} non disponibile in catalogo`, status: 404 }
+        });
       }
+      model = forceModel;
     } else {
       model = bandit.selectModel(excluded, null, estimatedTokens);
     }
