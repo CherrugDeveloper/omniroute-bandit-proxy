@@ -92,7 +92,8 @@ const bandit = new DiscountedUCB1Bandit();
 const notifier = new Notifier({
   urls: (process.env.WEBHOOK_URLS || "").split(",").map(s => s.trim()).filter(Boolean),
   enabled: String(process.env.WEBHOOK_ENABLED || "true").toLowerCase() === "true",
-  throttleMs: parseInt(process.env.WEBHOOK_THROTTLE_MS || "300000", 10)
+  throttleMs: parseInt(process.env.WEBHOOK_THROTTLE_MS || "300000", 10),
+  telegramChatId: process.env.TELEGRAM_CHAT_ID || null
 });
 bandit.notifier = notifier;
 

@@ -15,6 +15,7 @@ export class Notifier {
     this.urls = urls.filter(u => typeof u === "string" && u.trim().length > 0);
     this.enabled = options.enabled !== false && this.urls.length > 0;
     this.throttleMs = Number(options.throttleMs) || 5 * 60 * 1000;
+    this.telegramChatId = options.telegramChatId || null;
 
     this._lastSent = new Map();
     this.stats = { sent: 0, throttled: 0, errors: 0 };
@@ -61,6 +62,24 @@ export class Notifier {
     } else if (url.includes("discord.com/api/webhooks")) {
       body = {
         content: `${emoji} **${event}**\n${message}`
+      };
+    } else if (url.includes("api.telegram.org")) {
+      // Formato Telegram: serve chat_id.
+      // Lo estraiamo dalla query string dell'URL:
+      //   https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>
+      const u = new URL(url);
+      const chatId = u.searchParams.get("chat_id") || this.telegramChatId;
+      if (!chatId) {
+        throw new Error("Telegram: chat_id mancante (aggiungilo come query string ?chat_id=...)");
+      }
+      // Rimuovi chat_id dall'URL prima di inviare (Telegram non lo vuole in query)
+      u.searchParams.delete("chat_id");
+      url = u.toString();
+
+      body = {
+        chat_id: chatId,
+        text: `${emoji} *${event}*\n${message}`,
+        parse_mode: "Markdown"
       };
     } else {
       body = {
