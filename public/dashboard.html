@@ -145,6 +145,88 @@
         .btn-reset { background: #da3633; }
         .btn-copy { background: #238636; }
         .btn-info { background: #a371f7; }
+        /* ===== MODALI CUSTOM ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            padding: 20px;
+            animation: modal-fade-in 0.15s ease-out;
+        }
+        @keyframes modal-fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-box {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            box-shadow: 0 16px 32px rgba(0,0,0,0.5);
+            padding: 20px;
+            max-width: 480px;
+            width: 100%;
+            color: #c9d1d9;
+            animation: modal-slide-in 0.15s ease-out;
+        }
+        @keyframes modal-slide-in {
+            from { transform: translateY(-8px) scale(0.98); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .modal-title {
+            margin: 0 0 12px 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #58a6ff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal-title .modal-icon { font-size: 18px; }
+        .modal-message {
+            margin: 0 0 16px 0;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #c9d1d9;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .modal-input {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+        .modal-input:focus { outline: none; border-color: #58a6ff; }
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .modal-btn {
+            padding: 7px 16px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            font-weight: 500;
+            transition: filter 0.1s;
+        }
+        .modal-btn:hover { filter: brightness(1.15); }
+        .modal-btn-primary { background: #238636; color: white; }
+        .modal-btn-secondary { background: #21262d; color: #c9d1d9; border-color: #30363d; }
+        .modal-btn-danger { background: #da3633; color: white; }
+        .modal-btn-warning { background: #9e6a03; color: white; }
         .btn:hover { opacity: 0.85; }
 
         pre#logs {
@@ -381,6 +463,117 @@
             return fetch(url, { ...opts, headers });
         }
 
+        // ===== MODALI CUSTOM =====
+        function showModal({ title, icon = '❓', message, confirmText = 'OK', cancelText = 'Annulla',
+                             confirmStyle = 'primary', danger = false, prompt = null, promptPlaceholder = '' }) {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'modal-overlay';
+
+                const box = document.createElement('div');
+                box.className = 'modal-box';
+
+                const titleEl = document.createElement('h3');
+                titleEl.className = 'modal-title';
+                titleEl.innerHTML = '<span class="modal-icon">' + escapeHtml(icon) + '</span>' + escapeHtml(title);
+                box.appendChild(titleEl);
+
+                const msgEl = document.createElement('div');
+                msgEl.className = 'modal-message';
+                msgEl.textContent = message;
+                box.appendChild(msgEl);
+
+                let inputEl = null;
+                if (prompt !== null) {
+                    inputEl = document.createElement('input');
+                    inputEl.className = 'modal-input';
+                    inputEl.value = prompt;
+                    inputEl.placeholder = promptPlaceholder;
+                    box.appendChild(inputEl);
+                }
+
+                const actions = document.createElement('div');
+                actions.className = 'modal-actions';
+
+                if (cancelText) {
+                    const btnCancel = document.createElement('button');
+                    btnCancel.className = 'modal-btn modal-btn-secondary';
+                    btnCancel.textContent = cancelText;
+                    btnCancel.onclick = () => { close(); resolve(prompt !== null ? null : false); };
+                    actions.appendChild(btnCancel);
+                }
+
+                const btnConfirm = document.createElement('button');
+                const styleClass = danger ? 'modal-btn-danger'
+                                 : confirmStyle === 'warning' ? 'modal-btn-warning'
+                                 : 'modal-btn-primary';
+                btnConfirm.className = 'modal-btn ' + styleClass;
+                btnConfirm.textContent = confirmText;
+                btnConfirm.onclick = () => {
+                    const val = inputEl ? inputEl.value : true;
+                    close();
+                    resolve(val);
+                };
+                actions.appendChild(btnConfirm);
+
+                box.appendChild(actions);
+                overlay.appendChild(box);
+
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) { close(); resolve(prompt !== null ? null : false); }
+                });
+
+                function onKey(e) {
+                    if (e.key === 'Escape') { close(); resolve(prompt !== null ? null : false); }
+                    else if (e.key === 'Enter') {
+                        const val = inputEl ? inputEl.value : true;
+                        close();
+                        resolve(val);
+                    }
+                }
+                document.addEventListener('keydown', onKey);
+
+                function close() {
+                    document.removeEventListener('keydown', onKey);
+                    overlay.style.opacity = '0';
+                    overlay.style.transition = 'opacity 0.1s';
+                    setTimeout(() => overlay.remove(), 100);
+                }
+
+                document.body.appendChild(overlay);
+                if (inputEl) {
+                    inputEl.focus();
+                    inputEl.select();
+                } else {
+                    btnConfirm.focus();
+                }
+            });
+        }
+
+        function showAlert(message, title = 'Avviso', icon = 'ℹ️') {
+            return showModal({
+                title,
+                icon,
+                message,
+                confirmText: 'OK',
+                cancelText: null,
+                confirmStyle: 'primary'
+            });
+        }
+
+        function showConfirm(message, { title = 'Conferma', icon = '❓', confirmText = 'Conferma',
+                                        danger = false, warning = false } = {}) {
+            return showModal({
+                title,
+                icon,
+                message,
+                confirmText,
+                cancelText: 'Annulla',
+                danger,
+                confirmStyle: warning ? 'warning' : 'primary'
+            });
+        }
+
         let authBannerShown = false;
         function show401Banner() {
             if (authBannerShown) return;
@@ -588,31 +781,60 @@
 
         // ============= AZIONI =============
         async function resetModel(id) {
-            if (!confirm('Resettare ' + id + '?')) return;
+            const ok = await showConfirm('Vuoi resettare il modello?\n\n' + id, {
+                title: 'Reset modello',
+                icon: '🔄',
+                confirmText: 'Resetta',
+                warning: true
+            });
+            if (!ok) return;
             await apiFetch('/v1/reset/model/' + encodeURIComponent(id), { method: 'POST' });
             refreshAll();
         }
 
         async function resetProvider(p) {
-            if (!confirm('Resettare provider ' + p + '?')) return;
+            const ok = await showConfirm('Vuoi resettare il provider?\n\n' + p + '\n\nVerranno azzerati fails, cooldown e stato di tutti i suoi modelli.', {
+                title: 'Reset provider',
+                icon: '🔄',
+                confirmText: 'Resetta',
+                warning: true
+            });
+            if (!ok) return;
             await apiFetch('/v1/reset/provider/' + encodeURIComponent(p), { method: 'POST' });
             refreshAll();
         }
 
         async function resetCounters() {
-            if (!confirm('Resettare i contatori globali Richieste + Osservazioni?\n\nNon tocca modelli né provider.')) return;
+            const ok = await showConfirm('Vuoi resettare i contatori globali?\n\nVerranno azzerati Richieste e Osservazioni.\nNon tocca modelli né provider.', {
+                title: 'Reset contatori',
+                icon: '🔄',
+                confirmText: 'Resetta',
+                danger: true
+            });
+            if (!ok) return;
             await apiFetch('/v1/reset/counters', { method: 'POST' });
             refreshAll();
         }
 
         async function retryProvider(p) {
-            if (!confirm('Sbloccare il provider ' + p + '? Verrà rimesso nel pool con cooldown azzerato.')) return;
+            const ok = await showConfirm('Vuoi sbloccare il provider?\n\n' + p + '\n\nVerrà rimesso nel pool con cooldown azzerato.', {
+                title: 'Riprova provider',
+                icon: '🔁',
+                confirmText: 'Riprova'
+            });
+            if (!ok) return;
             await apiFetch('/v1/provider/retry/' + encodeURIComponent(p), { method: 'POST' });
             refreshAll();
         }
 
         async function ignoreProvider(p) {
-            if (!confirm('Ignorare permanentemente ' + p + '? Non verrà più utilizzato fino a quando non lo ripristini.')) return;
+            const ok = await showConfirm('Vuoi ignorare permanentemente questo provider?\n\n' + p + '\n\nNon verrà più utilizzato fino a quando non lo ripristini manualmente.', {
+                title: 'Ignora provider',
+                icon: '🚫',
+                confirmText: 'Ignora',
+                danger: true
+            });
+            if (!ok) return;
             await apiFetch('/v1/provider/ignore/' + encodeURIComponent(p), { method: 'POST' });
             refreshAll();
         }
@@ -624,7 +846,7 @@
                 const orig = btn.textContent;
                 btn.textContent = '✅ Copiato!';
                 setTimeout(() => btn.textContent = orig, 1500);
-            } catch (e) { alert('Copia fallita: ' + e.message); }
+            } catch (e) { showAlert('Copia fallita: ' + e.message, 'Errore', '⚠️'); }
         }
 
         // ============= HELP MODAL =============
@@ -716,7 +938,7 @@
 
         function showHelp(providerName) {
             const p = allData.providers.find(x => x.provider === providerName);
-            if (!p) return alert('Provider non trovato');
+            if (!p) return showAlert('Provider non trovato: ' + providerName, 'Errore', '⚠️');
 
             const help = getHelpForProvider(p);
             const msg = p.attention_message || '(nessun messaggio disponibile)';
