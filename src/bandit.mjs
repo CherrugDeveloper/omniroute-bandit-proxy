@@ -810,11 +810,14 @@ clearProviderAttention(provider) {
     }
 
     // === ACCOUNT BANNATO ===
-    if (
-      /suspended|banned|account disabled|terminated/i.test(msg) ||
-      status === 403
-    ) {
+    // 403 da un singolo modello → ban SOLO il modello, non l'intero provider.
+    // Un 403 "account-banned" reale contiene parole chiave esplicite.
+    if (/suspended|banned|account disabled|account terminated|api key.*revoked/i.test(msg)) {
       return { scope: "provider", action: "ban-provider", reason: "account-banned" };
+    }
+    if (status === 403) {
+      // 403 generico → solo il modello (probabile restrizione per-model)
+      return { scope: "model", action: "ban-model", reason: "forbidden" };
     }
 
     // === QUOTA ESAURITA PROVIDER (rispetta reset del server) ===

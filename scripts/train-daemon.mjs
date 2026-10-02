@@ -106,6 +106,20 @@ async function testModel(model) {
   }
 }
 
+function isProviderFlagged(provider) {
+  const db = new Database(DB_PATH, { readonly: true });
+  try {
+    const row = db.prepare(
+      "SELECT needs_attention, permanent FROM provider_history WHERE provider = ?"
+    ).get(provider);
+    return !!(row && (Number(row.needs_attention) || Number(row.permanent)));
+  } catch {
+    return false;
+  } finally {
+    db.close();
+  }
+}
+
 async function main() {
   log("=================================================");
   log("Train daemon avviato");
@@ -140,6 +154,7 @@ async function main() {
 
     for (const model of models) {
       if (!running) break;
+      if (skippedProviders.has(model)) continue;  // salta modelli in errore
 
       const provider = model.split("/")[0];
       if (skippedProviders.has(provider)) continue;
@@ -153,8 +168,14 @@ async function main() {
       } else {
         fail++; totalFail++;
         if (result.status === 404) {
-          skippedProviders.add(provider);
-          log(`  → provider ${provider} flaggato, salto il resto per questo ciclo`);
+          if (isProviderFlagged(provider)) {
+            skippedProviders.add(provider);
+            log(`  → provider ${provider} flaggato, salto il resto per questo ciclo`);
+          }
+        }
+        // Aggiungi qui: timeout/error → salta modello per questo ciclo
+        if (result.status === 0 || result.status >= 500) {
+          skippedProviders.add(model); // marca il MODELLO (non il provider)
         }
       }
       if (running) await sleep(DELAY_MS).catch(() => {});
