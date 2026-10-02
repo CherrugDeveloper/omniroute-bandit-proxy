@@ -760,6 +760,11 @@ clearProviderAttention(provider) {
       return { scope: "model", action: "ban-model", reason: "endpoint-incompatible" };
     }
 
+        // === VALIDATION ERROR (body malformato respinto dall'upstream) ===
+    if (/must not be an empty array|validation error|value_error|invalid.*body|invalid.*request.*body/i.test(msg)) {
+      return { scope: "model", action: "ban-model", reason: "validation-error" };
+    }
+
     // === POLICY / GUARDRAIL / DATA RESTRICTIONS (rifiuto permanente) ===
     if (/guardrail|data policy|not available matching.*restriction|removed them for the following/i.test(msg)) {
       return { scope: "model", action: "ban-model", reason: "policy-restricted" };
@@ -771,7 +776,7 @@ clearProviderAttention(provider) {
       /playwright is not available|playwright.*install/i.test(msg) ||
       /transport is not configured|missing url or token|not configured/i.test(msg) ||
       /cli is no longer supported|please upgrade|version.*not supported/i.test(msg) ||
-      /spawn.*enoent/i.test(msg) ||
+      /cli not found|not found.*install via|spawn.*enoent|command not found/i.test(msg) ||
       /must be an absolute path|bridge sandbox|_home must be|env(ironment)? var/i.test(msg) ||
       status === 466
     ) {
