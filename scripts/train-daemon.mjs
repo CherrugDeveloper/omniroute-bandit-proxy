@@ -62,6 +62,12 @@ function loadModels() {
     where.push("(p.permanent IS NULL OR p.permanent = 0)");
     if (MAX_INPUT > 0) where.push(`c.max_input_tokens >= ${MAX_INPUT}`);
     if (SKIP_TESTED) where.push("c.id NOT IN (SELECT id FROM models)");
+    if (String(process.env.ONLY_FREE || "false").toLowerCase() === "true") {
+      where.push("c.is_free = 1");
+    }
+    if (String(process.env.EXCLUDE_PAID || "false").toLowerCase() === "true") {
+      where.push("(m.is_paid IS NULL OR m.is_paid = 0)");
+    }
         // Skip pattern non-chat (sicurezza lato client)
     where.push("c.id NOT LIKE '%:batch%'");
     where.push("c.id NOT LIKE '%tts%'");
@@ -70,6 +76,7 @@ function loadModels() {
     const rows = db.prepare(`
       SELECT c.id
       FROM catalog c
+      LEFT JOIN models m ON c.id = m.id
       LEFT JOIN provider_history p ON c.provider = p.provider
       WHERE ${where.join(" AND ")}
       ORDER BY c.id ASC

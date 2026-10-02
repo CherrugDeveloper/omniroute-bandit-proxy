@@ -5,6 +5,8 @@ export class DiscountedUCB1Bandit {
     this.db = new Database(dbPath);
     this.discountFactor = 0.99;
     this.notifier = null;
+    this.excludePaid = String(process.env.EXCLUDE_PAID || "false").toLowerCase() === "true";
+    this.onlyFree = String(process.env.ONLY_FREE || "false").toLowerCase() === "true";
     this._initDB();
     this._migrateDB();
     this.totalObservations = this._getMeta("totalObservations");
@@ -25,7 +27,8 @@ export class DiscountedUCB1Bandit {
           last_used_index INTEGER DEFAULT 0,
           consecutive_5xx INTEGER DEFAULT 0,
           degraded INTEGER DEFAULT 0,
-          degraded_since REAL DEFAULT 0
+          degraded_since REAL DEFAULT 0,
+          is_paid INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS provider_history (
@@ -47,7 +50,8 @@ export class DiscountedUCB1Bandit {
         CREATE TABLE IF NOT EXISTS catalog (
           id TEXT PRIMARY KEY,
           provider TEXT NOT NULL,
-          max_input_tokens INTEGER DEFAULT 0
+          max_input_tokens INTEGER DEFAULT 0,
+          is_free INTEGER DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
@@ -110,6 +114,28 @@ export class DiscountedUCB1Bandit {
         this.db.exec(`ALTER TABLE catalog ADD COLUMN max_input_tokens INTEGER DEFAULT 0`);
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonna max_input_tokens:", err.message);
+        throw err;
+      }
+    }
+
+        const hasCatalogIsFree = catalogColumns.some(col => col.name === "is_free");
+    if (!hasCatalogIsFree) {
+      console.log("[BANDIT] Migrazione: aggiungo is_free a catalog");
+      try {
+        this.db.exec(`ALTER TABLE catalog ADD COLUMN is_free INTEGER DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonna is_free:", err.message);
+        throw err;
+      }
+    }
+
+    const hasModelsIsPaid = modelColumns.some(col => col.name === "is_paid");
+    if (!hasModelsIsPaid) {
+      console.log("[BANDIT] Migrazione: aggiungo is_paid a models");
+      try {
+        this.db.exec(`ALTER TABLE models ADD COLUMN is_paid INTEGER DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonna is_paid:", err.message);
         throw err;
       }
     }
@@ -214,9 +240,14 @@ export class DiscountedUCB1Bandit {
       }
 
       const insertStmt = this.db.prepare(`
-        INSERT INTO catalog (id, provider, max_input_tokens) VALUES (?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, max_input_tokens = excluded.max_input_tokens
+        INSERT INTO catalog (id, provider, max_input_tokens, is_free) VALUES (?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, max_input_tokens = excluded.max_input_tokens, is_free = excluded.is_free
       `);
+
+      const isFreeModel = (id) => {
+        const lower = String(id).toLowerCase();
+        return /(:free|-free|_free|\/free)\b/.test(lower) || lower.includes(":free");
+      };
 
       const isChatModel = (m, id) => {
         if (!m || typeof m !== "object") return true;
@@ -251,10 +282,12 @@ export class DiscountedUCB1Bandit {
         this.db.prepare("DELETE FROM catalog").run();
         let inserted = 0;
         let skipped = 0;
+        let raw = 0;
 
         for (const m of models) {
           const modelId = typeof m === "string" ? m : (m.id || m.name);
           if (!modelId) continue;
+          raw++;
 
           // Skip modelli virtuali/combo
           if (modelId.startsWith("auto/") || modelId.includes("combo") || modelId.startsWith("gh/")) {
@@ -268,14 +301,16 @@ export class DiscountedUCB1Bandit {
 
           const provider = this._getProvider(modelId);
           const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
-          insertStmt.run(modelId, provider, maxInput);
+          const isFree = isFreeModel(modelId) ? 1 : 0;
+          insertStmt.run(modelId, provider, maxInput, isFree);
           inserted++;
         }
-        return { inserted, skipped };
+        return { inserted, skipped, raw };
       });
 
-      const { inserted, skipped } = syncCatalog(modelList);
-      console.log(`[BANDIT] Catalog sincronizzato: ${inserted} modelli chat (esclusi ${skipped} non-chat)`);
+      const { inserted, skipped, raw } = syncCatalog(modelList);
+      this._setMeta("catalogRawCount", raw);
+      console.log(`[BANDIT] Catalog sincronizzato: ${inserted} modelli chat (esclusi ${skipped} non-chat su ${raw} totali)`);
     } catch (err) {
       console.error("[BANDIT] Errore durante fetch modelli:", err.message);
       throw err;
@@ -387,6 +422,9 @@ export class DiscountedUCB1Bandit {
       let maxScore = -Infinity;
       const totalN = this.totalObservations || 1;
 
+      const paidFilter = this.excludePaid ? "AND (m.is_paid IS NULL OR m.is_paid = 0)" : "";
+      const freeFilter = this.onlyFree ? "AND c.is_free = 1" : "";
+
       const modelsStmt = this.db.prepare(`
         SELECT c.id, c.provider,
                COALESCE(m.N, 0)             AS N,
@@ -397,7 +435,9 @@ export class DiscountedUCB1Bandit {
                COALESCE(m.last_used_index,0) AS last_used_index,
                COALESCE(p.pointer, 0)       AS provider_pointer,
                COALESCE(c.max_input_tokens, 0) AS max_input_tokens,
-               COALESCE(m.degraded, 0)      AS degraded
+               COALESCE(c.is_free, 0)       AS is_free,
+               COALESCE(m.degraded, 0)      AS degraded,
+               COALESCE(m.is_paid, 0)       AS is_paid
         FROM catalog c
         LEFT JOIN models m ON c.id = m.id
         LEFT JOIN provider_history p ON c.provider = p.provider
@@ -406,6 +446,8 @@ export class DiscountedUCB1Bandit {
           AND (m.permanent IS NULL OR m.permanent = 0)
           AND (p.needs_attention IS NULL OR p.needs_attention = 0)
           AND (c.max_input_tokens = 0 OR c.max_input_tokens >= ?)
+          ${paidFilter}
+          ${freeFilter}
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,
@@ -516,6 +558,12 @@ export class DiscountedUCB1Bandit {
             this._banProvider(model.provider);
             break;
           case "cooldown-provider":
+            // Se l'errore è 402/no-credit, marca il MODELLO come paid
+            // (non bannare il provider, solo escludere quel modello se EXCLUDE_PAID)
+            if (c.reason === "no-credit" || /402|payment|credit|funds/i.test(String(errorDetails?.status || "") + " " + String(errorDetails?.message || ""))) {
+              this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(modelId);
+              console.log(`[BANDIT] ${modelId}: marcato is_paid=1`);
+            }
             this._forceProviderCooldown(model.provider, c.cooldownMs, c.reason);
             break;
           case "flag-provider":
@@ -910,6 +958,7 @@ clearProviderAttention(provider) {
     const providers = this.db.prepare("SELECT * FROM provider_history ORDER BY fails DESC").all();
     const catalogCount = this.db.prepare("SELECT COUNT(*) AS n FROM catalog").get().n;
     const catalogProviderCount = this.db.prepare("SELECT COUNT(DISTINCT provider) AS n FROM catalog").get().n;
+    const catalogFreeCount = this.db.prepare("SELECT COUNT(*) AS n FROM catalog WHERE is_free = 1").get().n;
 
     const modelsWithScores = models.map(m => {
       const totalN = this.totalObservations || 1;
@@ -936,6 +985,7 @@ clearProviderAttention(provider) {
         cooldown_until: cooldownUntil,
         degraded: Number(m.degraded) || 0,
         degraded_since: Number(m.degraded_since) || 0,
+        is_paid: Number(m.is_paid) || 0,
         avg: N > 0 ? sumReward / N : 0,
         score,
         cooldownRemaining: cooldownUntil > now ? Math.round((cooldownUntil - now) / 1000) : 0
@@ -962,7 +1012,11 @@ clearProviderAttention(provider) {
       providers: providersWithRemaining,
       totalObservations: this.totalObservations,
       catalogCount,
-      catalogProviderCount
+      catalogProviderCount,
+      catalogFreeCount,
+      catalogRawCount: this._getMeta("catalogRawCount"),
+      excludePaid: this.excludePaid,
+      onlyFree: this.onlyFree
     };
   }
 
