@@ -655,6 +655,8 @@
                 document.getElementById('attention-models').textContent = d.models.filter(isAttention).length;
                 document.getElementById('total-models').textContent = d.models.length;
                 document.getElementById('catalog-models').textContent = d.catalogCount ?? '?';
+                document.getElementById('catalog-free').textContent = d.catalogFreeCount ?? '?';
+                document.getElementById('catalog-models-raw').textContent = d.catalogRawCount ?? '?';
 
                 document.getElementById('active-providers').textContent = d.providers.filter(isActive).length;
                 document.getElementById('cooldown-providers').textContent = d.providers.filter(isCooling).length;
