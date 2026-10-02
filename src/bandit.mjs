@@ -856,6 +856,8 @@ clearProviderAttention(provider) {
         sum_reward: sumReward,
         fails,
         cooldown_until: cooldownUntil,
+        degraded: Number(m.degraded) || 0,
+        degraded_since: Number(m.degraded_since) || 0,
         avg: N > 0 ? sumReward / N : 0,
         score,
         cooldownRemaining: cooldownUntil > now ? Math.round((cooldownUntil - now) / 1000) : 0
