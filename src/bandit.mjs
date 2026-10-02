@@ -6,6 +6,7 @@ export class DiscountedUCB1Bandit {
     this.discountFactor = 0.99;
     this.notifier = null;
     this.excludePaid = String(process.env.EXCLUDE_PAID || "false").toLowerCase() === "true";
+    this.exploitOnly = String(process.env.EXPLOIT_ONLY || "false").toLowerCase() === "true";
     this.onlyFree = String(process.env.ONLY_FREE || "false").toLowerCase() === "true";
     this._initDB();
     this._migrateDB();
@@ -424,6 +425,7 @@ export class DiscountedUCB1Bandit {
 
       const paidFilter = this.excludePaid ? "AND (m.is_paid IS NULL OR m.is_paid = 0)" : "";
       const freeFilter = this.onlyFree ? "AND c.is_free = 1" : "";
+      const exploitFilter = this.exploitOnly ? "AND COALESCE(m.N, 0) >= 3" : "";
 
       const modelsStmt = this.db.prepare(`
         SELECT c.id, c.provider,
@@ -448,6 +450,7 @@ export class DiscountedUCB1Bandit {
           AND (c.max_input_tokens = 0 OR c.max_input_tokens >= ?)
           ${paidFilter}
           ${freeFilter}
+          ${exploitFilter}
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,
@@ -1069,6 +1072,7 @@ clearProviderAttention(provider) {
       catalogRawCount: this._getMeta("catalogRawCount"),
       excludePaid: this.excludePaid,
       onlyFree: this.onlyFree,
+      exploitOnly: this.exploitOnly,
       summary: {
         activeCount: activeModels.length,
         avgReward: Math.round(avgReward * 1000) / 1000,
