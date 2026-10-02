@@ -18,7 +18,8 @@ app.use(express.json({ limit: "50mb" }));
 // ========================================
 // VALIDAZIONE RISPOSTA
 // ========================================
-function validateNonStreamResponse(data) {
+function validateNonStreamResponse(data, opts = {}) {
+  const requireTools = opts.requireTools === true;
   if (!data || typeof data !== "object") return "empty response body";
 
   // Errori espliciti ovunque nel body
@@ -56,11 +57,21 @@ function validateNonStreamResponse(data) {
   if (typeof content === "string" && /run out of usage|out of credits|quota exceeded|insufficient.*balance|upgrade.*plan/i.test(content)) {
     return "provider-quota-exceeded: " + content.slice(0, 100);
   }
-  
+  // === Se la richiesta aveva tools, il modello DEVE aver chiamato almeno un tool ===
+  if (requireTools && !hasTools) {
+    // Eccezione: se il modello ha esplicitamente rifiutato, non è colpa sua
+    const t = (content || "").toLowerCase();
+    const legitRefusal = /(non posso|cannot|can't|not able|refuse|sorry.*can't)/i.test(t);
+    if (!legitRefusal) {
+      return "no-tool-call-but-required (model ignored tools)";
+    }
+  }
+ 
   return null;  // valida
 }
 
-function validateStreamAccumulated(raw) {
+function validateStreamAccumulated(raw, opts = {}) {
+  const requireTools = opts.requireTools === true;
   if (!raw || raw.length === 0) return "empty stream";
 
   // Cerca errori nel payload SSE
@@ -84,6 +95,13 @@ function validateStreamAccumulated(raw) {
       if (typeof delta.content === "string" && delta.content.length > 0) hasContent = true;
       if (Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) hasTools = true;
     } catch {}
+  }
+  if (requireTools && !hasTools) {
+    // Controlla se c'è stato un rifiuto legittimo nel testo accumulato
+    const legitRefusal = /(non posso|cannot|can't|not able|refuse)/i.test(raw);
+    if (!legitRefusal) {
+      return "no-tool-call-but-required (model ignored tools)";
+    }
   }
 
   if (!hasContent && !hasTools) return "stream has no content nor tool_calls";
@@ -488,6 +506,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
 
   const excluded = new Set();
+  const requireTools = Array.isArray(req.body?.tools) && req.body.tools.length > 0;
+  if (requireTools) {
+    console.log(`[TOOLS] Richiesta con ${req.body.tools.length} tools → solo modelli tool-capable`);
+  }
   let attempt = 0;
   let controller = null;
   let timeoutHandle = null;
@@ -532,7 +554,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       }
       model = forceModel;
     } else {
-      model = bandit.selectModel(excluded, null, estimatedTokens);
+      model = bandit.selectModel(excluded, null, estimatedTokens, requireTools);
     }
     if (!model) {
       notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
@@ -617,7 +639,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
           if (!streamFailed && streamStarted) {
             // validazione
-            const streamInvalid = validateStreamAccumulated(accumulated);
+            const streamInvalid = validateStreamAccumulated(accumulated, { requireTools });
             if (streamInvalid) {
               console.error(`[STREAM INVALID] ${model}: ${streamInvalid}`);
               bandit.recordFeedback(model, false, 0, { message: streamInvalid });
@@ -659,7 +681,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         const data = await r.json();
 
         // === VALIDAZIONE RISPOSTA ===
-        const invalidReason = validateNonStreamResponse(data);
+        const invalidReason = validateNonStreamResponse(data, { requireTools });
         if (invalidReason) {
           console.error(`[APP ERR] ${model}: ${invalidReason}`);
           bandit.recordFeedback(model, false, 0, { message: invalidReason });
