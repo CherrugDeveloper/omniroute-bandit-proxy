@@ -519,8 +519,8 @@ export class DiscountedUCB1Bandit {
 
   recordFeedback(modelId, success, reward = 1.0, errorDetails = null) {
     const tx = this.db.transaction(() => {
-      const now = Date.now();
-      let model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
+    const now = Date.now();
+    let model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
 
       if (!model) {
         // Modello non ancora in `models` (es. forzato via x-force-model).
@@ -557,6 +557,12 @@ export class DiscountedUCB1Bandit {
       if (!success && errorDetails && typeof errorDetails === "object") {
         const c = this._classifyError(errorDetails);
         console.log(`[BANDIT] ${modelId}: ${c.action} (${c.reason})${c.cooldownMs ? ` per ${c.cooldownMs / 1000}s` : ""}`);
+
+        // skip-feedback (es. input-too-long): il modello è OK, solo la richiesta è grande.
+        // Non tocca DB, non penalizza.
+        if (c.action === "skip-feedback") {
+          return;
+        }
 
         switch (c.action) {
           case "ban-model":
@@ -785,6 +791,7 @@ clearProviderAttention(provider) {
     console.log(`[BANDIT] Provider ${provider} ignorato permanentemente`);
     return true;
   }
+
   _parseResetAfter(msg) {
     // "reset after 5m" / "retry after 30s" / "wait 60 seconds" / "reset after 1m 59s"
     const m1 = msg.match(/(?:reset|retry|wait)\s+(?:after\s+)?(\d+)\s*([smh])/i);
@@ -811,6 +818,14 @@ clearProviderAttention(provider) {
     }
     const msg = String(errorDetails.message || errorDetails.error || "").toLowerCase();
     const status = errorDetails.status || errorDetails.code;
+
+    // === INPUT TROPPO LUNGO ===
+    // Il modello è OK, la richiesta è troppo grande per il suo context.
+    // Non penalizzare: verrà ritentato con compressione o su tier superiore.
+    // Deve stare PRIMA di tutti gli altri check (è più specifico).
+    if (/input exceeds maximum|maximum input tokens|too many tokens|context length|exceeds.*input.*tokens|prompt is too long|content too large/i.test(msg)) {
+      return { scope: "model", action: "skip-feedback", reason: "input-too-long" };
+    }
 
     // === BUG INTERNO UPSTREAM (non ritentare mai lo stesso modello) ===
     if (/assignment to constant variable|is not a function|undefined is not|null is not|cannot read/i.test(msg)) {
@@ -866,6 +881,10 @@ clearProviderAttention(provider) {
     // Un 403 "account-banned" reale contiene parole chiave esplicite.
     if (/suspended|banned|account disabled|account terminated|api key.*revoked/i.test(msg)) {
       return { scope: "provider", action: "ban-provider", reason: "account-banned" };
+    }
+    // 403 "Key limit exceeded" → problema di credito OpenRouter (tutta la key)
+    if (status === 403 && /key limit|total limit|quota|credit/i.test(msg)) {
+      return { scope: "provider", action: "flag-provider", reason: "key-quota-exceeded" };
     }
     if (status === 403) {
       // 403 generico → solo il modello (probabile restrizione per-model)
@@ -934,7 +953,7 @@ clearProviderAttention(provider) {
     }
   }
 
-    _recordProviderFailureGeneric(provider, cooldownMs = 30 * 60 * 1000) {
+  _recordProviderFailureGeneric(provider, cooldownMs = 30 * 60 * 1000) {
     const now = Date.now();
 
     // Assicura che il provider esista
