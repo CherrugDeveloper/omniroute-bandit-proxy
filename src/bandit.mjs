@@ -633,10 +633,6 @@ export class DiscountedUCB1Bandit {
         WHERE id = ?
       `).run(newN, newSumReward, newFails, cooldownUntil, newPermanent, modelId);
 
-      if (newPermanent === 1 && model.permanent === 0) {
-        this._recordProviderFailure(model.provider);
-      }
-
       if (success) {
         this.totalObservations++;
         this._setMeta("totalObservations", this.totalObservations);
@@ -954,7 +950,12 @@ clearProviderAttention(provider) {
 
   getMetrics() {
     const now = Date.now();
-    const models = this.db.prepare("SELECT * FROM models ORDER BY provider, id").all();
+    const models = this.db.prepare(`
+      SELECT m.*, COALESCE(c.is_free, 0) AS is_free
+      FROM models m
+      LEFT JOIN catalog c ON c.id = m.id
+      ORDER BY m.provider, m.id
+    `).all();
     const providers = this.db.prepare("SELECT * FROM provider_history ORDER BY fails DESC").all();
     const catalogCount = this.db.prepare("SELECT COUNT(*) AS n FROM catalog").get().n;
     const catalogProviderCount = this.db.prepare("SELECT COUNT(DISTINCT provider) AS n FROM catalog").get().n;
@@ -1006,6 +1007,57 @@ clearProviderAttention(provider) {
       };
     });
 
+    // === Metriche aggregate ===
+    const now2 = Date.now();
+    const providerCooldown = {};
+    for (const p of providersWithRemaining) {
+      providerCooldown[p.provider] = {
+        cooldown: Number(p.cooldown_until) || 0,
+        needsAttention: Number(p.needs_attention) || 0,
+        permanent: Number(p.permanent) || 0
+      };
+    }
+    const activeModels = modelsWithScores.filter(m => {
+      if (Number(m.permanent)) return false;
+      if (Number(m.cooldown_until) > now2) return false;
+      const pc = providerCooldown[m.provider];
+      if (pc) {
+        if (pc.permanent) return false;
+        if (pc.needsAttention) return false;
+        if (pc.cooldown > now2) return false;
+      }
+      return true;
+    });
+    const avgReward = activeModels.length > 0
+      ? activeModels.reduce((s, m) => s + (Number(m.avg) || 0), 0) / activeModels.length
+      : 0;
+
+    // Latenza media ricavata dal reward: reward = max(0, 1 - t/30) → t = (1 - reward) * 30
+    const avgLatencySec = activeModels.length > 0
+      ? activeModels
+          .filter(m => Number(m.avg) > 0)
+          .reduce((s, m) => s + (1 - Number(m.avg)) * 30, 0) /
+        Math.max(1, activeModels.filter(m => Number(m.avg) > 0).length)
+      : 0;
+
+    // Free attivi
+    const freeActive = activeModels.filter(m => Number(m.is_free) === 1).length;
+
+    // Top model per QUALITÀ (avg reward), non per score UCB1 (esplorazione)
+    // Considera solo modelli con almeno 3 osservazioni pesate
+    const candidates = activeModels.filter(m =>
+      Number(m.N) >= 3 &&
+      Number(m.avg) > 0 &&
+      !isNaN(Number(m.avg))
+    );
+    candidates.sort((a, b) => Number(b.avg) - Number(a.avg));
+    const topModel = candidates[0] ? {
+      id: candidates[0].id,
+      score: Math.round(Number(candidates[0].score) * 1000) / 1000,
+      avg: Math.round(Number(candidates[0].avg) * 1000) / 1000,
+      N: Math.round(Number(candidates[0].N) * 100) / 100
+    } : null;
+
     return {
       totalRequests: this.totalRequests,
       models: modelsWithScores,
@@ -1016,7 +1068,14 @@ clearProviderAttention(provider) {
       catalogFreeCount,
       catalogRawCount: this._getMeta("catalogRawCount"),
       excludePaid: this.excludePaid,
-      onlyFree: this.onlyFree
+      onlyFree: this.onlyFree,
+      summary: {
+        activeCount: activeModels.length,
+        avgReward: Math.round(avgReward * 1000) / 1000,
+        avgLatencySec: Math.round(avgLatencySec * 10) / 10,
+        freeActive,
+        topModel
+      }
     };
   }
 

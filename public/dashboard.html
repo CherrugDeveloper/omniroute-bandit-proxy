@@ -177,9 +177,19 @@
         <h1>🤖 OmniRoute Bandit Dashboard</h1>
         <div class="stats-container">
             <div class="stats"><strong>Richieste:</strong> <span id="total-req">0</span></div>
+            <div class="stats" title="Modello con lo score UCB1 più alto">
+                <strong>Top model:</strong> <span id="top-model" class="mono">—</span>
+            </div>
             <div class="stats">
                 <strong>Osservazioni:</strong> <span id="total-obs">0</span> <span class="muted" id="success-rate">(successo: —)</span>
                 <button class="btn btn-reset" style="margin-left:8px;padding:2px 6px;font-size:11px" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
+            </div>
+
+            <div class="stats" title="Metriche aggregate">
+                <strong>Qualità:</strong>
+                <span id="avg-reward" class="ok">—</span> reward medio /
+                <span id="avg-latency" class="ok">—</span> latenza media /
+                <span id="free-active" class="attention">—</span> free attivi
             </div>
 
             <div class="stats" title="Modelli attivi / monitorati / totale catalogo">
@@ -665,6 +675,14 @@
                 document.getElementById('attention-models').textContent = d.models.filter(isAttention).length;
                 document.getElementById('total-models').textContent = d.models.length;
                 document.getElementById('catalog-models').textContent = d.catalogCount ?? '?';
+                if (d.summary) {
+                    document.getElementById('avg-reward').textContent = d.summary.avgReward.toFixed(3);
+                    document.getElementById('avg-latency').textContent = d.summary.avgLatencySec.toFixed(1) + 's';
+                    document.getElementById('free-active').textContent = d.summary.freeActive;
+                    document.getElementById('top-model').textContent = d.summary.topModel
+                        ? d.summary.topModel.id + ' (' + d.summary.topModel.score + ')'
+                        : '—';
+                }                
                 document.getElementById('catalog-free').textContent = d.catalogFreeCount ?? '?';
                 document.getElementById('catalog-models-raw').textContent = d.catalogRawCount ?? '?';
 
