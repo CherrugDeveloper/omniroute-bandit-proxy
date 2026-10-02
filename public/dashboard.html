@@ -502,9 +502,72 @@
         function showHelp(providerName) {
             const p = allData.providers.find(x => x.provider === providerName);
             if (!p) return alert('Provider non trovato');
+
             const help = getHelpForProvider(p);
-            const msg = p.attention_message || '(provider marcato prima dell\'aggiornamento. Clicca "🔁 Riprova" per ritestare e ottenere il messaggio d\'errore.)';
-            alert(`${help.title}\n\n${help.steps.map((s, i) => (i+1) + '. ' + s).join('\n')}\n\n───── Ultimo errore ─────\n${msg}`);
+            const msg = p.attention_message || '(nessun messaggio disponibile)';
+
+            const fullText = `${help.title}\n\n${help.steps.map((s, i) => (i+1) + '. ' + s).join('\n')}\n\n───── Ultimo errore ─────\n${msg}`;
+
+            // Rimuovi modale esistente se c'è
+            const old = document.getElementById('help-modal');
+            if (old) old.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'help-modal';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px';
+            overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+            const box = document.createElement('div');
+            box.style.cssText = 'background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;max-width:700px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:12px;color:#c9d1d9';
+
+            const title = document.createElement('h3');
+            title.textContent = help.title + ' — ' + providerName;
+            title.style.cssText = 'margin:0;color:#58a6ff;font-size:16px';
+            box.appendChild(title);
+
+            const pre = document.createElement('pre');
+            pre.textContent = fullText;
+            pre.style.cssText = 'background:#010409;border:1px solid #30363d;border-radius:4px;padding:12px;white-space:pre-wrap;word-break:break-word;font-size:12px;font-family:Courier New,monospace;color:#7ee787;overflow:auto;margin:0;flex:1;max-height:60vh';
+            box.appendChild(pre);
+
+            const btnBar = document.createElement('div');
+            btnBar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+
+            const btnCopy = document.createElement('button');
+            btnCopy.className = 'btn btn-copy';
+            btnCopy.textContent = '📋 Copia tutto';
+            btnCopy.style.cssText = 'padding:8px 14px;font-size:13px';
+            btnCopy.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(fullText);
+                    const orig = btnCopy.textContent;
+                    btnCopy.textContent = '✅ Copiato!';
+                    setTimeout(() => btnCopy.textContent = orig, 1500);
+                } catch (e) {
+                    // Fallback per contesti non-https
+                    const ta = document.createElement('textarea');
+                    ta.value = fullText;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    ta.remove();
+                    const orig = btnCopy.textContent;
+                    btnCopy.textContent = '✅ Copiato!';
+                    setTimeout(() => btnCopy.textContent = orig, 1500);
+                }
+            };
+            btnBar.appendChild(btnCopy);
+
+            const btnClose = document.createElement('button');
+            btnClose.className = 'btn btn-reset';
+            btnClose.textContent = '✕ Chiudi';
+            btnClose.style.cssText = 'padding:8px 14px;font-size:13px';
+            btnClose.onclick = () => overlay.remove();
+            btnBar.appendChild(btnClose);
+
+            box.appendChild(btnBar);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
         }
 
         async function ignoreProvider(p) {
