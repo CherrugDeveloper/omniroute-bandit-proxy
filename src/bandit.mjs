@@ -446,11 +446,35 @@ export class DiscountedUCB1Bandit {
   recordFeedback(modelId, success, reward = 1.0, errorDetails = null) {
     const tx = this.db.transaction(() => {
       const now = Date.now();
-      const model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
+      let model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
 
       if (!model) {
-        console.warn(`[BANDIT] recordFeedback: modello inesistente ${modelId}`);
-        return;
+        // Modello non ancora in `models` (es. forzato via x-force-model).
+        // Lo registriamo al volo leggendo il provider dal catalog.
+        const catRow = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
+        if (!catRow) {
+          // Non è nemmeno nel catalogo → ignora
+          console.warn(`[BANDIT] recordFeedback: modello ${modelId} non in catalogo, ignoro`);
+          return;
+        }
+
+        this.db.prepare(`
+          INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+          VALUES (?, 0, 0, 0, 0)
+        `).run(catRow.provider);
+
+        this.db.prepare(`
+          INSERT INTO models (id, provider, last_used_index)
+          VALUES (?, ?, 0)
+          ON CONFLICT(id) DO NOTHING
+        `).run(modelId, catRow.provider);
+
+        model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
+        if (!model) {
+          console.warn(`[BANDIT] recordFeedback: impossibile registrare ${modelId}`);
+          return;
+        }
+        console.log(`[BANDIT] ${modelId}: auto-registrato (primo uso via force)`);
       }
 
       let permanentBan = false;
