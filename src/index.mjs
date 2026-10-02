@@ -389,6 +389,16 @@ app.post("/v1/reset/model/:id", requireAuth, (req, res) => {
   }
 });
 
+app.post("/v1/block/model/:id", requireAuth, (req, res) => {
+  try {
+    const ok = bandit.blockModel(req.params.id);
+    res.json({ ok });
+  } catch (e) {
+    console.error("[API] Errore block model:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/v1/reset/counters", requireAuth, (req, res) => {
   try {
     bandit.resetGlobalCounters();
@@ -492,11 +502,20 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     if (controller) { controller.abort(); controller = null; }
   };
 
+  let clientDisconnected = false;
   res.once("close", () => {
-    if (!res.writableEnded) cleanup();
+    if (!res.writableEnded) {
+      clientDisconnected = true;
+      cleanup();
+    }
   });
 
   while (++attempt <= maxAttempts) {
+    if (clientDisconnected) {
+      console.log(`[BANDIT] Client disconnesso, stop retry (dopo ${attempt - 1} tentativi)`);
+      cleanup();
+      return;
+    }
     if (Date.now() - startedAt > MAX_TOTAL_MS) {
       console.warn(`[BANDIT] Limite tempo totale (${MAX_TOTAL_MS}ms) raggiunto dopo ${attempt} tentativi`);
       cleanup();
@@ -558,8 +577,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status });
         excluded.add(model);
+        trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
         continue;
-                trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
       }
 
       if (stream) {
@@ -589,23 +608,28 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
                 res.write(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`);
                 break;
               }
-              res.write(chunk);
               firstChunk = false;
               streamStarted = true;
-              accumulated += chunk;   // ← NUOVO
+              accumulated += chunk;
               res.write(chunk);
             }
           }
 
           if (!streamFailed && streamStarted) {
-            // === VALIDAZIONE STREAM ===
+            // validazione
             const streamInvalid = validateStreamAccumulated(accumulated);
             if (streamInvalid) {
               console.error(`[STREAM INVALID] ${model}: ${streamInvalid}`);
               bandit.recordFeedback(model, false, 0, { message: streamInvalid });
-              excluded.add(model);
-              res.end();
-              continue;
+              // Header già inviati: NON possiamo cambiare modello.
+              // Chiudiamo lo stream con un errore e usciamo.
+              try {
+                res.write(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + streamInvalid } })}\n\n`);
+                res.write(`data: [DONE]\n\n`);
+              } catch (_) {}
+              cleanup();
+              try { res.end(); } catch (_) {}
+              return;
             }
 
             const rewardScore = Math.max(0, 1.0 - (dur / 30));
@@ -614,9 +638,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
           } else if (streamFailed) {
             bandit.recordFeedback(model, false, 0, { message: "stream error" });
-            excluded.add(model);
-            res.end();
-            continue;
+            // Header già inviati → non si può ritentare
+            cleanup();
+            try { res.end(); } catch (_) {}
+            return;
           }
 
           res.end();

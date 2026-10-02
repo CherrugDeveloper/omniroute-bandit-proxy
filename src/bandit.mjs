@@ -1186,6 +1186,20 @@ clearProviderAttention(provider) {
     console.log(`[BANDIT] Modello ${modelId} resettato`);
   }
 
+    blockModel(modelId) {
+    if (!modelId || typeof modelId !== "string" || modelId.length > 256) {
+      console.error("[BANDIT] Invalid modelId for block");
+      return false;
+    }
+    const info = this.db.prepare(`
+      UPDATE models 
+      SET permanent = 1, cooldown_until = 0 
+      WHERE id = ?
+    `).run(modelId);
+    console.log(`[BANDIT] Modello ${modelId} bloccato permanentemente`);
+    return info.changes > 0;
+  }
+
   resetProvider(provider) {
     // FIX #4: Validazione input provider
     if (!provider || typeof provider !== "string" || provider.length > 128) {

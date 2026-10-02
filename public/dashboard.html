@@ -144,6 +144,8 @@
         }
         .btn-reset { background: #da3633; }
         .btn-copy { background: #238636; }
+        .btn-block { background: #6e40c9; }
+        .btn-block:hover { background: #8957e5; }
         .btn-info { background: #a371f7; }
         /* ===== MODALI CUSTOM ===== */
         .modal-overlay {
@@ -773,10 +775,18 @@
             const avg = Number(m.avg) || 0;
             const fails = Number(m.fails) || 0;
             const score = m.score === Infinity ? '∞' : (m.score == null || isNaN(m.score) ? '—' : Number(m.score).toFixed(3));
+            const safe = escapeHtml(m.id);
+
+            const isBanned = Number(m.permanent) === 1;
+            const actions = isBanned
+                ? '<button class="btn btn-copy" data-action="reset-model" data-id="' + safe + '">🔁 Sblocca</button>'
+                : '<button class="btn btn-reset" data-action="reset-model" data-id="' + safe + '">Reset</button>' +
+                  ' <button class="btn btn-block" data-action="block-model" data-id="' + safe + '">🚫 Blocca</button>';
+
             return '<tr><td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
                 n.toFixed(1) + '</td><td class="mono">' + avg.toFixed(3) + '</td><td class="mono">' + score +
                 '</td><td>' + fails + '</td><td>' + badge(m) +
-                '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
+                '</td><td>' + actions + '</td></tr>';
         }
 
         // ============= AZIONI =============
@@ -789,6 +799,18 @@
             });
             if (!ok) return;
             await apiFetch('/v1/reset/model/' + encodeURIComponent(id), { method: 'POST' });
+            refreshAll();
+        }
+
+        async function blockModel(id) {
+            const ok = await showConfirm('Vuoi bloccare permanentemente questo modello?\n\n' + id + '\n\nNon verrà più usato dal bandit fino a quando non lo sblocchi con Reset.', {
+                title: 'Blocca modello',
+                icon: '🚫',
+                confirmText: 'Blocca',
+                danger: true
+            });
+            if (!ok) return;
+            await apiFetch('/v1/block/model/' + encodeURIComponent(id), { method: 'POST' });
             refreshAll();
         }
 
@@ -1010,6 +1032,7 @@
             if (!btn) return;
             const a = btn.dataset.action;
             if (a === 'reset-model') resetModel(btn.dataset.id);
+            else if (a === 'block-model') blockModel(btn.dataset.id);
             else if (a === 'reset-provider') resetProvider(btn.dataset.name);
             else if (a === 'retry-provider') retryProvider(btn.dataset.name);
             else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
