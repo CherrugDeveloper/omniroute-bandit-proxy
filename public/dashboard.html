@@ -503,7 +503,7 @@
             const p = allData.providers.find(x => x.provider === providerName);
             if (!p) return alert('Provider non trovato');
             const help = getHelpForProvider(p);
-            const msg = p.attention_message || '(nessun messaggio disponibile)';
+            const msg = p.attention_message || '(provider marcato prima dell\'aggiornamento. Clicca "🔁 Riprova" per ritestare e ottenere il messaggio d\'errore.)';
             alert(`${help.title}\n\n${help.steps.map((s, i) => (i+1) + '. ' + s).join('\n')}\n\n───── Ultimo errore ─────\n${msg}`);
         }
 
