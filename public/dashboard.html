@@ -512,29 +512,6 @@
 
             tbody.innerHTML = html;
         }
-    
-            const tbody = document.getElementById('models-tbody');
-            const filter = document.getElementById('filter-models').value.toLowerCase();
-            let filtered = (allData.models || []).filter(m =>
-                String(m.id || '').toLowerCase().includes(filter) ||
-                String(m.provider || '').toLowerCase().includes(filter)
-            );
-            filtered = sortRows(filtered);
-            if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="empty">Nessun modello trovato.<br><em>I modelli appariranno qui dopo le prime selezioni</em></td></tr>';
-                return;
-            }
-            tbody.innerHTML = filtered.map(m => {
-                const n = Number(m.N) || 0;
-                const avg = Number(m.avg) || 0;
-                const fails = Number(m.fails) || 0;
-                const score = m.score === Infinity ? '∞' : (m.score == null || isNaN(m.score) ? '—' : Number(m.score).toFixed(3));
-                return '<tr><td><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
-                    n.toFixed(1) + '</td><td class="mono">' + avg.toFixed(3) + '</td><td class="mono">' + score +
-                    '</td><td>' + fails + '</td><td>' + badge(m) +
-                    '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
-            }).join('');
-        }
 
         async function resetModel(id) {
             if (!confirm('Resettare ' + id + '?')) return;
