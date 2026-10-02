@@ -53,7 +53,8 @@ export class DiscountedUCB1Bandit {
           id TEXT PRIMARY KEY,
           provider TEXT NOT NULL,
           max_input_tokens INTEGER DEFAULT 0,
-          is_free INTEGER DEFAULT 0
+          is_free INTEGER DEFAULT 0,
+          supports_tools INTEGER DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
@@ -120,7 +121,17 @@ export class DiscountedUCB1Bandit {
       }
     }
 
-        const hasCatalogIsFree = catalogColumns.some(col => col.name === "is_free");
+    const hasSupportsTools = catalogColumns.some(col => col.name === "supports_tools");
+    if (!hasSupportsTools) {
+      console.log("[BANDIT] Migrazione: aggiungo supports_tools a catalog");
+      try {
+        this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_tools INTEGER DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonna supports_tools:", err.message);
+        throw err;
+      }
+    }
+    const hasCatalogIsFree = catalogColumns.some(col => col.name === "is_free");
     if (!hasCatalogIsFree) {
       console.log("[BANDIT] Migrazione: aggiungo is_free a catalog");
       try {
@@ -242,8 +253,12 @@ export class DiscountedUCB1Bandit {
       }
 
       const insertStmt = this.db.prepare(`
-        INSERT INTO catalog (id, provider, max_input_tokens, is_free) VALUES (?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, max_input_tokens = excluded.max_input_tokens, is_free = excluded.is_free
+        INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET 
+          provider = excluded.provider, 
+          max_input_tokens = excluded.max_input_tokens, 
+          is_free = excluded.is_free,
+          supports_tools = excluded.supports_tools
       `);
 
       const isFreeModel = (id) => {
@@ -304,7 +319,8 @@ export class DiscountedUCB1Bandit {
           const provider = this._getProvider(modelId);
           const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
           const isFree = isFreeModel(modelId) ? 1 : 0;
-          insertStmt.run(modelId, provider, maxInput, isFree);
+          const supportsTools = (m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
+          insertStmt.run(modelId, provider, maxInput, isFree, supportsTools);
           inserted++;
         }
         return { inserted, skipped, raw };
@@ -371,7 +387,7 @@ export class DiscountedUCB1Bandit {
     return cooldowns[Math.min(fails, 3)];
   }
 
-  selectModel(excludedModels = [], forceProvider = null, estimatedTokens = 0) {
+  selectModel(excludedModels = [], forceProvider = null, estimatedTokens = 0, requireTools = false) {
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excludedModels);
 
@@ -427,6 +443,7 @@ export class DiscountedUCB1Bandit {
       const paidFilter = this.excludePaid ? "AND (m.is_paid IS NULL OR m.is_paid = 0)" : "";
       const freeFilter = this.onlyFree ? "AND c.is_free = 1" : "";
       const exploitFilter = this.exploitOnly ? "AND COALESCE(m.N, 0) >= 3" : "";
+      const toolsFilter = requireTools ? "AND c.supports_tools = 1" : "";
       const thinkingFilter = this.excludeThinking
         ? "AND c.id NOT LIKE '%thinking%' AND c.id NOT LIKE '%reasoning%' AND c.id NOT LIKE '%-think%' AND c.id NOT LIKE '%max-prime%' AND c.id NOT LIKE '%-ultra%'"
         : "";
@@ -454,8 +471,9 @@ export class DiscountedUCB1Bandit {
           AND (c.max_input_tokens = 0 OR c.max_input_tokens >= ?)
           ${paidFilter}
           ${freeFilter}
-          ${exploitFilter}
           ${thinkingFilter}
+          ${exploitFilter}
+          ${toolsFilter}
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,
