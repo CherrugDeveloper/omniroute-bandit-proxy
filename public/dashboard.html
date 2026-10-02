@@ -230,6 +230,49 @@
         .active-request .elapsed { color: #d29922; font-weight: bold; }
         .active-request .attempt { color: #8b949e; }
         .active-request .status { color: #7ee787; }
+                /* Provider header */
+        .provider-header {
+            background: #1c2128 !important;
+            cursor: pointer;
+            user-select: none;
+            font-size: 13px;
+        }
+        .provider-header:hover {
+            background: #21262d !important;
+        }
+        .provider-header td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #30363d;
+        }
+        .provider-header .header-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .provider-header .arrow {
+            display: inline-block;
+            width: 14px;
+            color: #58a6ff;
+            transition: transform 0.15s;
+        }
+        .provider-header.collapsed .arrow {
+            transform: rotate(-90deg);
+        }
+        .provider-header .provider-name {
+            color: #58a6ff;
+            font-weight: 600;
+        }
+        .provider-header .model-count {
+            color: #8b949e;
+            font-weight: normal;
+            font-size: 11px;
+        }
+        .provider-header .actions {
+            margin-left: auto;
+            display: flex;
+            gap: 4px;
+        }
     </style>
 </head>
 <body>
@@ -281,7 +324,6 @@
 
     <div class="tabs">
         <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
-        <button class="tab-btn" data-tab="providers">🏢 Provider</button>
         <button class="tab-btn" data-tab="models">📦 Modelli</button>
     </div>
 
@@ -293,29 +335,12 @@
         <pre id="logs">Attendendo log...</pre>
     </div>
 
-    <div id="tab-providers" class="tab-content">
-        <div class="filter-bar">
-            <input type="text" class="filter-input" id="filter-providers" placeholder="🔍 Filtra provider...">
-        </div>
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th data-sort="provider">Provider</th>
-                        <th data-sort="fails">Fallimenti</th>
-                        <th data-sort="pointer">Puntatore</th>
-                        <th data-sort="cooldownRemaining">Stato</th>
-                        <th>Azioni</th>
-                    </tr>
-                </thead>
-                <tbody id="providers-tbody"></tbody>
-            </table>
-        </div>
-    </div>
-
     <div id="tab-models" class="tab-content">
         <div class="filter-bar">
-            <input type="text" class="filter-input" id="filter-models" placeholder="🔍 Filtra modelli/provider...">
+            <input type="text" class="filter-input" id="filter-models" placeholder="🔍 Filtra modelli o provider...">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#8b949e">
+                <input type="checkbox" id="filter-problems"> Solo problematici
+            </label>
         </div>
         <div class="table-wrapper">
             <table>
@@ -383,6 +408,12 @@
             return Math.floor(s / 3600) + 'h' + Math.floor((s % 3600) / 60) + 'm';
         }
 
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = String(str ?? '');
+            return div.innerHTML;
+        }
+
         function badge(item, clickable = false) {
             const now = Date.now();
             if (Number(item.permanent)) return '<span class="badge badge-banned">🚫 IGNORATO</span>';
@@ -421,98 +452,141 @@
                 else { sortCol = col; sortDir = 'asc'; }
                 document.querySelectorAll('th[data-sort]').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
                 th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
-                renderProviders();
-                renderModels();
+                renderAll();
             });
         });
 
-        function escapeHtml(str) {
-            const div = document.createElement('div');
-            div.textContent = String(str ?? '');
-            return div.innerHTML;
-        }
-
-        function renderProviders() {
-            const tbody = document.getElementById('providers-tbody');
-            const filter = document.getElementById('filter-providers').value.toLowerCase();
-            let filtered = (allData.providers || []).filter(p => String(p.provider || '').toLowerCase().includes(filter));
-            filtered = sortRows(filtered);
-            if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessun provider rilevato.<br><em>I provider appariranno qui dopo il primo rilevamento</em></td></tr>';
-                return;
-            }
-            tbody.innerHTML = filtered.map(p => {
-                const safeName = escapeHtml(p.provider);
-                const fails = Number(p.fails) || 0;
-                const pointer = Number(p.pointer) || 0;
-                let actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safeName + '">Reset</button>';
-                if (Number(p.needs_attention)) {
-                    actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Riprova</button>' +
-                               ' <button class="btn btn-reset" data-action="ignore-provider" data-name="' + safeName + '">🚫 Ignora</button>';
-                }
-                if (Number(p.permanent)) {
-                    actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Ripristina</button>';
-                }
-                return '<tr><td><b>' + safeName + '</b></td><td>' + fails + '</td><td>' + pointer +
-                '</td><td>' + badge(p, true) + '</td><td>' + actions + '</td></tr>';
-            }).join('');
-        }
-
-        function renderModels() {
+        // ============= RENDER =============
+        function renderAll() {
             const tbody = document.getElementById('models-tbody');
             const filter = document.getElementById('filter-models').value.toLowerCase();
-            let filtered = (allData.models || []).filter(m =>
-                String(m.id || '').toLowerCase().includes(filter) ||
-                String(m.provider || '').toLowerCase().includes(filter)
-            );
+            const onlyProblems = document.getElementById('filter-problems').checked;
 
-            if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="empty">Nessun modello trovato.<br><em>I modelli appariranno qui dopo le prime selezioni</em></td></tr>';
-                return;
-            }
-
-            // Raggruppa per provider
-            const groups = {};
-            for (const m of filtered) {
+            // Raggruppa modelli per provider
+            const modelsByProvider = {};
+            for (const m of allData.models || []) {
                 const p = m.provider || 'unknown';
-                if (!groups[p]) groups[p] = [];
-                groups[p].push(m);
+                if (!modelsByProvider[p]) modelsByProvider[p] = [];
+                modelsByProvider[p].push(m);
             }
 
-            const providerNames = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+            // Info provider
+            const providerInfo = {};
+            for (const p of allData.providers || []) {
+                providerInfo[p.provider] = p;
+            }
+
+            // Lista provider (unione dei provider con modelli e di quelli in provider_history)
+            const allProviders = new Set([
+                ...Object.keys(modelsByProvider),
+                ...(allData.providers || []).map(p => p.provider)
+            ]);
+
+            const providerNames = Array.from(allProviders).sort((a, b) => a.localeCompare(b));
             const forceExpand = filter.length > 0;
 
             let html = '';
+
             for (const provider of providerNames) {
-                const models = sortRows(groups[provider]);
+                const models = modelsByProvider[provider] || [];
+                const info = providerInfo[provider];
+
+                // Filtro
+                const providerMatches = provider.toLowerCase().includes(filter);
+                const matchingModels = filter
+                    ? models.filter(m => String(m.id).toLowerCase().includes(filter) || String(m.provider).toLowerCase().includes(filter))
+                    : models;
+
+                if (filter && !providerMatches && matchingModels.length === 0) continue;
+
+                // Filtro "solo problematici"
+                if (onlyProblems) {
+                    const providerProblem = info && (
+                        Number(info.needs_attention) ||
+                        Number(info.permanent) ||
+                        (info.cooldown_until && info.cooldown_until > Date.now())
+                    );
+                    const modelsProblem = models.some(m =>
+                        Number(m.permanent) || Number(m.degraded) || Number(m.needs_attention) ||
+                        (m.cooldown_until && m.cooldown_until > Date.now())
+                    );
+                    if (!providerProblem && !modelsProblem) continue;
+                }
+
                 const isCollapsed = !forceExpand && collapsedProviders.has(provider);
+                const modelsToShow = (forceExpand && !providerMatches) ? matchingModels : models;
 
-                html += '<tr class="model-group-header' + (isCollapsed ? ' collapsed' : '') + '" data-action="toggle-provider" data-name="' + escapeHtml(provider) + '">' +
-                    '<td colspan="8">' +
-                        '<span class="arrow">▼</span>' +
-                        '<strong>' + escapeHtml(provider) + '</strong>' +
-                        '<span class="count">(' + models.length + ' modelli)</span>' +
-                    '</td>' +
-                '</tr>';
+                html += renderProviderHeader(provider, info, models.length, isCollapsed);
 
-                if (!isCollapsed) {
-                    for (const m of models) {
-                        const n = Number(m.N) || 0;
-                        const avg = Number(m.avg) || 0;
-                        const fails = Number(m.fails) || 0;
-                        const cdRem = Number(m.cooldownRemaining) || 0;
-                        const score = m.score === Infinity ? '∞' : (m.score == null || isNaN(m.score) ? '—' : Number(m.score).toFixed(3));
-                        html += '<tr><td><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
-                            n.toFixed(1) + '</td><td class="mono">' + avg.toFixed(3) + '</td><td class="mono">' + score +
-                            '</td><td>' + fails + '</td><td>' + badge(m) +
-                            '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
+                if (!isCollapsed || (forceExpand && modelsToShow.length > 0)) {
+                    const sorted = sortRows(modelsToShow);
+                    for (const m of sorted) {
+                        html += renderModelRow(m);
                     }
                 }
             }
 
-            tbody.innerHTML = html;
+            if (html === '') {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty">Nessun risultato</td></tr>';
+            } else {
+                tbody.innerHTML = html;
+            }
         }
 
+        function renderProviderHeader(provider, info, modelCount, isCollapsed) {
+            const safe = escapeHtml(provider);
+
+            let statusBadge = '';
+            let actions = '';
+
+            if (info) {
+                const now = Date.now();
+                if (Number(info.permanent)) {
+                    statusBadge = '<span class="badge badge-banned">🚫 IGNORATO</span>';
+                    actions = '<button class="btn btn-copy" data-action="retry-provider" data-name="' + safe + '">🔁 Ripristina</button>';
+                } else if (Number(info.needs_attention)) {
+                    statusBadge = '<button class="badge badge-attention" style="border:none;cursor:pointer;font-family:inherit" data-action="show-help" data-name="' + safe + '">⚠️ DA CONFIGURARE ❓</button>';
+                    actions = '<button class="btn btn-copy" data-action="retry-provider" data-name="' + safe + '">🔁 Riprova</button>' +
+                              '<button class="btn btn-reset" data-action="ignore-provider" data-name="' + safe + '">🚫 Ignora</button>';
+                } else {
+                    const cd = Number(info.cooldown_until) || 0;
+                    if (cd > now) {
+                        const mins = Math.round((cd - now) / 60000);
+                        statusBadge = '<span class="badge badge-cooldown">⏱ ' + mins + 'm</span>';
+                    } else {
+                        statusBadge = '<span class="badge badge-active">✓ Attivo</span>';
+                    }
+                }
+                actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">Reset</button>' + actions;
+            } else {
+                statusBadge = '<span class="muted">(non ancora usato)</span>';
+            }
+
+            return '<tr class="provider-header' + (isCollapsed ? ' collapsed' : '') + '" data-action="toggle-provider" data-name="' + safe + '">' +
+                '<td colspan="8">' +
+                    '<div class="header-content">' +
+                        '<span class="arrow">▼</span>' +
+                        '<span class="provider-name">' + safe + '</span>' +
+                        statusBadge +
+                        '<span class="model-count">(' + modelCount + ' modelli)</span>' +
+                        '<span class="actions">' + actions + '</span>' +
+                    '</div>' +
+                '</td>' +
+            '</tr>';
+        }
+
+        function renderModelRow(m) {
+            const n = Number(m.N) || 0;
+            const avg = Number(m.avg) || 0;
+            const fails = Number(m.fails) || 0;
+            const score = m.score === Infinity ? '∞' : (m.score == null || isNaN(m.score) ? '—' : Number(m.score).toFixed(3));
+            return '<tr><td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
+                n.toFixed(1) + '</td><td class="mono">' + avg.toFixed(3) + '</td><td class="mono">' + score +
+                '</td><td>' + fails + '</td><td>' + badge(m) +
+                '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
+        }
+
+        // ============= AZIONI =============
         async function resetModel(id) {
             if (!confirm('Resettare ' + id + '?')) return;
             await apiFetch('/v1/reset/model/' + encodeURIComponent(id), { method: 'POST' });
@@ -537,7 +611,24 @@
             refreshAll();
         }
 
-                function getHelpForProvider(p) {
+        async function ignoreProvider(p) {
+            if (!confirm('Ignorare permanentemente ' + p + '? Non verrà più utilizzato fino a quando non lo ripristini.')) return;
+            await apiFetch('/v1/provider/ignore/' + encodeURIComponent(p), { method: 'POST' });
+            refreshAll();
+        }
+
+        async function copyLogs() {
+            try {
+                await navigator.clipboard.writeText(document.getElementById('logs').textContent);
+                const btn = document.querySelector('.btn-copy');
+                const orig = btn.textContent;
+                btn.textContent = '✅ Copiato!';
+                setTimeout(() => btn.textContent = orig, 1500);
+            } catch (e) { alert('Copia fallita: ' + e.message); }
+        }
+
+        // ============= HELP MODAL =============
+        function getHelpForProvider(p) {
             const reason = p.attention_reason || '';
             const msg = (p.attention_message || '').toLowerCase();
 
@@ -557,7 +648,7 @@
                     title: '🔑 Autenticazione mancante',
                     steps: [
                         'Questo provider richiede un login o una chiave API configurata in OmniRoute.',
-                        'Controlla il messaggio d\'errore qui sotto: spesso contiene il comando esatto da eseguire (es. `auggie login`).',
+                        'Controlla il messaggio d\'errore qui sotto: spesso contiene il comando esatto da eseguire.',
                         'Vai nel pannello di OmniRoute → Settings → Providers e completa la configurazione.',
                         'Poi clicca "🔁 Riprova" per rimuovere il flag.'
                     ]
@@ -572,16 +663,6 @@
                         '  npm install playwright && npx playwright install chromium --with-deps',
                         'Poi riavvia il container: docker restart omniroute',
                         'E infine clicca "🔁 Riprova".'
-                    ]
-                };
-            }
-            if (/cli not found|spawn.*enoent|command not found/i.test(msg)) {
-                return {
-                    title: '🛠️ CLI mancante',
-                    steps: [
-                        'Il provider richiede un CLI installato nel container OmniRoute.',
-                        'Leggi il messaggio d\'errore qui sotto: di solito contiene il nome del CLI e il link per installarlo.',
-                        'Installa il CLI, poi clicca "🔁 Riprova".'
                     ]
                 };
             }
@@ -617,7 +698,7 @@
                 return {
                     title: '⚙️ Variabile d\'ambiente mancante',
                     steps: [
-                        'Al provider manca una variabile d\'ambiente (es. DEVIN_AGENTIC_HOME).',
+                        'Al provider manca una variabile d\'ambiente.',
                         'Configurala nel container OmniRoute (docker-compose.yml o docker run -e).',
                         'Poi riavvia il container e clicca "🔁 Riprova".'
                     ]
@@ -639,10 +720,8 @@
 
             const help = getHelpForProvider(p);
             const msg = p.attention_message || '(nessun messaggio disponibile)';
-
             const fullText = `${help.title}\n\n${help.steps.map((s, i) => (i+1) + '. ' + s).join('\n')}\n\n───── Ultimo errore ─────\n${msg}`;
 
-            // Rimuovi modale esistente se c'è
             const old = document.getElementById('help-modal');
             if (old) old.remove();
 
@@ -678,7 +757,6 @@
                     btnCopy.textContent = '✅ Copiato!';
                     setTimeout(() => btnCopy.textContent = orig, 1500);
                 } catch (e) {
-                    // Fallback per contesti non-https
                     const ta = document.createElement('textarea');
                     ta.value = fullText;
                     document.body.appendChild(ta);
@@ -704,43 +782,28 @@
             document.body.appendChild(overlay);
         }
 
-        async function ignoreProvider(p) {
-            if (!confirm('Ignorare permanentemente ' + p + '? Non verrà più utilizzato fino a quando non lo ripristini.')) return;
-            await apiFetch('/v1/provider/ignore/' + encodeURIComponent(p), { method: 'POST' });
-            refreshAll();
-        }
-
-        async function copyLogs() {
-            try {
-                await navigator.clipboard.writeText(document.getElementById('logs').textContent);
-                const btn = document.querySelector('.btn-copy');
-                const orig = btn.textContent;
-                btn.textContent = '✅ Copiato!';
-                setTimeout(() => btn.textContent = orig, 1500);
-            } catch (e) { alert('Copia fallita: ' + e.message); }
-        }
-
-        // === Click delegation ===
+        // ============= CLICK DELEGATION =============
         document.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
             const a = btn.dataset.action;
             if (a === 'reset-model') resetModel(btn.dataset.id);
-            else if (a === 'toggle-provider') {
-                const name = btn.dataset.name;
-                if (collapsedProviders.has(name)) collapsedProviders.delete(name);
-                else collapsedProviders.add(name);
-                renderModels();
-            }
             else if (a === 'reset-provider') resetProvider(btn.dataset.name);
             else if (a === 'retry-provider') retryProvider(btn.dataset.name);
             else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
             else if (a === 'show-help') showHelp(btn.dataset.name);
+            else if (a === 'refresh-all') refreshAll();
             else if (a === 'copy-logs') copyLogs();
             else if (a === 'reset-counters') resetCounters();
+            else if (a === 'toggle-provider') {
+                const name = btn.dataset.name;
+                if (collapsedProviders.has(name)) collapsedProviders.delete(name);
+                else collapsedProviders.add(name);
+                renderAll();
+            }
         });
 
-        // === Auto-refresh (con guardia anti-sovrapposizione) ===
+        // ============= REFRESH =============
         let refreshing = false;
         async function refreshAll() {
             if (refreshing) return;
@@ -780,6 +843,9 @@
                 document.getElementById('attention-models').textContent = d.models.filter(isAttention).length;
                 document.getElementById('total-models').textContent = d.models.length;
                 document.getElementById('catalog-models').textContent = d.catalogCount ?? '?';
+                document.getElementById('catalog-free').textContent = d.catalogFreeCount ?? '?';
+                document.getElementById('catalog-models-raw').textContent = d.catalogRawCount ?? '?';
+
                 if (d.summary) {
                     document.getElementById('avg-reward').textContent = d.summary.avgReward.toFixed(3);
                     document.getElementById('avg-latency').textContent = d.summary.avgLatencySec.toFixed(1) + 's';
@@ -787,9 +853,7 @@
                     document.getElementById('top-model').textContent = d.summary.topModel
                         ? d.summary.topModel.id + ' (avg ' + d.summary.topModel.avg + ')'
                         : '—';
-                }                
-                document.getElementById('catalog-free').textContent = d.catalogFreeCount ?? '?';
-                document.getElementById('catalog-models-raw').textContent = d.catalogRawCount ?? '?';
+                }
 
                 document.getElementById('active-providers').textContent = d.providers.filter(isActive).length;
                 document.getElementById('cooldown-providers').textContent = d.providers.filter(isCooling).length;
@@ -797,8 +861,8 @@
                 document.getElementById('attention-providers').textContent = d.providers.filter(isAttention).length;
                 document.getElementById('total-providers').textContent = d.providers.length;
                 document.getElementById('catalog-providers').textContent = d.catalogProviderCount ?? '?';
-                renderProviders();
-                renderModels();
+
+                renderAll();
             } catch (e) { console.error('Errore fetch:', e); }
             finally { refreshing = false; }
         }
@@ -816,7 +880,7 @@
             } catch (e) {}
         }
 
-                async function fetchActive() {
+        async function fetchActive() {
             try {
                 const r = await apiFetch('/v1/active');
                 if (!r.ok) return;
@@ -828,7 +892,7 @@
                 panel.style.display = 'block';
 
                 if (d.requests && d.requests.length > 0) {
-                    countEl.textContent = '⚡ ' + d.count + ' ' + (d.count === 1 ? 'in corso' : 'in corso');
+                    countEl.textContent = '⚡ ' + d.count + ' in corso';
                     list.innerHTML = d.requests.map(r => {
                         const model = r.model || '(selezione...)';
                         const attempt = r.attempt ? ' (#' + r.attempt + ')' : '';
@@ -841,12 +905,11 @@
                         '</div>';
                     }).join('');
                 } else if (d.recent && d.recent.length > 0) {
-                    // Nessuna richiesta attiva → mostra le ultime
                     countEl.textContent = '🕐 ultime richieste';
                     list.innerHTML = d.recent.slice(-2).reverse().map(r => {
                         const model = r.model || '(?)';
                         const status = r.status === 'success' ? '✅'
-                                     : r.status?.startsWith('error') ? '❌'
+                                     : (r.status && r.status.startsWith('error')) ? '❌'
                                      : '•';
                         const secs = Math.round((Date.now() - r.endedAt) / 1000);
                         const age = secs < 60 ? secs + 's fa' : Math.round(secs / 60) + 'm fa';
@@ -859,20 +922,21 @@
                     }).join('');
                 } else {
                     countEl.textContent = 'idle';
-                    list.innerHTML = '<div style="font-size:12px;color:#8b949e;padding:4px 0">Nessuna attività recente</div>';
+                    list.innerHTML = '<div style="font-size:12px;color:#8b949e;padding:4px 0">💤 Nessuna attività recente</div>';
                 }
             } catch (e) {}
         }
 
-        document.getElementById('filter-providers').addEventListener('input', renderProviders);
-        document.getElementById('filter-models').addEventListener('input', renderModels);
+        // ============= INIT =============
+        document.getElementById('filter-models').addEventListener('input', renderAll);
+        document.getElementById('filter-problems').addEventListener('change', renderAll);
 
         refreshAll();
         fetchLogs();
         fetchActive();
         setInterval(refreshAll, 2500);
         setInterval(fetchLogs, 1000);
-        setInterval(fetchActive, 500);   // 500ms → tracking fluido
+        setInterval(fetchActive, 500);
     </script>
 </body>
 </html>
