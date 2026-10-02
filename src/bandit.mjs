@@ -1306,8 +1306,8 @@ clearProviderAttention(provider) {
     if (!body) return 0;
     try {
       const s = typeof body === "string" ? body : JSON.stringify(body);
-      // Stima conservativa: 1 token ~= 3 caratteri (misto testo/codice/JSON)
-      return Math.ceil(s.length / 3);
+      // Stima conservativa: 1 token ~= 4 caratteri (misto testo/codice/JSON)
+      return Math.ceil(s.length / 4);
     } catch {
       return 0;
     }

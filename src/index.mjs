@@ -485,6 +485,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // === Stima token e (eventuale) auto-compress del contesto ===
   const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
   let estimatedTokens = bandit.estimateTokens(req.body);
+  console.log(`[TOKENS] Stimati ${estimatedTokens} (body: ${JSON.stringify(req.body).length} char)`);
   const maxCatalog = bandit.maxCatalogInput();
 
   if (autoCompress && maxCatalog > 0 && estimatedTokens > maxCatalog) {
