@@ -891,9 +891,13 @@ clearProviderAttention(provider) {
     const msg = String(errorDetails.message || errorDetails.error || "").toLowerCase();
     const status = errorDetails.status || errorDetails.code;
 
+    // === DEMO LIMIT (provider demo con limiti hard, non si risolve comprimendo) ===
+    // Va PRIMA di input-too-long perché contiene anche "stream_early_eof"
+    if (/demo is limited|demo.*limit|limited to \d+ messages/i.test(msg)) {
+      return { scope: "provider", action: "flag-provider", reason: "demo-limit" };
+    }
+
     // === INPUT TROPPO LUNGO (anche mascherato da errore stream/5xx) ===
-    // Include: "prompt too long", "max 6000 characters", "input exceeds"
-    // e anche il caso "STREAM_EARLY_EOF" con "prompt too long" in upstream_details
     if (
       /input exceeds maximum|maximum input tokens|too many tokens|context length|exceeds.*input.*tokens|prompt is too long|prompt too long|content too large/i.test(msg) ||
       /max\s+\d+\s+characters/i.test(msg) ||
