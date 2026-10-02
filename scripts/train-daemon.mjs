@@ -80,6 +80,8 @@ function loadModels() {
   }
 }
 
+const skippedProviders = new Set();
+
 async function testModel(model) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -96,9 +98,9 @@ async function testModel(model) {
       signal: controller.signal
     });
     await r.text().catch(() => "");
-    return r.ok;
+    return { ok: r.ok, status: r.status };
   } catch {
-    return false;
+    return { ok: false, status: 0 };
   } finally {
     clearTimeout(timer);
   }
@@ -134,12 +136,27 @@ async function main() {
     }
 
     let ok = 0, fail = 0;
+    skippedProviders.clear();
+
     for (const model of models) {
       if (!running) break;
+
+      const provider = model.split("/")[0];
+      if (skippedProviders.has(provider)) continue;
+
       currentModel = model;
-      const success = await testModel(model);
+      const result = await testModel(model);
       currentModel = null;
-      if (success) { ok++; totalOk++; } else { fail++; totalFail++; }
+
+      if (result.ok) {
+        ok++; totalOk++;
+      } else {
+        fail++; totalFail++;
+        if (result.status === 404) {
+          skippedProviders.add(provider);
+          log(`  → provider ${provider} flaggato, salto il resto per questo ciclo`);
+        }
+      }
       if (running) await sleep(DELAY_MS).catch(() => {});
     }
 
