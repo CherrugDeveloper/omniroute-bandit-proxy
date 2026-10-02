@@ -904,6 +904,11 @@ clearProviderAttention(provider) {
       return { scope: "model", action: "ban-model", reason: "validation-error" };
     }
 
+    // === vLLM MISCONFIGURATO (tool_choice non supportato) ===
+    if (/tool_choice requires|enable-auto-tool-choice|tool-call-parser/i.test(msg)) {
+      return { scope: "model", action: "ban-model", reason: "provider-misconfigured-tools" };
+    }
+
     // === POLICY / GUARDRAIL / DATA RESTRICTIONS (rifiuto permanente) ===
     if (/guardrail|data policy|not available matching.*restriction|removed them for the following/i.test(msg)) {
       return { scope: "model", action: "ban-model", reason: "policy-restricted" };
