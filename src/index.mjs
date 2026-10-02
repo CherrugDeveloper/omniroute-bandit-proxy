@@ -198,6 +198,21 @@ function getActiveRequestsSnapshot() {
   })).sort((a, b) => b.startTime - a.startTime);
 }
 
+// Ultime richieste completate (per mostrare activity quando idle)
+const recentRequests = new RingBuffer(5);
+
+function trackRequestComplete(id, meta) {
+  const r = activeRequests.get(id);
+  if (r) {
+    recentRequests.push({
+      ...r,
+      ...meta,
+      endedAt: Date.now(),
+      durationSec: Math.round((Date.now() - r.startTime) / 100) / 10
+    });
+  }
+}
+
 function pushLog(message) {
   const timestamp = new Date().toLocaleTimeString();
   logBuffer.push(`[${timestamp}] ${message}`);
@@ -279,7 +294,8 @@ app.get("/v1/active", requireAuth, (req, res) => {
   try {
     res.json({
       count: activeRequests.size,
-      requests: getActiveRequestsSnapshot()
+      requests: getActiveRequestsSnapshot(),
+      recent: recentRequests.getAll().slice(-3)  // ultime 3
     });
   } catch (e) {
     console.error("[API] Errore /v1/active:", e.message);
@@ -354,8 +370,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   });
 
   // Cleanup a fine richiesta (success, error, disconnect)
-  res.once("finish", () => trackRequestEnd(requestId));
-  res.once("close", () => trackRequestEnd(requestId));
+  res.once("finish", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
+  res.once("close", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
   const baseUrl = process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128/v1";
   const apiKey = process.env.OMNIROUTE_API_KEY;
   const upstreamTimeoutMs = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000;
