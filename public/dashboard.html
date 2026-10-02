@@ -49,6 +49,7 @@
         .warn { color: #d29922; font-weight: bold; }
         .err { color: #f85149; font-weight: bold; }
         .attention { color: #a371f7; font-weight: bold; }
+        .degraded { color: #db6d28; font-weight: bold; }
         .muted { color: #8b949e; font-size: 12px; }
 
         .tabs {
@@ -130,6 +131,7 @@
         .badge-cooldown { background: #9e6a03; color: white; }
         .badge-banned { background: #da3633; color: white; }
         .badge-attention { background: #d29922; color: white; }
+        .badge-degraded { background: #db6d28; color: white; }
 
         .btn {
             padding: 4px 8px;
@@ -181,6 +183,7 @@
                 <span id="active-models" class="ok">0</span> attivi /
                 <span id="cooldown-models" class="warn">0</span> cool /
                 <span id="banned-models" class="err">0</span> bannati /
+                <span id="degraded-models" class="degraded">0</span> degraded /
                 <span id="attention-models" class="attention">0</span> da config
                 <span class="muted">(su <span id="total-models">0</span> monitorati, <span id="catalog-models">0</span> in catalogo)</span>
             </div>
@@ -304,6 +307,7 @@
             if (Number(item.needs_attention)) return '<span class="badge badge-attention">⚠️ DA CONFIGURARE</span>';
             const cd = Number(item.cooldown_until) || 0;
             if (cd > now) return '<span class="badge badge-cooldown">⏱ ' + fmtTime(Math.round((cd - now) / 1000)) + '</span>';
+            if (Number(item.degraded)) return '<span class="badge badge-degraded">⚠️ DEGRADED</span>';
             return '<span class="badge badge-active">✓ Attivo</span>';
         }
 
@@ -472,6 +476,7 @@
                 document.getElementById('active-models').textContent = d.models.filter(isActive).length;
                 document.getElementById('cooldown-models').textContent = d.models.filter(isCooling).length;
                 document.getElementById('banned-models').textContent = d.models.filter(isBanned).length;
+                document.getElementById('degraded-models').textContent = d.models.filter(x => Number(x.degraded) === 1).length;
                 document.getElementById('attention-models').textContent = d.models.filter(isAttention).length;
                 document.getElementById('total-models').textContent = d.models.length;
                 document.getElementById('catalog-models').textContent = d.catalogCount ?? '?';

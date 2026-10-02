@@ -22,7 +22,9 @@ export class DiscountedUCB1Bandit {
           cooldown_until REAL DEFAULT 0,
           permanent INTEGER DEFAULT 0,
           last_used_index INTEGER DEFAULT 0,
-          consecutive_5xx INTEGER DEFAULT 0
+          consecutive_5xx INTEGER DEFAULT 0,
+          degraded INTEGER DEFAULT 0,
+          degraded_since REAL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS provider_history (
@@ -109,7 +111,7 @@ export class DiscountedUCB1Bandit {
       }
     }
 
-        const hasConsecutive5xx = modelColumns.some(col => col.name === "consecutive_5xx");
+    const hasConsecutive5xx = modelColumns.some(col => col.name === "consecutive_5xx");
 
     if (!hasConsecutive5xx) {
       console.log("[BANDIT] Migrazione: aggiungo consecutive_5xx a models");
@@ -117,6 +119,19 @@ export class DiscountedUCB1Bandit {
         this.db.exec(`ALTER TABLE models ADD COLUMN consecutive_5xx INTEGER DEFAULT 0`);
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonna consecutive_5xx:", err.message);
+        throw err;
+      }
+    }
+
+    const hasDegraded = modelColumns.some(col => col.name === "degraded");
+
+    if (!hasDegraded) {
+      console.log("[BANDIT] Migrazione: aggiungo degraded/degraded_since a models");
+      try {
+        this.db.exec(`ALTER TABLE models ADD COLUMN degraded INTEGER DEFAULT 0`);
+        this.db.exec(`ALTER TABLE models ADD COLUMN degraded_since REAL DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonne degraded:", err.message);
         throw err;
       }
     }
@@ -357,7 +372,8 @@ export class DiscountedUCB1Bandit {
                COALESCE(m.permanent, 0)     AS permanent,
                COALESCE(m.last_used_index,0) AS last_used_index,
                COALESCE(p.pointer, 0)       AS provider_pointer,
-               COALESCE(c.max_input_tokens, 0) AS max_input_tokens
+               COALESCE(c.max_input_tokens, 0) AS max_input_tokens,
+               COALESCE(m.degraded, 0)      AS degraded
         FROM catalog c
         LEFT JOIN models m ON c.id = m.id
         LEFT JOIN provider_history p ON c.provider = p.provider
@@ -385,6 +401,11 @@ export class DiscountedUCB1Bandit {
             const avgReward = m.sum_reward / m.N;
             const ucbBonus = Math.sqrt((2 * Math.log(totalN)) / m.N);
             score = avgReward + ucbBonus;
+          }
+
+          // Penalità modelli degraded: priorità ridotta ma ancora selezionabili
+          if (Number(m.degraded) === 1 && score !== Infinity) {
+            score = score * 0.3;
           }
 
           if (score > maxScore) {
@@ -453,18 +474,25 @@ export class DiscountedUCB1Bandit {
             this._flagProviderAttention(model.provider, c.reason);
             break;
           case "cooldown-model": {
-            // Se è un errore 5xx/transitorio, traccia ripetizioni
             const isTransient5xx = ["server-error", "timeout", "unknown"].includes(c.reason);
-            const consec = (Number(model.consecutive_5xx) || 0) + 1;
 
-            if (isTransient5xx && consec >= 3) {
-              console.log(`[BANDIT] ${modelId}: 3+ errori transitori consecutivi → ban permanente`);
-              permanentBan = true;
+            if (isTransient5xx) {
+              const consec = (Number(model.consecutive_5xx) || 0) + 1;
+
+              if (consec >= 5) {
+                console.log(`[BANDIT] ${modelId}: ${consec} errori transitori → ban permanente`);
+                permanentBan = true;
+              } else {
+                specificCooldownMs = c.cooldownMs;
+                this.db.prepare(`
+                  UPDATE models 
+                  SET consecutive_5xx = ?, degraded = 1, degraded_since = ?
+                  WHERE id = ?
+                `).run(consec, Date.now(), modelId);
+                console.log(`[BANDIT] ${modelId}: degraded (${consec}/5 errori transitori)`);
+              }
             } else {
               specificCooldownMs = c.cooldownMs;
-              // Salva il contatore
-              this.db.prepare(`UPDATE models SET consecutive_5xx = ? WHERE id = ?`)
-                .run(isTransient5xx ? consec : 0, modelId);
             }
             break;
           }
@@ -517,7 +545,16 @@ export class DiscountedUCB1Bandit {
         this.totalObservations++;
         this._setMeta("totalObservations", this.totalObservations);
         this.db.prepare(`UPDATE provider_history SET fails = 0 WHERE provider = ?`).run(model.provider);
-        this.db.prepare(`UPDATE models SET consecutive_5xx = 0 WHERE id = ?`).run(modelId);
+
+        // Se era degraded, lo "guarisci"
+        if (Number(model.degraded) === 1) {
+          console.log(`[BANDIT] ${modelId}: riabilitato da degraded`);
+        }
+        this.db.prepare(`
+          UPDATE models 
+          SET consecutive_5xx = 0, degraded = 0, degraded_since = 0
+          WHERE id = ?
+        `).run(modelId);
       }
     });
 
@@ -885,6 +922,32 @@ clearProviderAttention(provider) {
   getProviderCount() {
     const row = this.db.prepare("SELECT COUNT(DISTINCT provider) AS n FROM catalog").get();
     return row ? row.n : 0;
+  }
+
+    getUnhealthyModels(limit = 20) {
+    const now = Date.now();
+    const oneHourFromNow = now + 3600000;
+    return this.db.prepare(`
+      SELECT id, provider, permanent, cooldown_until, consecutive_5xx
+      FROM models
+      WHERE permanent = 1
+         OR cooldown_until > ?
+      ORDER BY
+        CASE WHEN permanent = 1 THEN 0 ELSE 1 END,
+        cooldown_until ASC,
+        consecutive_5xx DESC
+      LIMIT ?
+    `).all(oneHourFromNow, limit);
+  }
+
+  reviveModel(id) {
+    if (!id || typeof id !== "string") return false;
+    const info = this.db.prepare(`
+      UPDATE models
+      SET permanent = 0, cooldown_until = 0, fails = 0, consecutive_5xx = 0
+      WHERE id = ?
+    `).run(id);
+    return info.changes > 0;
   }
 
   isModelAvailable(id) {

@@ -4,6 +4,7 @@ import { EventEmitter } from "events";
 import path from "path";
 import { fileURLToPath } from "url";
 import { DiscountedUCB1Bandit } from "./bandit.mjs";
+import { HealthChecker } from "./health-check.mjs";
 
 EventEmitter.defaultMaxListeners = 50;
 
@@ -85,8 +86,17 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, "../public")));
 
-const PORT = process.env.PORT || 8080;
 const bandit = new DiscountedUCB1Bandit();
+
+const PORT = process.env.PORT || 8080;
+const healthChecker = new HealthChecker(bandit, {
+  baseUrl: process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128/v1",
+  apiKey: process.env.OMNIROUTE_API_KEY || "",
+  intervalMs: parseInt(process.env.HEALTH_CHECK_INTERVAL_MS || "600000", 10),
+  batchSize: parseInt(process.env.HEALTH_CHECK_BATCH_SIZE || "20", 10),
+  timeoutMs: parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS || "15000", 10),
+  verbose: String(process.env.HEALTH_CHECK_VERBOSE || "false").toLowerCase() === "true"
+});
 
 // ========================================
 // AUTH
@@ -196,6 +206,10 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
     console.error("[API] Errore /v1/metrics:", e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+app.get("/v1/health-check/status", requireAuth, (req, res) => {
+  res.json(healthChecker.getStatus());
 });
 
 app.get("/v1/logs", requireAuth, (req, res) => {
@@ -460,12 +474,14 @@ process.on("uncaughtException", (error) => {
 });
 
 process.on("SIGTERM", () => {
+  healthChecker.stop();
   console.log("[SHUTDOWN] SIGTERM ricevuto, chiusura graceful...");
   bandit.close();
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
+  healthChecker.stop();
   console.log("[SHUTDOWN] SIGINT ricevuto, chiusura graceful...");
   bandit.close();
   process.exit(0);
@@ -497,6 +513,11 @@ async function startServer() {
   console.log("[SECURITY] Auth attiva sulle API di controllo");
 }
   });
+  if (String(process.env.HEALTH_CHECK_ENABLED || "true").toLowerCase() === "true") {
+    healthChecker.start();
+  } else {
+    console.log("[HEALTH] Health check disabilitato (HEALTH_CHECK_ENABLED=false)");
+  }
 }
 
 startServer().catch(err => {
