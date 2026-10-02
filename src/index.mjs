@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { DiscountedUCB1Bandit } from "./bandit.mjs";
 import { HealthChecker } from "./health-check.mjs";
+import { Notifier } from "./notifier.mjs";
 
 EventEmitter.defaultMaxListeners = 50;
 
@@ -87,6 +88,13 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, "../public")));
 
 const bandit = new DiscountedUCB1Bandit();
+
+const notifier = new Notifier({
+  urls: (process.env.WEBHOOK_URLS || "").split(",").map(s => s.trim()).filter(Boolean),
+  enabled: String(process.env.WEBHOOK_ENABLED || "true").toLowerCase() === "true",
+  throttleMs: parseInt(process.env.WEBHOOK_THROTTLE_MS || "300000", 10)
+});
+bandit.notifier = notifier;
 
 const PORT = process.env.PORT || 8080;
 const healthChecker = new HealthChecker(bandit, {
@@ -335,6 +343,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       model = bandit.selectModel(excluded, null, estimatedTokens);
     }
     if (!model) {
+      notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
+        estimatedTokens,
+        attempt
+      }).catch(() => {});
       cleanup();
       return res.status(503).json({ error: { message: "No models available", status: 503 } });
     }

@@ -1,9 +1,10 @@
 import Database from "better-sqlite3";
 
 export class DiscountedUCB1Bandit {
-    constructor(dbPath = "bandit.db") {
+  constructor(dbPath = "bandit.db") {
     this.db = new Database(dbPath);
     this.discountFactor = 0.99;
+    this.notifier = null;
     this._initDB();
     this._migrateDB();
     this.totalObservations = this._getMeta("totalObservations");
@@ -515,7 +516,7 @@ export class DiscountedUCB1Bandit {
             this._banProvider(model.provider);
             break;
           case "cooldown-provider":
-            this._forceProviderCooldown(model.provider, c.cooldownMs);
+            this._forceProviderCooldown(model.provider, c.cooldownMs, c.reason);
             break;
           case "flag-provider":
             this._flagProviderAttention(model.provider, c.reason, errorDetails.message || errorDetails.error || "");
@@ -643,7 +644,7 @@ export class DiscountedUCB1Bandit {
     console.log(`[BANDIT] Provider ${provider}: ${newFails} fallimenti, cooldown ${cooldownStr}`);
   }
 
-    _forceProviderCooldown(provider, cooldownMs) {
+  _forceProviderCooldown(provider, cooldownMs, reason = "") {
     const now = Date.now();
     const until = now + cooldownMs;
 
@@ -666,6 +667,14 @@ export class DiscountedUCB1Bandit {
     `).run(until, provider);
 
     console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${info.changes} modelli aggiornati)`);
+    if (this.notifier && (reason === "quota-exhausted" || reason === "no-credit")) {
+      const label = reason === "no-credit" ? "credito esaurito" : "quota esaurita";
+      this.notifier.notify(
+        `provider.${reason.replace("-", "_")}`,
+        `Provider \`${provider}\`: ${label}. Cooldown ${Math.round(cooldownMs / 60000)} min`,
+        { provider, cooldownMs, reason }
+      ).catch(() => {});
+    }
   }
 
   _flagProviderAttention(provider, reason = "unknown", message = "") {
@@ -688,12 +697,21 @@ export class DiscountedUCB1Bandit {
     `).run(Date.now() + 24 * 3600000, provider);
 
     console.log(`[BANDIT] Provider ${provider} marcato needs_attention (${reason})`);
+    if (this.notifier) {
+      this.notifier.notify(
+        "provider.needs_attention",
+        `Provider \`${provider}\` marcato *needs attention* (${reason})\n${msgShort.slice(0, 200)}`,
+        { provider, reason, message: msgShort.slice(0, 300) }
+      ).catch(() => {});
+    }
   }
 
 clearProviderAttention(provider) {
     if (!provider || typeof provider !== "string") return false;
     const info = this.db.prepare(`
-      UPDATE provider_history SET needs_attention = 0, fails = 0, cooldown_until = 0, permanent = 0
+      UPDATE provider_history 
+      SET needs_attention = 0, fails = 0, cooldown_until = 0, permanent = 0,
+          attention_reason = '', attention_message = ''
       WHERE provider = ?
     `).run(provider);
 
@@ -856,6 +874,9 @@ clearProviderAttention(provider) {
     this.db.prepare(`UPDATE provider_history SET permanent = 1 WHERE provider = ?`).run(provider);
     this.db.prepare(`UPDATE models SET permanent = 1 WHERE provider = ?`).run(provider);
     console.log(`[BANDIT] Provider ${provider} disabilitato permanentemente (ban account)`);
+    if (this.notifier) {
+      this.notifier.notify("provider.banned", `Provider \`${provider}\` disabilitato permanentemente (account bannato/sospeso)`, { provider }).catch(() => {});
+    }
   }
 
     _recordProviderFailureGeneric(provider, cooldownMs = 30 * 60 * 1000) {
