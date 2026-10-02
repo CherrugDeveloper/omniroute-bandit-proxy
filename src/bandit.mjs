@@ -571,6 +571,9 @@ export class DiscountedUCB1Bandit {
           case "ban-provider":
             this._banProvider(model.provider);
             break;
+          case "cooldown-paid-only":
+            this._cooldownPaidOnly(model.provider, c.cooldownMs);
+            break;
           case "cooldown-provider":
             // Se l'errore è 402/no-credit, marca il MODELLO come paid
             // (non bannare il provider, solo escludere quel modello se EXCLUDE_PAID)
@@ -735,6 +738,57 @@ export class DiscountedUCB1Bandit {
     }
   }
 
+  // Mette in cooldown SOLO i modelli paid (is_free=0) del provider,
+  // lasciando attivi quelli free (:free, -free, ecc.)
+  _cooldownPaidOnly(provider, cooldownMs) {
+    const until = Date.now() + cooldownMs;
+
+    this.db.prepare(`
+      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+      VALUES (?, 0, 0, 0, 0)
+    `).run(provider);
+
+    // 1. Assicura che TUTTI i paid del provider esistano in `models`
+    //    (anche quelli mai testati) così possono ricevere il cooldown.
+    this.db.prepare(`
+      INSERT OR IGNORE INTO models (id, provider, last_used_index)
+      SELECT id, ?, 0 FROM catalog WHERE provider = ? AND is_free = 0
+    `).run(provider, provider);
+
+    // 2. Cooldown sui paid
+    const paidInfo = this.db.prepare(`
+      UPDATE models SET cooldown_until = ?
+      WHERE provider = ?
+        AND id IN (SELECT id FROM catalog WHERE is_free = 0)
+        AND (permanent = 0 OR permanent IS NULL)
+    `).run(until, provider);
+
+    // Verifica quanti free restano attivi
+    const freeActive = this.db.prepare(`
+      SELECT COUNT(*) AS n FROM catalog c
+      JOIN models m ON m.id = c.id
+      WHERE c.provider = ? AND c.is_free = 1
+        AND (m.cooldown_until IS NULL OR m.cooldown_until < ?)
+        AND (m.permanent = 0 OR m.permanent IS NULL)
+    `).get(provider, Date.now());
+
+    console.log(`[BANDIT] Provider ${provider}: key-quota-exceeded → ${paidInfo.changes} modelli PAID in cooldown ${Math.round(cooldownMs/60000)}m, ${freeActive.n} free attivi`);
+
+    // Se NON ci sono free attivi, metti in cooldown tutto il provider
+    if (freeActive.n === 0) {
+      console.log(`[BANDIT] Provider ${provider}: nessun free attivo, cooldown provider intero`);
+      this._forceProviderCooldown(provider, cooldownMs, "key-quota-exceeded");
+    }
+
+    if (this.notifier) {
+      this.notifier.notify(
+        "provider.key_quota_exceeded",
+        `Provider \`${provider}\`: credito esaurito. ${paidInfo.changes} paid in cooldown, ${freeActive.n} free ancora attivi`,
+        { provider, cooldownMs, paidCount: paidInfo.changes, freeCount: freeActive.n }
+      ).catch(() => {});
+    }
+  }
+  
   _flagProviderAttention(provider, reason = "unknown", message = "") {
     this.db.prepare(`
       INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent, needs_attention)
@@ -876,19 +930,24 @@ clearProviderAttention(provider) {
       return { scope: "provider", action: "cooldown-provider", cooldownMs: 6 * 3600000, reason: "provider-blocked" };
     }
 
-    // === ACCOUNT BANNATO ===
-    // 403 da un singolo modello → ban SOLO il modello, non l'intero provider.
-    // Un 403 "account-banned" reale contiene parole chiave esplicite.
     if (/suspended|banned|account disabled|account terminated|api key.*revoked/i.test(msg)) {
       return { scope: "provider", action: "ban-provider", reason: "account-banned" };
     }
+
+    // === KEY LIMIT / CREDITO ESAURITO (paid-only) ===
+    // I modelli paid del provider smettono di funzionare, i free restano attivi.
+    if (status === 403 && /key limit|total limit|credit|insufficient|billing|payment/i.test(msg)) {
+      return { scope: "provider", action: "cooldown-paid-only", cooldownMs: 6 * 3600000, reason: "key-quota-exceeded" };
+    }
+
+    if (status === 403) {
+      // 403 generico → solo il modello
+      return { scope: "model", action: "ban-model", reason: "forbidden" };
+    }
+
     // 403 "Key limit exceeded" → problema di credito OpenRouter (tutta la key)
     if (status === 403 && /key limit|total limit|quota|credit/i.test(msg)) {
       return { scope: "provider", action: "flag-provider", reason: "key-quota-exceeded" };
-    }
-    if (status === 403) {
-      // 403 generico → solo il modello (probabile restrizione per-model)
-      return { scope: "model", action: "ban-model", reason: "forbidden" };
     }
 
     // === QUOTA ESAURITA PROVIDER (rispetta reset del server) ===
