@@ -39,3 +39,7 @@ bandit.db-journal
 *.db-journal
 *.db-shm
 *.db-wal
+
+# Backup files
+*.bak
+*.old
