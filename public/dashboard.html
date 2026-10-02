@@ -163,6 +163,37 @@
         }
         .empty { text-align: center; padding: 40px; color: #8b949e; }
         .mono { font-family: 'Courier New', monospace; }
+                /* Group header per provider */
+        .model-group-header {
+            background: #1c2128 !important;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .model-group-header:hover {
+            background: #21262d !important;
+        }
+        .model-group-header td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #30363d;
+        }
+        .model-group-header .arrow {
+            display: inline-block;
+            width: 14px;
+            color: #58a6ff;
+            transition: transform 0.15s;
+            margin-right: 4px;
+        }
+        .model-group-header.collapsed .arrow {
+            transform: rotate(-90deg);
+        }
+        .model-group-header .count {
+            color: #8b949e;
+            font-weight: normal;
+            font-size: 11px;
+            margin-left: 8px;
+        }
         .log-header {
             display: flex;
             justify-content: space-between;
@@ -309,6 +340,8 @@
         let allData = { providers: [], models: [] };
         let sortCol = null;
         let sortDir = 'asc';
+        // Provider collassati (in memoria, sopravvive al re-render ogni 2.5s)
+        const collapsedProviders = new Set();
 
         // === Auth token (persistente tra tab) ===
         const API_TOKEN =
@@ -426,6 +459,60 @@
         }
 
         function renderModels() {
+            const tbody = document.getElementById('models-tbody');
+            const filter = document.getElementById('filter-models').value.toLowerCase();
+            let filtered = (allData.models || []).filter(m =>
+                String(m.id || '').toLowerCase().includes(filter) ||
+                String(m.provider || '').toLowerCase().includes(filter)
+            );
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty">Nessun modello trovato.<br><em>I modelli appariranno qui dopo le prime selezioni</em></td></tr>';
+                return;
+            }
+
+            // Raggruppa per provider
+            const groups = {};
+            for (const m of filtered) {
+                const p = m.provider || 'unknown';
+                if (!groups[p]) groups[p] = [];
+                groups[p].push(m);
+            }
+
+            const providerNames = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+            const forceExpand = filter.length > 0;
+
+            let html = '';
+            for (const provider of providerNames) {
+                const models = sortRows(groups[provider]);
+                const isCollapsed = !forceExpand && collapsedProviders.has(provider);
+
+                html += '<tr class="model-group-header' + (isCollapsed ? ' collapsed' : '') + '" data-action="toggle-provider" data-name="' + escapeHtml(provider) + '">' +
+                    '<td colspan="8">' +
+                        '<span class="arrow">▼</span>' +
+                        '<strong>' + escapeHtml(provider) + '</strong>' +
+                        '<span class="count">(' + models.length + ' modelli)</span>' +
+                    '</td>' +
+                '</tr>';
+
+                if (!isCollapsed) {
+                    for (const m of models) {
+                        const n = Number(m.N) || 0;
+                        const avg = Number(m.avg) || 0;
+                        const fails = Number(m.fails) || 0;
+                        const cdRem = Number(m.cooldownRemaining) || 0;
+                        const score = m.score === Infinity ? '∞' : (m.score == null || isNaN(m.score) ? '—' : Number(m.score).toFixed(3));
+                        html += '<tr><td><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
+                            n.toFixed(1) + '</td><td class="mono">' + avg.toFixed(3) + '</td><td class="mono">' + score +
+                            '</td><td>' + fails + '</td><td>' + badge(m) +
+                            '</td><td><button class="btn btn-reset" data-action="reset-model" data-id="' + escapeHtml(m.id) + '">Reset</button></td></tr>';
+                    }
+                }
+            }
+
+            tbody.innerHTML = html;
+        }
+    
             const tbody = document.getElementById('models-tbody');
             const filter = document.getElementById('filter-models').value.toLowerCase();
             let filtered = (allData.models || []).filter(m =>
@@ -662,6 +749,12 @@
             if (!btn) return;
             const a = btn.dataset.action;
             if (a === 'reset-model') resetModel(btn.dataset.id);
+            else if (a === 'toggle-provider') {
+                const name = btn.dataset.name;
+                if (collapsedProviders.has(name)) collapsedProviders.delete(name);
+                else collapsedProviders.add(name);
+                renderModels();
+            }
             else if (a === 'reset-provider') resetProvider(btn.dataset.name);
             else if (a === 'retry-provider') retryProvider(btn.dataset.name);
             else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
