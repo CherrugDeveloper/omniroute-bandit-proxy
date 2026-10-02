@@ -302,10 +302,16 @@
             return Math.floor(s / 3600) + 'h' + Math.floor((s % 3600) / 60) + 'm';
         }
 
-        function badge(item) {
+        function badge(item, clickable = false) {
             const now = Date.now();
             if (Number(item.permanent)) return '<span class="badge badge-banned">🚫 IGNORATO</span>';
-            if (Number(item.needs_attention)) return '<span class="badge badge-attention">⚠️ DA CONFIGURARE</span>';
+            if (Number(item.needs_attention)) {
+                if (clickable) {
+                    const name = escapeHtml(item.provider || item.id || '');
+                    return '<button class="badge badge-attention" style="border:none;cursor:pointer;font-family:inherit" data-action="show-help" data-name="' + name + '">⚠️ DA CONFIGURARE ❓</button>';
+                }
+                return '<span class="badge badge-attention">⚠️ DA CONFIGURARE</span>';
+            }
             const cd = Number(item.cooldown_until) || 0;
             if (cd > now) return '<span class="badge badge-cooldown">⏱ ' + fmtTime(Math.round((cd - now) / 1000)) + '</span>';
             if (Number(item.degraded)) return '<span class="badge badge-degraded">⚠️ DEGRADED</span>';
@@ -360,15 +366,14 @@
                 const pointer = Number(p.pointer) || 0;
                 let actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safeName + '">Reset</button>';
                 if (Number(p.needs_attention)) {
-                    actions += ' <button class="btn btn-info" data-action="show-help" data-name="' + safeName + '">❓ Cosa fare</button>' +
-                               ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Riprova</button>' +
+                    actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Riprova</button>' +
                                ' <button class="btn btn-reset" data-action="ignore-provider" data-name="' + safeName + '">🚫 Ignora</button>';
                 }
                 if (Number(p.permanent)) {
                     actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Ripristina</button>';
                 }
                 return '<tr><td><b>' + safeName + '</b></td><td>' + fails + '</td><td>' + pointer +
-                    '</td><td>' + badge(p) + '</td><td>' + actions + '</td></tr>';
+                '</td><td>' + badge(p, true) + '</td><td>' + actions + '</td></tr>';
             }).join('');
         }
 
@@ -418,7 +423,18 @@
             const reason = p.attention_reason || '';
             const msg = (p.attention_message || '').toLowerCase();
 
-            if (/no auth|log in|not authenticated|api.?key/i.test(msg) || reason === 'provider-misconfigured') {
+            if (/cli not found|not found.*install via|spawn.*enoent|command not found/i.test(msg)) {
+                return {
+                    title: '🛠️ CLI mancante',
+                    steps: [
+                        'Al provider manca un CLI installato nel container OmniRoute.',
+                        'Leggi il messaggio d\'errore qui sotto: contiene il nome del CLI e il link per installarlo.',
+                        'Tipico: esegui l\'installer nel container e imposta la variabile d\'ambiente indicata.',
+                        'Riavvia il container OmniRoute e clicca "🔁 Riprova".'
+                    ]
+                };
+            }
+            if (/no auth|log in|not authenticated|api.?key/i.test(msg)) {
                 return {
                     title: '🔑 Autenticazione mancante',
                     steps: [
