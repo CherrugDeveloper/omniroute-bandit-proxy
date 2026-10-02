@@ -34,6 +34,7 @@ const TIMEOUT_MS  = parseInt(process.env.TIMEOUT_MS || "60000", 10);
 const CYCLE_DELAY = parseInt(process.env.CYCLE_DELAY|| "30000", 10);
 const SKIP_TESTED = String(process.env.SKIP_TESTED || "false").toLowerCase() === "true";
 const MAX_INPUT   = parseInt(process.env.MAX_INPUT  || "0", 10);
+const PROMPT      = process.env.PROMPT      || "Rispondi solo con: ok";
 const EXCLUDE_PROVIDERS = String(process.env.EXCLUDE_PROVIDERS || "")
   .split(",")
   .map(s => s.trim())
@@ -69,6 +70,8 @@ function loadModels() {
     where.push("(p.needs_attention IS NULL OR p.needs_attention = 0)");
     where.push("(p.permanent IS NULL OR p.permanent = 0)");
     where.push("(m.permanent IS NULL OR m.permanent = 0)");
+    where.push("(p.cooldown_until IS NULL OR p.cooldown_until < " + Date.now() + ")");
+    where.push("(m.cooldown_until IS NULL OR m.cooldown_until < " + Date.now() + ")");
     if (MAX_INPUT > 0) where.push(`c.max_input_tokens >= ${MAX_INPUT}`);
     if (SKIP_TESTED) where.push("c.id NOT IN (SELECT id FROM models)");
     if (String(process.env.ONLY_FREE || "false").toLowerCase() === "true") {
@@ -78,9 +81,16 @@ function loadModels() {
       where.push("(m.is_paid IS NULL OR m.is_paid = 0)");
     }
         // Skip pattern non-chat (sicurezza lato client)
+    // Skip pattern non-chat (sicurezza lato client)
     where.push("c.id NOT LIKE '%:batch%'");
     where.push("c.id NOT LIKE '%tts%'");
     where.push("c.id NOT LIKE '%lyria%'");
+
+    // Skip pattern openrouter problematici (403/timeout cronico)
+    where.push("c.id NOT LIKE 'openrouter/~%'");
+    where.push("c.id NOT LIKE 'openrouter/thinkingmachines/%'");
+    where.push("c.id NOT LIKE 'openrouter/sakana/%'");
+    where.push("c.id NOT LIKE 'openrouter/relace/%'");
 
     const rows = db.prepare(`
       SELECT c.id
@@ -88,7 +98,7 @@ function loadModels() {
       LEFT JOIN models m ON c.id = m.id
       LEFT JOIN provider_history p ON c.provider = p.provider
       WHERE ${where.join(" AND ")}
-      ORDER BY c.id ASC
+      ORDER BY RANDOM()
     `).all();
     return rows.map(r => r.id);
   } finally {
@@ -115,8 +125,8 @@ async function testModel(model) {
     });
     await r.text().catch(() => "");
     return { ok: r.ok, status: r.status };
-  } catch {
-    return { ok: false, status: 0 };
+  } catch (e) {
+    return { ok: false, status: 0, error: String(e.message || e) };
   } finally {
     clearTimeout(timer);
   }
@@ -168,6 +178,7 @@ async function main() {
     }
 
     let ok = 0, fail = 0;
+    const failCountByProvider = {};
     skippedProviders.clear();
 
     for (const model of models) {
@@ -180,30 +191,42 @@ async function main() {
       if (skippedProviders.has("COOLDOWN:" + provider)) continue;
 
       currentModel = model;
+      log(`  → test ${model}`);
       const result = await testModel(model);
+      log(`  ← status=${result.status} ok=${result.ok}${result.error ? ' err=' + result.error : ''}`);
       currentModel = null;
 
       if (result.ok) {
         ok++; totalOk++;
         consecutive404 = 0;
+        failCountByProvider[provider] = 0;
       } else {
         fail++; totalFail++;
 
-        // Timeout/5xx → marca il modello per skip immediato
-        if (result.status === 0 || result.status >= 500) {
+        // Timeout (0) → skippa SOLO il modello, NON conta verso provider
+        if (result.status === 0) {
           skippedProviders.add(model);
+          // Non incrementiamo failCountByProvider per i timeout
+        } else {
+          // 5xx/404/403 → conta verso il provider
+          failCountByProvider[provider] = (failCountByProvider[provider] || 0) + 1;
+
+          if (result.status >= 500) {
+            skippedProviders.add(model);
+          }
+
+          if (result.status === 404) {
+            consecutive404++;
+            skippedProviders.add(model);
+          } else {
+            consecutive404 = 0;
+          }
         }
 
-        if (result.status === 404) {
-          consecutive404++;
-          if (isProviderFlagged(provider)) {
-            skippedProviders.add(provider);
-            log(`  → provider ${provider} flaggato, salto il resto per questo ciclo`);
-          } else {
-            skippedProviders.add("COOLDOWN:" + provider);
-          }
-        } else {
-          consecutive404 = 0;
+        // Skip provider SOLO dopo 3 fail dello stesso provider in questo ciclo
+        if (failCountByProvider[provider] >= 5 && !skippedProviders.has("COOLDOWN:" + provider)) {
+          skippedProviders.add("COOLDOWN:" + provider);
+          log(`  → provider ${provider} ha fallito 5 volte, skip per questo ciclo`);
         }
 
         // Se troppi 404 di fila → pausa
