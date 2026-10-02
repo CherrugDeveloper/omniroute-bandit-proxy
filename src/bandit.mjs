@@ -1008,6 +1008,7 @@ clearProviderAttention(provider) {
 
   isModelAvailable(id) {
     if (!id || typeof id !== "string") return false;
+    const now = Date.now();
     const row = this.db.prepare(`
       SELECT c.id
       FROM catalog c
@@ -1015,9 +1016,11 @@ clearProviderAttention(provider) {
       LEFT JOIN provider_history p ON c.provider = p.provider
       WHERE c.id = ?
         AND (m.permanent IS NULL OR m.permanent = 0)
-        AND (p.needs_attention IS NULL OR p.needs_attention = 0)
+        AND (m.cooldown_until IS NULL OR m.cooldown_until < ?)
         AND (p.permanent IS NULL OR p.permanent = 0)
-    `).get(id);
+        AND (p.needs_attention IS NULL OR p.needs_attention = 0)
+        AND (p.cooldown_until IS NULL OR p.cooldown_until < ?)
+    `).get(id, now, now);
     return !!row;
   }
 
