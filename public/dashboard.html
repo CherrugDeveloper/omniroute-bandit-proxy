@@ -144,6 +144,7 @@
         }
         .btn-reset { background: #da3633; }
         .btn-copy { background: #238636; }
+        .btn-info { background: #a371f7; }
         .btn:hover { opacity: 0.85; }
 
         pre#logs {
@@ -359,7 +360,8 @@
                 const pointer = Number(p.pointer) || 0;
                 let actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safeName + '">Reset</button>';
                 if (Number(p.needs_attention)) {
-                    actions += ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Riprova</button>' +
+                    actions += ' <button class="btn btn-info" data-action="show-help" data-name="' + safeName + '">❓ Cosa fare</button>' +
+                               ' <button class="btn btn-copy" data-action="retry-provider" data-name="' + safeName + '">🔁 Riprova</button>' +
                                ' <button class="btn btn-reset" data-action="ignore-provider" data-name="' + safeName + '">🚫 Ignora</button>';
                 }
                 if (Number(p.permanent)) {
@@ -412,6 +414,99 @@
             refreshAll();
         }
 
+                function getHelpForProvider(p) {
+            const reason = p.attention_reason || '';
+            const msg = (p.attention_message || '').toLowerCase();
+
+            if (/no auth|log in|not authenticated|api.?key/i.test(msg) || reason === 'provider-misconfigured') {
+                return {
+                    title: '🔑 Autenticazione mancante',
+                    steps: [
+                        'Questo provider richiede un login o una chiave API configurata in OmniRoute.',
+                        'Controlla il messaggio d\'errore qui sotto: spesso contiene il comando esatto da eseguire (es. `auggie login`).',
+                        'Vai nel pannello di OmniRoute → Settings → Providers e completa la configurazione.',
+                        'Poi clicca "🔁 Riprova" per rimuovere il flag.'
+                    ]
+                };
+            }
+            if (/playwright|browser/i.test(msg)) {
+                return {
+                    title: '🌐 Playwright non disponibile',
+                    steps: [
+                        'Il provider usa Playwright per pilotare un browser.',
+                        'Nel container OmniRoute esegui:',
+                        '  npm install playwright && npx playwright install chromium --with-deps',
+                        'Poi riavvia il container: docker restart omniroute',
+                        'E infine clicca "🔁 Riprova".'
+                    ]
+                };
+            }
+            if (/cli not found|spawn.*enoent|command not found/i.test(msg)) {
+                return {
+                    title: '🛠️ CLI mancante',
+                    steps: [
+                        'Il provider richiede un CLI installato nel container OmniRoute.',
+                        'Leggi il messaggio d\'errore qui sotto: di solito contiene il nome del CLI e il link per installarlo.',
+                        'Installa il CLI, poi clicca "🔁 Riprova".'
+                    ]
+                };
+            }
+            if (/transport.*not configured|missing url or token/i.test(msg)) {
+                return {
+                    title: '🔌 Transport non configurato',
+                    steps: [
+                        'Il provider ha bisogno di un URL o token di trasporto configurato.',
+                        'Vai nel pannello OmniRoute → Settings → Providers e completa la sezione "Transport".',
+                        'Poi clicca "🔁 Riprova".'
+                    ]
+                };
+            }
+            if (/cli is no longer supported|please upgrade|version.*not supported/i.test(msg)) {
+                return {
+                    title: '⬆️ CLI obsoleto',
+                    steps: [
+                        'Il CLI usato da questo provider è troppo vecchio.',
+                        'Aggiornalo nell\'ambiente OmniRoute, poi clicca "🔁 Riprova".'
+                    ]
+                };
+            }
+            if (/quota|exhausted/i.test(msg)) {
+                return {
+                    title: '📊 Quota esaurita',
+                    steps: [
+                        'Il provider ha esaurito la quota. Attendi il reset, oppure aggiungi un account.',
+                        'Nel frattempo puoi cliccare "🚫 Ignora" per non testarlo più.'
+                    ]
+                };
+            }
+            if (/absolute path|sandbox|env/i.test(msg)) {
+                return {
+                    title: '⚙️ Variabile d\'ambiente mancante',
+                    steps: [
+                        'Al provider manca una variabile d\'ambiente (es. DEVIN_AGENTIC_HOME).',
+                        'Configurala nel container OmniRoute (docker-compose.yml o docker run -e).',
+                        'Poi riavvia il container e clicca "🔁 Riprova".'
+                    ]
+                };
+            }
+            return {
+                title: '❓ Azione richiesta',
+                steps: [
+                    'Questo provider ha bisogno di un intervento manuale.',
+                    'Leggi il messaggio d\'errore qui sotto per capire cosa manca.',
+                    'Dopo aver sistemato, clicca "🔁 Riprova".'
+                ]
+            };
+        }
+
+        function showHelp(providerName) {
+            const p = allData.providers.find(x => x.provider === providerName);
+            if (!p) return alert('Provider non trovato');
+            const help = getHelpForProvider(p);
+            const msg = p.attention_message || '(nessun messaggio disponibile)';
+            alert(`${help.title}\n\n${help.steps.map((s, i) => (i+1) + '. ' + s).join('\n')}\n\n───── Ultimo errore ─────\n${msg}`);
+        }
+
         async function ignoreProvider(p) {
             if (!confirm('Ignorare permanentemente ' + p + '? Non verrà più utilizzato fino a quando non lo ripristini.')) return;
             await apiFetch('/v1/provider/ignore/' + encodeURIComponent(p), { method: 'POST' });
@@ -437,6 +532,7 @@
             else if (a === 'reset-provider') resetProvider(btn.dataset.name);
             else if (a === 'retry-provider') retryProvider(btn.dataset.name);
             else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
+            else if (a === 'show-help') showHelp(btn.dataset.name);
             else if (a === 'copy-logs') copyLogs();
         });
 

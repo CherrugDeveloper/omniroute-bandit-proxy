@@ -33,7 +33,9 @@ export class DiscountedUCB1Bandit {
           cooldown_until REAL DEFAULT 0,
           pointer INTEGER DEFAULT 0,
           permanent INTEGER DEFAULT 0,
-          needs_attention INTEGER DEFAULT 0
+          needs_attention INTEGER DEFAULT 0,
+          attention_reason TEXT DEFAULT '',
+          attention_message TEXT DEFAULT ''
         );
 
         CREATE TABLE IF NOT EXISTS meta (
@@ -132,6 +134,18 @@ export class DiscountedUCB1Bandit {
         this.db.exec(`ALTER TABLE models ADD COLUMN degraded_since REAL DEFAULT 0`);
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonne degraded:", err.message);
+        throw err;
+      }
+    }
+
+        const hasAttentionReason = providerColumns.some(col => col.name === "attention_reason");
+    if (!hasAttentionReason) {
+      console.log("[BANDIT] Migrazione: aggiungo attention_reason/attention_message a provider_history");
+      try {
+        this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_reason TEXT DEFAULT ''`);
+        this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_message TEXT DEFAULT ''`);
+      } catch (err) {
+        console.error("[BANDIT] Errore migrazione attention_reason:", err.message);
         throw err;
       }
     }
@@ -504,7 +518,7 @@ export class DiscountedUCB1Bandit {
             this._forceProviderCooldown(model.provider, c.cooldownMs);
             break;
           case "flag-provider":
-            this._flagProviderAttention(model.provider, c.reason);
+            this._flagProviderAttention(model.provider, c.reason, errorDetails.message || errorDetails.error || "");
             break;
           case "cooldown-model": {
             const isTransient5xx = ["server-error", "timeout", "unknown"].includes(c.reason);
@@ -654,15 +668,20 @@ export class DiscountedUCB1Bandit {
     console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${info.changes} modelli aggiornati)`);
   }
 
-    _flagProviderAttention(provider, reason = "unknown") {
+  _flagProviderAttention(provider, reason = "unknown", message = "") {
     this.db.prepare(`
       INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent, needs_attention)
       VALUES (?, 0, 0, 0, 0, 1)
     `).run(provider);
 
+    const msgShort = String(message || "").slice(0, 500);
     const info = this.db.prepare(`
-      UPDATE provider_history SET needs_attention = 1 WHERE provider = ?
+      UPDATE provider_history 
+      SET needs_attention = 0, fails = 0, cooldown_until = 0, permanent = 0,
+          attention_reason = '', attention_message = ''
+      WHERE provider = ?
     `).run(provider);
+
 
     // Metti in cooldown i modelli di quel provider finché l'utente non decide
     // (evita di riprovarli inutilmente)
@@ -905,6 +924,8 @@ clearProviderAttention(provider) {
         cooldown_until: cooldownUntil,
         needs_attention: Number(p.needs_attention) || 0,
         permanent: Number(p.permanent) || 0,
+        attention_reason: p.attention_reason || '',
+        attention_message: p.attention_message || '',
         cooldownRemaining: cooldownUntil > now ? Math.round((cooldownUntil - now) / 1000) : 0
       };
     });
