@@ -675,16 +675,13 @@ export class DiscountedUCB1Bandit {
     `).run(provider);
 
     const msgShort = String(message || "").slice(0, 500);
-    const info = this.db.prepare(`
-      UPDATE provider_history 
-      SET needs_attention = 0, fails = 0, cooldown_until = 0, permanent = 0,
-          attention_reason = '', attention_message = ''
+    this.db.prepare(`
+      UPDATE provider_history
+      SET needs_attention = 1, attention_reason = ?, attention_message = ?
       WHERE provider = ?
-    `).run(provider);
-
+    `).run(reason, msgShort, provider);
 
     // Metti in cooldown i modelli di quel provider finché l'utente non decide
-    // (evita di riprovarli inutilmente)
     this.db.prepare(`
       UPDATE models SET cooldown_until = ?
       WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
