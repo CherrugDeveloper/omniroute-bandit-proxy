@@ -1144,7 +1144,6 @@ clearProviderAttention(provider) {
     candidates.sort((a, b) => Number(b.avg) - Number(a.avg));
     const topModel = candidates[0] ? {
       id: candidates[0].id,
-      score: Math.round(Number(candidates[0].score) * 1000) / 1000,
       avg: Math.round(Number(candidates[0].avg) * 1000) / 1000,
       N: Math.round(Number(candidates[0].N) * 100) / 100
     } : null;
