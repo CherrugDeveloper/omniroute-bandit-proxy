@@ -52,6 +52,11 @@ function validateNonStreamResponse(data) {
   if (fr === "content_filter") return "content_filter";
   // "length" è ok se ha contenuto; è solo un warning
 
+    // Rileva "errore" mascherato da risposta normale (200 OK con contenuto di avviso)
+  if (typeof content === "string" && /run out of usage|out of credits|quota exceeded|insufficient.*balance|upgrade.*plan/i.test(content)) {
+    return "provider-quota-exceeded: " + content.slice(0, 100);
+  }
+  
   return null;  // valida
 }
 
