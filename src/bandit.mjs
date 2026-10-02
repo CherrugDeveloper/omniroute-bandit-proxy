@@ -873,11 +873,14 @@ clearProviderAttention(provider) {
     const msg = String(errorDetails.message || errorDetails.error || "").toLowerCase();
     const status = errorDetails.status || errorDetails.code;
 
-    // === INPUT TROPPO LUNGO ===
-    // Il modello è OK, la richiesta è troppo grande per il suo context.
-    // Non penalizzare: verrà ritentato con compressione o su tier superiore.
-    // Deve stare PRIMA di tutti gli altri check (è più specifico).
-    if (/input exceeds maximum|maximum input tokens|too many tokens|context length|exceeds.*input.*tokens|prompt is too long|content too large/i.test(msg)) {
+    // === INPUT TROPPO LUNGO (anche mascherato da errore stream/5xx) ===
+    // Include: "prompt too long", "max 6000 characters", "input exceeds"
+    // e anche il caso "STREAM_EARLY_EOF" con "prompt too long" in upstream_details
+    if (
+      /input exceeds maximum|maximum input tokens|too many tokens|context length|exceeds.*input.*tokens|prompt is too long|prompt too long|content too large/i.test(msg) ||
+      /max\s+\d+\s+characters/i.test(msg) ||
+      /stream.*early.*eof|stream_early_eof|stream ended before/i.test(msg)
+    ) {
       return { scope: "model", action: "skip-feedback", reason: "input-too-long" };
     }
 
