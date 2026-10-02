@@ -62,25 +62,39 @@ cmd_prod() {
   echo "✓ Modalità PROD attiva (solo modelli N>=3, risposte <2s)"
 }
 
-cmd_train() {
+_cmd_train_common() {
+  local delay="$1"
+  local cycle_delay="$2"
+  local timeout="$3"
+  local label="$4"
+
   require_env_file
-  echo "→ Modalità TRAINING"
+  echo "→ Modalità TRAINING ($label)"
   set_env EXPLOIT_ONLY false
   set_env EXCLUDE_THINKING false
   restart_bandit
 
-  # Avvia il daemon se non è già attivo
   if [ -f "$DIR/.train-daemon.pid" ] && kill -0 "$(cat "$DIR/.train-daemon.pid")" 2>/dev/null; then
-    echo "✓ Training daemon già in esecuzione (PID $(cat "$DIR/.train-daemon.pid"))"
-  else
-    echo "→ Avvio training daemon..."
-    (cd "$DIR/scripts" && \
-      EXCLUDE_PROVIDERS=gemini,felo TIMEOUT_MS=20000 DELAY_MS=2000 SKIP_TESTED=true \
-      ./train-ctl.sh start)
+    echo "→ Fermo il daemon precedente..."
+    "$DIR/scripts/train-ctl.sh" stop >/dev/null 2>&1 || true
+    sleep 2
   fi
 
-  echo "✓ Modalità TRAIN attiva (esplorazione + daemon)"
+  echo "→ Avvio training daemon (DELAY=${delay}ms, TIMEOUT=${timeout}ms)..."
+  (cd "$DIR/scripts" && \
+    EXCLUDE_PROVIDERS=gemini,felo TIMEOUT_MS="$timeout" DELAY_MS="$delay" CYCLE_DELAY="$cycle_delay" SKIP_TESTED=true \
+    ./train-ctl.sh start)
+
+  echo "✓ Modalità TRAIN-$label attiva"
   echo "  Per tornare a prod: $0 prod"
+}
+
+cmd_train() {
+  _cmd_train_common 2000 30000 20000 "aggressive"
+}
+
+cmd_train_gentle() {
+  _cmd_train_common 10000 120000 15000 "gentle"
 }
 
 cmd_stop() {
@@ -131,9 +145,10 @@ except Exception as e:
 }
 
 case "${1:-}" in
-  prod)   cmd_prod ;;
-  train)  cmd_train ;;
-  stop)   cmd_stop ;;
-  status) cmd_status ;;
-  *)      usage ;;
+  prod)         cmd_prod ;;
+  train)        cmd_train ;;
+  train-gentle) cmd_train_gentle ;;
+  stop)         cmd_stop ;;
+  status)       cmd_status ;;
+  *)            usage ;;
 esac
