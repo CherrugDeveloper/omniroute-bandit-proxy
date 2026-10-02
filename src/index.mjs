@@ -240,6 +240,16 @@ app.post("/v1/reset/model/:id", requireAuth, (req, res) => {
   }
 });
 
+app.post("/v1/reset/counters", requireAuth, (req, res) => {
+  try {
+    bandit.resetGlobalCounters();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[API] Errore reset counters:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/v1/reset/provider/:p", requireAuth, (req, res) => {
   try {
     bandit.resetProvider(req.params.p);

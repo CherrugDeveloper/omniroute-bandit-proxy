@@ -1055,6 +1055,14 @@ clearProviderAttention(provider) {
     console.log(`[BANDIT] Provider ${provider} resettato`);
   }
 
+  resetGlobalCounters() {
+    this.totalObservations = 0;
+    this.totalRequests = 0;
+    this._setMeta("totalObservations", 0);
+    this._setMeta("totalRequests", 0);
+    console.log("[BANDIT] Contatori globali resettati (richieste + osservazioni)");
+    return true;
+  }
   getProviderCount() {
     const row = this.db.prepare("SELECT COUNT(DISTINCT provider) AS n FROM catalog").get();
     return row ? row.n : 0;

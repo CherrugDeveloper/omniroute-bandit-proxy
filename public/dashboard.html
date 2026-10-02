@@ -177,7 +177,10 @@
         <h1>🤖 OmniRoute Bandit Dashboard</h1>
         <div class="stats-container">
             <div class="stats"><strong>Richieste:</strong> <span id="total-req">0</span></div>
-            <div class="stats"><strong>Osservazioni:</strong> <span id="total-obs">0</span> <span class="muted" id="success-rate">(successo: —)</span></div>
+            <div class="stats">
+                <strong>Osservazioni:</strong> <span id="total-obs">0</span> <span class="muted" id="success-rate">(successo: —)</span>
+                <button class="btn btn-reset" style="margin-left:8px;padding:2px 6px;font-size:11px" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
+            </div>
 
             <div class="stats" title="Modelli attivi / monitorati / totale catalogo">
                 <strong>Modelli:</strong>
@@ -413,6 +416,12 @@
             refreshAll();
         }
 
+        async function resetCounters() {
+            if (!confirm('Resettare i contatori globali Richieste + Osservazioni?\n\nNon tocca modelli né provider.')) return;
+            await apiFetch('/v1/reset/counters', { method: 'POST' });
+            refreshAll();
+        }
+
         async function retryProvider(p) {
             if (!confirm('Sbloccare il provider ' + p + '? Verrà rimesso nel pool con cooldown azzerato.')) return;
             await apiFetch('/v1/provider/retry/' + encodeURIComponent(p), { method: 'POST' });
@@ -613,6 +622,7 @@
             else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
             else if (a === 'show-help') showHelp(btn.dataset.name);
             else if (a === 'copy-logs') copyLogs();
+            else if (a === 'reset-counters') resetCounters();
         });
 
         // === Auto-refresh (con guardia anti-sovrapposizione) ===
