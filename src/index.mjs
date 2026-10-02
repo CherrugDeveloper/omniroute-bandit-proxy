@@ -14,6 +14,77 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "50mb" }));
+
+// ========================================
+// VALIDAZIONE RISPOSTA
+// ========================================
+function validateNonStreamResponse(data) {
+  if (!data || typeof data !== "object") return "empty response body";
+
+  // Errori espliciti ovunque nel body
+  if (data.error) return "body.error: " + (data.error.message || JSON.stringify(data.error).slice(0, 100));
+  if (data.code && data.code >= 400) return "body.code: " + data.code;
+  if (data.type === "error") return "body.type=error";
+
+  // Struttura choices
+  if (!Array.isArray(data.choices) || data.choices.length === 0) return "no choices";
+
+  const ch = data.choices[0];
+  if (!ch || !ch.message) return "no message in choice[0]";
+
+  // Contenuto vuoto (né content né tool_calls né reasoning)
+  const content = ch.message.content;
+  const toolCalls = ch.message.tool_calls;
+  const reasoning = ch.message.reasoning_content || ch.message.reasoning;
+
+  const hasText = typeof content === "string" && content.trim().length > 0;
+  const hasTools = Array.isArray(toolCalls) && toolCalls.length > 0;
+  const hasReasoning = typeof reasoning === "string" && reasoning.trim().length > 0;
+
+  if (!hasText && !hasTools) {
+    // Se ha solo reasoning, è un reasoning model troncato (max_tokens)
+    if (hasReasoning) return "only reasoning, no content (max_tokens too low?)";
+    return "empty content";
+  }
+
+  // Finish reason anomali
+  const fr = ch.finish_reason;
+  if (fr === "content_filter") return "content_filter";
+  // "length" è ok se ha contenuto; è solo un warning
+
+  return null;  // valida
+}
+
+function validateStreamAccumulated(raw) {
+  if (!raw || raw.length === 0) return "empty stream";
+
+  // Cerca errori nel payload SSE
+  if (/^\s*data:\s*\{\s*"error"/m.test(raw)) return "SSE contains error";
+  if (/\b"finish_reason"\s*:\s*"content_filter"/.test(raw)) return "content_filter";
+
+  // Estrai l'ultimo data: {...} utile e verifica se ha contenuto
+  const lines = raw.split("\n").filter(l => l.startsWith("data: "));
+  if (lines.length === 0) return "no SSE data lines";
+
+  let hasContent = false;
+  let hasTools = false;
+  for (const line of lines) {
+    const json = line.slice(6).trim();
+    if (json === "[DONE]") continue;
+    try {
+      const obj = JSON.parse(json);
+      if (obj.error) return "SSE chunk error: " + (obj.error.message || "").slice(0, 100);
+      const delta = obj.choices?.[0]?.delta;
+      if (!delta) continue;
+      if (typeof delta.content === "string" && delta.content.length > 0) hasContent = true;
+      if (Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) hasTools = true;
+    } catch {}
+  }
+
+  if (!hasContent && !hasTools) return "stream has no content nor tool_calls";
+  return null;  // valida
+}
+
 // ========================================
 // CONTEXT COMPRESSION (sliding window per agent di coding)
 // ========================================
@@ -497,6 +568,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         let streamFailed = false;
         let streamStarted = false;
         let firstChunk = true;
+        let accumulated = "";   // ← NUOVO: accumula tutto il testo
 
         try {
           while (true) {
@@ -512,24 +584,34 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
                 res.write(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`);
                 break;
               }
-
+              res.write(chunk);
               firstChunk = false;
               streamStarted = true;
+              accumulated += chunk;   // ← NUOVO
               res.write(chunk);
             }
           }
 
           if (!streamFailed && streamStarted) {
-        const rewardScore = Math.max(0, 1.0 - (dur / 30));
-        bandit.recordFeedback(model, true, rewardScore, null);
-        console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
-        trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
+            // === VALIDAZIONE STREAM ===
+            const streamInvalid = validateStreamAccumulated(accumulated);
+            if (streamInvalid) {
+              console.error(`[STREAM INVALID] ${model}: ${streamInvalid}`);
+              bandit.recordFeedback(model, false, 0, { message: streamInvalid });
+              excluded.add(model);
+              res.end();
+              continue;
+            }
+
+            const rewardScore = Math.max(0, 1.0 - (dur / 30));
+            bandit.recordFeedback(model, true, rewardScore, null);
+            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
+            trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
           } else if (streamFailed) {
             bandit.recordFeedback(model, false, 0, { message: "stream error" });
             excluded.add(model);
             res.end();
             continue;
-                    trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
           }
 
           res.end();
@@ -542,16 +624,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           reader.cancel().catch(() => {});
           if (!res.writableEnded) res.end();
           continue;
-                  trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
         }
       } else {
         const data = await r.json();
-        if (data.error || data.code === 400 || (data.choices && data.choices.length === 0)) {
-          console.error(`[APP ERR] ${model}:`, JSON.stringify(data).substring(0, 300));
-          bandit.recordFeedback(model, false, 0, { message: data.error?.message || "error", status: data.error?.status });
+
+        // === VALIDAZIONE RISPOSTA ===
+        const invalidReason = validateNonStreamResponse(data);
+        if (invalidReason) {
+          console.error(`[APP ERR] ${model}: ${invalidReason}`);
+          bandit.recordFeedback(model, false, 0, { message: invalidReason });
           excluded.add(model);
           continue;
-                  trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
         }
 
         const rewardScore = Math.max(0, 1.0 - (dur / 30));
