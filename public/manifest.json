@@ -1,9 +1,9 @@
 {
   "name": "OmniRoute Bandit Dashboard",
   "short_name": "Bandit Dashboard",
-  "description": "Monitoraggio multi-armed bandit per routing modelli LLM",
   "start_url": "/dashboard",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#0d1117",
   "theme_color": "#58a6ff",
