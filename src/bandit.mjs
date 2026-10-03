@@ -319,7 +319,10 @@ export class DiscountedUCB1Bandit {
           const provider = this._getProvider(modelId);
           const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
           const isFree = isFreeModel(modelId) ? 1 : 0;
-          const supportsTools = (m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
+          // Escludi i modelli FIM (Fill-In-the-Middle): sono code completion,
+          // non agent. Anche se dichiarano tool_calling, producono diff imprecisi.
+          const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
+          const supportsTools = (!isFim && m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
           insertStmt.run(modelId, provider, maxInput, isFree, supportsTools);
           inserted++;
         }
@@ -443,7 +446,9 @@ export class DiscountedUCB1Bandit {
       const paidFilter = this.excludePaid ? "AND (m.is_paid IS NULL OR m.is_paid = 0)" : "";
       const freeFilter = this.onlyFree ? "AND c.is_free = 1" : "";
       const exploitFilter = this.exploitOnly ? "AND COALESCE(m.N, 0) >= 3" : "";
-      const toolsFilter = requireTools ? "AND c.supports_tools = 1" : "";
+      const toolsFilter = requireTools 
+        ? "AND c.supports_tools = 1 AND c.id NOT LIKE '%fim%' AND c.id NOT LIKE '%code-fim%'"
+        : "";
       const thinkingFilter = this.excludeThinking
         ? "AND c.id NOT LIKE '%thinking%' AND c.id NOT LIKE '%reasoning%' AND c.id NOT LIKE '%-think%' AND c.id NOT LIKE '%max-prime%' AND c.id NOT LIKE '%-ultra%'"
         : "";
