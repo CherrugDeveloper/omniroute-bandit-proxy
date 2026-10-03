@@ -480,8 +480,11 @@ export class DiscountedUCB1Bandit {
           c.id ASC
       `);
 
+      let anyResults = false;
+
       for (const provider of providerList) {
         const providerModels = modelsStmt.all(provider, now, estimatedTokens);
+        if (providerModels.length > 0) anyResults = true;
 
         for (const m of providerModels) {
           if (excludeSet.has(m.id)) continue;
@@ -504,6 +507,22 @@ export class DiscountedUCB1Bandit {
             maxScore = score;
             bestModel = m;
           }
+        }
+      }
+
+      // FALLBACK: se con EXPLOIT_ONLY non c'è nulla, ritenta senza il filtro N>=3
+      if (!bestModel && !anyResults && this.exploitOnly && !forceProvider) {
+        if (!this._fallbackWarned) {
+          console.log(`[BANDIT] EXPLOIT_ONLY ha 0 candidati → fallback senza filtro`);
+          this._fallbackWarned = true;
+          setTimeout(() => { this._fallbackWarned = false; }, 60000);
+        }
+        const oldExploit = this.exploitOnly;
+        this.exploitOnly = false;
+        try {
+          return this.selectModel(excludedModels, forceProvider, estimatedTokens, requireTools);
+        } finally {
+          this.exploitOnly = oldExploit;
         }
       }
 
@@ -531,7 +550,6 @@ export class DiscountedUCB1Bandit {
 
       return bestModel.id;
     });
-
     return selectTransaction();
   }
 
@@ -1307,7 +1325,7 @@ clearProviderAttention(provider) {
     const row = this.db.prepare("SELECT max_input_tokens FROM catalog WHERE id = ?").get(modelId);
     return row?.max_input_tokens || 0;
   }
-  
+
     estimateTokens(body) {
     if (!body) return 0;
     try {

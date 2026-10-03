@@ -72,6 +72,12 @@ function validateNonStreamResponse(data, opts = {}) {
 
 function validateStreamAccumulated(raw, opts = {}) {
   const requireTools = opts.requireTools === true;
+            // DEBUG risposta stream
+            if (requireTools) {
+              const toolCallMatches = raw.match(/"tool_calls"/g);
+              const toolNames = [...raw.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map(m => m[1]).slice(0, 5);
+              console.log(`[RESPONSE-STREAM] ${model} | tool_calls found: ${toolCallMatches?.length || 0} | names: ${toolNames.join(", ")}`);
+            }
   if (!raw || raw.length === 0) return "empty stream";
 
   // Cerca errori nel payload SSE
@@ -566,6 +572,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       model = bandit.selectModel(excluded, null, estimatedTokens, requireTools);
     }
     if (!model) {
+      console.warn(`[BANDIT] 503: nessun modello disponibile (requireTools=${requireTools}, tokens=${estimatedTokens}, attempt=${attempt})`);
       notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
         estimatedTokens,
         attempt
@@ -633,6 +640,15 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       }
 
       if (stream) {
+        // Se gli header sono già stati inviati (stream già aperto), non possiamo ritentare
+        if (res.headersSent) {
+          console.error(`[RETRY BLOCKED] headers già inviati per ${model}, stream chiuso`);
+          bandit.recordFeedback(model, false, 0, { message: "stream already started" });
+          cleanup();
+          try { res.end(); } catch (_) {}
+          return;
+        }
+
         const reader = r.body.getReader();
         const dec = new TextDecoder();
 
@@ -711,6 +727,16 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
         // === VALIDAZIONE RISPOSTA ===
         const invalidReason = validateNonStreamResponse(data, { requireTools });
+        // DEBUG: log risposta modello (solo se ha tools)
+        if (requireTools) {
+          const msg = data.choices?.[0]?.message;
+          const tc = msg?.tool_calls;
+          const content = msg?.content;
+          console.log(`[RESPONSE] ${model} | tool_calls: ${tc?.length || 0} | content: ${(content || "").substring(0, 100)}`);
+          if (tc && tc.length > 0) {
+            console.log(`[RESPONSE] tool chiamati: ${tc.map(t => t.function?.name).join(", ")}`);
+          }
+        }
         if (invalidReason) {
           console.error(`[APP ERR] ${model}: ${invalidReason}`);
           bandit.recordFeedback(model, false, 0, { message: invalidReason });
