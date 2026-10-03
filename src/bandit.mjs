@@ -1302,6 +1302,12 @@ clearProviderAttention(provider) {
     return !!row;
   }
 
+  getModelMaxInput(modelId) {
+    if (!modelId || typeof modelId !== "string") return 0;
+    const row = this.db.prepare("SELECT max_input_tokens FROM catalog WHERE id = ?").get(modelId);
+    return row?.max_input_tokens || 0;
+  }
+  
     estimateTokens(body) {
     if (!body) return 0;
     try {

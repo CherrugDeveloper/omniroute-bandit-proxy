@@ -485,7 +485,15 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // === Stima token e (eventuale) auto-compress del contesto ===
   const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
   let estimatedTokens = bandit.estimateTokens(req.body);
-  console.log(`[TOKENS] Stimati ${estimatedTokens} (body: ${JSON.stringify(req.body).length} char)`);
+  // Debug sessione
+  const sessionDebug = {
+    user: req.body?.user || null,
+    ip: req.ip || req.connection?.remoteAddress || "?",
+    ua: (req.get("user-agent") || "").substring(0, 40),
+    convHeader: req.get("x-conversation-id") || req.get("x-session-id") || null,
+    firstMsgHash: req.body?.messages?.[0]?.content?.substring?.(0, 60) || null
+  };
+  console.log(`[SESSION] ${JSON.stringify(sessionDebug)}`);
   const maxCatalog = bandit.maxCatalogInput();
 
   if (autoCompress && maxCatalog > 0 && estimatedTokens > maxCatalog) {
@@ -567,6 +575,26 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
 
     console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt})`);
+
+    // === AUTO-COMPRESS per il modello specifico ===
+    let requestBody = req.body;
+    if (autoCompress) {
+      const modelMaxInput = bandit.getModelMaxInput(model);   // nuovo metodo
+      if (modelMaxInput > 0 && estimatedTokens > modelMaxInput) {
+        console.log(`[CONTEXT] Richiesta ${estimatedTokens} tok > ${model} max ${modelMaxInput} tok → comprimo`);
+        const compressed = compressBody(req.body, modelMaxInput - 500);
+        if (compressed) {
+          requestBody = compressed.body;
+          const newTokens = bandit.estimateTokens(requestBody);
+          console.log(`[CONTEXT] Compresso: ${compressed.omitted} messaggi rimossi, ora ${newTokens} tok`);
+          estimatedTokens = newTokens;
+        } else {
+          console.warn(`[CONTEXT] Compressione impossibile per ${model}, salto`);
+          excluded.add(model);
+          continue;
+        }
+      }
+    }
     trackRequestUpdate(requestId, {
       model,
       attempt,
@@ -587,7 +615,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const r = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ ...req.body, model, stream: !!stream }),
+        body: JSON.stringify({ ...requestBody, model, stream: !!stream }),
         signal: controller.signal
       });
 
