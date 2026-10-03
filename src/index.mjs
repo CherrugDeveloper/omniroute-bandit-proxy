@@ -521,7 +521,18 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
 
   const excluded = new Set();
-  const requireTools = Array.isArray(req.body?.tools) && req.body.tools.length > 0;
+  // requireTools: richiede tool calls SOLO se:
+  //   1. la richiesta ha tools
+  //   2. il system prompt NON è di summarization (Zoo Code summarizza il contesto senza tool)
+  const hasTools = Array.isArray(req.body?.tools) && req.body.tools.length > 0;
+  const firstMsg = req.body?.messages?.[0]?.content || "";
+  const firstMsgStr = typeof firstMsg === "string" ? firstMsg : JSON.stringify(firstMsg);
+  const isSummarization = /summariz|summariz|condense|context.*compress|riassunt/i.test(firstMsgStr.slice(0, 500));
+  const requireTools = hasTools && !isSummarization;
+
+  if (hasTools && isSummarization) {
+    console.log(`[TOOLS] Richiesta di summarization rilevata → tool_calls non obbligatori`);
+  }
   if (requireTools) {
     console.log(`[TOOLS] Richiesta con ${req.body.tools.length} tools → solo modelli tool-capable`);
   }
