@@ -531,7 +531,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const requireTools = hasTools && !isSummarization;
 
   if (hasTools && isSummarization) {
-    console.log(`[TOOLS] Richiesta di summarization rilevata → tool_calls non obbligatori`);
+    console.log(`[TOOLS] Richiesta di summarization rilevata → rimuovo tools dal body`);
+    // Per summarization, il modello deve rispondere con TESTO.
+    // Se gli passiamo i tools, tende a chiamarli anche se non serve.
+    delete req.body.tools;
+    delete req.body.tool_choice;
+    delete req.body.parallel_tool_calls;
   }
   if (requireTools) {
     console.log(`[TOOLS] Richiesta con ${req.body.tools.length} tools → solo modelli tool-capable`);
