@@ -43,6 +43,33 @@ const EXCLUDE_PROVIDERS = String(process.env.EXCLUDE_PROVIDERS || "")
 let running = true;
 let currentModel = null;
 
+
+const INFLIGHT_URL = `${PROXY}/v1/inflight`;
+const ZOO_WAIT_MS = parseInt(process.env.ZOO_WAIT_MS || "3000", 10);
+
+const ZOO_MAX_WAIT_MS = parseInt(process.env.ZOO_MAX_WAIT_MS || "60000", 10); // cap 60s
+
+async function waitForZoo() {
+  const start = Date.now();
+  while (running) {
+    if (Date.now() - start > ZOO_MAX_WAIT_MS) {
+      log(`  ⚠ Zoo busy da >${ZOO_MAX_WAIT_MS/1000}s, procedo comunque (1 test, poi ritorno in attesa)`);
+      return 'forced';
+    }
+    try {
+      const r = await fetch(INFLIGHT_URL, { signal: AbortSignal.timeout(2000) });
+      if (!r.ok) return 'ok';
+      const { count } = await r.json();
+      if (count === 0) return 'ok';
+      log(`  ⏸ Zoo ha ${count} richieste in-flight, aspetto ${ZOO_WAIT_MS}ms...`);
+    } catch {
+      return 'ok';
+    }
+    await sleep(ZOO_WAIT_MS).catch(() => {});
+  }
+  return 'ok';
+}
+
 function log(...args) {
   const t = new Date().toLocaleTimeString();
   console.log(`[${t}]`, ...args);
@@ -179,6 +206,7 @@ async function main() {
 
     let ok = 0, fail = 0;
     const failCountByProvider = {};
+    const timeoutCountByProvider = {};   
     skippedProviders.clear();
 
     for (const model of models) {
@@ -189,6 +217,9 @@ async function main() {
       if (skippedProviders.has(model)) continue;
       if (skippedProviders.has(provider)) continue;
       if (skippedProviders.has("COOLDOWN:" + provider)) continue;
+      const zooState = await waitForZoo();
+      if (!running) break;
+      const forcedDelay = zooState === 'forced' ? 8000 : DELAY_MS;
 
       currentModel = model;
       log(`  → test ${model}`);
@@ -202,11 +233,14 @@ async function main() {
         failCountByProvider[provider] = 0;
       } else {
         fail++; totalFail++;
-
-        // Timeout (0) → skippa SOLO il modello, NON conta verso provider
+        // Timeout (0) → skippa il modello E conta verso il provider (3 timeout = skip ciclo)
         if (result.status === 0) {
           skippedProviders.add(model);
-          // Non incrementiamo failCountByProvider per i timeout
+          timeoutCountByProvider[provider] = (timeoutCountByProvider[provider] || 0) + 1;
+          if (timeoutCountByProvider[provider] >= 3 && !skippedProviders.has("COOLDOWN:" + provider)) {
+            skippedProviders.add("COOLDOWN:" + provider);
+            log(`  → provider ${provider}: 3 timeout consecutivi, skip per questo ciclo`);
+          }
         } else {
           // 5xx/404/403 → conta verso il provider
           failCountByProvider[provider] = (failCountByProvider[provider] || 0) + 1;
@@ -237,7 +271,7 @@ async function main() {
         }
       }
 
-      if (running) await sleep(DELAY_MS).catch(() => {});
+      if (running) await sleep(forcedDelay).catch(() => {});
     }
 
     log(`--- Ciclo #${cycle} chiuso: OK=${ok} FAIL=${fail} (totale: OK=${totalOk} FAIL=${totalFail}) ---`);

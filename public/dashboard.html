@@ -23,7 +23,12 @@
             font-family: -apple-system, sans-serif;
             background: #0d1117;
             color: #c9d1d9;
+            /* Padding di base */
             padding: 12px;
+            /* Quando la PWA è in modalità window-controls-overlay,
+               sposta il contenuto sotto la barra dei controlli finestra */
+            padding-top: env(titlebar-area-height, 12px);
+            /* Layout */
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -106,10 +111,30 @@
 
         .table-wrapper {
             flex: 1;
-            overflow: auto;
+            overflow-y: auto;
+            overflow-x: hidden;
             border: 1px solid #30363d;
             border-radius: 4px;
         }
+        .table-wrapper table {
+            table-layout: fixed;
+            width: 100%;
+        }
+        .table-wrapper td,
+        .table-wrapper th {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        /* Larghezze colonne */
+        .table-wrapper th:nth-child(1), .table-wrapper td:nth-child(1) { width: 28%; }  /* Modello */
+        .table-wrapper th:nth-child(2), .table-wrapper td:nth-child(2) { width: 14%; }  /* Provider */
+        .table-wrapper th:nth-child(3), .table-wrapper td:nth-child(3) { width: 8%; }   /* N */
+        .table-wrapper th:nth-child(4), .table-wrapper td:nth-child(4) { width: 10%; }  /* Avg */
+        .table-wrapper th:nth-child(5), .table-wrapper td:nth-child(5) { width: 10%; }  /* Score */
+        .table-wrapper th:nth-child(6), .table-wrapper td:nth-child(6) { width: 6%; }   /* Fails */
+        .table-wrapper th:nth-child(7), .table-wrapper td:nth-child(7) { width: 12%; }  /* Stato */
+        .table-wrapper th:nth-child(8), .table-wrapper td:nth-child(8) { width: 12%; }  /* Azioni */
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #30363d; font-size: 13px; }
         th {
@@ -357,11 +382,29 @@
             display: flex;
             gap: 4px;
         }
+        /* Scroll invisibile: mantiene lo scroll ma nasconde la barra */
+        #logs,
+        .table-wrapper,
+        .tab-content.active {
+            scrollbar-width: none;      /* Firefox */
+            -ms-overflow-style: none;    /* IE/Edge */
+        }
+        #logs::-webkit-scrollbar,
+        .table-wrapper::-webkit-scrollbar,
+        .tab-content.active::-webkit-scrollbar {
+            display: none;               /* Chrome/Safari */
+        }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>🤖 OmniRoute Bandit Dashboard</h1>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h1 style="margin:0;">OmniRoute Bandit Dashboard</h1>
+        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="debug-toggle" onchange="toggleDebug(this.checked)" style="cursor:pointer;">
+            <span>🐛 Debug verbose</span>
+        </label>
+    </div>
         <div id="active-panel" class="active-panel" style="display:none">
             <div class="active-header">
                 <strong>⚡ In corso</strong> <span id="active-count" class="muted">0 richieste</span>
@@ -409,6 +452,7 @@
     <div class="tabs">
         <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
         <button class="tab-btn" data-tab="models">📦 Modelli</button>
+        <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
     </div>
 
     <div id="tab-logs" class="tab-content active">
@@ -425,6 +469,9 @@
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#8b949e">
                 <input type="checkbox" id="filter-problems"> Solo problematici
             </label>
+            <button id="toggle-flat" class="btn btn-copy" style="display:none; margin-left:auto;">📁 Raggruppa per provider</button>
+        </div>
+            <button id="toggle-flat" class="btn btn-copy" style="display:none; margin-left:auto;" title="Torna alla vista raggruppata per provider">📁 Raggruppa per provider</button>
         </div>
         <div class="table-wrapper">
             <table>
@@ -444,14 +491,37 @@
             </table>
         </div>
     </div>
+    <div id="tab-modes" class="tab-content">
+        <div class="card">
+            <div class="stats-container" id="modes-stats">Caricamento...</div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+            <h3>Signature attive</h3>
+            <table id="modes-signatures-table" style="width:100%; border-collapse:collapse; font-size:13px; margin-top:8px;">
+                <thead>
+                    <tr style="border-bottom:1px solid #30363d; color:#58a6ff;">
+                        <th style="text-align:left; padding:4px;">Sig</th>
+                        <th style="text-align:left; padding:4px;">Mode</th>
+                        <th style="text-align:left; padding:4px;">Profile</th>
+                        <th style="text-align:left; padding:4px;">Source</th>
+                        <th style="text-align:left; padding:4px;">Last seen</th>
+                    </tr>
+                </thead>
+                <tbody id="modes-signatures-body"><tr><td colspan="5">Nessuna</td></tr></tbody>
+            </table>
+        </div>
+        <div class="card" style="margin-top:10px;">
+            <h3>Discovery in attesa</h3>
+            <div id="modes-discovered-list" style="margin-top:8px;">Nessuna discovery.</div>
+        </div>
+    </div>
 
     <script>
         let allData = { providers: [], models: [] };
         let sortCol = null;
         let sortDir = 'asc';
-        // Provider collassati (in memoria, sopravvive al re-render ogni 2.5s)
+        let flatMode = false;
         const collapsedProviders = new Set();
-
         // === Auth token (persistente tra tab) ===
         const API_TOKEN =
             new URLSearchParams(location.search).get('token') ||
@@ -585,8 +655,122 @@
             div.innerHTML = '🔒 401 — Token mancante o errato. Riapri la dashboard con <code>?token=IL_TUO_TOKEN</code>';
             document.body.appendChild(div);
         }
+        // === DEBUG TOGGLE ===
+        async function loadDebugStatus() {
+            try {
+                const r = await fetch('/v1/debug/status', { headers: { 'x-api-token': 'Cadrega' } });
+                const { verbose } = await r.json();
+                document.getElementById('debug-toggle').checked = verbose;
+            } catch (e) {
+                console.warn('[DEBUG] load status failed:', e);
+            }
+        }
+
+        async function toggleDebug(enabled) {
+            try {
+                await fetch('/v1/debug/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-token': 'Cadrega' },
+                    body: JSON.stringify({ verbose: enabled })
+                });
+                console.log('[DEBUG] verbose=' + enabled);
+            } catch (e) {
+                console.warn('[DEBUG] toggle failed:', e);
+                document.getElementById('debug-toggle').checked = !enabled;
+            }
+        }
+
+        // === TAB MODALITÀ ===
+        const MODES_TOKEN = localStorage.getItem('dashboardToken') || 'Cadrega';
+
+        async function loadModes() {
+            try {
+                const r1 = await fetch('/v1/modes', { headers: { 'x-api-token': MODES_TOKEN } });
+                const stats = await r1.json();
+                const r2 = await fetch('/v1/modes/signatures', { headers: { 'x-api-token': MODES_TOKEN } });
+                const sigs = await r2.json();
+                const r3 = await fetch('/v1/modes', { headers: { 'x-api-token': MODES_TOKEN } });
+                const disc = await r3.json();
+
+                const s = stats.stats || {};
+                document.getElementById('modes-stats').innerHTML =
+                    `<div class="stats">Modi: <strong>${s.modes || 0}</strong></div>
+                     <div class="stats">Signature: <strong>${s.signatures || 0}</strong></div>
+                     <div class="stats">Discovery: <strong>${s.discovered || 0}</strong></div>`;
+
+                const sigBody = document.getElementById('modes-signatures-body');
+                const sigList = Array.isArray(sigs) ? sigs : (sigs.signatures || []);
+                if (sigList.length === 0) {
+                    sigBody.innerHTML = '<tr><td colspan="5">Nessuna</td></tr>';
+                } else {
+                    sigBody.innerHTML = sigList.map(s => `
+                        <tr style="border-bottom:1px solid #21262d;">
+                            <td style="padding:4px; font-family:monospace;">${s.sig.slice(0,8)}</td>
+                            <td style="padding:4px;">${s.mode}</td>
+                            <td style="padding:4px;">${s.profile}</td>
+                            <td style="padding:4px; color:#8b949e;">${s.source}</td>
+                            <td style="padding:4px; color:#8b949e;">${new Date(s.ts).toLocaleTimeString()}</td>
+                        </tr>`).join('');
+                }
+
+                const list = document.getElementById('modes-discovered-list');
+                const discList = disc.discovered || [];
+                if (discList.length === 0) {
+                    list.innerHTML = 'Nessuna discovery.';
+                } else {
+                    list.innerHTML = discList.map(d => `
+                        <div style="background:#21262d; padding:8px; border-radius:6px; margin-bottom:8px;">
+                            <div style="font-family:monospace; color:#8b949e;">${d.sig.slice(0,8)} · count=${d.count}</div>
+                            <div style="font-size:12px; color:#c9d1d9; margin:4px 0; word-break:break-all;">${d.sysPreview.slice(0, 200)}</div>
+                            <button onclick="labelDisc('${d.sig}')" style="background:#238636; color:#fff; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Etichetta</button>
+                            <button onclick="dismissDisc('${d.sig}')" style="background:#30363d; color:#c9d1d9; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Scarta</button>
+                        </div>`).join('');
+                }
+            } catch (e) {
+                console.error('[MODES] loadModes failed:', e);
+            }
+        }
+
+        async function labelDisc(sig) {
+            const mode = prompt('Nome della modalità (es. code, architect, summarizer):');
+            if (!mode) return;
+            const profile = prompt('Profile (code / reasoning / general):', 'code');
+            if (!profile) return;
+            const r = await fetch('/v1/modes/label', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-token': MODES_TOKEN },
+                body: JSON.stringify({ sig, name: mode, profile })
+            });
+            if (r.ok) { alert('Etichettata!'); loadModes(); }
+            else { alert('Errore: ' + await r.text()); }
+        }
+
+        async function dismissDisc(sig) {
+            const r = await fetch('/v1/modes/discovered/' + sig, {
+                method: 'DELETE',
+                headers: { 'x-api-token': MODES_TOKEN }
+            });
+            if (r.ok) loadModes();
+        }
+
+        loadDebugStatus();
+        loadModes();
+        setInterval(() => {
+            if (document.hidden) return;
+            const t = document.querySelector('.tab-content.active');
+            if (t && t.id === 'tab-modes') loadModes();
+        }, 10000);
 
         // === Tabs ===
+        document.addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'toggle-flat') {
+                flatMode = false;
+                sortCol = null;
+                sortDir = 'asc';
+                document.querySelectorAll('th[data-sort]').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
+                renderAll();
+            }
+        });
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -645,6 +829,7 @@
                 const col = th.dataset.sort;
                 if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
                 else { sortCol = col; sortDir = 'asc'; }
+                flatMode = true;   // sort globale: esci dalla vista raggruppata
                 document.querySelectorAll('th[data-sort]').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
                 th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
                 renderAll();
@@ -681,6 +866,50 @@
             const forceExpand = filter.length > 0;
 
             let html = '';
+
+            // Bottone toggle visibile solo in flat mode
+            const toggleBtn = document.getElementById('toggle-flat');
+            if (toggleBtn) toggleBtn.style.display = flatMode ? 'inline-block' : 'none';
+
+            if (flatMode) {
+                // === FLAT MODE: tutti i modelli in un'unica tabella, sort globale ===
+                let allModels = [];
+                for (const provider of providerNames) {
+                    const models = modelsByProvider[provider] || [];
+                    const info = providerInfo[provider];
+                    const providerMatches = provider.toLowerCase().includes(filter);
+                    const matchingModels = filter
+                        ? models.filter(m => String(m.id).toLowerCase().includes(filter) || String(m.provider).toLowerCase().includes(filter))
+                        : models;
+                    if (filter && !providerMatches && matchingModels.length === 0) continue;
+
+                    if (onlyProblems) {
+                        const providerProblem = info && (
+                            Number(info.needs_attention) ||
+                            Number(info.permanent) ||
+                            (info.cooldown_until && info.cooldown_until > Date.now())
+                        );
+                        const modelsProblem = models.some(m =>
+                            Number(m.permanent) || Number(m.degraded) || Number(m.needs_attention) ||
+                            (m.cooldown_until && m.cooldown_until > Date.now())
+                        );
+                        if (!providerProblem && !modelsProblem) continue;
+                    }
+
+                    for (const m of matchingModels) {
+                        if (onlyProblems) {
+                            const isProb = Number(m.permanent) || Number(m.degraded) || Number(m.needs_attention) ||
+                                           (m.cooldown_until && m.cooldown_until > Date.now());
+                            if (!isProb) continue;
+                        }
+                        allModels.push(m);
+                    }
+                }
+                const sorted = sortRows(allModels);
+                for (const m of sorted) {
+                    html += renderModelRow(m);
+                }
+            } else {
 
             for (const provider of providerNames) {
                 const models = modelsByProvider[provider] || [];
@@ -720,6 +949,8 @@
                     }
                 }
             }
+
+            }   // ← chiude il blocco "else" del flat mode
 
             if (html === '') {
                 tbody.innerHTML = '<tr><td colspan="8" class="empty">Nessun risultato</td></tr>';

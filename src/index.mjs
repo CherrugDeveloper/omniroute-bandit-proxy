@@ -1,4 +1,5 @@
 import express from "express";
+import { createHash } from "node:crypto";
 import "dotenv/config";
 import { EventEmitter } from "events";
 import path from "path";
@@ -6,6 +7,7 @@ import { fileURLToPath } from "url";
 import { DiscountedUCB1Bandit } from "./bandit.mjs";
 import { HealthChecker } from "./health-check.mjs";
 import { Notifier } from "./notifier.mjs";
+import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered } from './modes-registry.mjs';
 
 EventEmitter.defaultMaxListeners = 50;
 
@@ -179,7 +181,12 @@ function compressBody(body, targetTokens) {
 // pollate ogni secondo dalla dashboard). Esclude anche gli asset statici.
 app.use((req, res, next) => {
   const isApi = req.path.startsWith("/v1/");
-  const isPolling = req.path.startsWith("/v1/metrics") || req.path.startsWith("/v1/logs") || req.path.startsWith("/v1/active");
+  const isPolling = req.path.startsWith("/v1/metrics")
+    || req.path.startsWith("/v1/logs")
+    || req.path.startsWith("/v1/active")
+    || req.path.startsWith("/v1/modes")
+    || req.path.startsWith("/v1/debug/status")
+    || req.path.startsWith("/v1/inflight");
   if (isApi && !isPolling) {
     console.log(`[PROXY] ${req.method} ${req.path}`);
   }
@@ -266,6 +273,43 @@ const logBuffer = new RingBuffer(200);
 // ========================================
 // Traccia le richieste in corso con: modello scelto, tentativo, tempo, tier
 const activeRequests = new Map(); // id -> { id, model, attempt, startTime, clientIp, stream, tier, compressed }
+// Toggle debug verbose (in memoria, si resetta al restart)
+let debugVerbose = false;
+// === SESSION AFFINITY ===
+// Mappa sessionKey → { model, ts }
+// Garantisce che la stessa conversazione usi sempre lo stesso modello
+// (evita che il bandit cambi modello a metà task, perdendo artifact/tool state)
+const sessionModels = new Map();
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 min
+
+function computeSessionKey(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return null;
+
+  // Prendi il system prompt (o, se manca, il primo user message)
+  const sys = messages.find(m => m.role === "system");
+  const firstUser = messages.find(m => m.role === "user");
+
+  const sysStr = sys
+    ? (typeof sys.content === "string" ? sys.content : JSON.stringify(sys.content))
+    : "";
+  const userStr = firstUser
+    ? (typeof firstUser.content === "string" ? firstUser.content : JSON.stringify(firstUser.content))
+    : "";
+
+  // 🎯 Usa SOLO il prefisso stabile:
+  // - system: primi 800 char (l'header "You are Zoo..." è lì)
+  // - user:   primi 300 char (la richiesta originale dell'utente è lì)
+  // Tutto ciò che viene dopo è contesto dinamico che cambia ad ogni turno.
+  const stableSys  = sysStr.slice(0, 800);
+  const stableUser = userStr.slice(0, 300);
+
+  if (!stableSys && !stableUser) return null;
+
+  return createHash("md5")
+    .update(stableSys + "|" + stableUser)
+    .digest("hex")
+    .slice(0, 16);
+}
 
 let requestCounter = 0;
 function newRequestId() {
@@ -367,6 +411,37 @@ app.get("/dashboard", (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.sendFile(path.join(__dirname, "../public/dashboard.html"));
 });
+app.get('/v1/debug/status', requireAuth, (req, res) => {
+  res.json({ verbose: debugVerbose });
+});
+
+app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
+  const desired = req.body?.verbose;
+  debugVerbose = typeof desired === 'boolean' ? desired : !debugVerbose;
+  console.log(`[DEBUG] verbose=${debugVerbose}`);
+  res.json({ verbose: debugVerbose });
+});
+app.get('/v1/modes', requireAuth, (req, res) => {
+  res.json({ stats: registryStats(), discovered: listDiscovered() });
+});
+app.post('/v1/modes/label', requireAuth, express.json(), (req, res) => {
+  const { sig, name, profile } = req.body || {};
+  const r = labelDiscovered(sig, name, profile);
+  res.status(r.ok ? 200 : 400).json(r);
+});
+app.get('/v1/modes/signatures', requireAuth, (req, res) => {
+  res.json({ signatures: registrySignatures() });
+});
+app.delete('/v1/modes/discovered/:sig', requireAuth, (req, res) => {
+  const ok = dismissDiscovered(req.params.sig);
+  res.status(ok ? 200 : 404).json({ ok });
+});
+
+app.delete('/v1/sessions/:key', requireAuth, (req, res) => {
+  const key = req.params.key;
+  const existed = sessionModels.delete(key);
+  res.json({ deleted: existed, key });
+});
 
 app.get("/v1/metrics", requireAuth, (req, res) => {
   try {
@@ -375,6 +450,16 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
     console.error("[API] Errore /v1/metrics:", e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+app.get("/v1/sessions", requireAuth, (req, res) => {
+  const now = Date.now();
+  const sessions = Array.from(sessionModels.entries()).map(([k, v]) => ({
+    key: k.slice(0, 8),
+    model: v.model,
+    ageSec: Math.round((now - v.ts) / 1000)
+  }));
+  res.json({ count: sessions.length, sessions });
 });
 
 app.get("/v1/health-check/status", requireAuth, (req, res) => {
@@ -388,6 +473,12 @@ app.get("/v1/logs", requireAuth, (req, res) => {
     console.error("[API] Errore /v1/logs:", e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// Endpoint per il training daemon: quante richieste Zoo sono in-flight adesso?
+// Non protetto da auth: il daemon gira in locale su 127.0.0.1.
+app.get("/v1/inflight", (req, res) => {
+  res.json({ count: activeRequests.size, ts: Date.now() });
 });
 
 app.get("/v1/active", requireAuth, (req, res) => {
@@ -487,10 +578,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const upstreamTimeoutMs = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000;
 
   bandit.recordRequest(); // +1 per ogni richiesta ricevuta
-
   // === Stima token e (eventuale) auto-compress del contesto ===
-  const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
   let estimatedTokens = bandit.estimateTokens(req.body);
+  const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
+  if (debugVerbose) console.log(`[CONTEXT] autoCompress=${autoCompress} header="${req.get("x-auto-compress") || "<assente>"}" tokens=${estimatedTokens} maxCatalog=${bandit.maxCatalogInput()}`);
   // Debug sessione
   const sessionDebug = {
     user: req.body?.user || null,
@@ -513,9 +604,36 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       console.warn(`[CONTEXT] Compressione non possibile, procedo con contesto originale`);
     }
   }
-
   // Header x-force-model: bypassa UCB1 al primo tentativo (per training manuale)
   const forceModel = (req.get("x-force-model") || "").trim();
+  const feedbackSource = (req.get("x-source") || "").toLowerCase() === "training" ? "training" : "prod";
+    // === Session key per affinity ===
+  const sessionKey = computeSessionKey(req.body?.messages);
+  if (sessionKey) {
+    const sys = req.body?.messages?.find(m => m.role === "system");
+    const usr = req.body?.messages?.find(m => m.role === "user");
+    const sysPreview = (typeof sys?.content === "string" ? sys.content : JSON.stringify(sys?.content || "")).slice(0, 120);
+    const usrPreview = (typeof usr?.content === "string" ? usr.content : JSON.stringify(usr?.content || "")).slice(0, 80);
+    if (debugVerbose) console.log(`[SESSION-KEY] ${sessionKey.slice(0,8)} | sys="${sysPreview}" | usr="${usrPreview}"`);
+    const msgs = req.body?.messages || [];
+    const toolResults = msgs.filter(m => m.role === 'tool').length;
+    const asstTc = msgs.filter(m => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0).length;
+    const lastTool = msgs.filter(m => m.role === 'tool').slice(-1)[0];
+    const lastToolPreview = typeof lastTool?.content === 'string' ? lastTool.content.slice(0, 150) : '<none>';
+    //console.log(`[MSGS] total=${msgs.length} tool_results=${toolResults} asst_tc=${asstTc} lastTool="${lastToolPreview.replace(/\n/g, ' ')}"`);
+  }
+
+  // === MODE / PROFILE ===
+  const sysMsg = req.body?.messages?.find(m => m.role === 'system');
+  const sysText = (typeof sysMsg?.content === 'string') ? sysMsg.content : '';
+  const modeResult = detectProfile(sysText);
+  const profile = modeResult.profile;
+  if (modeResult.mode) {
+    console.log(`[MODE] ${modeResult.mode} → profile=${profile} (${modeResult.source}${modeResult.sig ? ' sig=' + modeResult.sig.slice(0,8) : ''})`);
+  } else if (modeResult.source === 'unknown') {
+    console.log(`[MODE] unknown → registrata per labeling (sig=${modeResult.sig.slice(0,8)})`);
+  }
+
   if (forceModel) {
     console.log(`[FORCE] Modello forzato: ${forceModel}`);
   }
@@ -543,6 +661,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
   let attempt = 0;
   let controller = null;
+  // Timer streaming — dichiarati fuori da if(stream) così il catch esterno può accedervi
+  const STREAM_IDLE_MS = parseInt(process.env.STREAM_IDLE_MS || "60000", 10);
+  const STREAM_MAX_MS = parseInt(process.env.STREAM_MAX_MS || "180000", 10);
+  let idleTimer = null;
+  let hardCapTimer = null;
+  let lastMeaningfulByte = Date.now();
   let timeoutHandle = null;
 
   const providerCount = bandit.getProviderCount();
@@ -554,6 +678,20 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
     if (controller) { controller.abort(); controller = null; }
   };
+  // Circuit breaker: contatore fallimenti per provider in questa richiesta.
+  // Al 3° fail, mette in cooldown il provider (5 min) → il while salta i suoi modelli.
+  const providerFailCount = new Map();
+  const PROVIDER_FAIL_THRESHOLD = 3;
+
+  function noteProviderFail(modelId) {
+    const prov = modelId.split('/')[0];
+    const n = (providerFailCount.get(prov) || 0) + 1;
+    providerFailCount.set(prov, n);
+    if (n === PROVIDER_FAIL_THRESHOLD) {
+      console.log(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta → cooldown 5min`);
+      try { bandit._forceProviderCooldown(prov, 5 * 60 * 1000, "cascade-fail"); } catch (_) {}
+    }
+  }
 
   let clientDisconnected = false;
   res.once("close", () => {
@@ -584,9 +722,34 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         });
       }
       model = forceModel;
-    } else {
-      model = bandit.selectModel(excluded, null, estimatedTokens, requireTools);
+} else {
+  // === SESSION AFFINITY ===
+  let pinnedEntry = null;
+  if (sessionKey) {
+    const entry = sessionModels.get(sessionKey);
+    if (entry && (Date.now() - entry.ts) < SESSION_TTL_MS) {
+      pinnedEntry = entry;              // ← l'OGGETTO, non .model
+    } else if (entry) {
+      sessionModels.delete(sessionKey); // scaduto
     }
+  }
+
+  const pinnedValid = pinnedEntry
+    && !excluded.has(pinnedEntry.model)
+    && bandit.isModelAvailable(pinnedEntry.model);
+
+  if (pinnedValid) {
+    model = pinnedEntry.model;
+    pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
+    console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
+  } else {
+    model = bandit.selectModel(excluded, null, estimatedTokens, requireTools, profile);
+    if (model && sessionKey) {
+      sessionModels.set(sessionKey, { model, ts: Date.now() });
+      console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
+    }
+  }
+}
     if (!model) {
       console.warn(`[BANDIT] 503: nessun modello disponibile (requireTools=${requireTools}, tokens=${estimatedTokens}, attempt=${attempt})`);
       notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
@@ -613,6 +776,15 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           estimatedTokens = newTokens;
         } else {
           console.warn(`[CONTEXT] Compressione impossibile per ${model}, salto`);
+          // Se il modello che ha fallito era il pin della sessione → unpin
+          if (sessionKey) {
+            const entry = sessionModels.get(sessionKey);
+            if (entry && entry.model === model) {
+              console.log(`[AFFINITY] ✗ pin ${model} fallito → unpin`);
+              sessionModels.delete(sessionKey);
+            }
+          }
+          noteProviderFail(model);
           excluded.add(model);
           continue;
         }
@@ -649,7 +821,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       if (!r.ok || r.status === 499) {
         const txt = await r.text().catch(() => "");
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
-        bandit.recordFeedback(model, false, 0, { message: txt, status: r.status });
+        bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource });
+        noteProviderFail(model);
         excluded.add(model);
         trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
         continue;
@@ -659,7 +832,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         // Se gli header sono già stati inviati (stream già aperto), non possiamo ritentare
         if (res.headersSent) {
           console.error(`[RETRY BLOCKED] headers già inviati per ${model}, stream chiuso`);
-          bandit.recordFeedback(model, false, 0, { message: "stream already started" });
+          bandit.recordFeedback(model, false, 0, { message: "stream already started" }, { source: feedbackSource });
           cleanup();
           try { res.end(); } catch (_) {}
           return;
@@ -675,7 +848,40 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         let streamFailed = false;
         let streamStarted = false;
         let firstChunk = true;
-        let accumulated = "";   // ← NUOVO: accumula tutto il testo
+        let accumulated = "";
+        hardCapTimer = setTimeout(() => {
+          console.error(`[TIMEOUT] ${model}: stream superato hard cap ${STREAM_MAX_MS/1000}s → abort`);
+          try {
+            if (controller && !controller.signal.aborted) {
+              controller.abort(new Error('stream-hard-cap'));
+            }
+          } catch (e) { console.error(`[HARDCAP] abort failed: ${e.message}`); }
+          try { reader.cancel().catch(() => {}); } catch (_) {}
+        }, STREAM_MAX_MS);
+        if (hardCapTimer.unref) hardCapTimer.unref();
+        // Idle timeout: scatta solo se NESSUN CONTENUTO REALE per N sec.
+        // I ping SSE (`: keep-alive\n\n`) NON resettano il timer.
+        const resetIdle = () => {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            const elapsed = Math.round((Date.now() - lastMeaningfulByte) / 1000);
+            console.error(`[TIMEOUT] ${model}: stream idle ${elapsed}s senza contenuto → abort`);
+            try {
+              if (controller && !controller.signal.aborted) {
+                controller.abort(new Error('stream-idle-timeout'));
+              }
+            } catch (e) { console.error(`[TIMEOUT] abort failed: ${e.message}`); }
+            try { reader.cancel().catch(() => {}); } catch (_) {}
+          }, STREAM_IDLE_MS);
+          if (idleTimer.unref) idleTimer.unref();
+        };
+        // Un chunk è "utile" solo se contiene contenuto reale.
+        // Ping/commenti SSE iniziano con `:` e vanno ignorati.
+        const isMeaningfulChunk = (c) => {
+          const stripped = c.replace(/^:\s*.*$/gm, '').replace(/\s+/g, '');
+          return stripped.length > 0;
+        };
+        resetIdle();
 
         try {
           while (true) {
@@ -684,6 +890,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
             if (value) {
               const chunk = dec.decode(value, { stream: true });
+
+              // Reset idle SOLO se il chunk ha contenuto reale
+              if (isMeaningfulChunk(chunk)) {
+                lastMeaningfulByte = Date.now();
+                resetIdle();
+              }
 
               if (firstChunk && (chunk.includes('"error"') || chunk.includes('"code"'))) {
                 streamFailed = true;
@@ -697,7 +909,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
               res.write(chunk);
             }
           }
-
+          if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+          if (hardCapTimer) { clearTimeout(hardCapTimer); hardCapTimer = null; }
           if (!streamFailed && streamStarted) {
             // validazione
             const streamInvalid = validateStreamAccumulated(accumulated, { requireTools });
@@ -707,7 +920,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             }
             if (streamInvalid) {
               console.error(`[STREAM INVALID] ${model}: ${streamInvalid}`);
-              bandit.recordFeedback(model, false, 0, { message: streamInvalid });
+              bandit.recordFeedback(model, false, 0, { message: streamInvalid }, { source: feedbackSource });
               // Header già inviati: NON possiamo cambiare modello.
               // Chiudiamo lo stream con un errore e usciamo.
               try {
@@ -720,11 +933,11 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             }
 
             const rewardScore = Math.max(0, 1.0 - (dur / 30));
-            bandit.recordFeedback(model, true, rewardScore, null);
+            bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
             console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
             trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
           } else if (streamFailed) {
-            bandit.recordFeedback(model, false, 0, { message: "stream error" });
+            bandit.recordFeedback(model, false, 0, { message: "stream error" }, { source: feedbackSource });
             // Header già inviati → non si può ritentare
             cleanup();
             try { res.end(); } catch (_) {}
@@ -736,7 +949,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           return;
         } catch (e) {
           console.error(`[STREAM ABORT] ${model}: ${e.message}`);
-          bandit.recordFeedback(model, false, 0, { message: e.message });
+          bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
+          noteProviderFail(model);
           excluded.add(model);
           reader.cancel().catch(() => {});
           if (!res.writableEnded) res.end();
@@ -759,13 +973,14 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         }
         if (invalidReason) {
           console.error(`[APP ERR] ${model}: ${invalidReason}`);
-          bandit.recordFeedback(model, false, 0, { message: invalidReason });
+          bandit.recordFeedback(model, false, 0, { message: invalidReason }, { source: feedbackSource });
+          noteProviderFail(model);
           excluded.add(model);
           continue;
         }
 
         const rewardScore = Math.max(0, 1.0 - (dur / 30));
-        bandit.recordFeedback(model, true, rewardScore, null);
+        bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
         console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
         trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
         cleanup();
@@ -775,12 +990,14 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
 
       if (e.name === "AbortError") {
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
         console.error(`[ABORT] ${model}: timeout or client disconnect`);
-        bandit.recordFeedback(model, false, 0, { message: "timeout/abort" });
+        bandit.recordFeedback(model, false, 0, { message: "timeout/abort" }, { source: feedbackSource });
       } else {
         console.error(`[FETCH ERR] ${model}: ${e.message}`);
-        bandit.recordFeedback(model, false, 0, { message: e.message });
+        bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
       }
+      noteProviderFail(model);
       excluded.add(model);
     }
   }
@@ -793,9 +1010,18 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 // ERROR HANDLERS GLOBALI
 // ========================================
 
+let unhandledRejectionCount = 0;
 process.on("unhandledRejection", (reason) => {
-  console.error("[UNHANDLED REJECTION]", reason);
-  process.exit(1);
+  unhandledRejectionCount++;
+  console.error(`[UNHANDLED REJECTION #${unhandledRejectionCount}]`, reason?.message || reason);
+  // Non terminiamo il processo: un errore in una richiesta non deve uccidere il proxy.
+  // Se gli errori sono troppi (>20 in 60s), allora c'è un bug serio → crash pulito.
+  if (unhandledRejectionCount > 20) {
+    console.error("[FATAL] Troppi unhandled rejection, termino per evitare loop");
+    process.exit(1);
+  }
+  // Reset contatore dopo 60s senza errori
+  setTimeout(() => { unhandledRejectionCount = 0; }, 60000).unref();
 });
 
 process.on("uncaughtException", (error) => {
@@ -834,21 +1060,36 @@ async function startServer() {
     return startServer();
   }
 
+  initRegistry();
   app.listen(PORT, "127.0.0.1", () => {
     console.log(`[PROXY] ✓ Server avviato su http://127.0.0.1:${PORT}`);
     console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
     console.log(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
     if (!REQUIRE_AUTH) {
-  console.warn("[SECURITY] DASHBOARD_TOKEN non configurato: le API di controllo sono esposte senza autenticazione");
-} else {
-  console.log("[SECURITY] Auth attiva sulle API di controllo");
-}
+      console.warn("[SECURITY] DASHBOARD_TOKEN non configurato: le API di controllo sono esposte senza autenticazione");
+    } else {
+      console.log("[SECURITY] Auth attiva sulle API di controllo");
+    }
+
+    // Health check parte DOPO che il server è in ascolto
+    if (String(process.env.HEALTH_CHECK_ENABLED || "true").toLowerCase() === "true") {
+      healthChecker.start();
+    } else {
+      console.log("[HEALTH] Health check disabilitato (HEALTH_CHECK_ENABLED=false)");
+    }
+        // Cleanup sessioni scadute ogni 5 min
+    setInterval(() => {
+      const now = Date.now();
+      let removed = 0;
+      for (const [k, v] of sessionModels.entries()) {
+        if (now - v.ts > SESSION_TTL_MS) {
+          sessionModels.delete(k);
+          removed++;
+        }
+      }
+      if (removed > 0) console.log(`[AFFINITY] Cleanup: rimosse ${removed} sessioni scadute`);
+    }, 5 * 60 * 1000).unref();
   });
-  if (String(process.env.HEALTH_CHECK_ENABLED || "true").toLowerCase() === "true") {
-    healthChecker.start();
-  } else {
-    console.log("[HEALTH] Health check disabilitato (HEALTH_CHECK_ENABLED=false)");
-  }
 }
 
 startServer().catch(err => {

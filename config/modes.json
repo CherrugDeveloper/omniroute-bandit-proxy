@@ -1,0 +1,19 @@
+{
+  "_comment": "Registry delle modalità Zoo Code. Ordine: più specifici prima, generici dopo. Ogni pattern è testato case-insensitive sui primi 600 char del system prompt.",
+  "modes": [
+    { "name": "summarizer",           "match": "summariz|conversation.*summar|context.*compress|condense|riassunt", "profile": "summarizer" },
+    { "name": "mode-writer",          "match": "mode writer|creating custom modes|custom mode creator|mode creation",  "profile": "code" },
+    { "name": "skill-writer",         "match": "skill writer|creating skills|custom skill|skill creation",              "profile": "code" },
+    { "name": "tool-writer",          "match": "tool writer|creating tools|custom tool|tool creation",                  "profile": "code" },
+    { "name": "jest-test-engineer",   "match": "jest test engineer|jest|writing tests|test engineer",                   "profile": "code" },
+    { "name": "security-reviewer",    "match": "security reviewer|security expert|security audit|vulnerabilit",         "profile": "reasoning" },
+    { "name": "architect",            "match": "software architect|system design|architectural",                       "profile": "reasoning" },
+    { "name": "project-research",     "match": "project research|research analyst|codebase research|researching the",  "profile": "reasoning" },
+    { "name": "devops",               "match": "devops engineer|devops|infrastructure|ci/cd|deployment",                "profile": "code" },
+    { "name": "documentation-writer", "match": "documentation writer|technical writer|writing documentation",          "profile": "general" },
+    { "name": "debug",                "match": "expert software debugger|debugger specialized|debugging",              "profile": "code" },
+    { "name": "orchestrator",         "match": "strategic workflow orchestrator|delegating them to",                   "profile": "general" },
+    { "name": "ask",                  "match": "knowledgeable assistant|answer questions|general questions",            "profile": "general" },
+    { "name": "code",                 "match": "highly skilled software engineer|expert software engineer",             "profile": "code" }
+  ]
+}

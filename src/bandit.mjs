@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { profileMultiplier } from './modes-registry.mjs';
 
 export class DiscountedUCB1Bandit {
   constructor(dbPath = "bandit.db") {
@@ -32,7 +33,13 @@ export class DiscountedUCB1Bandit {
           degraded_since REAL DEFAULT 0,
           is_paid INTEGER DEFAULT 0
         );
-
+        CREATE TABLE IF NOT EXISTS models_train (
+          id TEXT PRIMARY KEY,
+          provider TEXT NOT NULL,
+          N REAL DEFAULT 0,
+          sum_reward REAL DEFAULT 0,
+          last_used_index INTEGER DEFAULT 0
+        );
         CREATE TABLE IF NOT EXISTS provider_history (
           provider TEXT PRIMARY KEY,
           fails INTEGER DEFAULT 0,
@@ -390,9 +397,9 @@ export class DiscountedUCB1Bandit {
     return cooldowns[Math.min(fails, 3)];
   }
 
-  selectModel(excludedModels = [], forceProvider = null, estimatedTokens = 0, requireTools = false) {
+    selectModel(excluded = new Set(), forceProvider = null, estimatedTokens = 0, requireTools = false, profile = null) {
     const now = Date.now();
-    const excludeSet = this._normalizeExcludedModels(excludedModels);
+    const excludeSet = this._normalizeExcludedModels(excluded);
 
     if (forceProvider && typeof forceProvider !== "string") {
       console.warn("[BANDIT] forceProvider non è string, ignorato");
@@ -433,7 +440,7 @@ export class DiscountedUCB1Bandit {
           console.log(`[BANDIT] Tutti i provider in cooldown, sblocco ${oldestProvider.provider}`);
           this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
             .run(0, oldestProvider.provider);
-          return this.selectModel(excludedModels, oldestProvider.provider, estimatedTokens);
+            return this.selectModel(excluded, oldestProvider.provider, estimatedTokens, requireTools, profile);
         }
         return null;
       }
@@ -446,9 +453,10 @@ export class DiscountedUCB1Bandit {
       const paidFilter = this.excludePaid ? "AND (m.is_paid IS NULL OR m.is_paid = 0)" : "";
       const freeFilter = this.onlyFree ? "AND c.is_free = 1" : "";
       const exploitFilter = this.exploitOnly ? "AND COALESCE(m.N, 0) >= 3" : "";
-      const toolsFilter = requireTools 
-        ? "AND c.supports_tools = 1 AND c.id NOT LIKE '%fim%' AND c.id NOT LIKE '%code-fim%'"
+      const toolsFilter = requireTools
+        ? "AND c.supports_tools = 1"
         : "";
+      const fimFilter = "AND c.id NOT LIKE '%fim%' AND c.id NOT LIKE '%code-fim%'";
       const thinkingFilter = this.excludeThinking
         ? "AND c.id NOT LIKE '%thinking%' AND c.id NOT LIKE '%reasoning%' AND c.id NOT LIKE '%-think%' AND c.id NOT LIKE '%max-prime%' AND c.id NOT LIKE '%-ultra%'"
         : "";
@@ -465,9 +473,12 @@ export class DiscountedUCB1Bandit {
                COALESCE(c.max_input_tokens, 0) AS max_input_tokens,
                COALESCE(c.is_free, 0)       AS is_free,
                COALESCE(m.degraded, 0)      AS degraded,
-               COALESCE(m.is_paid, 0)       AS is_paid
+               COALESCE(m.is_paid, 0)       AS is_paid,
+               COALESCE(mt.N, 0)            AS N_train,
+               COALESCE(mt.sum_reward, 0)   AS sum_reward_train
         FROM catalog c
         LEFT JOIN models m ON c.id = m.id
+        LEFT JOIN models_train mt ON c.id = mt.id
         LEFT JOIN provider_history p ON c.provider = p.provider
         WHERE c.provider = ?
           AND (m.cooldown_until IS NULL OR m.cooldown_until < ?)
@@ -479,6 +490,7 @@ export class DiscountedUCB1Bandit {
           ${thinkingFilter}
           ${exploitFilter}
           ${toolsFilter}
+          ${fimFilter}
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,
@@ -493,19 +505,38 @@ export class DiscountedUCB1Bandit {
 
         for (const m of providerModels) {
           if (excludeSet.has(m.id)) continue;
-
-          let score;
-          if (m.N < 0.1) {
-            score = Infinity;
+          // Effective N e sum_reward:
+          // - se models (prod) ha dati → uso quelli (peso pieno)
+          // - altrimenti se models_train ha dati → prior al 30%
+          // - altrimenti → 0 (exploration pura)
+          let effN, effSum;
+          if (m.N >= 1) {
+            effN = m.N;
+            effSum = m.sum_reward;
+          } else if (m.N_train > 0.1) {
+            effN = m.N_train * 0.3;
+            effSum = m.sum_reward_train * 0.3;
           } else {
-            const avgReward = m.sum_reward / m.N;
-            const ucbBonus = Math.sqrt((2 * Math.log(totalN)) / m.N);
-            score = avgReward + ucbBonus;
+            effN = 0;
+            effSum = 0;
           }
 
+          let score;
+          if (effN < 0.1) {
+            score = Infinity;
+          } else {
+            const avgReward = effSum / effN;
+            const ucbBonus = Math.sqrt((2 * Math.log(totalN)) / effN);
+            score = avgReward + ucbBonus;
+          }
           // Penalità modelli degraded: priorità ridotta ma ancora selezionabili
           if (Number(m.degraded) === 1 && score !== Infinity) {
             score = score * 0.3;
+          }
+
+          // Soft bias per profilo modalità (code/reasoning/general)
+          if (score !== Infinity) {
+            score *= profileMultiplier(profile, m.id);   // ← NUOVA RIGA
           }
 
           if (score > maxScore) {
@@ -525,7 +556,7 @@ export class DiscountedUCB1Bandit {
         const oldExploit = this.exploitOnly;
         this.exploitOnly = false;
         try {
-          return this.selectModel(excludedModels, forceProvider, estimatedTokens, requireTools);
+          return this.selectModel(excluded, forceProvider, estimatedTokens, requireTools, profile);
         } finally {
           this.exploitOnly = oldExploit;
         }
@@ -544,7 +575,7 @@ export class DiscountedUCB1Bandit {
             console.log(`[BANDIT] Nessun modello disponibile, sblocco ${oldestProvider.provider}`);
             this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
               .run(0, oldestProvider.provider);
-            return this.selectModel(excludedModels, oldestProvider.provider, estimatedTokens);
+            return this.selectModel(excluded, oldestProvider.provider, estimatedTokens, requireTools, profile);
           }
         }
         return null;
@@ -557,10 +588,15 @@ export class DiscountedUCB1Bandit {
     });
     return selectTransaction();
   }
-
-  recordFeedback(modelId, success, reward = 1.0, errorDetails = null) {
+  recordFeedback(modelId, success, reward = 1.0, errorDetails = null, opts = {}) {
     const tx = this.db.transaction(() => {
     const now = Date.now();
+    const source = opts.source === 'training' ? 'training' : 'prod';
+
+    if (source === 'training') {
+      return this._recordTrainingFeedback(modelId, success, reward);
+    }
+
     let model = this.db.prepare("SELECT * FROM models WHERE id = ?").get(modelId);
 
       if (!model) {
@@ -633,9 +669,15 @@ export class DiscountedUCB1Bandit {
             if (isTransient5xx) {
               const consec = (Number(model.consecutive_5xx) || 0) + 1;
 
-              if (consec >= 5) {
-                console.log(`[BANDIT] ${modelId}: ${consec} errori transitori → ban permanente`);
-                permanentBan = true;
+              // 10 errori 5xx di fila → cooldown lungo (1h), NON ban permanente.
+              // Ban permanente solo per errori strutturali (404, policy, validation).
+              if (consec >= 10) {
+                console.log(`[BANDIT] ${modelId}: ${consec} errori transitori → cooldown 1h`);
+                specificCooldownMs = 60 * 60 * 1000;
+                this.db.prepare(`
+                  UPDATE models SET consecutive_5xx = 0, degraded = 1, degraded_since = ?
+                  WHERE id = ?
+                `).run(Date.now(), modelId);
               } else {
                 specificCooldownMs = c.cooldownMs;
                 this.db.prepare(`
@@ -707,10 +749,40 @@ export class DiscountedUCB1Bandit {
         `).run(modelId);
       }
     });
-
     return tx();
   }
-  
+
+  // Scrive le statistiche di training in `models_train` (separate da `models`).
+  // Non tocca ban/cooldown/degraded/provider_history: il training è "silenzioso".
+  _recordTrainingFeedback(modelId, success, reward = 1.0) {
+    // 1. Assicura che il modello sia in models_train
+    let mt = this.db.prepare("SELECT * FROM models_train WHERE id = ?").get(modelId);
+    if (!mt) {
+      const catRow = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
+      if (!catRow) return; // non in catalogo → ignora
+      this.db.prepare(`
+        INSERT OR IGNORE INTO models_train (id, provider, N, sum_reward)
+        VALUES (?, ?, 0, 0)
+      `).run(modelId, catRow.provider);
+      mt = this.db.prepare("SELECT * FROM models_train WHERE id = ?").get(modelId);
+      if (!mt) return;
+    }
+
+    // 2. Aggiorna con discount factor (come in prod)
+    let newN, newSumReward;
+    if (success) {
+      newN = (mt.N || 0) * this.discountFactor + 1;
+      newSumReward = (mt.sum_reward || 0) * this.discountFactor + reward;
+    } else {
+      newN = (mt.N || 0) * this.discountFactor;
+      newSumReward = (mt.sum_reward || 0) * this.discountFactor;
+    }
+
+    this.db.prepare(`
+      UPDATE models_train SET N = ?, sum_reward = ? WHERE id = ?
+    `).run(newN, newSumReward, modelId);
+  }
+
   _recordProviderFailure(provider) {
     const now = Date.now();
 
@@ -1285,12 +1357,14 @@ clearProviderAttention(provider) {
     const now = Date.now();
     const oneHourFromNow = now + 3600000;
     return this.db.prepare(`
-      SELECT id, provider, permanent, cooldown_until, consecutive_5xx
+      SELECT id, provider, permanent, degraded, cooldown_until, consecutive_5xx
       FROM models
       WHERE permanent = 1
          OR cooldown_until > ?
+         OR degraded = 1
       ORDER BY
         CASE WHEN permanent = 1 THEN 0 ELSE 1 END,
+        CASE WHEN degraded = 1 THEN 0 ELSE 1 END,
         cooldown_until ASC,
         consecutive_5xx DESC
       LIMIT ?
