@@ -76,7 +76,7 @@ function validateStreamAccumulated(raw, opts = {}) {
             if (requireTools) {
               const toolCallMatches = raw.match(/"tool_calls"/g);
               const toolNames = [...raw.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map(m => m[1]).slice(0, 5);
-              console.log(`[RESPONSE-STREAM] ${model} | tool_calls found: ${toolCallMatches?.length || 0} | names: ${toolNames.join(", ")}`);
+              console.log(`[RESPONSE-STREAM] tool_calls found: ${toolCallMatches?.length || 0} | names: ${toolNames.join(", ")}`);
             }
   if (!raw || raw.length === 0) return "empty stream";
 
@@ -685,6 +685,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           if (!streamFailed && streamStarted) {
             // validazione
             const streamInvalid = validateStreamAccumulated(accumulated, { requireTools });
+            if (requireTools) {
+              const tcMatches = accumulated.match(/"tool_calls"/g);
+              console.log(`[RESPONSE-STREAM] ${model} | tool_calls found: ${tcMatches?.length || 0}`);
+            }
             if (streamInvalid) {
               console.error(`[STREAM INVALID] ${model}: ${streamInvalid}`);
               bandit.recordFeedback(model, false, 0, { message: streamInvalid });
