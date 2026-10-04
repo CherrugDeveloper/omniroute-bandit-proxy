@@ -8,7 +8,7 @@ import { DiscountedUCB1Bandit } from "./bandit.mjs";
 import { HealthChecker } from "./health-check.mjs";
 import { Notifier } from "./notifier.mjs";
 import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered } from './modes-registry.mjs';
-
+import fs from "node:fs";
 EventEmitter.defaultMaxListeners = 50;
 
 const __filename = fileURLToPath(import.meta.url);
@@ -439,6 +439,14 @@ app.get('/v1/version', (req, res) => {
     res.json({ version: pkg.version || 'dev' });
   } catch {
     res.json({ version: 'dev' });
+  }
+});
+app.get('/v1/changelog', (req, res) => {
+  try {
+    const content = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+    res.json({ changelog: content });
+  } catch {
+    res.json({ changelog: '# Changelog\n\nNessun changelog disponibile.' });
   }
 });
 app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
