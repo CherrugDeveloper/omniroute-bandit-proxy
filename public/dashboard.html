@@ -346,6 +346,7 @@
         }
         .active-request .src-train { color: #58a6ff; }
         .active-request .src-zoo   { color: #3fb950; }
+        .active-request.recent { opacity: 0.65; }
         /* Riquadro "In corso": altezza fissa 3 righe + scroll interno */
         #active-list {
             height: 4.5em;
@@ -1414,7 +1415,6 @@
                 el.scrollTop = el.scrollHeight;
             } catch (e) {}
         }
-
         async function fetchActive() {
             try {
                 const r = await apiFetch('/v1/active');
@@ -1426,59 +1426,68 @@
 
                 panel.style.display = 'block';
 
-                if (d.requests && d.requests.length > 0) {
-                    countEl.textContent = '⚡ ' + d.count + ' in corso';
-                    list.innerHTML = d.requests.map(r => {
-                        const model = r.model || '(selezione...)';
-                        const attempt = r.attempt ? ' (#' + r.attempt + ')' : '';
-                        const status = r.status === 'fetching' ? '⏳' : '•';
-                        let infoStr = '';
-                        if (r.avg != null) {
-                          const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
-                          const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
-                          infoStr = ' <span class="model-info">(' + (r.provider || '?') + ' · N=' + r.N + ' · avg=' + r.avg + ' <span class="' + cls + '">' + arrow + '</span>)</span>';
-                        }
-                        return '<div class="active-request">' +
-                            '<span class="status">' + status + '</span>' +
-                            '<span class="model">' + escapeHtml(model) + '</span>' +
-                            infoStr +
-                            '<span class="attempt">' + attempt + '</span>' +
-                            '<span class="elapsed">' + Number(r.elapsedSec).toFixed(1) + 's</span>' +
-                        '</div>';
-                    }).join('');
-                } else if (d.recent && d.recent.length > 0) {
-                    countEl.textContent = '🕐 ultime richieste';
-                    list.innerHTML = d.recent.slice(-3).reverse().map(r => {
-                        const model = r.model || '(?)';
-                        const status = r.status === 'success' ? '✅'
-                                     : (r.status && r.status.startsWith('error')) ? '❌'
-                                     : '•';
-                        const secs = Math.round((Date.now() - r.endedAt) / 1000);
-                        const age = secs < 60 ? secs + 's fa' : Math.round(secs / 60) + 'm fa';
-                        const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
-                        const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
-                        let infoStr = '';
-                        if (r.avg != null) {
-                          const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
-                          const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
-                          const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
-                          infoStr = ' <span class="model-info">(' + rankStr + 'N=' + r.N + ' · avg=' + r.avg + ' <span class="' + cls + '">' + arrow + '</span>)</span>';
-                        }
-                        return '<div class="active-request" style="opacity:0.7">' +
-                            '<span class="src-icon ' + srcCls + '">' + srcIcon + '</span>' +
-                            '<span class="status">' + status + '</span>' +
-                            '<span class="model">' + escapeHtml(model) + '</span>' +
-                            infoStr +
-                            '<span class="attempt">' + age + '</span>' +
-                            '<span class="elapsed">' + Number(r.durationSec).toFixed(1) + 's</span>' +
-                        '</div>';
-                    }).join('');
-                } else {
-                    countEl.textContent = 'idle';
-                    list.innerHTML = '<div style="font-size:12px;color:#8b949e;padding:4px 0">💤 Nessuna attività recente</div>';
-                }
+                // Render attive
+                const activeHtml = (d.requests || []).map(r => {
+                    const model = r.model || '(selezione...)';
+                    const attempt = r.attempt ? ' (#' + r.attempt + ')' : '';
+                    const status = r.status === 'fetching' ? '⏳' : '•';
+                    const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
+                    const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
+                    let infoStr = '';
+                    if (r.avg != null) {
+                        const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
+                        const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
+                        const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
+                        infoStr = ' <span class="model-info">(' + rankStr + 'N=' + r.N + ' · avg=' + r.avg + ' <span class="' + cls + '">' + arrow + '</span>)</span>';
+                    }
+                    return '<div class="active-request">' +
+                        '<span class="src-icon ' + srcCls + '">' + srcIcon + '</span>' +
+                        '<span class="status">' + status + '</span>' +
+                        '<span class="model">' + escapeHtml(model) + '</span>' +
+                        infoStr +
+                        '<span class="attempt">' + attempt + '</span>' +
+                        '<span class="elapsed">' + Number(r.elapsedSec).toFixed(1) + 's</span>' +
+                    '</div>';
+                }).join('');
+
+                // Render recenti
+                const recentHtml = (d.recent || []).slice(-5).reverse().map(r => {
+                    const model = r.model || '(?)';
+                    const status = r.status === 'success' ? '✅'
+                                 : (r.status && r.status.startsWith('error')) ? '❌'
+                                 : '•';
+                    const secs = Math.round((Date.now() - r.endedAt) / 1000);
+                    const age = secs < 60 ? secs + 's fa' : Math.round(secs / 60) + 'm fa';
+                    const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
+                    const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
+                    let infoStr = '';
+                    if (r.avg != null) {
+                        const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
+                        const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
+                        const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
+                        infoStr = ' <span class="model-info">(' + rankStr + 'N=' + r.N + ' · avg=' + r.avg + ' <span class="' + cls + '">' + arrow + '</span>)</span>';
+                    }
+                    return '<div class="active-request recent">' +
+                        '<span class="src-icon ' + srcCls + '">' + srcIcon + '</span>' +
+                        '<span class="status">' + status + '</span>' +
+                        '<span class="model">' + escapeHtml(model) + '</span>' +
+                        infoStr +
+                        '<span class="attempt">' + age + '</span>' +
+                        '<span class="elapsed">' + Number(r.durationSec).toFixed(1) + 's</span>' +
+                    '</div>';
+                }).join('');
+
+                const nActive = (d.requests || []).length;
+                const nRecent = (d.recent || []).length;
+                countEl.textContent = nActive > 0
+                    ? '⚡ ' + nActive + ' in corso' + (nRecent > 0 ? ' · ' + nRecent + ' recenti' : '')
+                    : (nRecent > 0 ? '🕐 ultime ' + nRecent : 'idle');
+                const all = activeHtml + recentHtml;
+                list.innerHTML = all || '<div style="font-size:12px;color:#8b949e;padding:4px 0">💤 Nessuna attività</div>';
             } catch (e) {}
         }
+
+        // ============= INIT =============
 
         // ============= INIT =============
         document.getElementById('filter-models').addEventListener('input', renderAll);

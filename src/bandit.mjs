@@ -677,7 +677,7 @@ export class DiscountedUCB1Bandit {
       let specificCooldownMs = null;
 
       if (!success && errorDetails && typeof errorDetails === "object") {
-        const c = this._classifyError(errorDetails);
+        const c = this._classifyError(errorDetails, model.provider);
         console.log(`[BANDIT] ${modelId}: ${c.action} (${c.reason})${c.cooldownMs ? ` per ${c.cooldownMs / 1000}s` : ""}`);
 
         // skip-feedback (es. input-too-long): il modello è OK, solo la richiesta è grande.
@@ -1025,8 +1025,12 @@ clearProviderAttention(provider) {
     if (m4) return (parseInt(m4[1], 10) * 60 + parseInt(m4[2], 10)) * 1000;
     return null;
   }
-
-  _classifyError(errorDetails) {
+  _getProviderModelCount(provider) {
+    if (!provider) return 0;
+    const row = this.db.prepare("SELECT COUNT(*) AS n FROM catalog WHERE provider = ?").get(provider);
+    return row ? row.n : 0;
+  }
+_classifyError(errorDetails, providerName = null) {
     const msg = String(errorDetails.message || errorDetails.error || "").toLowerCase();
     // Saturazione globale provider (chat_admission_busy) → cooldown provider breve
     if (/chat_admission_busy|Structurally heavy|structure_limit|capacity is busy/i.test(msg)) {
@@ -1166,6 +1170,17 @@ clearProviderAttention(provider) {
     }
 
     // === TIMEOUT / ABORT ===
+    // === 429 RATE LIMIT ===
+    // Se il provider ha "molti" modelli (OpenRouter, groq, ecc.), cooldown provider breve
+    // per evitare di bruciare N modelli con lo stesso 429.
+    if (status === 429 || /rate.?limit|too many requests|quota.*exceeded/i.test(msg)) {
+      const providerModelCount = this._getProviderModelCount(providerName);
+      if (providerModelCount > 20) {
+        return { scope: "provider", action: "cooldown-provider", cooldownMs: 60000, reason: "rate-limit-burst" };
+      }
+      // Provider piccolo: cooldown solo il modello
+      return { scope: "model", action: "cooldown-model", cooldownMs: 60000, reason: "rate-limit" };
+    }
     if (/timeout|aborted|abort/i.test(msg)) {
       return { scope: "model", action: "cooldown-model", cooldownMs: 10 * 60000, reason: "timeout" };
     }
@@ -1429,12 +1444,19 @@ clearProviderAttention(provider) {
     getUnhealthyModels(limit = 20) {
     const now = Date.now();
     const oneHourFromNow = now + 3600000;
+    // Escludi provider con rate limit noti bassi (openrouter 20 RPM / 1000 RPD con 800+ modelli)
+    const excluded = String(process.env.HEALTH_EXCLUDE_PROVIDERS || "")
+      .split(",").map(s => s.trim()).filter(Boolean);
+    const exclFilter = excluded.length > 0
+      ? ` AND provider NOT IN (${excluded.map(p => `'${p.replace(/'/g, "''")}'`).join(",")})`
+      : "";
     return this.db.prepare(`
       SELECT id, provider, permanent, degraded, cooldown_until, consecutive_5xx
       FROM models
-      WHERE permanent = 1
+      WHERE (permanent = 1
          OR cooldown_until > ?
-         OR degraded = 1
+         OR degraded = 1)
+         ${exclFilter}
       ORDER BY
         CASE WHEN permanent = 1 THEN 0 ELSE 1 END,
         CASE WHEN degraded = 1 THEN 0 ELSE 1 END,
