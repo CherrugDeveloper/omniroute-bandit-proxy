@@ -39,7 +39,11 @@ const EXCLUDE_PROVIDERS = String(process.env.EXCLUDE_PROVIDERS || "")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
-
+// Provider esclusi SOLO dal training (openrouter: 20 RPM / 1000 RPD con 800+ modelli)
+const TRAIN_EXCLUDE_PROVIDERS = String(process.env.TRAIN_EXCLUDE_PROVIDERS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
 let running = true;
 let currentModel = null;
 
@@ -92,6 +96,10 @@ function loadModels() {
 
     if (EXCLUDE_PROVIDERS.length > 0) {
       const list = EXCLUDE_PROVIDERS.map(p => `'${p.replace(/'/g, "''")}'`).join(",");
+      where.push(`c.provider NOT IN (${list})`);
+    }
+    if (TRAIN_EXCLUDE_PROVIDERS.length > 0) {
+      const list = TRAIN_EXCLUDE_PROVIDERS.map(p => `'${p.replace(/'/g, "''")}'`).join(",");
       where.push(`c.provider NOT IN (${list})`);
     }
     where.push("(p.needs_attention IS NULL OR p.needs_attention = 0)");

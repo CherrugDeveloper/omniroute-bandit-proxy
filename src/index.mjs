@@ -433,7 +433,14 @@ app.get("/dashboard", (req, res) => {
 app.get('/v1/debug/status', requireAuth, (req, res) => {
   res.json({ verbose: debugVerbose });
 });
-
+app.get('/v1/version', (req, res) => {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    res.json({ version: pkg.version || 'dev' });
+  } catch {
+    res.json({ version: 'dev' });
+  }
+});
 app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
   const desired = req.body?.verbose;
   debugVerbose = typeof desired === 'boolean' ? desired : !debugVerbose;
@@ -862,6 +869,19 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         const txt = await r.text().catch(() => "");
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource });
+
+        // 413 / ITPM / TPM / Request too large: il modello è OK ma non regge questo contesto.
+        // Rimuovi il pin per evitare di riprovare lo stesso modello al prossimo turno.
+        if (r.status === 413 || /ITPM|TPM|input tokens per minute|Request too large|Requested \d+.*Limit \d+/i.test(txt)) {
+          if (sessionKey) {
+            const entry = sessionModels.get(sessionKey);
+            if (entry && entry.model === model) {
+              sessionModels.delete(sessionKey);
+              console.log(`[AFFINITY] ✗ pin ${model} rimosso (contesto troppo grande per il modello)`);
+            }
+          }
+        }
+
         noteProviderFail(model);
         excluded.add(model);
         trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });

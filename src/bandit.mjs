@@ -382,7 +382,22 @@ export class DiscountedUCB1Bandit {
       SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent
       FROM models WHERE id = ?
     `).get(modelId);
-    if (!row) return null;
+    if (!row) {
+      // Modello mai testato: prova a leggerlo dal catalog per mostrare almeno il nome
+      const cat = this.db.prepare("SELECT id, provider FROM catalog WHERE id = ?").get(modelId);
+      if (!cat) return null;
+      return {
+        id: cat.id,
+        provider: cat.provider,
+        N: 0,
+        avg: null,
+        lastReward: null,
+        trend: 'new',
+        fails: 0,
+        degraded: false,
+        permanent: false,
+      };
+    }
     const avg = row.N > 0 ? row.sum_reward / row.N : null;
     const last = this._lastReward.get(modelId) ?? null;
     let trend = 'flat';
@@ -502,6 +517,19 @@ export class DiscountedUCB1Bandit {
         ? "AND c.supports_tools = 1"
         : "";
       const fimFilter = "AND c.id NOT LIKE '%fim%' AND c.id NOT LIKE '%code-fim%'";
+      const excludeModels = String(process.env.EXCLUDE_MODELS || "")
+      .split(",").map(s => s.trim()).filter(Boolean);
+      const excludeModelsFilter = excludeModels.length > 0
+      ? `AND c.id NOT IN (${excludeModels.map(m => `'${m.replace(/'/g, "''")}'`).join(",")})`
+      : "";
+      // Modelli con TPM account-level noto basso (es. Groq free tier = 8k TPM).
+      // Se il contesto stimato li supera, escludili: sarebbe 413 garantito.
+      const LOW_TPM_THRESHOLD = parseInt(process.env.LOW_TPM_THRESHOLD || "7000", 10);
+      const lowTpmList = String(process.env.LOW_TPM_MODELS || "groq/openai/gpt-oss-20b,groq/openai/gpt-oss-120b")
+        .split(",").map(s => s.trim()).filter(Boolean);
+      const lowTpmFilter = (estimatedTokens > LOW_TPM_THRESHOLD && lowTpmList.length > 0)
+        ? `AND c.id NOT IN (${lowTpmList.map(m => `'${m.replace(/'/g, "''")}'`).join(",")})`
+        : "";
       const thinkingFilter = this.excludeThinking
         ? "AND c.id NOT LIKE '%thinking%' AND c.id NOT LIKE '%reasoning%' AND c.id NOT LIKE '%-think%' AND c.id NOT LIKE '%max-prime%' AND c.id NOT LIKE '%-ultra%'"
         : "";
@@ -536,6 +564,7 @@ export class DiscountedUCB1Bandit {
           ${exploitFilter}
           ${toolsFilter}
           ${fimFilter}
+          ${lowTpmFilter}
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,

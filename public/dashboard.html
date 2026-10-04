@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,6 +19,30 @@
             padding: 0;
             overflow: hidden;
             padding-top: env(titlebar-area-height, 0);
+        }
+        
+        /* Hide native PWA title bar */
+        html {
+            -webkit-app-region: no-drag;
+        }
+        
+        /* Transparent scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
         body {
             font-family: -apple-system, sans-serif;
@@ -429,19 +453,145 @@
             display: none;               /* Chrome/Safari */
         }
         .trend-up   { color: #3fb950; font-weight: bold; }
+        .new-badge { color: #d29922; font-weight: bold; }
         .trend-down { color: #f85149; font-weight: bold; }
         .trend-flat { color: #8b949e; }
         .model-info { color: #8b949e; font-size: 12px; margin-left: 4px; }
+        /* === Developer Card === */
+        #dev-card-toggle {
+            position: fixed; bottom: 20px; right: 20px;
+            width: 48px; height: 48px; border-radius: 50%;
+            background: #238636; border: 2px solid #30363d;
+            color: #fff; font-size: 22px; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 9998;
+            transition: transform 0.2s;
+        }
+        #dev-card-toggle:hover { transform: scale(1.1); background: #2ea043; }
+
+        #dev-card-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        #dev-card {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 12px; padding: 24px;
+            max-width: 520px; width: 100%;
+            max-height: 90vh; overflow-y: auto;
+            scrollbar-width: thin; scrollbar-color: #30363d #161b22;
+            position: relative;
+        }
+        #dev-card::-webkit-scrollbar { width: 6px; }
+        #dev-card::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        .dev-card-header { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; }
+        .dev-avatar { width: 64px; height: 64px; border-radius: 50%; background: #a371f7; }
+        .dev-name { color: #a371f7; margin: 0 0 6px 0; font-size: 20px; }
+        .dev-bio { color: #8b949e; font-size: 13px; margin: 0; line-height: 1.5; }
+        .dev-links-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+        .dev-btn {
+            background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+            padding: 6px 12px; border-radius: 6px; font-size: 12px;
+            cursor: pointer; text-decoration: none; transition: background 0.15s;
+        }
+        .dev-btn:hover { background: #30363d; }
+        .dev-btn-star { background: #238636; border-color: #238636; color: #fff; }
+        .dev-btn-star:hover { background: #2ea043; }
+        .dev-btn-paypal { background: #003087; color: #fff; }
+        .dev-btn-kofi { background: #13c1ac; color: #000; }
+        .dev-btn-bmc { background: #ffdd00; color: #000; }
+        .dev-divider { border: none; border-top: 1px solid #30363d; margin: 16px 0; }
+        .dev-muted { color: #8b949e; font-size: 12px; }
+        .dev-email {
+            display: block; background: #21262d; padding: 10px 14px;
+            border-radius: 6px; color: #58a6ff; text-decoration: none;
+            font-family: monospace; font-size: 13px; text-align: center;
+            border: 1px solid #30363d;
+        }
+        .dev-email:hover { background: #30363d; }
+        .dev-footer {
+            display: flex; flex-direction: column; gap: 4px;
+            margin-top: 16px; color: #484f58; font-size: 11px; text-align: center;
+        }
     </style>
 </head>
 <body>
     <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h1 style="margin:0;">OmniRoute Bandit Dashboard</h1>
+        <h1 style="margin:0;">OmniRoute Bandit Dashboard <span id="version-display"></span></h1>
         <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="debug-toggle" onchange="toggleDebug(this.checked)" style="cursor:pointer;">
             <span>🐛 Debug verbose</span>
         </label>
+        
+    <!-- Developer Card -->
+    <button id="dev-card-toggle" title="Informazioni sullo sviluppatore">👨‍💻</button>
+    <div id="dev-card-overlay" style="display:none;">
+        <div id="dev-card">
+            <div class="dev-card-header">
+                <img src="/icons/favicon-96x96.png" alt="Avatar" class="dev-avatar">
+                <div>
+                    <h3 class="dev-name">Cherrug Developer</h3>
+                    <p class="dev-bio">Sviluppatore indipendente e appassionato di nutrizione evidence-based. Creo strumenti open-source per supportare chi convive con l'IBS, unendo ricerca scientifica e tecnologie moderne per migliorare la qualità della vita.</p>
+                </div>
+            </div>
+
+            <div class="dev-links-row">
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/discussions" target="_blank" class="dev-btn">
+                    💬 GitHub Discussions
+                </a>
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy" target="_blank" class="dev-btn dev-btn-star">
+                    ⭐ Star
+                </a>
+                <button class="dev-btn" id="dev-share-btn">↗ Share</button>
+            </div>
+
+            <hr class="dev-divider">
+
+            <h4>❤️ Sostieni il Progetto</h4>
+            <p class="dev-muted">Se trovi utile questo progetto, considera di supportarne lo sviluppo. Ogni contributo aiuta a mantenerlo gratuito e senza pubblicità.</p>
+            <div class="dev-links-row">
+                <a href="https://www.paypal.com/paypalme/cherrug" target="_blank" class="dev-btn dev-btn-paypal">💙 PayPal</a>
+                <a href="https://ko-fi.com/cherrug" target="_blank" class="dev-btn dev-btn-kofi">☕ Ko-fi</a>
+                <a href="https://www.buymeacoffee.com/cherrug" target="_blank" class="dev-btn dev-btn-bmc">🧋 Buy me a coffee</a>
+            </div>
+
+            <hr class="dev-divider">
+
+            <h4>🛠 Link di Supporto</h4>
+            <div class="dev-links-row">
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/issues/new?template=bug_report.md" target="_blank" class="dev-btn">🐛 Segnala un Bug</a>
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/issues/new?template=feature_request.md" target="_blank" class="dev-btn">💡 Richiedi una Funzionalità</a>
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy" target="_blank" class="dev-btn">📦 Repository GitHub</a>
+            </div>
+
+            <hr class="dev-divider">
+
+            <h4>📧 Contatta il Supporto</h4>
+            <p class="dev-muted">Hai domande o hai bisogno di assistenza? Contattami via email.</p>
+            <a href="mailto:support@omniroute.us.ci" class="dev-email">📩 support@omniroute.us.ci</a>
+
+            <div class="dev-footer">
+                <span>Versione <span id="app-version">—</span></span>
+                <span>Realizzato con Node.js, Express e tanta passione per l'IA</span>
+            </div>
+        </div>
+    </div>
+        
+        <script>
+            // Toggle developer card visibility
+            document.getElementById('toggle-dev-card').addEventListener('click', function() {
+                const content = document.getElementById('dev-card-content');
+                const button = document.getElementById('toggle-dev-card');
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    button.textContent = '▼';
+                } else {
+                    content.style.display = 'none';
+                    button.textContent = '▶';
+                }
+            });
+        </script>
     </div>
         <div id="active-panel" class="active-panel" style="display:none">
             <div class="active-header">
@@ -507,8 +657,6 @@
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#8b949e">
                 <input type="checkbox" id="filter-problems"> Solo problematici
             </label>
-            <button id="toggle-flat" class="btn btn-copy" style="display:none; margin-left:auto;">📁 Raggruppa per provider</button>
-        </div>
             <button id="toggle-flat" class="btn btn-copy" style="display:none; margin-left:auto;" title="Torna alla vista raggruppata per provider">📁 Raggruppa per provider</button>
         </div>
         <div class="table-wrapper">
@@ -693,6 +841,12 @@
             div.innerHTML = '🔒 401 — Token mancante o errato. Riapri la dashboard con <code>?token=IL_TUO_TOKEN</code>';
             document.body.appendChild(div);
         }
+        
+        // Remove the redundant 401 permissions banner
+        const existingBanner = document.querySelector('div[style*="background:#f85149"]');
+        if (existingBanner) {
+            existingBanner.remove();
+        }
         // === DEBUG TOGGLE ===
         async function loadDebugStatus() {
             try {
@@ -763,7 +917,11 @@
                         const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
                         const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
                         let infoStr = '';
-                        if (r.avg != null) {
+                        if (r.trend === 'new') {
+                            infoStr = ' <span class="model-info new-badge">(new)</span>';
+                        if (r.N < 1) {
+                            infoStr = ' <span class="model-info" style="color:#8b949e">(test · N=' + r.N + ')</span>';
+                        } else if (r.avg != null) {
                           const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
                           const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
                           const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
@@ -1435,7 +1593,9 @@
                     const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
                     const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
                     let infoStr = '';
-                    if (r.avg != null) {
+                    if (r.trend === 'new') {
+                        infoStr = ' <span class="model-info new-badge">(new)</span>';
+                    } else if (r.avg != null) {
                         const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
                         const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
                         const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
@@ -1462,7 +1622,9 @@
                     const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
                     const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
                     let infoStr = '';
-                    if (r.avg != null) {
+                    if (r.trend === 'new') {
+                        infoStr = ' <span class="model-info new-badge">(new)</span>';
+                    } else if (r.avg != null) {
                         const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
                         const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
                         const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
@@ -1500,6 +1662,28 @@
         setInterval(refreshAll, 2500);
         setInterval(fetchLogs, 1000);
         setInterval(fetchActive, 500);
+        // === Developer Card ===
+        document.getElementById('dev-card-toggle').addEventListener('click', () => {
+            document.getElementById('dev-card-overlay').style.display = 'flex';
+        });
+        document.getElementById('dev-card-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'dev-card-overlay') {
+                e.target.style.display = 'none';
+            }
+        });
+        document.getElementById('dev-share-btn')?.addEventListener('click', async () => {
+            if (navigator.share) {
+                try { await navigator.share({ title: 'OmniRoute Bandit Proxy', url: location.href }); } catch {}
+            } else {
+                await navigator.clipboard.writeText(location.href);
+                alert('URL copiato negli appunti!');
+            }
+        });
+        // Versione (iniettata dal server via /v1/version, altrimenti "dev")
+        fetch('/v1/version').then(r => r.json()).then(d => {
+            const el = document.getElementById('app-version');
+            if (el) el.textContent = 'v' + (d.version || 'dev');
+        }).catch(() => {});
     </script>
 </body>
 </html>
