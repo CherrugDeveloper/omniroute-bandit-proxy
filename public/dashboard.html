@@ -523,75 +523,7 @@
             <input type="checkbox" id="debug-toggle" onchange="toggleDebug(this.checked)" style="cursor:pointer;">
             <span>🐛 Debug verbose</span>
         </label>
-        
-    <!-- Developer Card -->
-    <button id="dev-card-toggle" title="Informazioni sullo sviluppatore">👨‍💻</button>
-    <div id="dev-card-overlay" style="display:none;">
-        <div id="dev-card">
-            <div class="dev-card-header">
-                <img src="/icons/favicon-96x96.png" alt="Avatar" class="dev-avatar">
-                <div>
-                    <h3 class="dev-name">Cherrug Developer</h3>
-                    <p class="dev-bio">Sviluppatore indipendente e appassionato di nutrizione evidence-based. Creo strumenti open-source per supportare chi convive con l'IBS, unendo ricerca scientifica e tecnologie moderne per migliorare la qualità della vita.</p>
-                </div>
-            </div>
-
-            <div class="dev-links-row">
-                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/discussions" target="_blank" class="dev-btn">
-                    💬 GitHub Discussions
-                </a>
-                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy" target="_blank" class="dev-btn dev-btn-star">
-                    ⭐ Star
-                </a>
-                <button class="dev-btn" id="dev-share-btn">↗ Share</button>
-            </div>
-
-            <hr class="dev-divider">
-
-            <h4>❤️ Sostieni il Progetto</h4>
-            <p class="dev-muted">Se trovi utile questo progetto, considera di supportarne lo sviluppo. Ogni contributo aiuta a mantenerlo gratuito e senza pubblicità.</p>
-            <div class="dev-links-row">
-                <a href="https://www.paypal.com/paypalme/cherrug" target="_blank" class="dev-btn dev-btn-paypal">💙 PayPal</a>
-                <a href="https://ko-fi.com/cherrug" target="_blank" class="dev-btn dev-btn-kofi">☕ Ko-fi</a>
-                <a href="https://www.buymeacoffee.com/cherrug" target="_blank" class="dev-btn dev-btn-bmc">🧋 Buy me a coffee</a>
-            </div>
-
-            <hr class="dev-divider">
-
-            <h4>🛠 Link di Supporto</h4>
-            <div class="dev-links-row">
-                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/issues/new?template=bug_report.md" target="_blank" class="dev-btn">🐛 Segnala un Bug</a>
-                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/issues/new?template=feature_request.md" target="_blank" class="dev-btn">💡 Richiedi una Funzionalità</a>
-                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy" target="_blank" class="dev-btn">📦 Repository GitHub</a>
-            </div>
-
-            <hr class="dev-divider">
-
-            <h4>📧 Contatta il Supporto</h4>
-            <p class="dev-muted">Hai domande o hai bisogno di assistenza? Contattami via email.</p>
-            <a href="mailto:support@omniroute.us.ci" class="dev-email">📩 support@omniroute.us.ci</a>
-
-            <div class="dev-footer">
-                <span>Versione <span id="app-version">—</span></span>
-                <span>Realizzato con Node.js, Express e tanta passione per l'IA</span>
-            </div>
-        </div>
     </div>
-        
-        <script>
-            // Toggle developer card visibility
-            document.getElementById('toggle-dev-card').addEventListener('click', function() {
-                const content = document.getElementById('dev-card-content');
-                const button = document.getElementById('toggle-dev-card');
-                if (content.style.display === 'none') {
-                    content.style.display = 'block';
-                    button.textContent = '▼';
-                } else {
-                    content.style.display = 'none';
-                    button.textContent = '▶';
-                }
-            });
-        </script>
     </div>
         <div id="active-panel" class="active-panel" style="display:none">
             <div class="active-header">
@@ -910,32 +842,13 @@
                 if (discList.length === 0) {
                     list.innerHTML = 'Nessuna discovery.';
                 } else {
-                    list.innerHTML = d.requests.map(r => {
-                        const model = r.model || '(selezione...)';
-                        const attempt = r.attempt ? ' (#' + r.attempt + ')' : '';
-                        const status = r.status === 'fetching' ? '⏳' : '•';
-                        const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
-                        const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
-                        let infoStr = '';
-                        if (r.trend === 'new') {
-                            infoStr = ' <span class="model-info new-badge">(new)</span>';
-                        if (r.N < 1) {
-                            infoStr = ' <span class="model-info" style="color:#8b949e">(test · N=' + r.N + ')</span>';
-                        } else if (r.avg != null) {
-                          const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
-                          const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
-                          const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
-                          infoStr = ' <span class="model-info">(' + rankStr + 'N=' + r.N + ' · avg=' + r.avg + ' <span class="' + cls + '">' + arrow + '</span>)</span>';
-                        }
-                        return '<div class="active-request">' +
-                            '<span class="src-icon ' + srcCls + '">' + srcIcon + '</span>' +
-                            '<span class="status">' + status + '</span>' +
-                            '<span class="model">' + escapeHtml(model) + '</span>' +
-                            infoStr +
-                            '<span class="attempt">' + attempt + '</span>' +
-                            '<span class="elapsed">' + Number(r.elapsedSec).toFixed(1) + 's</span>' +
-                        '</div>';
-                    }).join('');
+                    list.innerHTML = discList.map(d => `
+                        <div style="background:#21262d; padding:8px; border-radius:6px; margin-bottom:8px;">
+                            <div style="font-family:monospace; color:#8b949e;">${d.sig.slice(0,8)} · count=${d.count}</div>
+                            <div style="font-size:12px; color:#c9d1d9; margin:4px 0; word-break:break-all;">${d.sysPreview.slice(0, 200)}</div>
+                            <button onclick="labelDisc('${d.sig}')" style="background:#238636; color:#fff; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Etichetta</button>
+                            <button onclick="dismissDisc('${d.sig}')" style="background:#30363d; color:#c9d1d9; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Scarta</button>
+                        </div>`).join('');
                 }
             } catch (e) {
                 console.error('[MODES] loadModes failed:', e);
@@ -1685,5 +1598,45 @@
             if (el) el.textContent = 'v' + (d.version || 'dev');
         }).catch(() => {});
     </script>
+    <!-- Developer Card -->
+    <button id="dev-card-toggle" title="Informazioni sullo sviluppatore">👨‍💻</button>
+    <div id="dev-card-overlay" style="display:none;">
+        <div id="dev-card">
+            <div class="dev-card-header">
+                <img src="/icons/favicon-96x96.png" alt="Avatar" class="dev-avatar">
+                <div>
+                    <h3 class="dev-name">Cherrug Developer</h3>
+                    <p class="dev-bio">Costruisco strumenti open-source per semplificare il lavoro con LLM e API compatibili OpenAI.</p>                
+                </div>
+            </div>
+            <div class="dev-links-row">
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/discussions" target="_blank" class="dev-btn">💬 GitHub Discussions</a>
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy" target="_blank" class="dev-btn dev-btn-star">⭐ Star</a>
+                <button class="dev-btn" id="dev-share-btn">↗ Share</button>
+            </div>
+            <hr class="dev-divider">
+            <h4>❤️ Sostieni il Progetto</h4>
+            <p class="dev-muted">Se trovi utile questo progetto, considera di supportarne lo sviluppo.</p>
+            <div class="dev-links-row">
+                <a href="https://www.paypal.com/paypalme/cherrug" target="_blank" class="dev-btn dev-btn-paypal">💙 PayPal</a>
+                <a href="https://ko-fi.com/cherrug" target="_blank" class="dev-btn dev-btn-kofi">☕ Ko-fi</a>
+                <a href="https://www.buymeacoffee.com/cherrug" target="_blank" class="dev-btn dev-btn-bmc">🧋 Buy me a coffee</a>
+            </div>
+            <hr class="dev-divider">
+            <h4>🛠 Link di Supporto</h4>
+            <div class="dev-links-row">
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/issues/new" target="_blank" class="dev-btn">🐛 Segnala un Bug</a>
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy/issues/new" target="_blank" class="dev-btn">💡 Richiedi una Funzionalità</a>
+                <a href="https://github.com/CherrugDeveloper/omniroute-bandit-proxy" target="_blank" class="dev-btn">📦 Repository GitHub</a>
+            </div>
+            <hr class="dev-divider">
+            <h4>📧 Contatta il Supporto</h4>
+            <a href="mailto:support@omniroute.us.ci" class="dev-email">📩 support@omniroute.us.ci</a>
+            <div class="dev-footer">
+                <span>Versione <span id="app-version">—</span></span>
+                <span>Realizzato con Node.js, Express e tanta passione per l'IA</span>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
