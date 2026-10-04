@@ -13,6 +13,8 @@ export class DiscountedUCB1Bandit {
     this._initDB();
     this._migrateDB();
     this.totalObservations = this._getMeta("totalObservations");
+    this._lastReward = new Map();
+    this._rankCache = { at: 0, map: new Map() }; // cache classifica (30s TTL)
     this.totalRequests = this._getMeta("totalRequests");
   }
 
@@ -375,6 +377,34 @@ export class DiscountedUCB1Bandit {
     return new Set();
   }
 
+  getModelInfo(modelId) {
+    const row = this.db.prepare(`
+      SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent
+      FROM models WHERE id = ?
+    `).get(modelId);
+    if (!row) return null;
+    const avg = row.N > 0 ? row.sum_reward / row.N : null;
+    const last = this._lastReward.get(modelId) ?? null;
+    let trend = 'flat';
+    if (avg != null && last != null) {
+      trend = last > avg + 0.02 ? 'up' : last < avg - 0.02 ? 'down' : 'flat';
+    }
+    return {
+      id: row.id,
+      provider: row.provider,
+      N: Math.round(row.N * 10) / 10,
+      avg: avg != null ? Math.round(avg * 1000) / 1000 : null,
+      lastReward: last,
+      trend,
+      fails: row.fails,
+      degraded: !!row.degraded,
+      permanent: !!row.permanent,
+    };
+  }
+
+  getLastReward(modelId) {
+    return this._lastReward.get(modelId) ?? null;
+  }
   _getModelCooldownMs(fails) {
     if (fails >= 4) return null;
     const cooldowns = [
@@ -386,6 +416,20 @@ export class DiscountedUCB1Bandit {
     return cooldowns[Math.min(fails, 3)];
   }
 
+  getModelRank(modelId) {
+    const now = Date.now();
+    if (now - this._rankCache.at > 30000) {
+      const rows = this.db.prepare(`
+        SELECT id, sum_reward / N AS avg
+        FROM models
+        WHERE permanent = 0 AND degraded = 0 AND N >= 3 AND N > 0
+        ORDER BY avg DESC
+      `).all();
+      this._rankCache.map = new Map(rows.map((r, i) => [r.id, i + 1]));
+      this._rankCache.at = now;
+    }
+    return this._rankCache.map.get(modelId) ?? null;
+  }
   _getProviderCooldownMs(fails) {
     if (fails >= 4) return null;
     const cooldowns = [
@@ -452,7 +496,8 @@ export class DiscountedUCB1Bandit {
 
       const paidFilter = this.excludePaid ? "AND (m.is_paid IS NULL OR m.is_paid = 0)" : "";
       const freeFilter = this.onlyFree ? "AND c.is_free = 1" : "";
-      const exploitFilter = this.exploitOnly ? "AND COALESCE(m.N, 0) >= 3" : "";
+      const exploitMinN = parseFloat(process.env.EXPLOIT_MIN_N || "3");
+      const exploitFilter = this.exploitOnly ? `AND COALESCE(m.N, 0) >= ${exploitMinN}` : "";
       const toolsFilter = requireTools
         ? "AND c.supports_tools = 1"
         : "";
@@ -735,6 +780,8 @@ export class DiscountedUCB1Bandit {
 
       if (success) {
         this.totalObservations++;
+        this._lastReward.set(modelId, reward);
+        this._rankCache.at = 0; // invalida classifica (ricalcolo al prossimo getModelRank)
         this._setMeta("totalObservations", this.totalObservations);
         this.db.prepare(`UPDATE provider_history SET fails = 0 WHERE provider = ?`).run(model.provider);
 
@@ -1276,12 +1323,23 @@ clearProviderAttention(provider) {
       !isNaN(Number(m.avg))
     );
     candidates.sort((a, b) => Number(b.avg) - Number(a.avg));
-    const topModel = candidates[0] ? {
-      id: candidates[0].id,
-      avg: Math.round(Number(candidates[0].avg) * 1000) / 1000,
-      N: Math.round(Number(candidates[0].N) * 100) / 100
-    } : null;
-
+    const topModel = candidates[0] ? (() => {
+      const c = candidates[0];
+      const avg = Math.round(Number(c.avg) * 1000) / 1000;
+      const last = this._lastReward.get(c.id) ?? null;
+      let trend = 'flat';
+      if (last != null) {
+        trend = last > avg + 0.02 ? 'up' : last < avg - 0.02 ? 'down' : 'flat';
+      }
+      return {
+        id: c.id,
+        provider: c.provider || null,
+        avg,
+        N: Math.round(Number(c.N) * 100) / 100,
+        lastReward: last,
+        trend,
+      };
+    })() : null;
     return {
       totalRequests: this.totalRequests,
       models: modelsWithScores,
@@ -1356,6 +1414,7 @@ clearProviderAttention(provider) {
 
   resetGlobalCounters() {
     this.totalObservations = 0;
+    this._lastReward = new Map(); // modelId -> ultimo reward osservato
     this.totalRequests = 0;
     this._setMeta("totalObservations", 0);
     this._setMeta("totalRequests", 0);

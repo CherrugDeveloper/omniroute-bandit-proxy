@@ -188,7 +188,11 @@ app.use((req, res, next) => {
     || req.path.startsWith("/v1/debug/status")
     || req.path.startsWith("/v1/inflight");
   if (isApi && !isPolling) {
-    console.log(`[PROXY] ${req.method} ${req.path}`);
+    let suffix = '';
+    if (req.method === 'POST' && req.path === '/v1/chat/completions') {
+      suffix = req.get('x-source') === 'training' ? ' [TRAIN]' : ' [ZOO]';
+    }
+    console.log(`[PROXY] ${req.method} ${req.path}${suffix}`);
   }
   next();
 });
@@ -318,6 +322,7 @@ function newRequestId() {
 
 function trackRequestStart(id, meta) {
   activeRequests.set(id, {
+    source: meta.source || 'zoo',
     id,
     startTime: Date.now(),
     ...meta
@@ -335,11 +340,19 @@ function trackRequestEnd(id) {
 
 function getActiveRequestsSnapshot() {
   const now = Date.now();
-  return Array.from(activeRequests.values()).map(r => ({
-    ...r,
-    elapsedMs: now - r.startTime,
-    elapsedSec: Math.round((now - r.startTime) / 100) / 10
-  })).sort((a, b) => b.startTime - a.startTime);
+  return Array.from(activeRequests.values()).map(r => {
+    const info = r.model ? bandit.getModelInfo(r.model) : null;
+    const rank = r.model ? bandit.getModelRank(r.model) : null;
+    return {
+      ...r,
+      elapsedMs: now - r.startTime,
+      elapsedSec: Math.round((now - r.startTime) / 100) / 10,
+      N: info?.N ?? null,
+      avg: info?.avg ?? null,
+      trend: info?.trend ?? 'flat',
+      rank,
+    };
+  }).sort((a, b) => b.startTime - a.startTime);
 }
 
 // Ultime richieste completate (per mostrare activity quando idle)
@@ -348,11 +361,17 @@ const recentRequests = new RingBuffer(5);
 function trackRequestComplete(id, meta) {
   const r = activeRequests.get(id);
   if (r) {
+    const info = r.model ? bandit.getModelInfo(r.model) : null;
+    const rank = r.model ? bandit.getModelRank(r.model) : null;
     recentRequests.push({
       ...r,
       ...meta,
       endedAt: Date.now(),
-      durationSec: Math.round((Date.now() - r.startTime) / 100) / 10
+      durationSec: Math.round((Date.now() - r.startTime) / 100) / 10,
+      N: info?.N ?? null,
+      avg: info?.avg ?? null,
+      trend: info?.trend ?? 'flat',
+      rank,
     });
   }
 }
@@ -563,6 +582,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const requestId = newRequestId();
 
   trackRequestStart(requestId, {
+    source: (req.get("x-source") === "training") ? "training" : "zoo",
     model: null,
     attempt: 0,
     stream: !!stream,
@@ -579,6 +599,18 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   bandit.recordRequest(); // +1 per ogni richiesta ricevuta
   // === Stima token e (eventuale) auto-compress del contesto ===
   let estimatedTokens = bandit.estimateTokens(req.body);
+  // Hard cap: se il contesto stimato supera 150k token, rifiuta
+  const MAX_CONTEXT_TOKENS = parseInt(process.env.MAX_CONTEXT_TOKENS || "150000");
+  if (estimatedTokens > MAX_CONTEXT_TOKENS) {
+    console.warn(`[REJECT] Contesto ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → 413`);
+    return res.status(413).json({
+      error: {
+        message: `Context too large (${estimatedTokens} tokens). Max ${MAX_CONTEXT_TOKENS}. Compress or start new chat.`,
+        type: "context_too_large",
+        status: 413
+      }
+    });
+  }
   // Timeout proporzionale: contesti grandi → prefill più lungo.
   // Scala linearmente (100k = 2x, 200k+ = 3x, cap 3x).
   const baseTimeout = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 20000;

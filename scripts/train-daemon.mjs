@@ -116,6 +116,9 @@ function loadModels() {
     where.push("c.id NOT LIKE '%audio%'");
     where.push("c.id NOT LIKE '%riva-translate%'");
     where.push("c.id NOT LIKE '%nvidia/parse%'");
+    where.push("c.id NOT LIKE '%:batch%'");
+    where.push("c.id NOT LIKE '%tts%'");
+    where.push("c.id NOT LIKE '%lyria%'");
     where.push("c.id NOT LIKE '%-parse-%'");
 
     // Skip pattern openrouter problematici (403/timeout cronico)
@@ -151,7 +154,7 @@ async function testModel(model) {
         model: "any",
         messages: [{ role: "user", content: PROMPT }],
         stream: false,
-        max_tokens: 16
+        max_tokens: 64
       }),
       signal: controller.signal
     });
