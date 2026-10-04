@@ -109,9 +109,14 @@ function loadModels() {
     }
         // Skip pattern non-chat (sicurezza lato client)
     // Skip pattern non-chat (sicurezza lato client)
-    where.push("c.id NOT LIKE '%:batch%'");
-    where.push("c.id NOT LIKE '%tts%'");
-    where.push("c.id NOT LIKE '%lyria%'");
+    // Escludi modelli non-chat (FIM, audio, vision-only)
+    where.push("c.id NOT LIKE '%fim%'");
+    where.push("c.id NOT LIKE '%voxtral%'");
+    where.push("c.id NOT LIKE '%whisper%'");
+    where.push("c.id NOT LIKE '%audio%'");
+    where.push("c.id NOT LIKE '%riva-translate%'");
+    where.push("c.id NOT LIKE '%nvidia/parse%'");
+    where.push("c.id NOT LIKE '%-parse-%'");
 
     // Skip pattern openrouter problematici (403/timeout cronico)
     where.push("c.id NOT LIKE 'openrouter/~%'");
@@ -218,6 +223,12 @@ async function main() {
       if (skippedProviders.has(provider)) continue;
       if (skippedProviders.has("COOLDOWN:" + provider)) continue;
       const zooState = await waitForZoo();
+      // Ricontrolla: il provider potrebbe essere andato in cooldown durante il ciclo
+      if (isProviderFlagged(provider)) {
+        skippedProviders.add("COOLDOWN:" + provider);
+        log(`  → provider ${provider} flagged durante il ciclo, skip`);
+        continue;
+      }
       if (!running) break;
       const forcedDelay = zooState === 'forced' ? 8000 : DELAY_MS;
 

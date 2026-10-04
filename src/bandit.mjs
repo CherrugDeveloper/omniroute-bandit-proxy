@@ -980,10 +980,24 @@ clearProviderAttention(provider) {
   }
 
   _classifyError(errorDetails) {
+    const msg = String(errorDetails.message || errorDetails.error || "").toLowerCase();
+    // Saturazione globale provider (chat_admission_busy) → cooldown provider breve
+    if (/chat_admission_busy|Structurally heavy|structure_limit|capacity is busy/i.test(msg)) {
+      return { action: "cooldown-provider", reason: "provider-saturated", cooldownMs: 120000 }; // 2 min
+    }
+    // OpenRouter 403 "Key limit exceeded" → cooldown provider lungo (4h).
+    // È un limite di budget/rate temporaneo, non un ban permanente.
+    if (/key limit exceeded|key limit reached|per-model access|all \d+ active accounts cooling/i.test(msg)) {
+      return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs: 4 * 60 * 60 * 1000 }; // 4h
+    }
+    // 413 / ITPM / Request too large → skip (non è colpa del modello, la richiesta è troppo grande)
+    if (/413|ITPM|TPM|tokens per minute|input tokens per minute|Request too large|Requested \d+.*Limit \d+/i.test(msg)) {
+      return { action: "skip-feedback", reason: "request-too-large" };
+    }
     if (!errorDetails || typeof errorDetails !== "object") {
       return { scope: "model", action: "cooldown-model", cooldownMs: 60 * 60000, reason: "no-details" };
     }
-    const msg = String(errorDetails.message || errorDetails.error || "").toLowerCase();
+
     const status = errorDetails.status || errorDetails.code;
 
     // === DEMO LIMIT (provider demo con limiti hard, non si risolve comprimendo) ===

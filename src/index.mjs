@@ -575,11 +575,18 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   res.once("close", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
   const baseUrl = process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128/v1";
   const apiKey = process.env.OMNIROUTE_API_KEY;
-  const upstreamTimeoutMs = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000;
 
   bandit.recordRequest(); // +1 per ogni richiesta ricevuta
   // === Stima token e (eventuale) auto-compress del contesto ===
   let estimatedTokens = bandit.estimateTokens(req.body);
+  // Timeout proporzionale: contesti grandi → prefill più lungo.
+  // Scala linearmente (100k = 2x, 200k+ = 3x, cap 3x).
+  const baseTimeout = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 20000;
+  const tokenScale = Math.max(1, Math.min(3, Math.ceil((estimatedTokens || 0) / 100000)));
+  const upstreamTimeoutMs = baseTimeout * tokenScale;
+  if (tokenScale > 1 && debugVerbose) {
+    console.log(`[TIMEOUT] scala ${tokenScale}x → ${upstreamTimeoutMs}ms (tokens=${estimatedTokens})`);
+  }
   const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
   if (debugVerbose) console.log(`[CONTEXT] autoCompress=${autoCompress} header="${req.get("x-auto-compress") || "<assente>"}" tokens=${estimatedTokens} maxCatalog=${bandit.maxCatalogInput()}`);
   // Debug sessione
@@ -663,7 +670,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let controller = null;
   // Timer streaming — dichiarati fuori da if(stream) così il catch esterno può accedervi
   const STREAM_IDLE_MS = parseInt(process.env.STREAM_IDLE_MS || "60000", 10);
-  const STREAM_MAX_MS = parseInt(process.env.STREAM_MAX_MS || "180000", 10);
+  const isSummarizer = (profile === 'summarizer');
+  const STREAM_MAX_MS = parseInt(process.env.STREAM_MAX_MS || (isSummarizer ? "60000" : "180000"), 10);
   let idleTimer = null;
   let hardCapTimer = null;
   let lastMeaningfulByte = Date.now();
@@ -851,6 +859,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         let accumulated = "";
         hardCapTimer = setTimeout(() => {
           console.error(`[TIMEOUT] ${model}: stream superato hard cap ${STREAM_MAX_MS/1000}s → abort`);
+          console.error(`[HARDCAP] timer fired, controller.signal.aborted=${controller?.signal?.aborted}, STREAM_MAX_MS=${STREAM_MAX_MS}`);
           try {
             if (controller && !controller.signal.aborted) {
               controller.abort(new Error('stream-hard-cap'));

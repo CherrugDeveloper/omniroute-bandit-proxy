@@ -20,7 +20,7 @@ const PROFILE_MULTIPLIERS = {
   code:      { codeBoost: 1.35, thinkingPenalty: 0.65, smallPenalty: 0.75 },
   reasoning: { codeBoost: 1.10, thinkingBoost:   1.30, smallPenalty: 0.60 },
   general:   { codePenalty: 0.65, thinkingPenalty: 0.55, smallPenalty: 0.85 },
-  summarizer:{ fastBoost: 2.0, thinkingPenalty: 0.2, codePenalty: 0.7 },
+  summarizer:{ fastBoost: 2.5, notFastPenalty: 0.25, bigPenalty: 0.15, thinkingPenalty: 0.1, codePenalty: 0.5, smallPenalty: 0.9, tpmLowPenalty: 0.05 },
 };
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -101,6 +101,9 @@ export function profileMultiplier(profile, modelName) {
   const isCode     = /coder|codestral|code[-_]|deepseek.*cod|qwen.*cod|starcoder|devstral/i.test(n);
   const isThinking = /thinking|reasoning|[-_]r1[-_]|[-_]r1$|^r1[-_]|o1[-_]|o3[-_]|o4[-_]|qwq/i.test(n);
   const isFast     = /flash|turbo|fast|instant|mini|small|nano|haiku|8b|7b|3b|gpt-oss-20b|gemini-3-flash/i.test(n);
+  // isBig: modelli grandi/lenti che non vanno bene per summarization
+  // Match: gpt-5.X, gpt-5.X-something, modelli con "luna/terra/sol/medium/large/max/pro"
+  const isBig      = /(?:^|[-_/])(?:27b|30b|32b|34b|40b|70b|72b|120b|180b|200b|235b|405b|max|pro|large|xhigh|medium|luna|terra|sol|nemotron|lightning|opus|sonnet-5|gpt-5\.[\d]+)/i.test(n);
   const isFIM      = /fim|fill[-_]?in[-_]?middle/i.test(n);
   const smallMatch = n.match(/(?:^|[-_/])([0-9.]+)b(?:[-_/]|$)/);
   const isSmall    = (smallMatch && parseFloat(smallMatch[1]) <= 8) || /mini|small|nano|tiny/i.test(n);
@@ -109,7 +112,12 @@ export function profileMultiplier(profile, modelName) {
 
   let m = 1.0;
   if (cfg.codeBoost       && isCode)     m *= cfg.codeBoost;
-  if (cfg.fastBoost       && isFast) m *= cfg.fastBoost;
+  if (cfg.fastBoost       && isFast)     m *= cfg.fastBoost;
+  if (cfg.bigPenalty      && isBig)      m *= cfg.bigPenalty;
+  if (cfg.notFastPenalty  && !isFast)    m *= cfg.notFastPenalty;
+  // gpt-oss-* su Groq free tier ha TPM 8k → inadatto per summarizer (contesti >50k)
+  const isLowTPM = /groq\/(?:openai\/)?gpt-oss-(?:20b|120b)/i.test(n);
+  if (cfg.tpmLowPenalty   && isLowTPM)   m *= cfg.tpmLowPenalty;
   if (cfg.codePenalty     && isCode)     m *= cfg.codePenalty;
   if (cfg.thinkingBoost   && isThinking) m *= cfg.thinkingBoost;
   if (cfg.thinkingPenalty && isThinking) m *= cfg.thinkingPenalty;
