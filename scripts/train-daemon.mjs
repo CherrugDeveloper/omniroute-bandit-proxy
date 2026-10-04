@@ -157,7 +157,7 @@ async function testModel(model) {
   try {
     const r = await fetch(`${PROXY}/v1/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-force-model": model },
+      headers: { "Content-Type": "application/json", "x-force-model": model, "x-source": "training" },
       body: JSON.stringify({
         model: "any",
         messages: [{ role: "user", content: PROMPT }],
