@@ -365,14 +365,21 @@
             font-size: 13px;
         }
         .active-request {
-            display: flex;
-            gap: 12px;
+            display: grid;
+            grid-template-columns: 22px 22px minmax(150px, 1fr) auto 60px 55px;
+            gap: 8px;
             align-items: center;
-            padding: 4px 0;
+            padding: 3px 0;
             font-size: 12px;
             font-family: 'Courier New', monospace;
             border-top: 1px solid #30363d;
         }
+        .active-request .src-icon { width: 22px; text-align: center; margin: 0; }
+        .active-request .status   { width: 22px; text-align: center; }
+        .active-request .model    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .active-request .model-info { justify-self: end; font-size: 11px; }
+        .active-request .attempt  { justify-self: end; min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
+        .active-request .elapsed  { justify-self: end; min-width: 55px; text-align: right; font-variant-numeric: tabular-nums; }
         .active-request:first-child { border-top: none; }
         .active-request .model { color: #58a6ff; flex: 1; }
         .active-request .elapsed { color: #d29922; font-weight: bold; }
@@ -388,9 +395,12 @@
         .active-request.recent { opacity: 0.65; }
         /* Riquadro "In corso": altezza fissa 3 righe + scroll interno */
         #active-list {
-            height: 4.5em;
+            height: 5.7em;
+            min-height: 5.7em;
+            max-height: 5.7em;
             overflow-y: auto;
             scrollbar-width: none;
+            padding-bottom: 2px;
         }
         #active-list::-webkit-scrollbar { display: none; }
         .active-request {
@@ -1522,7 +1532,9 @@
                     let infoStr = '';
                     if (r.trend === 'new') {
                         infoStr = ' <span class="model-info new-badge">(new)</span>';
-                    } else if (r.avg != null) {
+                    } else if (Number(r.N) < 1) {
+    infoStr = ' <span class="model-info" style="color:#8b949e">(test · N=' + r.N + ')</span>';
+} else if (r.avg != null) {
                         const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
                         const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
                         const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
@@ -1551,7 +1563,9 @@
                     let infoStr = '';
                     if (r.trend === 'new') {
                         infoStr = ' <span class="model-info new-badge">(new)</span>';
-                    } else if (r.avg != null) {
+                    } else if (Number(r.N) < 1) {
+    infoStr = ' <span class="model-info" style="color:#8b949e">(test · N=' + r.N + ')</span>';
+} else if (r.avg != null) {
                         const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
                         const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
                         const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
@@ -1647,7 +1661,7 @@
             </div>
             <hr class="dev-divider">
             <h4>📧 Contatta il Supporto</h4>
-            <a href="mailto:support@omniroute.us.ci" class="dev-email">📩 support@omniroute.us.ci</a>
+            <a href="mailto:banditproxysupport@protonmail.com" class="dev-email">📩 banditproxysupport@protonmail.com</a>
             <div class="dev-footer">
                 <span>Versione <span id="app-version">—</span></span>
                 <span>Realizzato con Node.js, Express e tanta passione per l'IA</span>
