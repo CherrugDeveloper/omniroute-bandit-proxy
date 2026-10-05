@@ -366,7 +366,7 @@
         }
         .active-header-row {
             display: grid;
-            grid-template-columns: 44px minmax(150px, 1fr) 40px 70px 80px 24px 60px 60px;
+            grid-template-columns: 50px minmax(180px, 1fr) 80px 100px 110px 40px 100px 90px;
             gap: 8px;
             padding: 2px 0 6px 0;
             border-bottom: 1px solid #30363d;
@@ -383,7 +383,7 @@
         .active-header-row .hdr-num { text-align: right; }
         .active-request {
             display: grid;
-            grid-template-columns: 44px minmax(150px, 1fr) 40px 70px 80px 24px 60px 60px;
+            grid-template-columns: 50px minmax(180px, 1fr) 80px 100px 110px 40px 100px 90px;
             gap: 8px;
             align-items: center;
             padding: 3px 0;
@@ -707,7 +707,7 @@
     </div>
         <div id="active-panel" class="active-panel" style="display:none">
             <div class="active-header">
-                <strong>⚡ In corso</strong> <span id="active-count" class="muted">0 richieste</span>
+                <strong>⚡ In corso</strong> <span id="active-count" class="muted"></span>
             </div>
             <div id="active-list"></div>
         </div>
@@ -1802,7 +1802,7 @@
 
                 const nActive = (d.requests || []).length;
                 const nRecent = (d.recent || []).length;
-                countEl.textContent = '⚡ In corso' + (nActive > 0 ? ' (' + nActive + ')' : '');
+                countEl.textContent = nActive > 0 ? '(' + nActive + ')' : '';
                 const nRows = nActive + Math.min(nRecent, 5);
                 const placeholders = Math.max(0, 4 - nRows);
                 let placeholderHtml = '';
