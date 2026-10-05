@@ -18,7 +18,7 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            padding-top: env(titlebar-area-height, 0);
+            padding-top: env(titlebar-area-y, 0);
         }
         
         /* Hide native PWA title bar */
@@ -380,7 +380,19 @@
             background: #1c2128;
             z-index: 1;
         }
+        .active-header-row .hdr-in-corso {
+            color: #58a6ff;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: none;
+            letter-spacing: 0;
+        }
         .active-header-row .hdr-num { text-align: right; }
+        .active-header-row .hdr-icon {
+            text-align: center;
+            color: #d29922;
+            font-size: 14px;
+        }
         .active-request {
             display: grid;
             grid-template-columns: 50px minmax(180px, 1fr) 80px 100px 110px 40px 100px 90px;
@@ -431,9 +443,9 @@
         #active-list {
             display: flex;
             flex-direction: column;
-            height: 7em;
-            min-height: 7em;
-            max-height: 7em;
+            height: 7.5em;
+            min-height: 7.5em;
+            max-height: 7.5em;
             overflow-y: auto;
             scrollbar-width: none;
             padding-bottom: 2px;
@@ -699,6 +711,7 @@
     <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <h1 style="margin:0;">OmniRoute Bandit Dashboard <span id="version-display"></span></h1>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-right: max(env(titlebar-area-x, 0px), 12px);"></div>
         <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="debug-toggle" onchange="toggleDebug(this.checked)" style="cursor:pointer;">
             <span>🐛 Debug verbose</span>
@@ -706,9 +719,6 @@
     </div>
     </div>
         <div id="active-panel" class="active-panel" style="display:none">
-            <div class="active-header">
-                <strong>⚡ In corso</strong> <span id="active-count" class="muted"></span>
-            </div>
             <div id="active-list"></div>
         </div>
         <div class="stats-container">
@@ -758,7 +768,17 @@
     <div id="tab-logs" class="tab-content active">
         <div class="log-header">
             <h3>Log Streaming</h3>
-            <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
+            <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end;">
+                <input type="text" id="log-filter" placeholder="🔍 filtra..."
+                    style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:220px;">
+                <label style="font-size:11px; color:#3fb950; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-zoo" checked> ZOO
+                </label>
+                <label style="font-size:11px; color:#58a6ff; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-train" checked> TRAIN
+                </label>
+                <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
+            </div>
         </div>
         <pre id="logs">Attendendo log...</pre>
     </div>
@@ -1063,7 +1083,6 @@
             const t = document.querySelector('.tab-content.active');
             if (t && t.id === 'tab-modes') loadModes();
         }, 10000);
-
         // === Tabs ===
         document.addEventListener('click', (e) => {
             if (e.target && e.target.id === 'toggle-flat') {
@@ -1730,11 +1749,53 @@
                 if (!r.ok) return;
                 const d = await r.json();
                 if (!Array.isArray(d)) return;
-                const el = document.getElementById('logs');
-                el.textContent = d.length > 0 ? d.join('\n') : 'Attendendo log...';
-                el.scrollTop = el.scrollHeight;
+                window.__rawLogs = d;
+                renderFilteredLogs();
             } catch (e) {}
         }
+        function renderFilteredLogs() {
+            const el = document.getElementById('logs');
+            if (!el) return;
+            const raw = window.__rawLogs || [];
+            const filter = (document.getElementById('log-filter')?.value || '').toLowerCase();
+            const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
+            const showTrain = document.getElementById('log-show-train')?.checked ?? true;
+
+            // 1. Tagga ogni riga con la "sessione" corrente (zoo|train|system)
+            //    Da una riga "[PROXY] POST /v1/chat/completions [X]" fino alla
+            //    prossima riga "[PROXY] POST", tutto appartiene a X.
+            const tagged = [];
+            let currentSource = null;
+            for (const line of raw) {
+                const s = String(line);
+                const m = s.match(/\[PROXY\] POST \/v1\/chat\/completions \[(ZOO|TRAIN)\]/);
+                if (m) currentSource = m[1].toLowerCase();
+                tagged.push({ line: s, source: currentSource });
+            }
+
+            // 2. Filtra per source + testo
+            let filtered = tagged;
+            if (!showZoo) filtered = filtered.filter(t => t.source !== 'zoo');
+            if (!showTrain) filtered = filtered.filter(t => t.source !== 'train');
+            if (filter) filtered = filtered.filter(t => t.line.toLowerCase().includes(filter));
+
+            // 3. Renderizza
+            const wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+            el.textContent = filtered.length > 0 ? filtered.map(t => t.line).join('\n') : 'Nessun log corrispondente.';
+            if (wasAtBottom) el.scrollTop = el.scrollHeight;
+        }
+
+        // Aggiorna log quando cambiano i filtri
+        ['log-filter', 'log-show-train', 'log-show-zoo'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', () => {
+                renderFilteredLogs();
+                fetchActive();   // <-- aggiorna anche "In corso"
+            });
+            document.getElementById(id)?.addEventListener('change', () => {
+                renderFilteredLogs();
+                fetchActive();
+            });
+        });
         async function fetchActive() {
             try {
                 const r = await apiFetch('/v1/active');
@@ -1742,7 +1803,6 @@
                 const d = await r.json();
                 const panel = document.getElementById('active-panel');
                 const list = document.getElementById('active-list');
-                const countEl = document.getElementById('active-count');
                 panel.style.display = 'block';
 
                 function fmtRow(r, kind) {
@@ -1784,25 +1844,30 @@
                         '<span class="elapsed">' + durTxt + '</span>' +
                     '</div>';
                 }
+                const nActive = (d.requests || []).length;
+                const nRecent = (d.recent || []).length;
 
                 const headerHtml =
                     '<div class="active-header-row">' +
-                        '<span></span>' +
-                        '<span>Modello</span>' +
+                        '<span class="hdr-icon">⚡</span>' +
+                        '<span class="hdr-in-corso">In corso' + (nActive > 0 ? ' (' + nActive + ')' : '') + '</span>' +
                         '<span class="hdr-num">#</span>' +
                         '<span class="hdr-num">N</span>' +
                         '<span class="hdr-num">Avg</span>' +
-                        '<span></span>' +
+                        '<span class="hdr-num">→</span>' +
                         '<span class="hdr-num">Tempo</span>' +
                         '<span class="hdr-num">Durata</span>' +
                     '</div>';
-
-                const activeHtml = (d.requests || []).map(r => fmtRow(r, 'active')).join('');
-                const recentHtml = (d.recent || []).slice(-5).reverse().map(r => fmtRow(r, 'recent')).join('');
-
-                const nActive = (d.requests || []).length;
-                const nRecent = (d.recent || []).length;
-                countEl.textContent = nActive > 0 ? '(' + nActive + ')' : '';
+                // Legge lo stato dai checkbox del log header (unificati)
+                const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
+                const showTrain = document.getElementById('log-show-train')?.checked ?? true;
+                const filterSrc = (arr) => (arr || []).filter(r => {
+                    if (!showZoo && r.source === 'zoo') return false;
+                    if (!showTrain && r.source === 'training') return false;
+                    return true;
+                });
+                const activeHtml = filterSrc(d.requests).map(r => fmtRow(r, 'active')).join('');
+                const recentHtml = filterSrc(d.recent).slice(-5).reverse().map(r => fmtRow(r, 'recent')).join('');
                 const nRows = nActive + Math.min(nRecent, 5);
                 const placeholders = Math.max(0, 4 - nRows);
                 let placeholderHtml = '';
