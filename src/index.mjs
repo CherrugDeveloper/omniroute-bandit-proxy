@@ -681,6 +681,19 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const sysMsg = req.body?.messages?.find(m => m.role === 'system');
   const sysText = (typeof sysMsg?.content === 'string') ? sysMsg.content : '';
   const modeResult = detectProfile(sysText);
+  // Rileva se la sessione è in difficoltà (tool_call falliti di recente)
+  const msgs = req.body?.messages || [];
+  const recentToolResults = msgs.filter(m => m.role === 'tool').slice(-5);
+  // Guarda solo l'ultimo tool_result: se è un errore, il modello ha appena fallito
+  const lastToolResult = recentToolResults[recentToolResults.length - 1];
+  let isStruggling = false;
+  if (lastToolResult) {
+    const c = typeof lastToolResult.content === 'string' ? lastToolResult.content : JSON.stringify(lastToolResult.content || '');
+    isStruggling = /"status"\s*:\s*"error"|edit unsuccessful|no sufficiently similar|repetition limit|apply_diff.*fail|"error"|failed|not found|not similar/i.test(c);
+  }
+  if (isStruggling) {
+    console.log(`[AFFINITY] ⚠ sessione struggling (${recentErrors} errori recenti)`);
+  }
   const profile = modeResult.profile;
   if (modeResult.mode) {
     console.log(`[MODE] ${modeResult.mode} → profile=${profile} (${modeResult.source}${modeResult.sig ? ' sig=' + modeResult.sig.slice(0,8) : ''})`);
@@ -777,8 +790,19 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         });
       }
       model = forceModel;
-} else {
+  } else {
   // === SESSION AFFINITY ===
+  // Se la sessione è struggling, rimuovi il pin per riselezionare
+  // Se la sessione è struggling, penalizza il modello pinnato E rimuovi il pin
+  if (isStruggling && sessionKey) {
+    const entry = sessionModels.get(sessionKey);
+    if (entry) {
+      console.log(`[AFFINITY] ✗ pin ${entry.model} fallito (tool error) → penalizzo e unpin`);
+      // Penalizza retroattivamente il modello che ha generato il tool_call fallito
+      bandit.recordFeedback(entry.model, false, 0, { message: "edit unsuccessful / tool-error" }, { source: feedbackSource });
+      sessionModels.delete(sessionKey);
+    }
+  }
   let pinnedEntry = null;
   if (sessionKey) {
     const entry = sessionModels.get(sessionKey);
