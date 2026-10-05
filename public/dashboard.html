@@ -364,9 +364,26 @@
             margin-bottom: 6px;
             font-size: 13px;
         }
+        .active-header-row {
+            display: grid;
+            grid-template-columns: 44px minmax(150px, 1fr) 40px 70px 80px 24px 60px 60px;
+            gap: 8px;
+            padding: 2px 0 6px 0;
+            border-bottom: 1px solid #30363d;
+            font-size: 10px;
+            color: #484f58;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            background: #1c2128;
+            z-index: 1;
+        }
+        .active-header-row .hdr-num { text-align: right; }
         .active-request {
             display: grid;
-            grid-template-columns: 22px 22px minmax(150px, 1fr) auto 60px 55px;
+            grid-template-columns: 44px minmax(150px, 1fr) 40px 70px 80px 24px 60px 60px;
             gap: 8px;
             align-items: center;
             padding: 3px 0;
@@ -374,16 +391,26 @@
             font-family: 'Courier New', monospace;
             border-top: 1px solid #30363d;
         }
+        .active-request .src-status { display: inline-flex; gap: 4px; align-items: center; }
+        .active-request .mi-rank,
+        .active-request .mi-n,
+        .active-request .mi-avg {
+            text-align: right;
+            color: #8b949e;
+            font-variant-numeric: tabular-nums;
+        }
+        .active-request .mi-trend { text-align: center; }
+        .active-request .attempt { text-align: right; color: #8b949e; font-variant-numeric: tabular-nums; }
+        .active-request .elapsed { text-align: right; color: #d29922; font-weight: bold; font-variant-numeric: tabular-nums; }
+        .active-request.recent { opacity: 0.7; }
+        .active-request.placeholder { opacity: 0.15; pointer-events: none; }
         .active-request .src-icon { width: 22px; text-align: center; margin: 0; }
         .active-request .status   { width: 22px; text-align: center; }
         .active-request .model    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .active-request .model-info {
-            justify-self: end;
-            font-family: ui-monospace, 'Courier New', monospace;
-            font-size: 11px;
-            color: #8b949e;
-            white-space: pre;
-        }
+        .active-request .model-info .mi-rank { display: inline-block; min-width: 4ch; text-align: right; }
+        .active-request .model-info .mi-n    { display: inline-block; min-width: 8ch; text-align: right; }
+        .active-request .model-info .mi-avg  { display: inline-block; min-width: 10ch; text-align: right; }
+        .active-request .model-info .mi-trend { display: inline-block; min-width: 1ch; text-align: center; }
         .active-request .model-info .new-badge { color: #d29922; font-weight: bold; }
         .active-request .attempt  { justify-self: end; min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
         .active-request .elapsed  { justify-self: end; min-width: 55px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -425,7 +452,6 @@
             font-variant-numeric: tabular-nums;
         }
         /* Rank in evidenza */
-        .active-request .model-info { color: #8b949e; font-size: 12px; }
         .active-request .attempt { color: #8b949e; }
         .active-request .status { color: #7ee787; }
                 /* Provider header */
@@ -487,7 +513,6 @@
         .new-badge { color: #d29922; font-weight: bold; }
         .trend-down { color: #f85149; font-weight: bold; }
         .trend-flat { color: #8b949e; }
-        .model-info { color: #8b949e; font-size: 12px; margin-left: 4px; }
         /* FAB (pulsante flottante) */
         #dev-fab {
             position: fixed; bottom: 20px; right: 20px;
@@ -601,6 +626,7 @@
         .modal-tab:hover:not(.active) { color: #c9d1d9; }
         .modal-tab-content { display: none; }
         .modal-tab-content.active { display: block; }
+        .active-request .src-changelog { color: #a371f7; }
         /* Badge pallino rosso sul FAB */
         #dev-fab.has-update::after {
             content: '';
@@ -1063,56 +1089,72 @@
         function renderChangelog(md) {
             if (!md) return '<p style="color:#8b949e">Nessun changelog disponibile.</p>';
             const lines = md.replace(/\r/g, '').replace(/\uFEFF/g, '').split('\n');
+
+            // Mini-markdown per celle changelog
+            function inline(s) {
+                return String(s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                    .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>')
+                    .replace(/`([^`]+)`/g, '<code style="background:#21262d;padding:1px 5px;border-radius:3px;font-size:12px">$1</code>')
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:#58a6ff">$1</a>');
+            }
+
             const releases = [];
             let current = null;
+
             for (const line of lines) {
-                const h2 = line.match(/^\s*##\s+(v[\d.]+)\s*(.*)$/);
+                const h2 = line.match(/^##\s+(v[\d.]+|Unreleased)\s*(.*)$/);
                 if (h2) {
                     if (current) releases.push(current);
-                    const rawDate = (h2[2] || '').replace(/^[—–\-·•]+\s*/, '').replace(/\r$/, '').trim();
+                    const rawDate = (h2[2] || '').replace(/^[—–\-·•]+\s*/, '').trim();
                     current = { version: h2[1], date: rawDate, items: [] };
                     continue;
                 }
                 const li = line.match(/^\s*[-*]\s+(.+)$/);
-                if (li && current) current.items.push(li[1].trim());
+                if (li && current) {
+                    current.items.push(li[1].trim());
+                }
             }
             if (current) releases.push(current);
+
             if (releases.length === 0) {
                 return '<pre style="white-space:pre-wrap; font-size:13px; color:#c9d1d9;">' + escapeHtml(md) + '</pre>';
             }
+
             return releases.map((r, i) => {
                 const latest = i === 0 ? ' <span class="cl-latest">ULTIMA</span>' : '';
-                const items = r.items.map(it => '<li>' + escapeHtml(it) + '</li>').join('');
+                const items = r.items.map(it => '<li>' + inline(it) + '</li>').join('');
                 return '<div class="cl-release">' +
                     '<div class="cl-version">' + escapeHtml(r.version) + latest +
-                    ' <span class="cl-date">' + escapeHtml(r.date) + '</span></div>' +
+                    (r.date ? ' <span class="cl-date">' + escapeHtml(r.date) + '</span>' : '') + '</div>' +
                     '<ul>' + items + '</ul>' +
                 '</div>';
             }).join('');
         }
-
         function fmtTime(seconds) {
             const s = Number(seconds) || 0;
             if (s < 60) return s + 's';
             if (s < 3600) return Math.floor(s / 60) + 'm' + (s % 60) + 's';
             return Math.floor(s / 3600) + 'h' + Math.floor((s % 3600) / 60) + 'm';
         }
-        // Formatta la riga info (rank · N · avg) con padding monospace
         function fmtInfo(r) {
-            const pad = (s, n) => String(s).padEnd(n, '\u00A0');
-            const rankTxt = r.rank ? '#' + r.rank : '-';
-            const rankPad = pad(rankTxt, 4);
-
-            // Colonne sempre presenti, per allineare tutto
-            const nVal = (r.N != null) ? 'N=' + r.N : 'N=-';
-            const nPad = pad(nVal, 9);
-            const avgVal = (r.avg != null) ? 'avg=' + r.avg : (r.trend === 'new' ? 'new' : 'avg=-');
-            const avgPad = pad(avgVal, 11);
-
+            // 4 colonne fisse: rank | N | avg | arrow
+            const rankTxt = r.rank ? ('#' + r.rank) : '-';
+            const nTxt = (r.N != null && r.N !== null && Number(r.N) > 0) ? ('N=' + r.N) : 'N=-';
+            let avgTxt;
+            if (r.trend === 'new') avgTxt = 'new';
+            else if (r.avg != null && Number(r.avg) > 0) avgTxt = 'avg=' + r.avg;
+            else if (r.N != null && Number(r.N) > 0 && Number(r.N) < 1) avgTxt = 'test';
+            else avgTxt = 'avg=-';
             const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
             const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
-
-            return '<span class="model-info">' + rankPad + ' ' + nPad + avgPad + '<span class="' + cls + '">' + arrow + '</span></span>';
+            return '<span class="model-info">' +
+                '<span class="mi-rank">' + rankTxt + '</span>' +
+                '<span class="mi-n">' + nTxt + '</span>' +
+                '<span class="mi-avg">' + avgTxt + '</span>' +
+                '<span class="mi-trend ' + cls + '">' + arrow + '</span>' +
+            '</span>';
         }
 
         function escapeHtml(str) {
@@ -1699,66 +1741,83 @@
                 const panel = document.getElementById('active-panel');
                 const list = document.getElementById('active-list');
                 const countEl = document.getElementById('active-count');
-
                 panel.style.display = 'block';
 
-                // Render attive
-                const activeHtml = (d.requests || []).map(r => {
+                function fmtRow(r, kind) {
                     const model = r.model || '(selezione...)';
-                    const attempt = r.attempt ? 'try ' + r.attempt : '';
-                    const status = r.status === 'fetching' ? '⏳' : '•';
-                    const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
-                    const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
-                    const infoStr = fmtInfo(r);
-                    return '<div class="active-request">' +
-                        '<span class="src-icon ' + srcCls + '">' + srcIcon + '</span>' +
-                        '<span class="status">' + status + '</span>' +
-                        '<span class="model">' + escapeHtml(model) + '</span>' +
-                        infoStr +
-                        '<span class="attempt">' + attempt + '</span>' +
-                        '<span class="elapsed">' + Number(r.elapsedSec).toFixed(1) + 's</span>' +
-                    '</div>';
-                }).join('');
+                    const srcIcon = r.source === 'training' ? '🏋️' : (r.source === 'changelog' ? '📝' : '🦌');
+                    const srcCls = r.source === 'training' ? 'src-train' : (r.source === 'changelog' ? 'src-changelog' : 'src-zoo');
+                    let status;
+                    if (kind === 'active') status = r.status === 'fetching' ? '⏳' : '•';
+                    else status = r.status === 'success' ? '✅' : (r.status && r.status.startsWith('error')) ? '❌' : '•';
 
-                // Render recenti
-                const recentHtml = (d.recent || []).slice(-5).reverse().map(r => {
-                    const model = r.model || '(?)';
-                    const status = r.status === 'success' ? '✅'
-                                 : (r.status && r.status.startsWith('error')) ? '❌'
-                                 : '•';
-                    const secs = Math.round((Date.now() - r.endedAt) / 1000);
-                    const age = secs < 60 ? secs + 's fa' : Math.round(secs / 60) + 'm fa';
-                    const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
-                    const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
-                    const infoStr = fmtInfo(r);
-                    return '<div class="active-request recent">' +
-                        '<span class="src-icon ' + srcCls + '">' + srcIcon + '</span>' +
-                        '<span class="status">' + status + '</span>' +
+                    const rankTxt = r.rank ? ('#' + r.rank) : '-';
+                    const nTxt = (r.N != null && Number(r.N) > 0) ? String(r.N) : '-';
+                    let avgTxt;
+                    if (r.trend === 'new') avgTxt = 'new';
+                    else if (r.avg != null && Number(r.avg) > 0) avgTxt = String(r.avg);
+                    else if (r.N != null && Number(r.N) > 0 && Number(r.N) < 1) avgTxt = 'test';
+                    else avgTxt = '-';
+                    const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
+                    const arrowCls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
+
+                    let timeTxt, durTxt;
+                    if (kind === 'active') {
+                        timeTxt = 'try ' + (r.attempt || 1);
+                        durTxt = Number(r.elapsedSec).toFixed(1) + 's';
+                    } else {
+                        const secs = Math.round((Date.now() - r.endedAt) / 1000);
+                        timeTxt = secs < 60 ? secs + 's' : Math.round(secs / 60) + 'm';
+                        durTxt = Number(r.durationSec).toFixed(1) + 's';
+                    }
+
+                    return '<div class="active-request ' + (kind === 'recent' ? 'recent' : '') + '">' +
+                        '<span class="src-status"><span class="src-icon ' + srcCls + '">' + srcIcon + '</span><span>' + status + '</span></span>' +
                         '<span class="model">' + escapeHtml(model) + '</span>' +
-                        infoStr +
-                        '<span class="attempt">' + age + '</span>' +
-                        '<span class="elapsed">' + Number(r.durationSec).toFixed(1) + 's</span>' +
+                        '<span class="mi-rank">' + rankTxt + '</span>' +
+                        '<span class="mi-n">' + nTxt + '</span>' +
+                        '<span class="mi-avg">' + avgTxt + '</span>' +
+                        '<span class="mi-trend ' + arrowCls + '">' + arrow + '</span>' +
+                        '<span class="attempt">' + timeTxt + '</span>' +
+                        '<span class="elapsed">' + durTxt + '</span>' +
                     '</div>';
-                }).join('');
+                }
+
+                const headerHtml =
+                    '<div class="active-header-row">' +
+                        '<span></span>' +
+                        '<span>Modello</span>' +
+                        '<span class="hdr-num">#</span>' +
+                        '<span class="hdr-num">N</span>' +
+                        '<span class="hdr-num">Avg</span>' +
+                        '<span></span>' +
+                        '<span class="hdr-num">Tempo</span>' +
+                        '<span class="hdr-num">Durata</span>' +
+                    '</div>';
+
+                const activeHtml = (d.requests || []).map(r => fmtRow(r, 'active')).join('');
+                const recentHtml = (d.recent || []).slice(-5).reverse().map(r => fmtRow(r, 'recent')).join('');
 
                 const nActive = (d.requests || []).length;
                 const nRecent = (d.recent || []).length;
                 countEl.textContent = nActive > 0
                     ? '⚡ ' + nActive + ' in corso' + (nRecent > 0 ? ' · ' + nRecent + ' recenti' : '')
                     : (nRecent > 0 ? '🕐 ultime ' + nRecent : 'idle');
-                const nRows = (d.requests || []).length + Math.min((d.recent || []).length, 5);
+
+                const nRows = nActive + Math.min(nRecent, 5);
                 const placeholders = Math.max(0, 4 - nRows);
                 let placeholderHtml = '';
                 for (let i = 0; i < placeholders; i++) {
-                    placeholderHtml += '<div class="active-request placeholder"><span class="src-icon">·</span><span class="status">·</span><span class="model">·</span><span class="model-info">·</span><span class="attempt">·</span><span class="elapsed">·</span></div>';
+                    placeholderHtml += '<div class="active-request placeholder">' +
+                        '<span class="src-status">·</span><span class="model">·</span>' +
+                        '<span class="mi-rank">·</span><span class="mi-n">·</span><span class="mi-avg">·</span>' +
+                        '<span class="mi-trend">·</span><span class="attempt">·</span><span class="elapsed">·</span>' +
+                    '</div>';
                 }
-                const all = activeHtml + recentHtml + placeholderHtml;
-                list.innerHTML = all || '<div style="font-size:12px;color:#8b949e;padding:4px 0">💤 Nessuna attività</div>';
+
+                list.innerHTML = headerHtml + activeHtml + recentHtml + placeholderHtml;
             } catch (e) {}
         }
-
-        // ============= INIT =============
-
         // ============= INIT =============
         document.getElementById('filter-models').addEventListener('input', renderAll);
         document.getElementById('filter-problems').addEventListener('change', renderAll);
