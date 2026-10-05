@@ -371,7 +371,7 @@
             padding: 2px 0 6px 0;
             border-bottom: 1px solid #30363d;
             font-size: 10px;
-            color: #484f58;
+            color: #c9d1d9;
             text-transform: uppercase;
             letter-spacing: 0.6px;
             font-weight: 600;
@@ -429,9 +429,11 @@
         .active-request.recent { opacity: 0.65; }
         .active-request.placeholder { opacity: 0.15; pointer-events: none; }
         #active-list {
-            height: 5.7em;
-            min-height: 5.7em;
-            max-height: 5.7em;
+            display: flex;
+            flex-direction: column;
+            height: 7em;
+            min-height: 7em;
+            max-height: 7em;
             overflow-y: auto;
             scrollbar-width: none;
             padding-bottom: 2px;
@@ -1800,10 +1802,7 @@
 
                 const nActive = (d.requests || []).length;
                 const nRecent = (d.recent || []).length;
-                countEl.textContent = nActive > 0
-                    ? '⚡ ' + nActive + ' in corso' + (nRecent > 0 ? ' · ' + nRecent + ' recenti' : '')
-                    : (nRecent > 0 ? '🕐 ultime ' + nRecent : 'idle');
-
+                countEl.textContent = '⚡ In corso' + (nActive > 0 ? ' (' + nActive + ')' : '');
                 const nRows = nActive + Math.min(nRecent, 5);
                 const placeholders = Math.max(0, 4 - nRows);
                 let placeholderHtml = '';
@@ -1915,7 +1914,7 @@
             }).catch(() => {});
         });
         fetch('/v1/version').then(r => r.json()).then(d => {
-                const v = 'v' + (d.version || 'dev');
+                const v = (d.version || 'dev');
                 const el1 = document.getElementById('app-version');
                 const el2 = document.getElementById('version-display');
                 if (el1) el1.textContent = v;

@@ -150,27 +150,30 @@ export class DiscountedUCB1Bandit {
         throw err;
       }
     }
-
     const hasModelsIsPaid = modelColumns.some(col => col.name === "is_paid");
     if (!hasModelsIsPaid) {
       console.log("[BANDIT] Migrazione: aggiungo is_paid a models");
       try {
         this.db.exec(`ALTER TABLE models ADD COLUMN is_paid INTEGER DEFAULT 0`);
-      // Migrazione: colonna dynamic_max_tokens (limite TPM/ITPM appreso dagli errori 413)
-      const modelCols = this.db.prepare("PRAGMA table_info(models)").all();
-      const hasDynMax = modelCols.some(col => col.name === "dynamic_max_tokens");
-      if (!hasDynMax) {
-        this.db.exec(`ALTER TABLE models ADD COLUMN dynamic_max_tokens INTEGER DEFAULT 0`);
-        console.log("[BANDIT] Migrazione: aggiungo dynamic_max_tokens a models");
-      }
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonna is_paid:", err.message);
         throw err;
       }
     }
 
+    // Migrazione: dynamic_max_tokens (limite TPM/ITPM appreso dagli errori 413)
+    const modelCols2 = this.db.prepare("PRAGMA table_info(models)").all();
+    const hasDynMax = modelCols2.some(col => col.name === "dynamic_max_tokens");
+    if (!hasDynMax) {
+      console.log("[BANDIT] Migrazione: aggiungo dynamic_max_tokens a models");
+      try {
+        this.db.exec(`ALTER TABLE models ADD COLUMN dynamic_max_tokens INTEGER DEFAULT 0`);
+      } catch (err) {
+        console.error("[BANDIT] Errore aggiunta colonna dynamic_max_tokens:", err.message);
+        throw err;
+      }
+    }
     const hasConsecutive5xx = modelColumns.some(col => col.name === "consecutive_5xx");
-
     if (!hasConsecutive5xx) {
       console.log("[BANDIT] Migrazione: aggiungo consecutive_5xx a models");
       try {
@@ -524,6 +527,9 @@ export class DiscountedUCB1Bandit {
         ? "AND c.supports_tools = 1"
         : "";
       const fimFilter = "AND c.id NOT LIKE '%fim%' AND c.id NOT LIKE '%code-fim%'";
+      const thinkingFilter = this.excludeThinking
+        ? "AND c.id NOT LIKE '%thinking%' AND c.id NOT LIKE '%reasoning%' AND c.id NOT LIKE '%-think%' AND c.id NOT LIKE '%max-prime%' AND c.id NOT LIKE '%-ultra%'"
+        : "";
       const excludeModels = String(process.env.EXCLUDE_MODELS || "")
       .split(",").map(s => s.trim()).filter(Boolean);
       const excludeModelsFilter = excludeModels.length > 0
