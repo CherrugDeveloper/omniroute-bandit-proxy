@@ -377,7 +377,14 @@
         .active-request .src-icon { width: 22px; text-align: center; margin: 0; }
         .active-request .status   { width: 22px; text-align: center; }
         .active-request .model    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .active-request .model-info { justify-self: end; font-size: 11px; }
+        .active-request .model-info {
+            justify-self: end;
+            font-family: ui-monospace, 'Courier New', monospace;
+            font-size: 11px;
+            color: #8b949e;
+            white-space: pre;
+        }
+        .active-request .model-info .new-badge { color: #d29922; font-weight: bold; }
         .active-request .attempt  { justify-self: end; min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
         .active-request .elapsed  { justify-self: end; min-width: 55px; text-align: right; font-variant-numeric: tabular-nums; }
         .active-request:first-child { border-top: none; }
@@ -1090,6 +1097,23 @@
             if (s < 3600) return Math.floor(s / 60) + 'm' + (s % 60) + 's';
             return Math.floor(s / 3600) + 'h' + Math.floor((s % 3600) / 60) + 'm';
         }
+        // Formatta la riga info (rank · N · avg) con padding monospace
+        function fmtInfo(r) {
+            const pad = (s, n) => String(s).padEnd(n, '\u00A0');
+            const rankTxt = r.rank ? '#' + r.rank : '-';
+            const rankPad = pad(rankTxt, 4);
+
+            // Colonne sempre presenti, per allineare tutto
+            const nVal = (r.N != null) ? 'N=' + r.N : 'N=-';
+            const nPad = pad(nVal, 9);
+            const avgVal = (r.avg != null) ? 'avg=' + r.avg : (r.trend === 'new' ? 'new' : 'avg=-');
+            const avgPad = pad(avgVal, 11);
+
+            const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
+            const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
+
+            return '<span class="model-info">' + rankPad + ' ' + nPad + avgPad + '<span class="' + cls + '">' + arrow + '</span></span>';
+        }
 
         function escapeHtml(str) {
             const div = document.createElement('div');
@@ -1681,21 +1705,11 @@
                 // Render attive
                 const activeHtml = (d.requests || []).map(r => {
                     const model = r.model || '(selezione...)';
-                    const attempt = r.attempt ? ' (#' + r.attempt + ')' : '';
+                    const attempt = r.attempt ? 'try ' + r.attempt : '';
                     const status = r.status === 'fetching' ? '⏳' : '•';
                     const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
                     const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
-                    let infoStr = '';
-                    if (r.trend === 'new') {
-                        infoStr = ' <span class="model-info new-badge">(new)</span>';
-                    } else if (Number(r.N) < 1) {
-    infoStr = ' <span class="model-info" style="color:#8b949e">(test · N=' + r.N + ')</span>';
-} else if (r.avg != null) {
-                        const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
-                        const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
-                        const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
-                        infoStr = ' <span class="model-info">(' + rankStr + 'N=' + r.N + ' · avg=' + r.avg + ' <span class="' + cls + '">' + arrow + '</span>)</span>';
-                    }
+                    const infoStr = fmtInfo(r);
                     return '<div class="active-request">' +
                         '<span class="src-icon ' + srcCls + '">' + srcIcon + '</span>' +
                         '<span class="status">' + status + '</span>' +
@@ -1716,17 +1730,7 @@
                     const age = secs < 60 ? secs + 's fa' : Math.round(secs / 60) + 'm fa';
                     const srcIcon = r.source === 'training' ? '🏋️' : '🦌';
                     const srcCls = r.source === 'training' ? 'src-train' : 'src-zoo';
-                    let infoStr = '';
-                    if (r.trend === 'new') {
-                        infoStr = ' <span class="model-info new-badge">(new)</span>';
-                    } else if (Number(r.N) < 1) {
-    infoStr = ' <span class="model-info" style="color:#8b949e">(test · N=' + r.N + ')</span>';
-} else if (r.avg != null) {
-                        const rankStr = r.rank ? '#' + r.rank + ' · ' : '';
-                        const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
-                        const cls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
-                        infoStr = ' <span class="model-info">(' + rankStr + 'N=' + r.N + ' · avg=' + r.avg + ' <span class="' + cls + '">' + arrow + '</span>)</span>';
-                    }
+                    const infoStr = fmtInfo(r);
                     return '<div class="active-request recent">' +
                         '<span class="src-icon ' + srcCls + '">' + srcIcon + '</span>' +
                         '<span class="status">' + status + '</span>' +
@@ -1890,9 +1894,9 @@
             <h4>❤️ Sostieni il Progetto</h4>
             <p class="dev-muted">Se trovi utile questo progetto, considera di supportarne lo sviluppo.</p>
             <div class="dev-links-row">
-                <a href="https://www.paypal.com/paypalme/cherrug" target="_blank" class="dev-btn dev-btn-paypal">💙 PayPal</a>
-                <a href="https://ko-fi.com/cherrug" target="_blank" class="dev-btn dev-btn-kofi">☕ Ko-fi</a>
-                <a href="https://www.buymeacoffee.com/cherrug" target="_blank" class="dev-btn dev-btn-bmc">🧋 Buy me a coffee</a>
+                <a href="https://paypal.me/banditproxysupport" target="_blank" class="dev-btn dev-btn-paypal">💙 PayPal</a>
+                <a href="https://ko-fi.com/omniroutebanditproxy" target="_blank" class="dev-btn dev-btn-kofi">☕ Ko-fi</a>
+                <a href="https://buymeacoffee.com/banditproxysupport" target="_blank" class="dev-btn dev-btn-bmc">🧋 Buy me a coffee</a>
             </div>
             <hr class="dev-divider">
             <h4>🛠 Link di Supporto</h4>
