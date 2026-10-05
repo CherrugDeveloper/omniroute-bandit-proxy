@@ -156,6 +156,13 @@ export class DiscountedUCB1Bandit {
       console.log("[BANDIT] Migrazione: aggiungo is_paid a models");
       try {
         this.db.exec(`ALTER TABLE models ADD COLUMN is_paid INTEGER DEFAULT 0`);
+      // Migrazione: colonna dynamic_max_tokens (limite TPM/ITPM appreso dagli errori 413)
+      const modelCols = this.db.prepare("PRAGMA table_info(models)").all();
+      const hasDynMax = modelCols.some(col => col.name === "dynamic_max_tokens");
+      if (!hasDynMax) {
+        this.db.exec(`ALTER TABLE models ADD COLUMN dynamic_max_tokens INTEGER DEFAULT 0`);
+        console.log("[BANDIT] Migrazione: aggiungo dynamic_max_tokens a models");
+      }
       } catch (err) {
         console.error("[BANDIT] Errore aggiunta colonna is_paid:", err.message);
         throw err;
@@ -522,18 +529,6 @@ export class DiscountedUCB1Bandit {
       const excludeModelsFilter = excludeModels.length > 0
       ? `AND c.id NOT IN (${excludeModels.map(m => `'${m.replace(/'/g, "''")}'`).join(",")})`
       : "";
-      // Modelli con TPM account-level noto basso (es. Groq free tier = 8k TPM).
-      // Se il contesto stimato li supera, escludili: sarebbe 413 garantito.
-      const LOW_TPM_THRESHOLD = parseInt(process.env.LOW_TPM_THRESHOLD || "7000", 10);
-      const lowTpmList = String(process.env.LOW_TPM_MODELS || "groq/openai/gpt-oss-20b,groq/openai/gpt-oss-120b")
-        .split(",").map(s => s.trim()).filter(Boolean);
-      const lowTpmFilter = (estimatedTokens > LOW_TPM_THRESHOLD && lowTpmList.length > 0)
-        ? `AND c.id NOT IN (${lowTpmList.map(m => `'${m.replace(/'/g, "''")}'`).join(",")})`
-        : "";
-      const thinkingFilter = this.excludeThinking
-        ? "AND c.id NOT LIKE '%thinking%' AND c.id NOT LIKE '%reasoning%' AND c.id NOT LIKE '%-think%' AND c.id NOT LIKE '%max-prime%' AND c.id NOT LIKE '%-ultra%'"
-        : "";
-
       const modelsStmt = this.db.prepare(`
         SELECT c.id, c.provider,
                COALESCE(m.N, 0)             AS N,
@@ -544,6 +539,13 @@ export class DiscountedUCB1Bandit {
                COALESCE(m.last_used_index,0) AS last_used_index,
                COALESCE(p.pointer, 0)       AS provider_pointer,
                COALESCE(c.max_input_tokens, 0) AS max_input_tokens,
+               COALESCE(c.is_free, 0)       AS is_free,
+               COALESCE(c.max_input_tokens, 0) AS max_input_tokens,
+               CASE
+                 WHEN COALESCE(m.dynamic_max_tokens, 0) = 0 THEN COALESCE(c.max_input_tokens, 0)
+                 WHEN COALESCE(c.max_input_tokens, 0) = 0 THEN COALESCE(m.dynamic_max_tokens, 0)
+                 ELSE MIN(COALESCE(c.max_input_tokens, 0), COALESCE(m.dynamic_max_tokens, 0))
+               END AS effective_max_tokens,
                COALESCE(c.is_free, 0)       AS is_free,
                COALESCE(m.degraded, 0)      AS degraded,
                COALESCE(m.is_paid, 0)       AS is_paid,
@@ -557,14 +559,13 @@ export class DiscountedUCB1Bandit {
           AND (m.cooldown_until IS NULL OR m.cooldown_until < ?)
           AND (m.permanent IS NULL OR m.permanent = 0)
           AND (p.needs_attention IS NULL OR p.needs_attention = 0)
-          AND (c.max_input_tokens = 0 OR c.max_input_tokens >= ?)
+          AND (effective_max_tokens = 0 OR effective_max_tokens >= ?)
           ${paidFilter}
           ${freeFilter}
           ${thinkingFilter}
           ${exploitFilter}
           ${toolsFilter}
           ${fimFilter}
-          ${lowTpmFilter}
         ORDER BY
           CASE WHEN COALESCE(m.last_used_index,0) >= COALESCE(p.pointer,0) THEN 1 ELSE 0 END,
           COALESCE(m.last_used_index,0) ASC,
@@ -574,7 +575,7 @@ export class DiscountedUCB1Bandit {
       let anyResults = false;
 
       for (const provider of providerList) {
-        const providerModels = modelsStmt.all(provider, now, estimatedTokens);
+      const providerModels = modelsStmt.all(provider, now, estimatedTokens);
         if (providerModels.length > 0) anyResults = true;
 
         for (const m of providerModels) {
@@ -668,6 +669,48 @@ export class DiscountedUCB1Bandit {
     const source = opts.source === 'training' ? 'training' : 'prod';
 
     if (source === 'training') {
+      // Anche in training, classifichiamo gli errori per marcare provider
+      // problematici in `provider_history`. Non tocchiamo `models` (isolato),
+      // ma il provider sì: così al ciclo successivo non lo ritentiamo.
+      // Il sistema impara dagli errori reali — nessun filtro hardcoded.
+      if (!success && errorDetails && typeof errorDetails === "object") {
+        const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
+        const provider = cat?.provider || null;
+        if (provider) {
+          const c = this._classifyError(errorDetails, provider);
+          switch (c.action) {
+            case "ban-provider":
+              console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
+              this._banProvider(provider);
+              break;
+            case "cooldown-provider":
+              console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
+              if (c.reason === "no-credit" || /402|payment|credit|funds/i.test(String(errorDetails?.status || "") + " " + String(errorDetails?.message || ""))) {
+                this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(modelId);
+              }
+              this._forceProviderCooldown(provider, c.cooldownMs, c.reason);
+              break;
+            case "cooldown-paid-only":
+              this._cooldownPaidOnly(provider, c.cooldownMs);
+              break;
+            case "flag-provider":
+              console.log(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
+              this._flagProviderAttention(provider, c.reason, errorDetails.message || errorDetails.error || "");
+              break;
+            case "cooldown-model": {
+              // In training, un 5xx/timeout su un modello è segnale che il provider
+              // potrebbe essere rotto. Accumula fail-provider (counter in provider_history).
+              // Dopo N fail, il provider va in cooldown lungo automaticamente.
+              const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
+              if (isTransient) {
+                this._recordProviderFailureGeneric(provider, 30 * 60 * 1000);
+                console.log(`[BANDIT-TRAIN] ${modelId}: ${c.reason} → provider fail accumulato`);
+              }
+              break;
+            }
+          }
+        }
+      }
       return this._recordTrainingFeedback(modelId, success, reward);
     }
 
@@ -711,10 +754,23 @@ export class DiscountedUCB1Bandit {
 
         // skip-feedback (es. input-too-long): il modello è OK, solo la richiesta è grande.
         // Non tocca DB, non penalizza.
+        // skip-feedback (es. input-too-long): il modello è OK, solo la richiesta è grande.
+        // Non tocca DB, non penalizza — MA apprende il limite reale dal 413.
         if (c.action === "skip-feedback") {
+          if (c.reason === "request-too-large" && c.learnedLimit > 0) {
+            // Salva il limite minimo appreso (mai alzare, solo abbassare)
+            this.db.prepare(`
+              UPDATE models
+              SET dynamic_max_tokens = CASE
+                WHEN dynamic_max_tokens = 0 OR dynamic_max_tokens > ? THEN ?
+                ELSE dynamic_max_tokens
+              END
+              WHERE id = ?
+            `).run(c.learnedLimit, c.learnedLimit, modelId);
+            console.log(`[BANDIT] ${modelId}: appreso limite TPM=${c.learnedLimit} (dinamico)`);
+          }
           return;
         }
-
         switch (c.action) {
           case "ban-model":
             permanentBan = true;
@@ -1072,7 +1128,14 @@ _classifyError(errorDetails, providerName = null) {
     }
     // 413 / ITPM / Request too large → skip (non è colpa del modello, la richiesta è troppo grande)
     if (/413|ITPM|TPM|tokens per minute|input tokens per minute|Request too large|Requested \d+.*Limit \d+/i.test(msg)) {
-      return { action: "skip-feedback", reason: "request-too-large" };
+      // Estrai il limite dal messaggio (es. "Limit 7000" o "TPM): Limit 8000")
+      const m = msg.match(/limit[:\s]+(\d+)/i) || msg.match(/(\d+)\s*(?:tokens|tok)\s*per\s*minute/i);
+      const learnedLimit = m ? parseInt(m[1], 10) : 0;
+      return { action: "skip-feedback", reason: "request-too-large", learnedLimit };
+    }
+    // Tool error rilevato dal client (Zoo) — il modello ha prodotto un tool_call fallito
+    if (/edit unsuccessful|no sufficiently similar|repetition limit|apply_diff.*fail|tool.*fail|tool.*error/i.test(msg)) {
+      return { action: "cooldown-model", reason: "tool-error", cooldownMs: 5 * 60 * 1000 }; // 5 min
     }
     if (!errorDetails || typeof errorDetails !== "object") {
       return { scope: "model", action: "cooldown-model", cooldownMs: 60 * 60000, reason: "no-details" };
