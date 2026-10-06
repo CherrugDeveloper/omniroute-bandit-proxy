@@ -405,12 +405,44 @@ function computeToolRewardMultiplier(toolNames, hasWrittenInSession) {
 function sessionHasWritten(messages) {
   const writeTools = new Set(['apply_diff','write_to_file','replace_in_file',
                               'execute_command','insert_content']);
-  for (const m of messages || []) {
+  const msgs = messages || [];
+
+  // Pass 1: raccogli gli id dei tool_call di scrittura
+  const writeCallIds = new Set();
+  for (const m of msgs) {
     if (m.role !== 'assistant' || !Array.isArray(m.tool_calls)) continue;
     for (const tc of m.tool_calls) {
       const name = (tc.function?.name || tc.name || '').toLowerCase();
-      if (writeTools.has(name)) return true;
+      if (writeTools.has(name) && tc.id) writeCallIds.add(tc.id);
     }
+  }
+
+  // Fallback legacy: nessun id → comportamento originale (qualsiasi write call → true)
+  if (writeCallIds.size === 0) {
+    for (const m of msgs) {
+      if (m.role !== 'assistant' || !Array.isArray(m.tool_calls)) continue;
+      for (const tc of m.tool_calls) {
+        const name = (tc.function?.name || tc.name || '').toLowerCase();
+        if (writeTools.has(name)) return true;
+      }
+    }
+    return false;
+  }
+
+  // Pass 2: cerca i tool_result associati e marca quelli falliti
+  const FAIL_RE = /unable to apply all diff|unable to apply any part|no sufficiently similar|edit unsuccessful/i;
+  const failedIds = new Set();
+  for (const m of msgs) {
+    if (m.role !== 'tool') continue;
+    const id = m.tool_call_id || m.toolCallId;
+    if (!id || !writeCallIds.has(id)) continue;
+    const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
+    if (FAIL_RE.test(c)) failedIds.add(id);
+  }
+
+  // True se almeno un write call NON è fallito
+  for (const id of writeCallIds) {
+    if (!failedIds.has(id)) return true;
   }
   return false;
 }
@@ -795,7 +827,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
     // Salta l'ultimo messaggio con environment_details
     if (/<environment_details>/i.test(c) && /Current Time/i.test(c)) continue;
-    if (/edit unsuccessful|no sufficiently similar|repetition limit|apply_diff.{0,50}(fail|error|unsuccessful)/i.test(c)) {
+      if (/edit unsuccessful|no sufficiently similar|repetition limit|unable to apply all diff|apply_diff.{0,50}(fail|error|unsuccessful)/i.test(c)) {
       isStruggling = true; strugglingReason = 'apply_diff fail'; break;
     }
     if (/tool (execution )?failed|tool.{0,20}(error|abort)/i.test(c)) {
