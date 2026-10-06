@@ -802,6 +802,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // Header x-force-model: bypassa UCB1 al primo tentativo (per training manuale)
   const forceModel = (req.get("x-force-model") || "").trim();
   const feedbackSource = (req.get("x-source") || "").toLowerCase() === "training" ? "training" : "prod";
+  // Initialize attempt counter before session affinity code that references it
+  let attempt = 0;
     // === Session key per affinity ===
   const sessionKey = computeSessionKey(req.body?.messages);
   if (sessionKey) {
@@ -925,7 +927,6 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   if (requireTools) {
     console.log(`[TOOLS] Richiesta con ${req.body.tools.length} tools → solo modelli tool-capable`);
   }
-  let attempt = 0;
   const cooledDownThisRequest = new Set();
   let controller = null;
   // Timer streaming — dichiarati fuori da if(stream) così il catch esterno può accedervi
@@ -1170,6 +1171,18 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             if (entry && entry.model === model) {
               sessionModels.delete(sessionKey);
               console.log(`[AFFINITY] ✗ pin ${model} rimosso (contesto troppo grande per il modello)`);
+            }
+          }
+        }
+        
+        // 400 / Context window exceeded: il modello non può gestire il contesto.
+        // Rimuovi il pin per evitare di riprovare lo stesso modello al prossimo turno.
+        if (r.status === 400 && /context window|input tokens.*exceed|too large.*context/i.test(txt)) {
+          if (sessionKey) {
+            const entry = sessionModels.get(sessionKey);
+            if (entry && entry.model === model) {
+              sessionModels.delete(sessionKey);
+              console.log(`[AFFINITY] ✗ pin ${model} rimosso (context window exceeded)`);
             }
           }
         }

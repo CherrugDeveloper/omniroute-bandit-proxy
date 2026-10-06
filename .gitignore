@@ -34,6 +34,7 @@ data/
 Thumbs.db
 .idea/
 .vscode/
+! .vscode/extensions.json
 
 # Test & coverage artifacts
 coverage/
@@ -52,3 +53,6 @@ build/
 # Local agent / runtime dirs
 .roo-logs/
 
+
+# Python virtual environments
+venv/

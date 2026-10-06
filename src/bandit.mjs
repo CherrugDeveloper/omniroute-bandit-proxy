@@ -1,5 +1,8 @@
 import Database from "better-sqlite3";
 import { profileMultiplier } from './modes-registry.mjs';
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 
 export class DiscountedUCB1Bandit {
@@ -21,7 +24,10 @@ export class DiscountedUCB1Bandit {
 
   getFallbackModels() {
     try {
-      const config = require("../config/bandit.json");
+      const modulePath = fileURLToPath(import.meta.url);
+      const configPath = path.join(path.dirname(modulePath), "..", "config", "bandit.json");
+      const configContent = fs.readFileSync(configPath, "utf8");
+      const config = JSON.parse(configContent);
       return config.fallbackModels || [];
     } catch (err) {
       console.error("[BANDIT] Error reading fallback config:", err.message);
@@ -805,8 +811,30 @@ export class DiscountedUCB1Bandit {
   }
 
   estimateTokens(body) {
-    // Implementazione placeholder
-    return 100;
+    // Implementazione realistica: stima approssimativa del numero di token
+    if (!body || typeof body !== "object") return 0;
+    
+    // Conta i messaggi
+    const messages = body.messages || [];
+    let totalChars = 0;
+    
+    for (const msg of messages) {
+      if (typeof msg.content === "string") {
+        totalChars += msg.content.length;
+      } else if (Array.isArray(msg.content)) {
+        // Per i messaggi con contenuti multimodali, stima approssimativa
+        for (const part of msg.content) {
+          if (part.text) totalChars += part.text.length;
+          if (part.type === "image_url") totalChars += 1000; // Stima approssimativa per immagine
+        }
+      } else {
+        // Fallback: converti in JSON
+        totalChars += JSON.stringify(msg.content).length;
+      }
+    }
+    
+    // Conversione approssimativa da caratteri a token (media ~4 caratteri per token)
+    return Math.ceil(totalChars / 4);
   }
 
   maxCatalogInput() {
@@ -839,7 +867,7 @@ export class DiscountedUCB1Bandit {
 
     // Get all models from catalog that are available
     const catalogModels = this.db.prepare(`
-      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent
+      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools
       FROM catalog c
     `).all();
 
@@ -860,10 +888,14 @@ export class DiscountedUCB1Bandit {
     }
     const models = Array.from(modelMap.values());
 
+    // Log filter criteria for debugging
+    console.log(`[BANDIT] selectModel: estimatedTokens=${estimatedTokens} requireTools=${requireTools} excluded=${[...excludeSet].join(",")} profile=${profile}`);
+
     // Filter out models that are unavailable
     const availableModels = models.filter(model => {
       // Skip if model is in cooldown
       if (model.cooldown_until && model.cooldown_until > now) {
+        console.log(`[BANDIT] Filter ${model.id}: in cooldown`);
         return false;
       }
       // Check provider status: cooldown, permanent, needs_attention
@@ -871,16 +903,41 @@ export class DiscountedUCB1Bandit {
         `SELECT cooldown_until, permanent, needs_attention FROM provider_history WHERE provider = ?`
       ).get(model.provider);
       if (prov) {
-        if (prov.cooldown_until > now) return false;
-        if (prov.permanent === 1) return false;
-        if (prov.needs_attention === 1) return false;
+        if (prov.cooldown_until > now) {
+          console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} in cooldown`);
+          return false;
+        }
+        if (prov.permanent === 1) {
+          console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} permanently banned`);
+          return false;
+        }
+        if (prov.needs_attention === 1) {
+          console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} needs attention`);
+          return false;
+        }
       }
       // Skip if permanently banned at model level
       if (model.permanent === 1) {
+        console.log(`[BANDIT] Filter ${model.id}: permanently banned`);
         return false;
       }
       // Skip if in exclude set
       if (excludeSet.has(model.id)) {
+        console.log(`[BANDIT] Filter ${model.id}: in excluded set`);
+        return false;
+      }
+      // Skip if model can't handle the estimated tokens
+      if (estimatedTokens > 0) {
+        const maxInput = model.max_input_tokens || 0;
+        // Allow 10% margin for estimation error
+        if (maxInput > 0 && estimatedTokens > maxInput * 1.1) {
+          console.log(`[BANDIT] Filter ${model.id}: estimatedTokens=${estimatedTokens} > max_input_tokens=${maxInput}`);
+          return false;
+        }
+      }
+      // Skip if model doesn't support tools and tools are required
+      if (requireTools && !(model.supports_tools || 0)) {
+        console.log(`[BANDIT] Filter ${model.id}: requires tools but doesn't support them`);
         return false;
       }
       return true;
