@@ -933,6 +933,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let hardCapTimer = null;
   let lastMeaningfulByte = Date.now();
   let timeoutHandle = null;
+  let retryDelay = 0; // Exponential backoff delay in milliseconds
 
   const providerCount = bandit.getProviderCount();
   const maxAttempts = forceModel ? 1 : Math.min(500, providerCount * 4 + 100);
@@ -969,11 +970,27 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
   });
 
+  let retriesExhausted = false;
   while (++attempt <= maxAttempts) {
     if (clientDisconnected) {
       console.log(`[BANDIT] Client disconnesso, stop retry (dopo ${attempt - 1} tentativi)`);
       cleanup();
       return;
+    }
+    
+    // Trigger fallback if retries are exhausted for felo/* models
+    if (retriesExhausted && model.startsWith('felo/')) {
+      const fallbackModels = bandit.getFallbackModels();
+      if (fallbackModels.length > 0) {
+        const fallbackModel = fallbackModels[0];
+        console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${fallbackModel} due to retries exhausted for ${model}`);
+        model = fallbackModel;
+        retriesExhausted = false; // Reset flag after fallback
+      } else {
+        console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
+        cleanup();
+        return res.status(503).json({ error: { message: "No models available", status: 503 } });
+      }
     }
     if (Date.now() - startedAt > MAX_TOTAL_MS) {
       console.warn(`[BANDIT] Limite tempo totale (${MAX_TOTAL_MS}ms) raggiunto dopo ${attempt} tentativi`);
@@ -1050,13 +1067,23 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
 }
     if (!model) {
-      console.warn(`[BANDIT] 503: nessun modello disponibile (requireTools=${requireTools}, tokens=${estimatedTokens}, attempt=${attempt})`);
+      console.warn(`[BANDIT] Attempt ${attempt}: No available models (requireTools=${requireTools}, tokens=${estimatedTokens})`);
       notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
         estimatedTokens,
         attempt
       }).catch(() => {});
-      cleanup();
-      return res.status(503).json({ error: { message: "No models available", status: 503 } });
+       
+      // Check if fallback models are available
+      const fallbackModels = bandit.getFallbackModels();
+      if (fallbackModels.length > 0) {
+        const fallbackModel = fallbackModels[0];
+        console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${fallbackModel} due to no available models`);
+        model = fallbackModel;
+      } else {
+        console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
+        cleanup();
+        return res.status(503).json({ error: { message: "No models available", status: 503 } });
+      }
     }
 
     console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt})`);
@@ -1122,6 +1149,16 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource });
 
+        // Parse Retry-After header for 429 errors
+        let retryAfter = 0;
+        if (r.status === 429) {
+          const retryAfterHeader = r.headers.get('Retry-After');
+          if (retryAfterHeader) {
+            retryAfter = parseInt(retryAfterHeader, 10) * 1000; // Convert to milliseconds
+            console.log(`[RETRY] Retry-After header: ${retryAfterHeader}s → ${retryAfter}ms`);
+          }
+        }
+
         // 413 / ITPM / TPM / Request too large: il modello è OK ma non regge questo contesto.
         // Rimuovi il pin per evitare di riprovare lo stesso modello al prossimo turno.
         if (r.status === 413 || /ITPM|TPM|input tokens per minute|Request too large|Requested \d+.*Limit \d+/i.test(txt)) {
@@ -1134,8 +1171,18 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           }
         }
 
+        // Exponential backoff for 429 errors (only for felo/* models)
+            if (r.status === 429 && model.startsWith('felo/')) {
+              const baseDelay = Math.max(retryAfter, retryDelay);
+              const exponentialFactor = Math.pow(2, attempt - 1);
+              retryDelay = Math.min(baseDelay * exponentialFactor, 60000); // Cap at 60 seconds
+              console.log(`[RETRY] Attempt ${attempt}: 429 Error for ${model}. Retrying in ${retryDelay}ms (Retry-After: ${retryAfter}ms, exponential factor: ${exponentialFactor}x)`);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+            }
+
         noteProviderFail(model);
         excluded.add(model);
+        console.log(`[FAILURE] Attempt ${attempt}: ${model} failed with status ${r.status}. Error: ${txt.slice(0, 100)}`);
         trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
         continue;
       }

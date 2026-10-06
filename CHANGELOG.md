@@ -2,6 +2,17 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.0.12 — 2026-10-06
+- **HTTP 429 Rate Limit Handling**:
+  - **Summary**: Implemented robust retry logic with exponential backoff to handle HTTP 429 rate limit errors. Added fallback mechanisms to alternative models (e.g., `mistral/ministral-8b-latest`, `groq/allam-2-7b`) and updated the Bandit algorithm to penalize or ban models that repeatedly hit rate limits.
+  - **Changes Made**:
+    - Retry logic with exponential backoff in `src/bandit.mjs` and `src/index.mjs`.
+    - Fallback mechanism to switch to alternative models.
+    - Bandit algorithm updates to penalize or ban models that repeatedly hit rate limits.
+    - Parsing and using `Retry-After` headers for API compliance.
+    - Detailed logging for retries, failures, and fallback selections.
+  - **Tests Added**: Added `tests/bandit.test.cjs` to validate retry logic, fallback behavior, and rate limit handling.
+
 ## v1.0.11 — 2026-10-06
 - Fix critico: cooldown provider asimmetrico → i modelli restavano congelati
 - `_forceProviderCooldown` aggiornava i modelli, ma lo sblocco azzerava solo `provider_history`

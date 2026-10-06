@@ -1,16 +1,6 @@
 {
-  "algorithm": "epsilon-greedy",
-  "epsilon": 0.1,
-  "backends": [
-    {
-      "id": "backend-a",
-      "url": "http://localhost:8001",
-      "weight": 1
-    },
-    {
-      "id": "backend-b",
-      "url": "http://localhost:8002",
-      "weight": 1
-    }
+  "fallbackModels": [
+    "mistral/ministral-8b-latest",
+    "groq/allam-2-7b"
   ]
 }
