@@ -841,26 +841,29 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
   }
   if (isStruggling) {
-    console.log(`[AFFINITY] ⚠ sessione struggling (${strugglingReason})`);
+    console.log(`[AFFINITY] Attempt ${attempt}: ⚠ Session struggling (${strugglingReason})`);
   }
     // === LOOP DETECTION: 3+ ask_followup_question consecutivi negli assistant ===
-  let isAskLoop = false;
-  let loopModelHint = '';
-  {
-    const assistants = allMsgs.filter(m => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0);
-    const last3 = assistants.slice(-3);
-    if (last3.length === 3) {
-      const allAsks = last3.every(m => m.tool_calls.every(tc => {
-        const name = (tc.function?.name || tc.name || '').toLowerCase();
-        return name === 'ask_followup_question';
-      }));
-      if (allAsks) {
-        isAskLoop = true;
-        loopModelHint = 'ask_followup_question×3';
-        console.log(`[AFFINITY] ⚠ loop rilevato: 3 ask_followup_question consecutivi → cambio modello`);
+    let isAskLoop = false;
+    let loopModelHint = '';
+    {
+      const assistants = allMsgs.filter(m => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0);
+      const last3 = assistants.slice(-3);
+      if (last3.length === 3) {
+        const allAsks = last3.every(m => m.tool_calls.every(tc => {
+          const name = (tc.function?.name || tc.name || '').toLowerCase();
+          return name === 'ask_followup_question';
+        }));
+        if (allAsks) {
+          isAskLoop = true;
+          loopModelHint = 'ask_followup_question×3';
+          console.log(`[AFFINITY] Attempt ${attempt}: ⚠ Loop detected: 3 ask_followup_question consecutivi → changing model`);
+        }
       }
     }
-  }
+    if (isAskLoop) {
+      console.log(`[AFFINITY] Attempt ${attempt}: ⚠ Loop detected: 3 ask_followup_question consecutivi → changing model`);
+    }
   if (debugVerbose) {
     const lastMsg = allMsgs[allMsgs.length - 1];
     const lastContent = lastMsg?.content
@@ -1021,13 +1024,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       bl.set(entry.model, fails);
 
       const reason = isAskLoop ? `loop ${loopModelHint}` : 'struggling';
-      console.log(`[AFFINITY] ✗ unpin ${entry.model} (${reason}, ${fails}ª volta) → escludo e scelgo altro`);
-      excluded.add(entry.model);       // forzo UCB1 a sceglierne un altro
+      console.log(`[AFFINITY] Attempt ${attempt}: Unpin ${entry.model} (${reason}, ${fails}ª volta) → exclude and select another`);
+      excluded.add(entry.model);       // Force UCB1 to choose another
       sessionModels.delete(sessionKey);
 
-      // Ban solo se il modello ha fallito più volte o ha fatto un loop di domande
+      // Ban only if the model has failed multiple times or caused a loop
       if (fails >= 2 || isAskLoop) {
-        console.log(`[AFFINITY] 🚫 ${entry.model} BANNED nella sessione ${sessionKey.slice(0,8)} (${reason})`);
+        console.log(`[AFFINITY] Attempt ${attempt}: 🚫 ${entry.model} BANNED in session ${sessionKey.slice(0,8)} (${reason})`);
       }
     }
   }
