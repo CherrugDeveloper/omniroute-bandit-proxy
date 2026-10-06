@@ -771,9 +771,13 @@
             <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end;">
                 <input type="text" id="log-filter" placeholder="🔍 filtra..."
                     autocomplete="off"
-                    style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:220px;">
+                    style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:220px;"
+                    onfocus="this.value=''; renderFilteredLogs()">
                 <label style="font-size:11px; color:#3fb950; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
                     <input type="checkbox" id="log-show-zoo" checked> ZOO
+                </label>
+                <label style="font-size:11px; color:#ff5858; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-debug" checked> DEBUG
                 </label>
                 <label style="font-size:11px; color:#58a6ff; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
                     <input type="checkbox" id="log-show-train" checked> TRAIN
@@ -781,7 +785,25 @@
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
         </div>
-        <pre id="logs">Attendendo log...</pre>
+        <pre id="logs" style="color:#c9d1d9;">Attendendo log...</pre>
+        <style>
+            .log-line {
+                display: block;
+                margin-bottom: 2px;
+            }
+            .log-line.zoo {
+                color: #3fb950;
+            }
+            .log-line.train {
+                color: #58a6ff;
+            }
+            .log-line.debug {
+                color: #ff5858;
+            }
+            .log-line.system {
+                color: #c9d1d9;
+            }
+        </style>
     </div>
 
     <div id="tab-models" class="tab-content">
@@ -1766,6 +1788,12 @@
             const filter = (document.getElementById('log-filter')?.value || '').toLowerCase();
             const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
             const showTrain = document.getElementById('log-show-train')?.checked ?? true;
+            const showDebug = document.getElementById('log-show-debug')?.checked ?? true;
+            
+            // Richiama renderFilteredLogs() quando le checkbox vengono modificate
+            document.getElementById('log-show-zoo')?.addEventListener('change', renderFilteredLogs);
+            document.getElementById('log-show-train')?.addEventListener('change', renderFilteredLogs);
+            document.getElementById('log-show-debug')?.addEventListener('change', renderFilteredLogs);
 
             // Tagga ogni riga. Priorità:
             // 1. Marker espliciti nella riga ([TRAIN], [ZOO], [BANDIT-TRAIN])
@@ -1787,6 +1815,8 @@
                     src = 'train';
                 } else if (/\[ZOO\]/.test(s)) {
                     src = 'zoo';
+                } else if (/\[DEBUG\]/.test(s) || /\/debug\/\w+/.test(s) || /debug\s*:/.test(s)) {
+                    src = 'debug';
                 }
                 tagged.push({ line: s, source: src });
             }
@@ -1794,14 +1824,23 @@
             let filtered = tagged;
             if (!showZoo) filtered = filtered.filter(t => t.source !== 'zoo');
             if (!showTrain) filtered = filtered.filter(t => t.source !== 'train');
+            if (!showDebug) filtered = filtered.filter(t => t.source !== 'debug');
             if (filter) filtered = filtered.filter(t => t.line.toLowerCase().includes(filter));
 
+            // Color and format the logs
+            const formattedLogs = filtered.map(t => {
+                const line = t.line;
+                const source = t.source;
+                const className = source ? `log-line ${source}` : 'log-line system';
+                return `<span class="${className}">${line}</span>`;
+            }).join('\n');
+            
             const wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
-            el.textContent = filtered.length > 0 ? filtered.map(t => t.line).join('\n') : 'Nessun log corrispondente.';
+            el.innerHTML = filtered.length > 0 ? formattedLogs : 'Nessun log corrispondente.';
             if (wasAtBottom) el.scrollTop = el.scrollHeight;
         }
         // Aggiorna log quando cambiano i filtri
-        ['log-filter', 'log-show-train', 'log-show-zoo'].forEach(id => {
+        ['log-filter', 'log-show-train', 'log-show-zoo', 'log-show-debug'].forEach(id => {
             document.getElementById(id)?.addEventListener('input', () => {
                 renderFilteredLogs();
                 fetchActive();   // <-- aggiorna anche "In corso"
