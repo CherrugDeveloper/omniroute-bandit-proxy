@@ -26,6 +26,29 @@ training.log
 # Config machine-specific (signature calcolate dai prompt locali)
 config/modes.signatures.json
 config/modes.discovered.json
-
 # Data directory (mount docker / runtime)
 data/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Test & coverage artifacts
+coverage/
+.nyc_output/
+.eslintcache
+
+# Build output
+dist/
+build/
+
+# Temp / backup files
+*.tmp
+*.swp
+*~
+
+# Local agent / runtime dirs
+.roo-logs/
+

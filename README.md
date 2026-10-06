@@ -1,158 +1,54 @@
 # OmniRoute Bandit Proxy
 
-Reverse proxy in Node.js che distribuisce dinamicamente il traffico chat verso i modelli di un gateway **OmniRoute** (o qualsiasi gateway OpenAI-compatibile), usando un algoritmo **Multi-Armed Bandit** (Discounted UCB1).
+## Panoramica
 
-Impara dalle risposte: premia i modelli veloci e affidabili, mette in cooldown quelli che falliscono, disabilita quelli rotti, e cerca sempre il miglior modello disponibile nel momento.
+OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensione Zoo Code di VS Code e il proxy omniroute. Fornisce funzionalità di gestione dei modelli per Zoo Code, con un algoritmo di selezione dei modelli basato su bandit e un sistema di scoring.
 
-## Caratteristiche
+## Caratteristiche Principali
 
-- **Discounted UCB1**: bilancia esplorazione e sfruttamento, con reward basato sulla latenza
-- **Session Affinity**: pinna un modello per conversazione — Zoo Code non perde stato (artifact_id, apply_diff context)
-- **Mode/Profile system**: riconosce 14 modalità Zoo Code e usa il profilo corretto per guidare la selezione
-- **Soft bias profilo↔modello**: `code` preferisce code model, `reasoning` preferisce thinking, `summarizer` preferisce modelli veloci
-- **Catalog separato**: i ~1900 modelli OmniRoute sono in una tabella `catalog`, filtrati per capability chat
-- **Lazy registration**: un modello entra in `models` solo la prima volta che viene usato
-- **Classificatore errori**: distingue ban permanente, cooldown provider, cooldown modello, misconfigurazione
-- **Circuit breaker**: 3 fail stesso provider → cooldown, evita cascate di errori
-- **Training isolation**: il training daemon scrive in `models_train` (separata), non inquina il bandit di produzione
-- **Needs attention**: i provider con problemi di configurazione (auth, CLI, Playwright) sono marcati e gestibili manualmente
-- **Dashboard web** con contatori live, log in streaming, tab Modalità, flat mode sorting, toggle debug
-- **Auth token** sulle API di controllo
-- **Persistenza SQLite** di tutto lo stato (modelli, provider, contatori, training)
-- **Streaming SSE** end-to-end con idle timeout content-based + hard cap
-- **Retry loop** con limite dinamico e timeout totale
-- **Graceful shutdown** su SIGTERM/SIGINT
-- **Resiliente ai bug**: `unhandledRejection` non termina più il processo (conta e resiste a 20 errori/60s)
+### 1. Algoritmo Bandit
+- **UCB1 con discount**: Selezione dei modelli con esplorazione-esploitation bilanciata
+- **Aggiornamento con discount**: Dà più peso alle osservazioni recenti
+- **Sistema di reward**: `reward = max(0, 1.0 - durata_sec / 30)`
+- **Classificazione errori**: 404, timeout, 5xx, rate limit, ban permanente, ecc.
 
-## Configurazione
+### 2. Gestione dei Modelli
+- **Catalogo**: Pool completo dei modelli disponibili (ricostruito ad ogni avvio)
+- **Modelli**: Modelli provati almeno una volta (N, sum_reward, fails, cooldown, permanent, degraded)
+- **Modelli training**: Statistiche training (isolate da modelli - non inquinano UCB1 prod)
+- **Provider history**: Stato per provider (fails, cooldown, permanent, needs_attention, pointer)
 
-Copia il template e compila i valori:
+### 3. Session Affinity
+- **Pin session**: Calcola `sessionKey = md5(system_prompt + primo_user_message)`
+- **TTL 30 min**: Pin valido per 30 minuti
+- **Invalidazione pin**: Se il modello pinnato fallisce (5xx, timeout), il pin viene rimosso
 
-    cp .env.example .env
+### 4. Sistema di Modalità
+- **14 modalità Zoo Code**: Riconosce le modalità di Zoo Code analizzando il system prompt
+- **Profili soft bias**: Moltiplicatore sullo score UCB1 per ogni profilo
+- **Auto-discovery**: Prompt mai visti → salvati in `config/modes.discovered.json`
 
-### Variabili d'ambiente
+### 5. Dashboard
+- **Live Logs**: Streaming aggiornato ogni secondo
+- **Metriche**: Richieste, osservazioni, modelli, provider, errori
+- **Modalità**: Signature attive + discovery in attesa
 
-| Variabile | Default | Descrizione |
-|-----------|---------|-------------|
-| `OMNIROUTE_API_KEY` | - | **Obbligatoria.** Chiave API del gateway OmniRoute |
-| `OMNIROUTE_BASE_URL` | `https://router.omniroute.ai/v1` | Base URL del gateway |
-| `PORT` | `8080` | Porta HTTP del proxy |
-| `UPSTREAM_TIMEOUT_MS` | `20000` | Timeout di connessione (primi byte) |
-| `STREAM_IDLE_MS` | `60000` | Idle timeout **content-based** durante streaming (ignora ping SSE) |
-| `STREAM_MAX_MS` | `180000` | Hard cap assoluto streaming (3 min) |
-| `MAX_TOTAL_MS` | `600000` | Timeout totale per l'intero retry loop (10 min) |
-| `DATABASE_PATH` | `bandit.db` | Percorso del file SQLite |
-| `DASHBOARD_TOKEN` | (vuoto) | Se valorizzato, protegge le API di controllo |
-| `EXPLOIT_ONLY` | `false` | Se `true`, solo modelli con N ≥ 3 (modalità prod) |
-| `EXCLUDE_THINKING` | `false` | Se `true`, esclude modelli thinking/reasoning |
-| `ONLY_FREE` | `false` | Se `true`, solo modelli gratuiti |
-| `EXCLUDE_PAID` | `false` | Se `true`, esclude modelli `is_paid=1` |
-| `EXCLUDE_PROVIDERS` | (vuoto) | Lista provider da escludere (es. `gemini,felo`) |
-| `HEALTH_CHECK_ENABLED` | `true` | Attiva health check attivo ogni 10 min |
+### 6. Comportamento del Bandit
 
-**Mai committare `.env`**: e' gia in `.gitignore`.
-
-## Avvio
-
-    npm start
-
-## API
-
-### Proxy (pubblico)
-
-#### POST /v1/chat/completions
-
-Stessa interfaccia di OpenAI. Il campo `model` **viene ignorato** e sostituito dal modello scelto dal bandit.
-
-    curl -X POST http://127.0.0.1:8080/v1/chat/completions \
-      -H "Content-Type: application/json" \
-      -d '{"model":"any","messages":[{"role":"user","content":"ciao"}],"stream":false}'
-
-Supporta sia `stream: true` (SSE) sia `stream: false` (JSON).
-
-**Header opzionali**:
-- `x-force-model: <nome>` — bypassa UCB1 al primo tentativo (per training/debug)
-- `x-source: training` — scrive feedback in `models_train` invece di `models`
-- `x-auto-compress: true` — abilita compressione contesto se `estimatedTokens > maxCatalog`
-
-### Control API (protette da `DASHBOARD_TOKEN`)
-
-Se `DASHBOARD_TOKEN` e' vuoto, queste API sono **esposte senza auth** - sconsigliato in produzione.
-
-| Endpoint | Metodo | Descrizione |
-|----------|--------|-------------|
-| `/v1/metrics` | GET | Statistiche complete (richieste, modelli, provider, catalog) |
-| `/v1/logs` | GET | Ultimi 200 log (ring buffer) |
-| `/v1/active` | GET | Richieste in corso (in-flight) |
-| `/v1/inflight` | GET | Contatore in-flight (per training daemon, senza auth) |
-| `/v1/sessions` | GET | Lista sessioni affinity attive |
-| `/v1/sessions/:key` | DELETE | Forza unpin di una sessione |
-| `/v1/modes` | GET | Statistiche mode + discovery in attesa |
-| `/v1/modes/signatures` | GET | Signature mode attive |
-| `/v1/modes/label` | POST | Etichetta un discovered (`{sig, name, profile}`) |
-| `/v1/modes/discovered/:sig` | DELETE | Scarta un discovered |
-| `/v1/debug/status` | GET | Stato debug verbose |
-| `/v1/debug/toggle` | POST | Attiva/disattiva debug (`{verbose: bool}`) |
-| `/v1/reset/model/:id` | POST | Reset di un modello (fails, cooldown, last_used_index) |
-| `/v1/reset/provider/:name` | POST | Reset di un provider e dei suoi modelli |
-| `/v1/provider/retry/:name` | POST | Sblocca un provider marcato `needs_attention` o `permanent` |
-| `/v1/provider/ignore/:name` | POST | Disabilita permanentemente un provider |
-
-Tutte (tranne `/v1/inflight`) richiedono l'header:
-
-    x-api-token: <DASHBOARD_TOKEN>
-
-## Session Affinity
-
-Il bandit **pinna** un modello per ogni conversazione, evitando che Zoo Code perda lo stato (artifact_id, apply_diff context) quando il bandit cambia modello a metà task.
-
-**Come funziona**:
-1. Ad ogni richiesta, il proxy calcola `sessionKey = md5(system_prompt + primo_user_message)`
-2. Se esiste già un pin valido (TTL 30 min) e il modello è disponibile → **riuso**
-3. Altrimenti → `selectModel` sceglie, e il risultato viene pinnato
-4. Cleanup automatico ogni 5 min per le sessioni scadute
-
-**Log**: `[AFFINITY] ⊕ pin <modello>` al primo uso, `[AFFINITY] ↻ <modello>` ai successivi.
-
-**Invalidazione pin**: se il modello pinnato fallisce (5xx, timeout), il pin viene rimosso e il prossimo turno riseleziona.
-
-## Mode/Profile system
-
-Il proxy riconosce le **14 modalità di Zoo Code** (code, architect, debug, orchestrator, jest-test-engineer, summarizer, ecc.) analizzando il system prompt, e usa il profilo corretto per guidare la selezione del modello.
-
-**Registry**: `config/modes.json` — pattern regex + profilo per ogni modalità.
-
-**Auto-discovery**:
-- Prompt mai visti → salvati in `config/modes.discovered.json`
-- Dalla dashboard → tab **Modalità** → **Etichetta** per aggiungerli al registry
-
-**Profili e soft bias** (moltiplicatore sullo score UCB1):
-
-| Profilo | Boost | Penalità |
-|---------|-------|----------|
-| `code` | +35% code model | −35% thinking, −25% small |
-| `reasoning` | +30% thinking, +10% code | −40% small |
-| `general` | — | −35% code, −45% thinking, −15% small |
-| `summarizer` | +150% flash/small | −90% thinking, −50% code |
-
-**Escalation automatica**: task con >100 messaggi passano da `code` a `reasoning` per evitare loop.
-
-## Comportamento del bandit
-
-### Reward
+#### Reward
 
     reward = max(0, 1.0 - durata_sec / 30)
 
 Una risposta in 1s → 0.97, in 10s → 0.67, in 30s+ → 0.
 
-### Aggiornamento UCB1 (con discount)
+#### Aggiornamento UCB1 (con discount)
 
     N          = N * 0.99 + 1        (successo)
     sum_reward = sum_reward * 0.99 + reward
 
 Il discount factor 0.99 pesa di più le osservazioni recenti.
 
-### Classificazione errori
+#### Classificazione errori
 
 | Errore | Azione | Scope |
 |--------|--------|-------|
@@ -169,7 +65,7 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | 403 account banned/suspended | Ban permanente | Provider |
 | input-too-long / stream_early_eof | skip-feedback (nessuna penalità) | — |
 
-### Circuit breaker
+#### Circuit breaker
 
 | Trigger | Azione |
 |---------|--------|
@@ -177,11 +73,11 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | 3 timeout stesso provider **nel ciclo di training** | Skip provider per il resto del ciclo |
 | 5 errori 5xx stesso provider **nel ciclo di training** | Skip provider per il resto del ciclo |
 
-### Retry loop
+#### Retry loop
 
 Per ogni richiesta il proxy tenta piu modelli (fino a `providerCount * 4 + 100`, max 500) finche non trova un successo o esaurisce il tempo (`MAX_TOTAL_MS`). Ogni modello che fallisce viene aggiunto a un `excluded` set locale per la richiesta corrente.
 
-### Timeout streaming
+#### Timeout streaming
 
 Tre livelli di timeout, per gestire provider lenti o piantati:
 
@@ -193,7 +89,7 @@ Tre livelli di timeout, per gestire provider lenti o piantati:
 
 **Perché 3 livelli**: un modello reasoning su contesto 160k può streammare attivamente per minuti; l'idle non scatta, ma il hard cap sì.
 
-## Training isolation
+### 7. Training isolation
 
 Il training daemon **non inquina** il bandit di produzione:
 
@@ -210,7 +106,7 @@ Il training daemon **non inquina** il bandit di produzione:
       CYCLE_DELAY=60000 SKIP_TESTED=false ZOO_MAX_WAIT_MS=60000 \
       ./train-ctl.sh start
 
-## Health check attivo
+### 8. Health check attivo
 
 Ogni 10 minuti, il proxy testa in batch i modelli "malati":
 - `permanent = 1` (bannati)
@@ -219,7 +115,7 @@ Ogni 10 minuti, il proxy testa in batch i modelli "malati":
 
 Se rispondono, vengono riabilitati automaticamente. Silenzioso: log solo su riavvii e errori.
 
-## Dashboard
+### 9. Dashboard
 
 Apri:
 
@@ -227,7 +123,7 @@ Apri:
 
 Il token viene salvato in `localStorage` per il riuso nelle tab successive.
 
-### Cosa mostra
+#### Cosa mostra
 
 - **Richieste** e **Osservazioni** (successi) totali
 - **Modelli** e **Provider**: attivi / in cool / bannati / degraded / totali / in catalogo
@@ -237,7 +133,7 @@ Il token viene salvato in `localStorage` per il riuso nelle tab successive.
 - **Flat mode sorting**: click su un header → tabella unica ordinata globalmente (bottone Raggruppa per tornare)
 - **Toggle 🐛 Debug verbose** in alto a destra
 
-### Debug verbose (toggle)
+#### Debug verbose (toggle)
 
 Attiva/disattiva log dettagliati **senza restart**:
 
@@ -248,7 +144,7 @@ Attiva/disattiva log dettagliati **senza restart**:
 
 **Default**: spento al restart (per non loggare dati utente).
 
-### Badge di stato
+#### Badge di stato
 
 | Badge | Significato |
 |-------|-------------|
@@ -258,7 +154,7 @@ Attiva/disattiva log dettagliati **senza restart**:
 | Da configurare | Problema di configurazione (auth, CLI, Playwright) |
 | Ignorato | Disabilitato permanentemente (ban o azione manuale) |
 
-## Esecuzione come servizio systemd
+### 10. Esecuzione come servizio systemd
 
 Crea `/etc/systemd/system/omniroute-bandit-proxy.service`:
 
@@ -286,7 +182,7 @@ Poi:
     sudo systemctl enable omniroute-bandit-proxy
     sudo systemctl start omniroute-bandit-proxy
 
-## Script di utilità
+### 11. Script di utilità
 
 | Script | Cosa fa |
 |--------|---------|
@@ -297,7 +193,7 @@ Poi:
 | `scripts/switch-mode.sh status` | Stato + metriche rapide |
 | `scripts/train-ctl.sh start/stop/status/logs` | Controllo diretto training daemon |
 
-## Struttura del progetto
+### 12. Struttura del progetto
 
     src/
       index.mjs            Server Express, proxy handler, endpoint
@@ -315,7 +211,7 @@ Poi:
       switch-mode.sh       Cambio modalità prod/train
       restart.sh           Restart servizio
 
-## Schema SQLite
+### 13. Schema SQLite
 
 Sei tabelle, tutte create/migrate automaticamente all'avvio:
 
@@ -327,7 +223,7 @@ Sei tabelle, tutte create/migrate automaticamente all'avvio:
 | `provider_history` | Stato per provider (fails, cooldown, permanent, needs_attention, pointer) |
 | `meta` | Contatori globali (totalRequests, totalObservations) |
 
-## Sviluppo
+### 14. Sviluppo
 
     # Avvio con auto-reload su modifiche
     npm run dev
@@ -335,7 +231,7 @@ Sei tabelle, tutte create/migrate automaticamente all'avvio:
     # Check sintassi di tutti i file JS
     npm run check
 
-## Note operative
+### 15. Note operative
 
 - Il **catalogo viene ricostruito ad ogni avvio**: se aggiungi/rimuovi modelli in OmniRoute, basta riavviare il proxy.
 - I dati di apprendimento (in `models`) **non vengono toccati** dal resync del catalogo.
@@ -344,10 +240,10 @@ Sei tabelle, tutte create/migrate automaticamente all'avvio:
 - Le signature delle modalità (`config/modes.signatures.json`) sono **machine-specific** e non vanno committate.
 - Il training daemon può girare **in parallelo** al proxy senza toccare la produzione.
 
-## Licenza
+### 16. Licenza
 
 MIT - vedi LICENSE.
 
-## Autore
+### 17. Autore
 
 **Marco** - [@CherrugDeveloper](https://github.com/CherrugDeveloper)

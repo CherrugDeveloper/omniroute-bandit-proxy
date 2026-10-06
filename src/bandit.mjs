@@ -475,7 +475,7 @@ export class DiscountedUCB1Bandit {
       const now = Date.now();
       const source = opts.source === 'training' ? 'training' : 'prod';
 
-      if (source === 'training') {
+      if (source === 'training' || source === 'prod') {
         if (!success && errorDetails && typeof errorDetails === "object") {
           const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
           const provider = cat?.provider || null;
@@ -487,6 +487,10 @@ export class DiscountedUCB1Bandit {
               case "ban-provider":
                 console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
                 this._banProvider(provider);
+                break;
+              case "ban-model":
+                console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
+                this.db.prepare(`UPDATE models SET permanent = 1 WHERE id = ?`).run(modelId);
                 break;
               case "cooldown-provider":
                 console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
@@ -507,6 +511,19 @@ export class DiscountedUCB1Bandit {
                 if (isTransient) {
                   this.db.prepare(`UPDATE models SET consecutive_5xx = consecutive_5xx + 1 WHERE id = ?`).run(modelId);
                 }
+                // Apply cooldown to model
+                if (c.cooldownMs > 0) {
+                  this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + c.cooldownMs, modelId);
+                } else if (isTransient) {
+                  // For transient errors (server-error, timeout, unknown), set a default cooldown
+                  // Use the model's cooldown based on its current fail count
+                  const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
+                  const failCount = model ? model.fails : 0;
+                  const cooldownMs = this._getModelCooldownMs(failCount + 1);
+                  if (cooldownMs && cooldownMs > 0) {
+                    this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, modelId);
+                  }
+                }
                 break;
               }
             }
@@ -516,7 +533,7 @@ export class DiscountedUCB1Bandit {
 
       if (success) {
         this.db.prepare(
-          `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, last_used_index = last_used_index + 1, consecutive_5xx = 0
+          `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0
            WHERE id = ?`
         ).run(reward, modelId);
         this._lastReward.set(modelId, reward);
@@ -536,9 +553,57 @@ export class DiscountedUCB1Bandit {
     const reason = errorDetails.reason || "unknown";
     const is429 = status === 429;
 
+    // 404 model not found -> ban-model
+    if (status === 404 && /does not exist|not found/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "model-not-found" };
+    }
+
+    // 400 model not supported -> ban-model
+    if (status === 400 && /not supported/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "model-not-supported" };
+    }
+
+    // Upstream bug (Assignment to constant) -> ban-model
+    if (/Assignment to constant variable/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "upstream-bug" };
+    }
+
+    // No auth provided -> flag-provider
+    if (status === 502 && /No auth provided|Please log in/i.test(message)) {
+      return { action: "flag-provider", reason: "provider-misconfigured" };
+    }
+
+    // Playwright not available -> flag-provider
+    if (status === 502 && /Playwright is not available/i.test(message)) {
+      return { action: "flag-provider", reason: "provider-misconfigured" };
+    }
+
+    // 403 banned -> ban-provider
+    if (status === 403 && /account disabled|banned/i.test(message)) {
+      return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
+    }
+
+    // 429 with model_cooldown code -> cooldown-model
+    if (is429 && errorDetails.code === "model_cooldown") {
+      return { action: "cooldown-model", scope: "model", reason: "rate-limit", cooldownMs: 0 };
+    }
+
+    // 429 quota exhausted -> cooldown-provider
     if (is429) {
-      const retryAfter = errorDetails.retryAfter || 0;
-      const cooldownMs = retryAfter > 0 ? retryAfter * 1000 : 30 * 60 * 1000;
+      let cooldownMs;
+      // Try to parse retryAfter from message (e.g., "reset after 5m")
+      const retryAfterMatch = errorDetails.message.match(/reset after (\d+)(s|m|h)/i);
+      if (retryAfterMatch) {
+        const unit = retryAfterMatch[2];
+        const value = parseInt(retryAfterMatch[1], 10);
+        if (unit === 's') cooldownMs = value * 1000;
+        else if (unit === 'm') cooldownMs = value * 60 * 1000;
+        else if (unit === 'h') cooldownMs = value * 3600 * 1000;
+      }
+      if (cooldownMs === undefined) {
+        const retryAfter = errorDetails.retryAfter || 0;
+        cooldownMs = retryAfter > 0 ? retryAfter * 1000 : 30 * 60 * 1000;
+      }
 
       const modelId = errorDetails.modelId || "";
       const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
@@ -559,11 +624,51 @@ export class DiscountedUCB1Bandit {
         };
       }
     }
+
+    // Timeout -> cooldown-model 10m
+    if (/fetch timeout|timeout/i.test(message)) {
+      return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000 };
+    }
+
+    // 5xx -> cooldown-model (non provider)
+    if (status >= 500 && status < 600) {
+      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 0 };
+    }
+
+    // 402 insufficient funds -> cooldown-provider 6h
+    if (status === 402 && /insufficient|funds|credit/i.test(message)) {
+      return { action: "cooldown-provider", reason: "no-credit", cooldownMs: 6 * 3600 * 1000 };
+    }
+
+    // 418 anti-abuse -> cooldown-provider 6h
+    if (status === 418 && /anti-abuse/i.test(message)) {
+      return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 6 * 3600 * 1000 };
+    }
+
     return {
       action: "cooldown-model",
       reason: reason,
       cooldownMs: 0
     };
+  }
+
+  _parseResetAfter(message) {
+    if (!message || typeof message !== "string") return 0;
+    // Try "reset after 5m" / "retry after 30s"
+    const match = message.match(/(?:reset|retry)\s+after\s+(\d+)(s|m|h)/i);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      const unit = match[2].toLowerCase();
+      if (unit === "s") return value * 1000;
+      if (unit === "m") return value * 60 * 1000;
+      if (unit === "h") return value * 3600 * 1000;
+    }
+    // Try JSON-like '"reset_seconds":117'
+    const secsMatch = message.match(/"reset_seconds"\s*:\s*(\d+)/);
+    if (secsMatch) {
+      return parseInt(secsMatch[1], 10) * 1000;
+    }
+    return 0;
   }
 
   _unlockProvider(provider) {
@@ -710,7 +815,7 @@ export class DiscountedUCB1Bandit {
   }
 
   getProviderCount() {
-    return this.db.prepare("SELECT COUNT(DISTINCT provider) FROM catalog").get().['COUNT(DISTINCT provider)'] || 0;
+    return this.db.prepare("SELECT COUNT(DISTINCT provider) FROM catalog").get()['COUNT(DISTINCT provider)'] || 0;
   }
 
   getModelRank(modelId) {
@@ -728,4 +833,124 @@ export class DiscountedUCB1Bandit {
     return this._rankCache.map.get(modelId) ?? null;
   }
 
+  selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, profile = null, cooledDownThisRequest = true) {
+    const now = Date.now();
+    const excludeSet = this._normalizeExcludedModels(excluded);
+
+    // Get all models from catalog that are available
+    const catalogModels = this.db.prepare(`
+      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent
+      FROM catalog c
+    `).all();
+
+    // Get all models from models table
+    const dbModels = this.db.prepare(`
+      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent
+      FROM models m
+      WHERE m.permanent = 0
+    `).all();
+
+    // Combine catalog and db models, preferring db models when there's a conflict
+    const modelMap = new Map();
+    for (const model of catalogModels) {
+      modelMap.set(model.id, model);
+    }
+    for (const model of dbModels) {
+      modelMap.set(model.id, model); // db models overwrite catalog models
+    }
+    const models = Array.from(modelMap.values());
+
+    // Filter out models that are unavailable
+    const availableModels = models.filter(model => {
+      // Skip if model is in cooldown
+      if (model.cooldown_until && model.cooldown_until > now) {
+        return false;
+      }
+      // Check provider status: cooldown, permanent, needs_attention
+      const prov = this.db.prepare(
+        `SELECT cooldown_until, permanent, needs_attention FROM provider_history WHERE provider = ?`
+      ).get(model.provider);
+      if (prov) {
+        if (prov.cooldown_until > now) return false;
+        if (prov.permanent === 1) return false;
+        if (prov.needs_attention === 1) return false;
+      }
+      // Skip if permanently banned at model level
+      if (model.permanent === 1) {
+        return false;
+      }
+      // Skip if in exclude set
+      if (excludeSet.has(model.id)) {
+        return false;
+      }
+      return true;
+    });
+
+    if (availableModels.length === 0) {
+      return null;
+    }
+
+    // Select model using UCB1-like ranking (simplified: pick highest rank)
+    // First, filter out cooldown models and rank the rest
+    let bestModel = availableModels[0];
+    let bestScore = -Infinity;
+
+    for (const model of availableModels) {
+      const rank = this.getModelRank(model.id) ?? 0;
+      if (rank > bestScore) {
+        bestScore = rank;
+        bestModel = model;
+      }
+    }
+
+    // Register the selected model use
+    this._registerModelUse(bestModel.id, bestModel.provider);
+
+    return bestModel.id;
+  }
+
+  getUnhealthyModels(batchSize = 5) {
+    const now = Date.now();
+    return this.db.prepare(`
+      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent
+      FROM models m
+      WHERE m.degraded = 1 OR (m.cooldown_until > 0 AND m.cooldown_until > ?)
+      LIMIT ?
+    `, [now, batchSize]).all();
+  }
+
+  getModelMaxInput(modelId) {
+    // First check the catalog
+    const catRow = this.db.prepare(
+      `SELECT max_input_tokens FROM catalog WHERE id = ?`
+    ).get(modelId);
+
+    if (catRow && catRow.max_input_tokens > 0) {
+      return catRow.max_input_tokens;
+    }
+
+    // Fallback to models table
+    const modelRow = this.db.prepare(
+      `SELECT max_input_tokens FROM models WHERE id = ?`
+    ).get(modelId);
+
+    if (modelRow && modelRow.max_input_tokens > 0) {
+      return modelRow.max_input_tokens;
+    }
+
+    // Default fallback
+    return 0;
+  }
+
+  reviveModel(modelId) {
+    this.db.prepare(
+      `UPDATE models SET cooldown_until = 0, degraded = 0 WHERE id = ?`
+    ).run(modelId);
+  }
+
+  close() {
+    if (this.db) {
+      this.db.close();
+    }
+  }
 }
