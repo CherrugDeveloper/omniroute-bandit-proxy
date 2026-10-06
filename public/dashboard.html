@@ -1912,9 +1912,9 @@
         refreshAll();
         fetchLogs();
         fetchActive();
-        setInterval(refreshAll, 2500);
-        setInterval(fetchLogs, 500);
-        setInterval(fetchActive, 500);
+        setInterval(refreshAll, 250);
+        setInterval(fetchLogs, 250);
+        setInterval(fetchActive, 250);
         document.addEventListener('DOMContentLoaded', () => {
             const fab = document.getElementById('dev-fab');
             const menu = document.getElementById('dev-menu');

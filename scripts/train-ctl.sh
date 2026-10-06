@@ -24,6 +24,12 @@ case "${1:-}" in
     fi
     cd "$DIR"
     : > "$LOGFILE"
+    # Carica .env per ereditare EXCLUDE_PROVIDERS, TRAIN_EXCLUDE_PROVIDERS, ecc.
+    if [ -f "$DIR/.env" ]; then
+      set -a
+      . "$DIR/.env"
+      set +a
+    fi
     nohup node "$DAEMON" >> "$LOGFILE" 2>&1 &
     echo $! > "$PIDFILE"
     sleep 1

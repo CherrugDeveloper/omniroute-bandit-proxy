@@ -2,6 +2,17 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.0.11 — 2026-10-06
+- Fix critico: cooldown provider asimmetrico → i modelli restavano congelati
+- `_forceProviderCooldown` aggiornava i modelli, ma lo sblocco azzerava solo `provider_history`
+- Aggiunto `_unlockProvider(provider)`: azzera `cooldown_until` + `consecutive_5xx` su provider **e** modelli
+- Sblocco (`selectModel` + fallback) ora usa `_unlockProvider`
+- Soft/hard cooldown: solo `quota-exhausted`, `no-credit`, `key-quota-exceeded` congelano i modelli
+- `cascade-fail` (5 min), 5xx transitori e rate-limit toccano solo `provider_history`
+- Log: distingue `hard-cooldown (N modelli)` da `soft-cooldown (solo provider)`
+- Risolve: 762 modelli openrouter bloccati 4h da un singolo cascade-fail
+- Dopo il deploy: pulizia one-shot (`UPDATE models SET cooldown_until=0, consecutive_5xx=0 WHERE permanent=0` + idem su `provider_history`)
+
 ## v1.0.10 — 2026-10-05
 - Dashboard "In corso": colonne a larghezza fissa (rank, N, avg, arrow)
 - Sempre 4 valori per riga (anche per modelli nuovi/test)

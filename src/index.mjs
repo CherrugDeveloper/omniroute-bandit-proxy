@@ -830,6 +830,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     console.log(`[TOOLS] Richiesta con ${req.body.tools.length} tools → solo modelli tool-capable`);
   }
   let attempt = 0;
+  const cooledDownThisRequest = new Set();
   let controller = null;
   // Timer streaming — dichiarati fuori da if(stream) così il catch esterno può accedervi
   const STREAM_IDLE_MS = parseInt(process.env.STREAM_IDLE_MS || "60000", 10);
@@ -860,7 +861,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     providerFailCount.set(prov, n);
     if (n === PROVIDER_FAIL_THRESHOLD) {
       console.log(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta → cooldown 5min`);
-      try { bandit._forceProviderCooldown(prov, 5 * 60 * 1000, "cascade-fail"); } catch (_) {}
+      try {
+        bandit._forceProviderCooldown(prov, 5 * 60 * 1000, "cascade-fail");
+        cooledDownThisRequest.add(prov);
+      } catch (_) {}
     }
   }
 
@@ -945,7 +949,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           }
         }
       }
-    model = bandit.selectModel(excluded, null, estimatedTokens, requireTools, profile);
+    model = bandit.selectModel(excluded, null, estimatedTokens, requireTools, profile, cooledDownThisRequest);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
       console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
@@ -1206,7 +1210,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         const mult = computeToolRewardMultiplier(respToolNames, hasWritten);
         const rewardScore = baseReward * mult;
         bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
-            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${streamToolNames[0] || 'none'} hasWritten=${hasWritten})`);
+            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${respToolNames[0] || 'none'} hasWritten=${hasWritten})`);
         trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
         cleanup();
         return res.json(data);

@@ -466,7 +466,8 @@ export class DiscountedUCB1Bandit {
     return cooldowns[Math.min(fails, 3)];
   }
 
-    selectModel(excluded = new Set(), forceProvider = null, estimatedTokens = 0, requireTools = false, profile = null) {
+selectModel(excluded = new Set(), forceProvider = null, estimatedTokens = 0,
+            requireTools = false, profile = null, excludedProviders = new Set()) {
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excluded);
 
@@ -497,18 +498,20 @@ export class DiscountedUCB1Bandit {
           `).all(now);
 
       if (getAvailableProviders.length === 0) {
-        // Prova a sbloccare il provider in cooldown più vecchio
-        const oldestProvider = this.db.prepare(`
+        const candidates = this.db.prepare(`
           SELECT provider FROM provider_history
           WHERE cooldown_until > ? AND (permanent = 0 OR permanent IS NULL)
           ORDER BY cooldown_until ASC
-          LIMIT 1
-        `).get(now);
+          LIMIT 20
+        `).all(now);
+
+        const oldestProvider = candidates.find(c => !excludedProviders.has(c.provider));
 
         if (oldestProvider) {
-          console.log(`[BANDIT] Tutti i provider in cooldown, sblocco ${oldestProvider.provider}`);
-          this._unlockProvider(oldestProvider.provider);  
-          return this.selectModel(excluded, oldestProvider.provider, estimatedTokens, requireTools, profile);
+          console.log(`[BANDIT] Sblocco provider più vecchio: ${oldestProvider.provider}`);
+          this._unlockProvider(oldestProvider.provider);
+          return this.selectModel(excluded, oldestProvider.provider, estimatedTokens,
+                                  requireTools, profile, excludedProviders);
         }
         return null;
       }
@@ -967,32 +970,30 @@ _unlockProvider(provider) {
 _forceProviderCooldown(provider, cooldownMs, reason = "") {
   const now = Date.now();
   const until = now + cooldownMs;
+  let modelsUpdated = 0;   // ← AGGIUNGI QUESTA RIGA
 
   this.db.prepare(`
     INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
     VALUES (?, 0, 0, 0, 0)
   `).run(provider);
 
-  // Solo i motivi "hard" giustificano il congelamento dei modelli.
-  const HARD = new Set(["quota-exhausted", "no-credit", "key-quota-exceeded"]);
+  const HARD = new Set(["quota-exhausted", "no-credit", "key-quota-exceeded", "key-limit-exceeded"]);
   if (HARD.has(reason)) {
     const info = this.db.prepare(`
       UPDATE models SET cooldown_until = ?
       WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
     `).run(until, provider);
-    console.log(`[BANDIT] ${provider} hard-cooldown (${reason}) → ${info.changes} modelli`);
+    modelsUpdated = info.changes;   // ← CAMBIA questa (era solo `console.log` con info.changes)
+    console.log(`[BANDIT] ${provider} hard-cooldown (${reason}) → ${modelsUpdated} modelli`);
   } else {
-    // Soft: rate-limit, 5xx, cascade-fail → basta il provider.
-    // La query di selezione già filtra via p.cooldown_until.
     console.log(`[BANDIT] ${provider} soft-cooldown (${reason}) → solo provider_history`);
   }
-
   this.db.prepare(`
     UPDATE provider_history SET cooldown_until = ?
     WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
   `).run(until, provider);
 
-  console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${info.changes} modelli aggiornati)`);
+  console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${modelsUpdated} modelli aggiornati)`);
   if (this.notifier && (reason === "quota-exhausted" || reason === "no-credit")) {
     const label = reason === "no-credit" ? "credito esaurito" : "quota esaurita";
     this.notifier.notify(
