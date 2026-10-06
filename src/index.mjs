@@ -115,7 +115,51 @@ function validateStreamAccumulated(raw, opts = {}) {
   if (!hasContent && !hasTools) return "stream has no content nor tool_calls";
   return null;  // valida
 }
+// Compressione d'emergenza: pochi messaggi ma uno è enorme (system/env_details).
+// Tronca il messaggio più grande finché il totale scende sotto targetTokens.
+function truncateBiggestMessage(body, targetTokens) {
+  if (!body || typeof body !== "object") return null;
+  const messages = body.messages;
+  if (!Array.isArray(messages) || messages.length === 0) return null;
 
+  const msgText = (m) => {
+    if (typeof m.content === "string") return m.content;
+    if (Array.isArray(m.content)) return m.content.map(p => p?.text || "").join("\n");
+    return JSON.stringify(m.content || "");
+  };
+  const msgTokens = (m) => Math.ceil(msgText(m).length / 3);
+
+  // Trova il messaggio più grande
+  let idx = 0;
+  for (let k = 1; k < messages.length; k++) {
+    if (msgTokens(messages[k]) > msgTokens(messages[idx])) idx = k;
+  }
+  const big = messages[idx];
+  const bigText = msgText(big);
+  const bigTokens = msgTokens(big);
+
+  // Se è già piccolo, non c'è nulla da tagliare
+  if (bigTokens < 2000) return null;
+
+  // Calcola quanti char tenere: proporzione rispetto al target
+  const totalTokens = messages.reduce((s, m) => s + msgTokens(m), 0);
+  const keepRatio = Math.max(0.15, Math.min(0.9, targetTokens / Math.max(1, totalTokens)));
+  const keepChars = Math.max(2000, Math.ceil(bigText.length * keepRatio));
+  const removedChars = bigText.length - keepChars;
+  const removedTokens = Math.ceil(removedChars / 3);
+
+  const truncated = bigText.slice(0, keepChars)
+    + `\n\n[... troncato: ${removedTokens} token rimossi per limite contesto ...]`;
+
+  const newMsg = Array.isArray(big.content)
+    ? { ...big, content: [{ type: "text", text: truncated }] }
+    : { ...big, content: truncated };
+
+  const newMessages = messages.slice();
+  newMessages[idx] = newMsg;
+  const newBody = { ...body, messages: newMessages };
+  return { body: newBody, omitted: 0, truncatedBig: true, removedTokens };
+}
 // ========================================
 // CONTEXT COMPRESSION (sliding window per agent di coding)
 // ========================================
@@ -124,8 +168,12 @@ function validateStreamAccumulated(raw, opts = {}) {
 function compressBody(body, targetTokens) {
   if (!body || typeof body !== "object") return null;
   const messages = body.messages;
-  if (!Array.isArray(messages) || messages.length < 6) return null;
-
+  if (!Array.isArray(messages) || messages.length === 0) return null;
+  // Con pochi messaggi (2-5), la compressione strutturale non ha nulla da rimuovere.
+  // Tronca direttamente il messaggio più grande.
+  if (messages.length < 6) {
+    return truncateBiggestMessage(body, targetTokens);
+  }
   // 1. Prendi system + primo user (parte "fissa")
   const head = [];
   let i = 0;
@@ -664,16 +712,6 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let estimatedTokens = bandit.estimateTokens(req.body);
   // Hard cap: se il contesto stimato supera 150k token, rifiuta
   const MAX_CONTEXT_TOKENS = parseInt(process.env.MAX_CONTEXT_TOKENS || "150000");
-  if (estimatedTokens > MAX_CONTEXT_TOKENS) {
-    console.warn(`[REJECT] Contesto ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → 413`);
-    return res.status(413).json({
-      error: {
-        message: `Context too large (${estimatedTokens} tokens). Max ${MAX_CONTEXT_TOKENS}. Compress or start new chat.`,
-        type: "context_too_large",
-        status: 413
-      }
-    });
-  }
   // Timeout proporzionale: contesti grandi → prefill più lungo.
   // Scala linearmente (100k = 2x, 200k+ = 3x, cap 3x).
   const baseTimeout = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 20000;
@@ -684,6 +722,29 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
   const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
   if (debugVerbose) console.log(`[CONTEXT] autoCompress=${autoCompress} header="${req.get("x-auto-compress") || "<assente>"}" tokens=${estimatedTokens} maxCatalog=${bandit.maxCatalogInput()}`);
+  
+    // === MAX_CONTEXT_TOKENS check (con compress d'emergenza se autoCompress) ===
+    if (estimatedTokens > MAX_CONTEXT_TOKENS) {
+      if (autoCompress) {
+        const compressed = compressBody(req.body, MAX_CONTEXT_TOKENS - 500);
+        if (compressed && compressed.body) {
+          const newTokens = bandit.estimateTokens(compressed.body);
+          console.log(`[CONTEXT] Globale ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → compresso a ${newTokens}`);
+          req.body = compressed.body;
+          estimatedTokens = newTokens;
+        }
+      }
+      if (estimatedTokens > MAX_CONTEXT_TOKENS) {
+        console.warn(`[REJECT] Contesto ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → 413`);
+        return res.status(413).json({
+          error: {
+            message: `Context too large (${estimatedTokens} tokens). Max ${MAX_CONTEXT_TOKENS}. Compress or start new chat.`,
+            type: "context_too_large",
+            status: 413
+          }
+        });
+      }
+    }
   // Debug sessione
   const sessionDebug = {
     user: req.body?.user || null,
