@@ -325,16 +325,46 @@ function newRequestId() {
 // Moltiplicatore reward basato sul tipo di tool chiamato.
 // I modelli che rispondono con "ask_followup_question" invece di agire
 // prendono reward bassi → UCB1 li declassa.
-function computeToolRewardMultiplier(toolNames) {
-  if (!toolNames || toolNames.length === 0) return 0.6; // solo testo, nessun tool
+function computeToolRewardMultiplier(toolNames, hasWrittenInSession) {
+  if (!toolNames || toolNames.length === 0) return 0.6;
   const first = String(toolNames[0] || '').toLowerCase();
+
   if (first === 'ask_followup_question') return 0.5;
   if (first === 'update_todo_list') return 0.8;
-  const actionTools = ['read_file','list_files','search_files','codebase_search',
-                       'apply_diff','write_to_file','execute_command',
-                       'new_task','attempt_completion','replace_in_file'];
-  if (actionTools.includes(first)) return 1.0;
+
+  // attempt_completion senza mai aver scritto → conclusione prematura
+  if (first === 'attempt_completion') {
+    return hasWrittenInSession ? 1.0 : 0.3;
+  }
+
+  // Delegare ad un'altra mode è sempre un'azione valida
+  if (first === 'new_task') return 1.0;
+
+  // Tool di scrittura/modifica: reward pieno
+  const writeTools = ['apply_diff','write_to_file','replace_in_file',
+                      'execute_command','insert_content'];
+  if (writeTools.includes(first)) return 1.0;
+
+  // Tool di lettura/ricerca: neutro
+  const readTools = ['read_file','list_files','search_files','codebase_search'];
+  if (readTools.includes(first)) return 1.0;
+
   return 0.9;
+}
+
+// Ritorna true se almeno un assistant message nella history ha chiamato
+// un tool di scrittura. Serve per capire se attempt_completion è prematuro.
+function sessionHasWritten(messages) {
+  const writeTools = new Set(['apply_diff','write_to_file','replace_in_file',
+                              'execute_command','insert_content']);
+  for (const m of messages || []) {
+    if (m.role !== 'assistant' || !Array.isArray(m.tool_calls)) continue;
+    for (const tc of m.tool_calls) {
+      const name = (tc.function?.name || tc.name || '').toLowerCase();
+      if (writeTools.has(name)) return true;
+    }
+  }
+  return false;
 }
 function trackRequestStart(id, meta) {
   activeRequests.set(id, {
@@ -1121,10 +1151,11 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             const baseReward = Math.max(0, 1.0 - (dur / 30));
             // Estrai i nomi dei tool chiamati dallo stream accumulato
             const streamToolNames = [...accumulated.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map(m => m[1]);
-            const mult = computeToolRewardMultiplier(streamToolNames);
+            const hasWritten = sessionHasWritten(req.body?.messages);
+            const mult = computeToolRewardMultiplier(streamToolNames, hasWritten);
             const rewardScore = baseReward * mult;
             bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
-            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${streamToolNames[0] || 'none'})`);
+            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${streamToolNames[0] || 'none'} hasWritten=${hasWritten})`);
             trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
           } else if (streamFailed) {
             bandit.recordFeedback(model, false, 0, { message: "stream error" }, { source: feedbackSource });
@@ -1171,10 +1202,11 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
         const baseReward = Math.max(0, 1.0 - (dur / 30));
         const respToolNames = (data.choices?.[0]?.message?.tool_calls || []).map(tc => tc.function?.name).filter(Boolean);
-        const mult = computeToolRewardMultiplier(respToolNames);
+        const hasWritten = sessionHasWritten(req.body?.messages);
+        const mult = computeToolRewardMultiplier(respToolNames, hasWritten);
         const rewardScore = baseReward * mult;
         bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
-        console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${respToolNames[0] || 'none'})`);
+            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${streamToolNames[0] || 'none'} hasWritten=${hasWritten})`);
         trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
         cleanup();
         return res.json(data);

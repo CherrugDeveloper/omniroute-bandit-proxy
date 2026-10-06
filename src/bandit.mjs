@@ -231,19 +231,19 @@ export class DiscountedUCB1Bandit {
     `).run(key, delta);
   }
 
-    _registerModelUse(modelId, provider) {
-    // Aggiunge provider e modello solo se non esistono ancora
-    this.db.prepare(`
-      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
-      VALUES (?, 0, 0, 0, 0)
-    `).run(provider);
+  _registerModelUse(modelId, provider) {
+  // Aggiunge provider e modello solo se non esistono ancora
+  this.db.prepare(`
+    INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+    VALUES (?, 0, 0, 0, 0)
+  `).run(provider);
 
-    // INSERT se nuovo, altrimenti incrementa last_used_index (round-robin)
-    this.db.prepare(`
-      INSERT INTO models (id, provider, last_used_index)
-      VALUES (?, ?, 1)
-      ON CONFLICT(id) DO UPDATE SET last_used_index = last_used_index + 1
-    `).run(modelId, provider);
+  // INSERT se nuovo, altrimenti incrementa last_used_index (round-robin)
+  this.db.prepare(`
+    INSERT INTO models (id, provider, last_used_index)
+    VALUES (?, ?, 1)
+    ON CONFLICT(id) DO UPDATE SET last_used_index = last_used_index + 1
+  `).run(modelId, provider);
   }
 
   recordRequest() {
@@ -507,9 +507,8 @@ export class DiscountedUCB1Bandit {
 
         if (oldestProvider) {
           console.log(`[BANDIT] Tutti i provider in cooldown, sblocco ${oldestProvider.provider}`);
-          this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
-            .run(0, oldestProvider.provider);
-            return this.selectModel(excluded, oldestProvider.provider, estimatedTokens, requireTools, profile);
+          this._unlockProvider(oldestProvider.provider);  
+          return this.selectModel(excluded, oldestProvider.provider, estimatedTokens, requireTools, profile);
         }
         return null;
       }
@@ -654,8 +653,7 @@ export class DiscountedUCB1Bandit {
 
           if (oldestProvider) {
             console.log(`[BANDIT] Nessun modello disponibile, sblocco ${oldestProvider.provider}`);
-            this.db.prepare(`UPDATE provider_history SET cooldown_until = ? WHERE provider = ?`)
-              .run(0, oldestProvider.provider);
+            this._unlockProvider(oldestProvider.provider);
             return this.selectModel(excluded, oldestProvider.provider, estimatedTokens, requireTools, profile);
           }
         }
@@ -889,7 +887,17 @@ export class DiscountedUCB1Bandit {
     });
     return tx();
   }
-
+_unlockProvider(provider) {
+  this.db.prepare(`
+    UPDATE provider_history SET cooldown_until = 0
+    WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
+  `).run(provider);
+  this.db.prepare(`
+    UPDATE models SET cooldown_until = 0, consecutive_5xx = 0
+    WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
+  `).run(provider);
+  console.log(`[BANDIT] Sblocco ${provider} (provider + modelli)`);
+}
   // Scrive le statistiche di training in `models_train` (separate da `models`).
   // Non tocca ban/cooldown/degraded/provider_history: il training è "silenzioso".
   _recordTrainingFeedback(modelId, success, reward = 1.0) {
@@ -956,38 +964,44 @@ export class DiscountedUCB1Bandit {
     console.log(`[BANDIT] Provider ${provider}: ${newFails} fallimenti, cooldown ${cooldownStr}`);
   }
 
-  _forceProviderCooldown(provider, cooldownMs, reason = "") {
-    const now = Date.now();
-    const until = now + cooldownMs;
+_forceProviderCooldown(provider, cooldownMs, reason = "") {
+  const now = Date.now();
+  const until = now + cooldownMs;
 
-    // Assicura che il provider esista in provider_history
-    this.db.prepare(`
-      INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
-      VALUES (?, 0, 0, 0, 0)
-    `).run(provider);
+  this.db.prepare(`
+    INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
+    VALUES (?, 0, 0, 0, 0)
+  `).run(provider);
 
-    // Metti in cooldown TUTTI i modelli di quel provider
+  // Solo i motivi "hard" giustificano il congelamento dei modelli.
+  const HARD = new Set(["quota-exhausted", "no-credit", "key-quota-exceeded"]);
+  if (HARD.has(reason)) {
     const info = this.db.prepare(`
       UPDATE models SET cooldown_until = ?
       WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
     `).run(until, provider);
-
-    // E metti in cooldown anche il provider stesso
-    this.db.prepare(`
-      UPDATE provider_history SET cooldown_until = ?
-      WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
-    `).run(until, provider);
-
-    console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${info.changes} modelli aggiornati)`);
-    if (this.notifier && (reason === "quota-exhausted" || reason === "no-credit")) {
-      const label = reason === "no-credit" ? "credito esaurito" : "quota esaurita";
-      this.notifier.notify(
-        `provider.${reason.replace("-", "_")}`,
-        `Provider \`${provider}\`: ${label}. Cooldown ${Math.round(cooldownMs / 60000)} min`,
-        { provider, cooldownMs, reason }
-      ).catch(() => {});
-    }
+    console.log(`[BANDIT] ${provider} hard-cooldown (${reason}) → ${info.changes} modelli`);
+  } else {
+    // Soft: rate-limit, 5xx, cascade-fail → basta il provider.
+    // La query di selezione già filtra via p.cooldown_until.
+    console.log(`[BANDIT] ${provider} soft-cooldown (${reason}) → solo provider_history`);
   }
+
+  this.db.prepare(`
+    UPDATE provider_history SET cooldown_until = ?
+    WHERE provider = ? AND (permanent = 0 OR permanent IS NULL)
+  `).run(until, provider);
+
+  console.log(`[BANDIT] Provider ${provider} in cooldown fino a ${new Date(until).toISOString()} (${info.changes} modelli aggiornati)`);
+  if (this.notifier && (reason === "quota-exhausted" || reason === "no-credit")) {
+    const label = reason === "no-credit" ? "credito esaurito" : "quota esaurita";
+    this.notifier.notify(
+      `provider.${reason.replace("-", "_")}`,
+      `Provider \`${provider}\`: ${label}. Cooldown ${Math.round(cooldownMs / 60000)} min`,
+      { provider, cooldownMs, reason }
+    ).catch(() => {});
+  }
+}
 
   // Mette in cooldown SOLO i modelli paid (is_free=0) del provider,
   // lasciando attivi quelli free (:free, -free, ecc.)
