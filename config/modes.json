@@ -12,7 +12,7 @@
     { "name": "devops",               "match": "devops engineer|devops|infrastructure|ci/cd|deployment",                "profile": "code" },
     { "name": "documentation-writer", "match": "documentation writer|technical writer|writing documentation",          "profile": "general" },
     { "name": "debug",                "match": "expert software debugger|debugger specialized|debugging",              "profile": "code" },
-    { "name": "orchestrator",         "match": "strategic workflow orchestrator|delegating them to",                   "profile": "general" },
+    { "name": "orchestrator",         "match": "strategic workflow orchestrator|delegating them to",                   "profile": "reasoning" },
     { "name": "ask",                  "match": "knowledgeable assistant|answer questions|general questions",            "profile": "general" },
     { "name": "code",                 "match": "highly skilled software engineer|expert software engineer",             "profile": "code" }
   ]

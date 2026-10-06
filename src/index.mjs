@@ -284,6 +284,9 @@ let debugVerbose = false;
 // Garantisce che la stessa conversazione usi sempre lo stesso modello
 // (evita che il bandit cambi modello a metà task, perdendo artifact/tool state)
 const sessionModels = new Map();
+// Sessione → Map<modelId, failCount>. Un modello che sbaglia 2+ tool call
+// nella stessa sessione non viene più ripinnato finché la sessione è attiva.
+const sessionBlacklist = new Map();
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 min
 
 function computeSessionKey(messages) {
@@ -319,7 +322,20 @@ let requestCounter = 0;
 function newRequestId() {
   return `req-${Date.now()}-${++requestCounter}`;
 }
-
+// Moltiplicatore reward basato sul tipo di tool chiamato.
+// I modelli che rispondono con "ask_followup_question" invece di agire
+// prendono reward bassi → UCB1 li declassa.
+function computeToolRewardMultiplier(toolNames) {
+  if (!toolNames || toolNames.length === 0) return 0.6; // solo testo, nessun tool
+  const first = String(toolNames[0] || '').toLowerCase();
+  if (first === 'ask_followup_question') return 0.5;
+  if (first === 'update_todo_list') return 0.8;
+  const actionTools = ['read_file','list_files','search_files','codebase_search',
+                       'apply_diff','write_to_file','execute_command',
+                       'new_task','attempt_completion','replace_in_file'];
+  if (actionTools.includes(first)) return 1.0;
+  return 0.9;
+}
 function trackRequestStart(id, meta) {
   activeRequests.set(id, {
     source: meta.source || 'zoo',
@@ -435,8 +451,9 @@ app.get('/v1/debug/status', requireAuth, (req, res) => {
 });
 app.get('/v1/version', (req, res) => {
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-    res.json({ version: pkg.version || 'dev' });
+    const changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+    const m = changelog.match(/^##\s+(v[\d.]+)/m);
+    res.json({ version: m ? m[1] : 'dev' });
   } catch {
     res.json({ version: 'dev' });
   }
@@ -597,7 +614,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const requestId = newRequestId();
 
   trackRequestStart(requestId, {
-    source: (req.get("x-source") === "training") ? "training" : "zoo",
+    source: (req.get("x-source") === "training") ? "training" :
+            (req.get("x-source") === "changelog") ? "changelog" : "zoo",
     model: null,
     attempt: 0,
     stream: !!stream,
@@ -669,31 +687,86 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     const sysPreview = (typeof sys?.content === "string" ? sys.content : JSON.stringify(sys?.content || "")).slice(0, 120);
     const usrPreview = (typeof usr?.content === "string" ? usr.content : JSON.stringify(usr?.content || "")).slice(0, 80);
     if (debugVerbose) console.log(`[SESSION-KEY] ${sessionKey.slice(0,8)} | sys="${sysPreview}" | usr="${usrPreview}"`);
-    const msgs = req.body?.messages || [];
-    const toolResults = msgs.filter(m => m.role === 'tool').length;
-    const asstTc = msgs.filter(m => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0).length;
-    const lastTool = msgs.filter(m => m.role === 'tool').slice(-1)[0];
-    const lastToolPreview = typeof lastTool?.content === 'string' ? lastTool.content.slice(0, 150) : '<none>';
-    //console.log(`[MSGS] total=${msgs.length} tool_results=${toolResults} asst_tc=${asstTc} lastTool="${lastToolPreview.replace(/\n/g, ' ')}"`);
   }
 
   // === MODE / PROFILE ===
   const sysMsg = req.body?.messages?.find(m => m.role === 'system');
   const sysText = (typeof sysMsg?.content === 'string') ? sysMsg.content : '';
   const modeResult = detectProfile(sysText);
-  // Rileva se la sessione è in difficoltà (tool_call falliti di recente)
-  const msgs = req.body?.messages || [];
-  const recentToolResults = msgs.filter(m => m.role === 'tool').slice(-5);
-  // Guarda solo l'ultimo tool_result: se è un errore, il modello ha appena fallito
-  const lastToolResult = recentToolResults[recentToolResults.length - 1];
+  // === STRUGGLING DETECTION ===
+  // Guarda gli ultimi 8 messaggi (user + assistant), esclude l'ultimo
+  // <environment_details> che è sempre presente.
+  const allMsgs = req.body?.messages || [];
+  const lastMsgs = allMsgs.slice(-8);
   let isStruggling = false;
-  if (lastToolResult) {
-    const c = typeof lastToolResult.content === 'string' ? lastToolResult.content : JSON.stringify(lastToolResult.content || '');
-    isStruggling = /"status"\s*:\s*"error"|edit unsuccessful|no sufficiently similar|repetition limit|apply_diff.*fail|"error"|failed|not found|not similar/i.test(c);
+  let strugglingReason = '';
+  for (const m of lastMsgs) {
+    const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
+    // Salta l'ultimo messaggio con environment_details
+    if (/<environment_details>/i.test(c) && /Current Time/i.test(c)) continue;
+    if (/edit unsuccessful|no sufficiently similar|repetition limit|apply_diff.{0,50}(fail|error|unsuccessful)/i.test(c)) {
+      isStruggling = true; strugglingReason = 'apply_diff fail'; break;
+    }
+    if (/tool (execution )?failed|tool.{0,20}(error|abort)/i.test(c)) {
+      isStruggling = true; strugglingReason = 'tool failed'; break;
+    }
+    if (/<error>[\s\S]{0,300}<\/(error|tool_result)>/i.test(c)) {
+      isStruggling = true; strugglingReason = 'tool error'; break;
+    }
+    if (/"status"\s*:\s*"error"/i.test(c)) {
+      isStruggling = true; strugglingReason = 'status error'; break;
+    }
   }
   if (isStruggling) {
-    console.log(`[AFFINITY] ⚠ sessione struggling (${recentErrors} errori recenti)`);
+    console.log(`[AFFINITY] ⚠ sessione struggling (${strugglingReason})`);
   }
+    // === LOOP DETECTION: 3+ ask_followup_question consecutivi negli assistant ===
+  let isAskLoop = false;
+  let loopModelHint = '';
+  {
+    const assistants = allMsgs.filter(m => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0);
+    const last3 = assistants.slice(-3);
+    if (last3.length === 3) {
+      const allAsks = last3.every(m => m.tool_calls.every(tc => {
+        const name = (tc.function?.name || tc.name || '').toLowerCase();
+        return name === 'ask_followup_question';
+      }));
+      if (allAsks) {
+        isAskLoop = true;
+        loopModelHint = 'ask_followup_question×3';
+        console.log(`[AFFINITY] ⚠ loop rilevato: 3 ask_followup_question consecutivi → cambio modello`);
+      }
+    }
+  }
+  if (debugVerbose) {
+    const lastMsg = allMsgs[allMsgs.length - 1];
+    const lastContent = lastMsg?.content
+      ? (typeof lastMsg.content === 'string' ? lastMsg.content : JSON.stringify(lastMsg.content))
+      : '<none>';
+    const asstTcCount = allMsgs.filter(m => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0).length;
+    const toolResultCount = allMsgs.filter(m => {
+      const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
+      return /<tool_result>/i.test(c);
+    }).length;
+    console.log(`[MSGS] total=${allMsgs.length} asst_tc=${asstTcCount} tool_result_msgs=${toolResultCount} lastRole=${lastMsg?.role} lastContent="${lastContent.slice(0, 250).replace(/\n/g, ' ')}"`);
+  }
+  // === MSGS-ERR: dump diagnostico ===
+  if (debugVerbose) {
+    const rolesSummary = {};
+    for (const mm of allMsgs) rolesSummary[mm.role] = (rolesSummary[mm.role] || 0) + 1;
+    console.log(`[MSGS] total=${allMsgs.length} roles=${JSON.stringify(rolesSummary)}`);
+
+    // Ultimi 3 messaggi role:tool — mostro il loro contenuto
+    const toolMsgs = allMsgs.filter(m => m.role === 'tool');
+    const lastTools = toolMsgs.slice(-3);
+    for (let i = 0; i < lastTools.length; i++) {
+      const tm = lastTools[i];
+      const c = typeof tm.content === 'string' ? tm.content : JSON.stringify(tm.content || '');
+      const preview = c.slice(0, 300).replace(/\n/g, ' ');
+      console.log(`[MSGS-TOOL#${i + 1}] name=${tm.name || '?'} content="${preview}"`);
+    }
+  }
+
   const profile = modeResult.profile;
   if (modeResult.mode) {
     console.log(`[MODE] ${modeResult.mode} → profile=${profile} (${modeResult.source}${modeResult.sig ? ' sig=' + modeResult.sig.slice(0,8) : ''})`);
@@ -794,13 +867,24 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // === SESSION AFFINITY ===
   // Se la sessione è struggling, rimuovi il pin per riselezionare
   // Se la sessione è struggling, penalizza il modello pinnato E rimuovi il pin
-  if (isStruggling && sessionKey) {
+  if ((isStruggling || isAskLoop) && sessionKey) {
     const entry = sessionModels.get(sessionKey);
     if (entry) {
-      console.log(`[AFFINITY] ✗ pin ${entry.model} fallito (tool error) → penalizzo e unpin`);
-      // Penalizza retroattivamente il modello che ha generato il tool_call fallito
-      bandit.recordFeedback(entry.model, false, 0, { message: "edit unsuccessful / tool-error" }, { source: feedbackSource });
+      // Accumula fail nella blacklist di sessione
+      let bl = sessionBlacklist.get(sessionKey);
+      if (!bl) { bl = new Map(); sessionBlacklist.set(sessionKey, bl); }
+      const fails = (bl.get(entry.model) || 0) + 1;
+      bl.set(entry.model, fails);
+
+      const reason = isAskLoop ? `loop ${loopModelHint}` : 'struggling';
+      console.log(`[AFFINITY] ✗ unpin ${entry.model} (${reason}, ${fails}ª volta) → escludo e scelgo altro`);
+      excluded.add(entry.model);       // forzo UCB1 a sceglierne un altro
       sessionModels.delete(sessionKey);
+
+      // Ban solo se il modello ha fallito più volte o ha fatto un loop di domande
+      if (fails >= 2 || isAskLoop) {
+        console.log(`[AFFINITY] 🚫 ${entry.model} BANNED nella sessione ${sessionKey.slice(0,8)} (${reason})`);
+      }
     }
   }
   let pinnedEntry = null;
@@ -822,6 +906,15 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
     console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
   } else {
+      // Aggiungi al set di esclusione i modelli bannati in questa sessione
+      if (sessionKey) {
+        const bl = sessionBlacklist.get(sessionKey);
+        if (bl) {
+          for (const [modelId, fails] of bl) {
+            if (fails >= 2) excluded.add(modelId);
+          }
+        }
+      }
     model = bandit.selectModel(excluded, null, estimatedTokens, requireTools, profile);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
@@ -1025,9 +1118,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
               return;
             }
 
-            const rewardScore = Math.max(0, 1.0 - (dur / 30));
+            const baseReward = Math.max(0, 1.0 - (dur / 30));
+            // Estrai i nomi dei tool chiamati dallo stream accumulato
+            const streamToolNames = [...accumulated.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map(m => m[1]);
+            const mult = computeToolRewardMultiplier(streamToolNames);
+            const rewardScore = baseReward * mult;
             bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
-            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
+            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${streamToolNames[0] || 'none'})`);
             trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
           } else if (streamFailed) {
             bandit.recordFeedback(model, false, 0, { message: "stream error" }, { source: feedbackSource });
@@ -1072,9 +1169,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           continue;
         }
 
-        const rewardScore = Math.max(0, 1.0 - (dur / 30));
+        const baseReward = Math.max(0, 1.0 - (dur / 30));
+        const respToolNames = (data.choices?.[0]?.message?.tool_calls || []).map(tc => tc.function?.name).filter(Boolean);
+        const mult = computeToolRewardMultiplier(respToolNames);
+        const rewardScore = baseReward * mult;
         bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
-        console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)})`);
+        console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${respToolNames[0] || 'none'})`);
         trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
         cleanup();
         return res.json(data);
@@ -1177,6 +1277,7 @@ async function startServer() {
       for (const [k, v] of sessionModels.entries()) {
         if (now - v.ts > SESSION_TTL_MS) {
           sessionModels.delete(k);
+          sessionBlacklist.delete(k); // pulisci anche la blacklist
           removed++;
         }
       }

@@ -770,6 +770,7 @@
             <h3>Log Streaming</h3>
             <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end;">
                 <input type="text" id="log-filter" placeholder="🔍 filtra..."
+                    autocomplete="off"
                     style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:220px;">
                 <label style="font-size:11px; color:#3fb950; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
                     <input type="checkbox" id="log-show-zoo" checked> ZOO
@@ -991,15 +992,20 @@
 
         async function toggleDebug(enabled) {
             try {
-                await fetch('/v1/debug/toggle', {
+                const r = await fetch('/v1/debug/toggle', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-api-token': 'Cadrega' },
                     body: JSON.stringify({ verbose: enabled })
                 });
-                console.log('[DEBUG] verbose=' + enabled);
+                const d = await r.json();
+                console.log(`[DEBUG] server verbose=${d.verbose}`);
+                // Sincronizza lo stato locale con quello del server
+                const cb = document.getElementById('debug-toggle');
+                if (cb) cb.checked = !!d.verbose;
             } catch (e) {
                 console.warn('[DEBUG] toggle failed:', e);
-                document.getElementById('debug-toggle').checked = !enabled;
+                const cb = document.getElementById('debug-toggle');
+                if (cb) cb.checked = !enabled;
             }
         }
 
@@ -1761,30 +1767,39 @@
             const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
             const showTrain = document.getElementById('log-show-train')?.checked ?? true;
 
-            // 1. Tagga ogni riga con la "sessione" corrente (zoo|train|system)
-            //    Da una riga "[PROXY] POST /v1/chat/completions [X]" fino alla
-            //    prossima riga "[PROXY] POST", tutto appartiene a X.
+            // Tagga ogni riga. Priorità:
+            // 1. Marker espliciti nella riga ([TRAIN], [ZOO], [BANDIT-TRAIN])
+            // 2. Marker [PROXY] POST aggiorna lo "stato corrente"
+            // 3. Nessun marker → eredita dall'ultimo POST
             const tagged = [];
             let currentSource = null;
             for (const line of raw) {
                 const s = String(line);
-                const m = s.match(/\[PROXY\] POST \/v1\/chat\/completions \[(ZOO|TRAIN)\]/);
-                if (m) currentSource = m[1].toLowerCase();
-                tagged.push({ line: s, source: currentSource });
+                let src = currentSource;
+
+                if (/\[PROXY\] POST \/v1\/chat\/completions \[TRAIN\]/.test(s)) {
+                    currentSource = 'train'; src = 'train';
+                } else if (/\[PROXY\] POST \/v1\/chat\/completions \[ZOO\]/.test(s)) {
+                    currentSource = 'zoo'; src = 'zoo';
+                } else if (/\[BANDIT-TRAIN\]/.test(s)) {
+                    src = 'train';   // marker esplicito, indipendentemente dal contesto
+                } else if (/\[TRAIN\]/.test(s)) {
+                    src = 'train';
+                } else if (/\[ZOO\]/.test(s)) {
+                    src = 'zoo';
+                }
+                tagged.push({ line: s, source: src });
             }
 
-            // 2. Filtra per source + testo
             let filtered = tagged;
             if (!showZoo) filtered = filtered.filter(t => t.source !== 'zoo');
             if (!showTrain) filtered = filtered.filter(t => t.source !== 'train');
             if (filter) filtered = filtered.filter(t => t.line.toLowerCase().includes(filter));
 
-            // 3. Renderizza
             const wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
             el.textContent = filtered.length > 0 ? filtered.map(t => t.line).join('\n') : 'Nessun log corrispondente.';
             if (wasAtBottom) el.scrollTop = el.scrollHeight;
         }
-
         // Aggiorna log quando cambiano i filtri
         ['log-filter', 'log-show-train', 'log-show-zoo'].forEach(id => {
             document.getElementById(id)?.addEventListener('input', () => {
@@ -1886,11 +1901,19 @@
         document.getElementById('filter-models').addEventListener('input', renderAll);
         document.getElementById('filter-problems').addEventListener('change', renderAll);
 
+        // Reset filtri al load (no persistenza browser)
+        const logFilterEl = document.getElementById('log-filter');
+        if (logFilterEl) logFilterEl.value = '';
+        ['log-show-zoo', 'log-show-train'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.checked = true;
+        });
+
         refreshAll();
         fetchLogs();
         fetchActive();
         setInterval(refreshAll, 2500);
-        setInterval(fetchLogs, 1000);
+        setInterval(fetchLogs, 500);
         setInterval(fetchActive, 500);
         document.addEventListener('DOMContentLoaded', () => {
             const fab = document.getElementById('dev-fab');
