@@ -83,8 +83,11 @@ function validateStreamAccumulated(raw, opts = {}) {
   if (!raw || raw.length === 0) return "empty stream";
 
   // Cerca errori nel payload SSE
-  if (/^\s*data:\s*\{\s*"error"/m.test(raw)) return "SSE contains error";
-  if (/\b"finish_reason"\s*:\s*"content_filter"/.test(raw)) return "content_filter";
+  if (/^\s*data:\s*\{\s*"error"/m.test(raw)) {
+    const m = raw.match(/data:\s*(\{[^\n]*"error"[^\n]*\})/);
+    console.error(`[SSE ERROR RAW] ${m ? m[1].slice(0, 600) : raw.slice(0, 600)}`);
+    return "SSE contains error";
+  }
 
   // Estrai l'ultimo data: {...} utile e verifica se ha contenuto
   const lines = raw.split("\n").filter(l => l.startsWith("data: "));
