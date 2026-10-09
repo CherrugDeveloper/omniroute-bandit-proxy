@@ -1063,7 +1063,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           }
         }
       }
-    model = bandit.selectModel(excluded, null, estimatedTokens, requireTools, profile, cooledDownThisRequest);
+    model = bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
       console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
