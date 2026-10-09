@@ -1801,6 +1801,10 @@
             // 3. Nessun marker → eredita dall'ultimo POST
             const tagged = [];
             let currentSource = null;
+            // Prefissi di sistema: non appartengono a ZOO né a TRAIN.
+            // Non devono mai ereditare currentSource, altrimenti spariscono
+            // quando filtri per zoo o train.
+            const SYSTEM_LINE_RE = /\[(?:HEALTH|CONFIG|INIT|MODES|DASHBOARD|NOTIFIER|SECURITY|FATAL|MIGRAZIONE)\]/;
             for (const line of raw) {
                 const s = String(line);
                 let src = currentSource;
@@ -1817,7 +1821,10 @@
                     src = 'zoo';
                 } else if (/\[DEBUG\]/.test(s) || /\/debug\/\w+/.test(s) || /debug\s*:/.test(s)) {
                     src = 'debug';
-                }
+                } else if (SYSTEM_LINE_RE.test(s)) {
+                    // Riga di sistema: la taggo esplicitamente 'system'
+                    // così non eredita da ZOO/TRAIN e non sparisce mai.
+                    src = 'system';
                 tagged.push({ line: s, source: src });
             }
 
