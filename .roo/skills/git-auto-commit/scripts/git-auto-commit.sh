@@ -225,19 +225,7 @@ main() {
         # Write history analysis to temp file and use Python
         temp_file=$(mktemp)
         echo "$history_analysis" > "$temp_file"
-        python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-print('Commit count: ' + str(data['commit_count']))
-print('Conventional compliance: ' + str(data['conventional_compliance'] * 100) + '%')
-if data.get('duplicates'):
-    print('Duplicate commits found: ' + ', '.join(data['duplicates']))
-if data.get('suggestions'):
-    print('Suggestions: ' + '; '.join(data['suggestions']))
-if data.get('orphaned_branches'):
-    print('Orphaned branches: ' + ', '.join(data['orphaned_branches']))
-" "$temp_file"
+        python3 -c "import json, sys; data = json.load(open(sys.argv[1])); print('Commit count: ' + str(data['commit_count'])); print('Conventional compliance: ' + str(data['conventional_compliance'] * 100) + '%'); [print(x + ': ' + ', '.join(data[x])) if data.get(x) else None for x in ['duplicates', 'suggestions', 'orphaned_branches']]" "$temp_file"
         rm -f "$temp_file"
     fi
     
