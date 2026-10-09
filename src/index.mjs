@@ -81,10 +81,19 @@ function validateStreamAccumulated(raw, opts = {}) {
               console.log(`[RESPONSE-STREAM] tool_calls found: ${toolCallMatches?.length || 0} | names: ${toolNames.join(", ")}`);
             }
   if (!raw || raw.length === 0) return "empty stream";
-
     if (/^\s*data:\s*\{\s*"error"/m.test(raw)) {
-      const m = raw.match(/data:\s*(\{[\s\S]*?\})/m);
-      const payload = m ? m[1] : raw.slice(0, 2000);
+      // Estrai la riga data: che contiene "error" — NON la prima riga data: {...}
+      // (il primo data: può essere un keepalive con delta vuoto)
+      let payload = "";
+      for (const line of raw.split("\n")) {
+        const t = line.trim();
+        if (t.startsWith("data:") && t.includes('"error"')) {
+          payload = t.slice(5).trim();
+          break;
+        }
+      }
+      if (!payload) payload = raw.slice(0, 2000);
+
       let innerMessage = "";
       let status = 0;
       let code = "";
@@ -102,7 +111,6 @@ function validateStreamAccumulated(raw, opts = {}) {
       console.error(`[SSE ERROR RAW] ${payload.slice(0, 600)}`);
       return { reason: "SSE contains error", status, message: innerMessage || payload.slice(0, 500) };
     }
-
   // Estrai l'ultimo data: {...} utile e verifica se ha contenuto
   const lines = raw.split("\n").filter(l => l.startsWith("data: "));
   if (lines.length === 0) return "no SSE data lines";
