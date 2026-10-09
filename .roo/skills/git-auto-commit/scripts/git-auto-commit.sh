@@ -223,18 +223,18 @@ main() {
         # Human-readable output
         echo "=== Commit History Analysis ==="
         # Use Python for reliable JSON formatting (avoids jq shell escaping issues)
-        echo "$history_analysis" | python3 -c '
+        echo "$history_analysis" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
-print(f"Commit count: {data[\"commit_count\"]}")
-print(f"Conventional compliance: {data[\"conventional_compliance\"] * 100}%")
-if data.get("duplicates"):
-    print(f"Duplicate commits found: {\", \".join(data[\"duplicates\"])}")
-if data.get("suggestions"):
-    print(f"Suggestions: {\"; \".join(data[\"suggestions\"])}")
-if data.get("orphaned_branches"):
-    print(f"Orphaned branches: {\", \".join(data[\"orphaned_branches\"])}")
-'
+print(f'Commit count: {data[\"commit_count\"]}')
+print(f'Conventional compliance: {data[\"conventional_compliance\"] * 100}%')
+if data.get('duplicates'):
+    print(f'Duplicate commits found: {\", \".join(data[\"duplicates\"])}')
+if data.get('suggestions'):
+    print(f'Suggestions: {\"; \".join(data[\"suggestions\"])}')
+if data.get('orphaned_branches'):
+    print(f'Orphaned branches: {\", \".join(data[\"orphaned_branches\"])}')
+"
     fi
     
     log_info "git-auto-commit completed successfully"
