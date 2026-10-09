@@ -225,9 +225,9 @@ main() {
         echo "$history_analysis" | jq -r '
           "Commit count: \(.commit_count)",
           "Conventional compliance: \(.conventional_compliance * 100)%",
-          (.duplicates | if length > 0 then "Duplicate commits found: \(join(\", \"))" else "" end),
-          (.suggestions | if length > 0 then "Suggestions: \(join(\"; \"))" else "" end),
-          (.orphaned_branches | if length > 0 then "Orphaned branches: \(join(\", \"))" else "" end)
+          if (.duplicates | length) > 0 then "Duplicate commits found: \(.duplicates | join(\", \"))" else "" end,
+          if (.suggestions | length) > 0 then "Suggestions: \(.suggestions | join(\"; \"))" else "" end,
+          if (.orphaned_branches | length) > 0 then "Orphaned branches: \(.orphaned_branches | join(\", \"))" else "" end
         ' | grep -v '^$'
     fi
     
