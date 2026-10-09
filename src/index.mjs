@@ -1433,20 +1433,26 @@ process.on("SIGINT", () => {
 // STARTUP
 // ========================================
 
-async function startServer() {
+async function startServer(attempt = 1) {
+  const MAX_ATTEMPTS = 5;
   try {
     console.log("[INIT] Sincronizzazione modelli in corso...");
     await bandit.fetchAndSyncModels();
     console.log("[INIT] Modelli sincronizzati con successo");
   } catch (err) {
+    if (attempt >= MAX_ATTEMPTS) {
+      console.error(`[FATAL] Troppi tentativi falliti di sincronizzazione (${MAX_ATTEMPTS}), arresto`);
+      bandit.close();
+      process.exit(1);
+    }
     console.error("[INIT] Errore sincronizzazione:", err.message);
-    console.log("[INIT] Retry in 5 secondi...");
+    console.log(`[INIT] Ritento tra 5 secondi... (tentativo ${attempt + 1}/${MAX_ATTEMPTS})`);
     await new Promise(resolve => setTimeout(resolve, 5000));
-    return startServer();
+    return startServer(attempt + 1);
   }
 
   initRegistry();
-  app.listen(PORT, "127.0.0.1", () => {
+  const server = app.listen(PORT, "127.0.0.1", () => {
     console.log(`[PROXY] ✓ Server avviato su http://127.0.0.1:${PORT}`);
     console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
     console.log(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
