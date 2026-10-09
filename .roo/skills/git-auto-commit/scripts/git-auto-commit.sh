@@ -222,7 +222,8 @@ main() {
     else
         # Human-readable output
         echo "=== Commit History Analysis ==="
-        echo "$history_analysis" | jq -r '
+        # Use a heredoc to avoid shell escaping issues with jq filter
+        jq -r <<< "$history_analysis" '
           "Commit count: \(.commit_count)",
           "Conventional compliance: \(.conventional_compliance * 100)%",
           if (.duplicates | length) > 0 then "Duplicate commits found: \(.duplicates | join(\", \"))" else "" end,
