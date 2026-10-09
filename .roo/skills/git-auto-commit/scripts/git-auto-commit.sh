@@ -222,17 +222,18 @@ main() {
     else
         # Human-readable output
         echo "=== Commit History Analysis ==="
-        # Use a temporary file to avoid shell escaping issues with jq filter
-        temp_file=$(mktemp)
-        echo "$history_analysis" > "$temp_file"
-        jq -r -f "$temp_file" '
-          "Commit count: \(.commit_count)",
-          "Conventional compliance: \(.conventional_compliance * 100)%",
-          if (.duplicates | length) > 0 then "Duplicate commits found: \(.duplicates | join(\", \"))" else "" end,
-          if (.suggestions | length) > 0 then "Suggestions: \(.suggestions | join(\"; \"))" else "" end,
-          if (.orphaned_branches | length) > 0 then "Orphaned branches: \(.orphaned_branches | join(\", \"))" else "" end
-        ' | grep -v '^$'
-        rm -f "$temp_file"
+        # Write jq filter to temp file to avoid shell escaping issues
+        local filter_file
+        filter_file=$(mktemp)
+        cat > "$filter_file" <<'JQFILTER'
+"Commit count: \(.commit_count)",
+"Conventional compliance: \(.conventional_compliance * 100)%",
+if (.duplicates | length) > 0 then "Duplicate commits found: \(.duplicates | join(\", \"))" else "" end,
+if (.suggestions | length) > 0 then "Suggestions: \(.suggestions | join(\"; \"))" else "" end,
+if (.orphaned_branches | length) > 0 then "Orphaned branches: \(.orphaned_branches | join(\", \"))" else "" end
+JQFILTER
+        echo "$history_analysis" | jq -r -f "$filter_file" | grep -v '^$'
+        rm -f "$filter_file"
     fi
     
     log_info "git-auto-commit completed successfully"
