@@ -222,19 +222,23 @@ main() {
     else
         # Human-readable output
         echo "=== Commit History Analysis ==="
-        # Use Python for reliable JSON formatting (avoids jq shell escaping issues)
-        echo "$history_analysis" | python3 -c "
+        # Write history analysis to temp file and use Python
+        temp_file=$(mktemp)
+        echo "$history_analysis" > "$temp_file"
+        python3 -c "
 import json, sys
-data = json.load(sys.stdin)
-print(f'Commit count: {data[\"commit_count\"]}')
-print(f'Conventional compliance: {data[\"conventional_compliance\"] * 100}%')
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+print('Commit count: ' + str(data['commit_count']))
+print('Conventional compliance: ' + str(data['conventional_compliance'] * 100) + '%')
 if data.get('duplicates'):
     print('Duplicate commits found: ' + ', '.join(data['duplicates']))
 if data.get('suggestions'):
     print('Suggestions: ' + '; '.join(data['suggestions']))
 if data.get('orphaned_branches'):
     print('Orphaned branches: ' + ', '.join(data['orphaned_branches']))
-"
+" "$temp_file"
+        rm -f "$temp_file"
     fi
     
     log_info "git-auto-commit completed successfully"
