@@ -679,7 +679,12 @@ export class DiscountedUCB1Bandit {
 
   _unlockProvider(provider) {
     this.db.prepare(
-      `UPDATE provider_history SET cooldown_until = 0 WHERE provider = ?`
+      `UPDATE provider_history
+       SET cooldown_until = 0,
+           needs_attention = 0,
+           attention_reason = NULL,
+           attention_message = NULL
+       WHERE provider = ?`
     ).run(provider);
   }
 
@@ -973,7 +978,7 @@ export class DiscountedUCB1Bandit {
       FROM models m
       WHERE m.degraded = 1 OR (m.cooldown_until > 0 AND m.cooldown_until > ?)
       LIMIT ?
-    `, [now, batchSize]).all();
+    `).all(now, batchSize);
   }
 
   getModelMaxInput(modelId) {
