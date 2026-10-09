@@ -56,3 +56,6 @@ build/
 
 # Python virtual environments
 venv/
+training.log.old
+analysis_report.md
+report_summary.md
