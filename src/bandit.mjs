@@ -558,32 +558,26 @@ export class DiscountedUCB1Bandit {
     const message = errorDetails.message || "";
     const reason = errorDetails.reason || "unknown";
     const is429 = status === 429;
-
-    // 404 model not found -> ban-model
-    if (status === 404 && /does not exist|not found/i.test(message)) {
+    // 404 model not found (varianti: "does not exist", "not found", "no longer available")
+    if (status === 404 && /does not exist|not found|no longer available/i.test(message)) {
       return { action: "ban-model", scope: "model", reason: "model-not-found" };
     }
-
-    // 400 model not supported -> ban-model
-    if (status === 400 && /not supported/i.test(message)) {
+    // 400 model non utilizzabile (non supportato, provider sconosciuto, code=model_not_found)
+    if (status === 400 && /not supported|unknown provider for model|model_not_found/i.test(message)) {
       return { action: "ban-model", scope: "model", reason: "model-not-supported" };
     }
-
     // Upstream bug (Assignment to constant) -> ban-model
     if (/Assignment to constant variable/i.test(message)) {
       return { action: "ban-model", scope: "model", reason: "upstream-bug" };
     }
-
     // No auth provided -> flag-provider
     if (status === 502 && /No auth provided|Please log in/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured" };
     }
-
     // Playwright not available -> flag-provider
     if (status === 502 && /Playwright is not available/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured" };
     }
-
     // 403 banned -> ban-provider
     if (status === 403 && /account disabled|banned/i.test(message)) {
       return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
