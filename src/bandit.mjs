@@ -578,6 +578,10 @@ export class DiscountedUCB1Bandit {
     if (status === 502 && /Playwright is not available/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured" };
     }
+    // CLI / binario mancante o non configurato -> flag-provider
+    if (status === 502 && /CLI not found|is not configured|missing url or token|transport is not configured|command not found/i.test(message)) {
+      return { action: "flag-provider", reason: "provider-misconfigured" };
+    }
     // 403 banned -> ban-provider
     if (status === 403 && /account disabled|banned/i.test(message)) {
       return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
