@@ -229,11 +229,11 @@ data = json.load(sys.stdin)
 print(f'Commit count: {data[\"commit_count\"]}')
 print(f'Conventional compliance: {data[\"conventional_compliance\"] * 100}%')
 if data.get('duplicates'):
-    print(f'Duplicate commits found: {\", \".join(data[\"duplicates\"])}')
+    print('Duplicate commits found: ' + ', '.join(data['duplicates']))
 if data.get('suggestions'):
-    print(f'Suggestions: {\"; \".join(data[\"suggestions\"])}')
+    print('Suggestions: ' + '; '.join(data['suggestions']))
 if data.get('orphaned_branches'):
-    print(f'Orphaned branches: {\", \".join(data[\"orphaned_branches\"])}')
+    print('Orphaned branches: ' + ', '.join(data['orphaned_branches']))
 "
     fi
     
