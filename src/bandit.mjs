@@ -809,14 +809,15 @@ export class DiscountedUCB1Bandit {
     ).all();
     return { models, providers };
   }
-
   isModelAvailable(modelId) {
     const model = this.db.prepare(
-      `SELECT cooldown_until FROM models WHERE id = ?`
+      `SELECT cooldown_until, permanent, degraded FROM models WHERE id = ?`
     ).get(modelId);
-    return !model || model.cooldown_until <= Date.now();
+    if (!model) return true; // mai visto → disponibile (il bandit deciderà)
+    if (model.permanent === 1) return false;
+    if (model.degraded === 1) return false;
+    return !model.cooldown_until || model.cooldown_until <= Date.now();
   }
-
   estimateTokens(body) {
     // Implementazione realistica: stima approssimativa del numero di token
     if (!body || typeof body !== "object") return 0;
