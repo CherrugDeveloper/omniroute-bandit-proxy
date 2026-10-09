@@ -385,7 +385,8 @@ EOF
 
 # Analyze recent commit history
 analyze_history() {
-    log_info "Analyzing recent commit history..."
+    # Log to stderr to avoid polluting JSON output
+    log_info "Analyzing recent commit history..." >&2
     
     local analysis_json
     analysis_json=$(cat <<EOF
