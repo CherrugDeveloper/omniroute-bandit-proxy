@@ -433,6 +433,10 @@ EOF
     local compliance_rate=0
     if [[ $commit_count -gt 0 ]]; then
         compliance_rate=$(echo "scale=2; $conventional_count / $commit_count" | bc 2>/dev/null || echo "0")
+        # Ensure leading zero for values < 1
+        if [[ "$compliance_rate" == .* ]]; then
+            compliance_rate="0$compliance_rate"
+        fi
     fi
     
     # Find duplicates (same subject)
