@@ -878,14 +878,10 @@ export class DiscountedUCB1Bandit {
       SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools
       FROM catalog c
     `).all();
-
-    // Get all models from models table
     const dbModels = this.db.prepare(`
       SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent
       FROM models m
-      WHERE m.permanent = 0
     `).all();
-
     // Combine catalog and db models, preferring db models when there's a conflict
     const modelMap = new Map();
     for (const model of catalogModels) {
