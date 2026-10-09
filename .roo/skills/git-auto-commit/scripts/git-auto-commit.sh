@@ -222,18 +222,19 @@ main() {
     else
         # Human-readable output
         echo "=== Commit History Analysis ==="
-        # Write jq filter to temp file to avoid shell escaping issues
-        local filter_file
-        filter_file=$(mktemp)
-        cat > "$filter_file" <<'JQFILTER'
-"Commit count: \(.commit_count)",
-"Conventional compliance: \(.conventional_compliance * 100)%",
-if (.duplicates | length) > 0 then "Duplicate commits found: \(.duplicates | join(\", \"))" else "" end,
-if (.suggestions | length) > 0 then "Suggestions: \(.suggestions | join(\"; \"))" else "" end,
-if (.orphaned_branches | length) > 0 then "Orphaned branches: \(.orphaned_branches | join(\", \"))" else "" end
-JQFILTER
-        echo "$history_analysis" | jq -r -f "$filter_file" | grep -v '^$'
-        rm -f "$filter_file"
+        # Use Python for reliable JSON formatting (avoids jq shell escaping issues)
+        echo "$history_analysis" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+print(f"Commit count: {data[\"commit_count\"]}")
+print(f"Conventional compliance: {data[\"conventional_compliance\"] * 100}%")
+if data.get("duplicates"):
+    print(f"Duplicate commits found: {\", \".join(data[\"duplicates\"])}")
+if data.get("suggestions"):
+    print(f"Suggestions: {\"; \".join(data[\"suggestions\"])}")
+if data.get("orphaned_branches"):
+    print(f"Orphaned branches: {\", \".join(data[\"orphaned_branches\"])}")
+'
     fi
     
     log_info "git-auto-commit completed successfully"
