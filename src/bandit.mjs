@@ -980,27 +980,23 @@ export class DiscountedUCB1Bandit {
       LIMIT ?
     `).all(now, batchSize);
   }
-
   getModelMaxInput(modelId) {
-    // First check the catalog
-    const catRow = this.db.prepare(
-      `SELECT max_input_tokens FROM catalog WHERE id = ?`
-    ).get(modelId);
+    // Catalog: max_input_tokens (dal provider)
+    try {
+      const catRow = this.db.prepare(
+        `SELECT max_input_tokens FROM catalog WHERE id = ?`
+      ).get(modelId);
+      if (catRow && catRow.max_input_tokens > 0) return catRow.max_input_tokens;
+    } catch (_) {}
 
-    if (catRow && catRow.max_input_tokens > 0) {
-      return catRow.max_input_tokens;
-    }
+    // models: dynamic_max_tokens (appreso dai 413 ITPM)
+    try {
+      const modelRow = this.db.prepare(
+        `SELECT dynamic_max_tokens FROM models WHERE id = ?`
+      ).get(modelId);
+      if (modelRow && modelRow.dynamic_max_tokens > 0) return modelRow.dynamic_max_tokens;
+    } catch (_) {}
 
-    // Fallback to models table
-    const modelRow = this.db.prepare(
-      `SELECT max_input_tokens FROM models WHERE id = ?`
-    ).get(modelId);
-
-    if (modelRow && modelRow.max_input_tokens > 0) {
-      return modelRow.max_input_tokens;
-    }
-
-    // Default fallback
     return 0;
   }
 
