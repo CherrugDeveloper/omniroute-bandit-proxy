@@ -82,12 +82,26 @@ function validateStreamAccumulated(raw, opts = {}) {
             }
   if (!raw || raw.length === 0) return "empty stream";
 
-  // Cerca errori nel payload SSE
-  if (/^\s*data:\s*\{\s*"error"/m.test(raw)) {
-    const m = raw.match(/data:\s*(\{[^\n]*"error"[^\n]*\})/);
-    console.error(`[SSE ERROR RAW] ${m ? m[1].slice(0, 600) : raw.slice(0, 600)}`);
-    return "SSE contains error";
-  }
+    if (/^\s*data:\s*\{\s*"error"/m.test(raw)) {
+      const m = raw.match(/data:\s*(\{[\s\S]*?\})/m);
+      const payload = m ? m[1] : raw.slice(0, 2000);
+      let innerMessage = "";
+      let status = 0;
+      let code = "";
+      try {
+        const parsed = JSON.parse(payload);
+        const errObj = parsed.error || {};
+        innerMessage = errObj.message || "";
+        code = errObj.code || "";
+        if (code === "model_shutdown") status = 410;
+        else if (code === "model_not_found") status = 400;
+        else if (/unknown provider for model|not supported|model_not_found/i.test(innerMessage)) status = 400;
+        else if (/does not exist|not found|no longer available/i.test(innerMessage)) status = 404;
+        else if (/quota|rate limit/i.test(innerMessage)) status = 429;
+      } catch (_) {}
+      console.error(`[SSE ERROR RAW] ${payload.slice(0, 600)}`);
+      return { reason: "SSE contains error", status, message: innerMessage || payload.slice(0, 500) };
+    }
 
   // Estrai l'ultimo data: {...} utile e verifica se ha contenuto
   const lines = raw.split("\n").filter(l => l.startsWith("data: "));
@@ -1297,19 +1311,23 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
               const tcMatches = accumulated.match(/"tool_calls"/g);
               console.log(`[RESPONSE-STREAM] ${model} | tool_calls found: ${tcMatches?.length || 0}`);
             }
-            if (streamInvalid) {
-              console.error(`[STREAM INVALID] ${model}: ${streamInvalid}`);
-              bandit.recordFeedback(model, false, 0, { message: streamInvalid }, { source: feedbackSource });
-              // Header già inviati: NON possiamo cambiare modello.
-              // Chiudiamo lo stream con un errore e usciamo.
-              try {
-                res.write(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + streamInvalid } })}\n\n`);
-                res.write(`data: [DONE]\n\n`);
-              } catch (_) {}
-              cleanup();
-              try { res.end(); } catch (_) {}
-              return;
-            }
+              if (streamInvalid) {
+                const details = (typeof streamInvalid === "object" && streamInvalid !== null)
+                  ? streamInvalid
+                  : { message: String(streamInvalid) };
+                const displayMsg = details.message || details.reason || String(streamInvalid);
+                console.error(`[STREAM INVALID] ${model}: ${displayMsg}`);
+                bandit.recordFeedback(model, false, 0, details, { source: feedbackSource });
+                // Header già inviati: NON possiamo cambiare modello.
+                // Chiudiamo lo stream con un errore e usciamo.
+                try {
+                  res.write(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + displayMsg } })}\n\n`);
+                  res.write(`data: [DONE]\n\n`);
+                } catch (_) {}
+                cleanup();
+                try { res.end(); } catch (_) {}
+                return;
+              }
 
             const baseReward = Math.max(0, 1.0 - (dur / 30));
             // Estrai i nomi dei tool chiamati dallo stream accumulato

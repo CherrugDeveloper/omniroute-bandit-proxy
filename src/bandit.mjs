@@ -570,6 +570,10 @@ export class DiscountedUCB1Bandit {
     if (/Assignment to constant variable/i.test(message)) {
       return { action: "ban-model", scope: "model", reason: "upstream-bug" };
     }
+    // 410 model shutdown (end of life) -> ban-model
+    if (status === 410 && /model_shutdown|model is gone|end of life|no longer available|model_shutdown/i.test(message + " " + (errorDetails.code || ""))) {
+      return { action: "ban-model", scope: "model", reason: "model-shutdown" };
+    }
     // No auth provided -> flag-provider
     if (status === 502 && /No auth provided|Please log in/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured" };
