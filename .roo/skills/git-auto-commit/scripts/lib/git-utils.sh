@@ -474,11 +474,16 @@ EOF
     
     if [[ "$current_branch" != "HEAD" ]]; then
         local branches
-        branches=$(git_cmd "git branch --all --no-color" 2>/dev/null || true)
+        branches=$(git branch --all --no-color 2>/dev/null || true)
         
         while IFS= read -r branch; do
             branch=$(echo "$branch" | sed 's/^[ *]*//')
             [[ -z "$branch" ]] && continue
+            
+            # Skip remote-tracking branches and HEAD ref
+            if [[ "$branch" == remotes/* ]] || [[ "$branch" == HEAD* ]]; then
+                continue
+            fi
             
             # Skip current branch
             if [[ "$branch" == "$current_branch" ]]; then
@@ -486,12 +491,14 @@ EOF
             fi
             
             # Check if branch is merged into current branch
-            if ! git_cmd "git merge-base --is-ancestor $branch $current_branch" 2>/dev/null; then
-                # Check if branch has commits ahead of current
-                local ahead_count
-                ahead_count=$(git_cmd "git rev-list --count $branch..$current_branch" 2>/dev/null || echo "0")
-                if [[ $ahead_count -eq 0 ]]; then
-                    orphaned_branches+=("$branch")
+            if ! git merge-base --is-ancestor "$branch" "$current_branch" 2>/dev/null; then
+                # Check if branch has commits ahead of current (local branches only)
+                if [[ "$branch" != remotes/* ]]; then
+                    local ahead_count
+                    ahead_count=$(git rev-list --count "$branch..$current_branch" 2>/dev/null || echo "0")
+                    if [[ "$ahead_count" =~ ^[0-9]+$ ]] && [[ "$ahead_count" -eq 0 ]]; then
+                        orphaned_branches+=("$branch")
+                    fi
                 fi
             fi
         done <<< "$branches"
