@@ -735,8 +735,8 @@ export class DiscountedUCB1Bandit {
 
   _flagProviderAttention(provider, reason, message) {
     this.db.prepare(
-      `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
-    ).run(reason, message, provider);
+      `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+    ).run(Date.now() + 24 * 3600000, reason, message, provider);
   }
 
   _getModelCooldownMs(fails) {
@@ -914,10 +914,6 @@ export class DiscountedUCB1Bandit {
         }
         if (prov.permanent === 1) {
           console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} permanently banned`);
-          return false;
-        }
-        if (prov.needs_attention === 1) {
-          console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} needs attention`);
           return false;
         }
       }
