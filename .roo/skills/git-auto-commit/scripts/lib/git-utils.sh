@@ -457,7 +457,7 @@ EOF
             local type="${BASH_REMATCH[1]}"
             local scope="${BASH_REMATCH[2]}"
             local key="$type$scope"
-            type_scope_counts["$key"]=$((type_scope_counts["$key"] + 1))
+            type_scope_counts["$key"]=$((${type_scope_counts["$key"]:-0} + 1))
         fi
     done
     
@@ -497,14 +497,34 @@ EOF
         done <<< "$branches"
     fi
     
-    # Build analysis JSON
+    # Build analysis JSON - handle empty arrays properly
+    local duplicates_json suggestions_json orphaned_branches_json
+    
+    if [[ ${#duplicates[@]} -gt 0 ]]; then
+        duplicates_json=$(printf '%s\n' "${duplicates[@]}" | jq -R . | jq -s .)
+    else
+        duplicates_json='[]'
+    fi
+    
+    if [[ ${#suggestions[@]} -gt 0 ]]; then
+        suggestions_json=$(printf '%s\n' "${suggestions[@]}" | jq -R . | jq -s .)
+    else
+        suggestions_json='[]'
+    fi
+    
+    if [[ ${#orphaned_branches[@]} -gt 0 ]]; then
+        orphaned_branches_json=$(printf '%s\n' "${orphaned_branches[@]}" | jq -R . | jq -s .)
+    else
+        orphaned_branches_json='[]'
+    fi
+    
     analysis_json=$(cat <<EOF
 {
   "commit_count": $commit_count,
   "conventional_compliance": $compliance_rate,
-  "duplicates": $(printf '%s' "${duplicates[*]}" | jq -R -s -c 'split(" ") | map(select(length > 0))'),
-  "suggestions": $(printf '%s' "${suggestions[*]}" | jq -R -s -c 'split(" ") | map(select(length > 0))'),
-  "orphaned_branches": $(printf '%s' "${orphaned_branches[*]}" | jq -R -s -c 'split(" ") | map(select(length > 0))')
+  "duplicates": $duplicates_json,
+  "suggestions": $suggestions_json,
+  "orphaned_branches": $orphaned_branches_json
 }
 EOF
 )
