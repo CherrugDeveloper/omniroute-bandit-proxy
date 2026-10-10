@@ -1,0 +1,24 @@
+{
+    "providers": {
+        "openrouter": {
+            "rpm": 100,
+            "rpd": 1000
+        },
+        "groq": {
+            "rpm": 50,
+            "rpd": 500
+        },
+        "nvidia": {
+            "rpm": 150,
+            "rpd": 1500
+        },
+        "gemini": {
+            "rpm": 30,
+            "rpd": 300
+        },
+        "mistral": {
+            "rpm": 75,
+            "rpd": 750
+        }
+    }
+}
