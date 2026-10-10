@@ -594,6 +594,20 @@ export class DiscountedUCB1Bandit {
     if (status === 403 && /account disabled|banned/i.test(message)) {
       return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
     }
+    // 403 Key limit exceeded (OpenRouter) -> cooldown-provider breve
+    if (status === 403 && /Key limit exceeded|total limit/i.test(message)) {
+      const m = message.match(/reset after (\d+)(s|m|h)/i);
+      let cooldownMs = 60000;
+      if (m) {
+        const v = parseInt(m[1], 10);
+        const u = m[2].toLowerCase();
+        if (u === 's') cooldownMs = v * 1000;
+        else if (u === 'm') cooldownMs = v * 60000;
+        else if (u === 'h') cooldownMs = v * 3600000;
+      }
+      cooldownMs = Math.max(cooldownMs, 30000);
+      return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs };
+    }
 
     // 429 with model_cooldown code -> cooldown-model
     if (is429 && errorDetails.code === "model_cooldown") {
