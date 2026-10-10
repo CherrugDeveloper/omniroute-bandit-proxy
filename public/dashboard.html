@@ -764,6 +764,7 @@
         <button class="tab-btn" data-tab="train">🏋️ Train</button>
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
         <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
+        <button class="tab-btn" data-tab="scripts">🛠️ Script Manager</button>
     </div>
 
     <div id="tab-logs" class="tab-content active">
@@ -939,6 +940,53 @@
                 </thead>
                 <tbody id="providers-tbody"></tbody>
             </table>
+        </div>
+    </div>
+
+    <div id="tab-scripts" class="tab-content">
+        <div class="card" style="margin-bottom:15px;">
+            <h3>🛠️ Script Manager</h3>
+            <p style="color:#8b949e; font-size:13px; margin-top:4px;">
+                Esegui gli script di amministrazione del sistema. Gli script vengono eseguiti in sandbox e l'output viene salvato.
+            </p>
+        </div>
+
+        <div class="filter-bar" style="margin-bottom:15px;">
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="script-filter" placeholder="🔍 Cerca script..." style="flex:1; min-width:200px;">
+                <button class="btn" id="scripts-refresh">🔄 Aggiorna</button>
+            </div>
+        </div>
+
+        <div id="scripts-list">
+            <div class="counter-bar">
+                <span id="scripts-count">0 scripti</span>
+            </div>
+            <div class="table-wrapper" style="margin-top:10px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Dimensione</th>
+                            <th>Ultima modifica</th>
+                            <th>Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scripts-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="script-output-container" style="display:none; margin-top:20px;">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 id="script-output-title">Output Script</h3>
+                    <button class="btn btn-danger" id="script-output-close">✕ Chiudi</button>
+                </div>
+                <div id="script-output-status" style="margin-bottom:10px;"></div>
+                <pre id="script-output" style="background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:400px; font-size:12px; white-space:pre-wrap; word-wrap:break-word;"></pre>
+            </div>
         </div>
     </div>
 
@@ -2318,13 +2366,22 @@
             } catch (e) {}
         }
         // ============= INIT =============
-        document.getElementById('filter-models').addEventListener('input', renderAll);
-        document.getElementById('filter-problems').addEventListener('change', renderAll);
+        // Attach filter event listeners to existing filter elements
+        document.getElementById('models-filter-search')?.addEventListener('input', renderAll);
+        document.getElementById('models-filter-provider')?.addEventListener('change', renderAll);
+        document.getElementById('models-filter-status')?.addEventListener('change', renderAll);
+        document.getElementById('models-filter-minN')?.addEventListener('input', renderAll);
+        document.getElementById('models-filter-minAvg')?.addEventListener('input', renderAll);
+        document.getElementById('models-filter-search-train')?.addEventListener('input', renderTrainAll);
+        document.getElementById('models-filter-provider-train')?.addEventListener('change', renderTrainAll);
+        document.getElementById('models-filter-status-train')?.addEventListener('change', renderTrainAll);
+        document.getElementById('models-filter-minN-train')?.addEventListener('input', renderTrainAll);
+        document.getElementById('models-filter-minAvg-train')?.addEventListener('input', renderTrainAll);
 
         // Reset filtri al load (no persistenza browser)
         const logFilterEl = document.getElementById('log-filter');
         if (logFilterEl) logFilterEl.value = '';
-        ['log-show-zoo', 'log-show-train'].forEach(id => {
+        ['log-show-zoo', 'log-show-train', 'log-show-debug'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.checked = true;
         });
@@ -2572,5 +2629,174 @@
             <div id="changelog-content" style="font-size:13px; line-height:1.7; color:#c9d1d9;">Caricamento...</div>
         </div>
     </div>
+
+    <script>
+        // ========================================
+        // SCRIPT MANAGER FUNCTIONALITY
+        // ========================================
+        
+        let scriptsData = [];
+        
+        // Helper function to get auth headers
+        function authHeaders() {
+            const headers = {};
+            if (API_TOKEN) headers['x-api-token'] = API_TOKEN;
+            return headers;
+        }
+        
+        // Helper function to format bytes
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        
+        async function loadScripts() {
+            try {
+                const res = await fetch('/v1/scripts', { headers: authHeaders() });
+                if (!res.ok) throw new Error('Failed to load scripts');
+                const data = await res.json();
+                scriptsData = data.scripts || [];
+                renderScripts();
+            } catch (e) {
+                console.error('Error loading scripts:', e);
+                document.getElementById('scripts-tbody').innerHTML =
+                    '<tr><td colspan="5" style="text-align:center; color:#f85149;">Errore caricamento script</td></tr>';
+            }
+        }
+        
+        function renderScripts() {
+            const tbody = document.getElementById('scripts-tbody');
+            const filter = document.getElementById('script-filter')?.value.toLowerCase() || '';
+            
+            const filtered = scriptsData.filter(s =>
+                s.name.toLowerCase().includes(filter) ||
+                s.type.toLowerCase().includes(filter)
+            );
+            
+            document.getElementById('scripts-count').textContent =
+                `${filtered.length} script${filtered.length !== 1 ? 'i' : ''}`;
+            
+            tbody.innerHTML = filtered.map(s => `
+                <tr>
+                    <td><code>${escapeHtml(s.name)}</code></td>
+                    <td><span class="badge badge-${s.type === 'shell' ? 'warning' : 'info'}">${s.type}</span></td>
+                    <td>${formatBytes(s.size)}</td>
+                    <td>${new Date(s.modified).toLocaleString()}</td>
+                    <td>
+                        <button class="btn btn-sm" onclick="executeScript('${escapeHtml(s.name)}')" title="Esegui script">
+                            ▶ Esegui
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        async function executeScript(scriptName) {
+            const script = scriptsData.find(s => s.name === scriptName);
+            if (!script) return;
+            
+            // Mostra il container di output
+            const container = document.getElementById('script-output-container');
+            const title = document.getElementById('script-output-title');
+            const status = document.getElementById('script-output-status');
+            const output = document.getElementById('script-output');
+            
+            container.style.display = 'block';
+            title.textContent = `Output: ${scriptName}`;
+            status.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
+            output.textContent = '';
+            
+            // Scroll to output
+            container.scrollIntoView({ behavior: 'smooth' });
+            
+            try {
+                const res = await fetch('/v1/scripts/execute', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scriptPath: script.name, args: [] })
+                });
+                
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Execution failed');
+                }
+                
+                const result = await res.json();
+                
+                // Poll for completion
+                await pollScriptOutput(result.pid);
+                
+            } catch (e) {
+                status.innerHTML = `<span style="color:#f85149;">✗ Errore: ${escapeHtml(e.message)}</span>`;
+                output.textContent = e.message;
+            }
+        }
+        
+        async function pollScriptOutput(pid) {
+            const status = document.getElementById('script-output-status');
+            const output = document.getElementById('script-output');
+            
+            for (let i = 0; i < 60; i++) { // Max 60 seconds
+                await new Promise(r => setTimeout(r, 1000));
+                
+                try {
+                    const res = await fetch(`/v1/scripts/output/${pid}`, { headers: authHeaders() });
+                    if (!res.ok) continue;
+                    
+                    const data = await res.json();
+                    
+                    if (data.status === 'completed') {
+                        const exitCode = data.exitCode;
+                        const color = exitCode === 0 ? '#3fb950' : '#f85149';
+                        const icon = exitCode === 0 ? '✓' : '✗';
+                        
+                        status.innerHTML = `<span style="color:${color};">${icon} Completato (exit code: ${exitCode}, ${data.duration}ms)</span>`;
+                        
+                        let outText = '';
+                        if (data.stdout) outText += `=== STDOUT ===\n${data.stdout}\n`;
+                        if (data.stderr) outText += `=== STDERR ===\n${data.stderr}\n`;
+                        if (!outText) outText = '(nessun output)';
+                        
+                        output.textContent = outText;
+                        return;
+                    } else if (data.status === 'running') {
+                        status.innerHTML = `<span style="color:#58a6ff;">⏳ In esecuzione... (${Math.floor((Date.now() - data.startTime) / 1000)}s)</span>`;
+                    }
+                } catch (e) {
+                    // Ignore polling errors
+                }
+            }
+            
+            status.innerHTML = '<span style="color:#f85149;">⚠ Timeout: lo script sta ancora eseguendo in background</span>';
+        }
+        
+        // Event listeners per Script Manager
+        document.addEventListener('DOMContentLoaded', () => {
+            // Refresh button
+            document.getElementById('scripts-refresh')?.addEventListener('click', loadScripts);
+            
+            // Filter
+            document.getElementById('script-filter')?.addEventListener('input', renderScripts);
+            
+            // Close output
+            document.getElementById('script-output-close')?.addEventListener('click', () => {
+                document.getElementById('script-output-container').style.display = 'none';
+            });
+            
+            // Load scripts when tab is activated
+            const scriptsTab = document.querySelector('[data-tab="scripts"]');
+            if (scriptsTab) {
+                scriptsTab.addEventListener('click', () => {
+                    if (scriptsData.length === 0) {
+                        loadScripts();
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>

@@ -3,6 +3,7 @@ import { profileMultiplier } from './modes-registry.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ProviderQuota from './provider-quota.mjs';
 
 
 export class DiscountedUCB1Bandit {
@@ -20,6 +21,7 @@ export class DiscountedUCB1Bandit {
     this._lastReward = new Map();
     this._rankCache = { at: 0, map: new Map() }; // cache classifica (30s TTL)
     this.totalRequests = this._getMeta("totalRequests");
+    this.quota = new ProviderQuota(this.db);
   }
 
   getFallbackModels() {
@@ -897,6 +899,413 @@ export class DiscountedUCB1Bandit {
     return this.db.prepare("SELECT COUNT(DISTINCT provider) FROM catalog").get()['COUNT(DISTINCT provider)'] || 0;
   }
 
+  _getProviderCooldownMs(fails) {
+    if (fails >= 4) return null;
+    const cooldowns = [
+      0,
+      2 * 3600000,   // 1° fail → 2h
+      8 * 3600000,   // 2° fail → 8h
+      24 * 3600000   // 3° fail → 24h
+    ];
+    return cooldowns[Math.min(fails, 3)];
+  }
+
+  recordFeedback(modelId, success, reward = 1.0, errorDetails = null, opts = {}) {
+    const tx = this.db.transaction(() => {
+      const now = Date.now();
+      const source = opts.source === 'training' ? 'training' : 'prod';
+
+      if (source === 'training' || source === 'prod') {
+        if (!success && errorDetails && typeof errorDetails === "object") {
+          const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
+          const provider = cat?.provider || null;
+          if (provider) {
+            console.log(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
+            const c = this._classifyError(errorDetails, provider);
+            console.log(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
+            switch (c.action) {
+              case "ban-provider":
+                console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
+                this._banProvider(provider);
+                break;
+              case "ban-model":
+                console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
+                this.db.prepare(
+                  `INSERT INTO models (id, provider, permanent, N, sum_reward, fails, cooldown_until, last_used_index)
+                   VALUES (?, ?, 1, 0, 0, 0, 0, 0)
+                   ON CONFLICT(id) DO UPDATE SET permanent = 1`
+                ).run(modelId, provider);
+                break;
+              case "cooldown-provider":
+                console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
+                if (c.reason === "no-credit" || /402|payment|credit|funds/i.test(String(errorDetails?.status || "") + " " + String(errorDetails?.message || ""))) {
+                  this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(modelId);
+                }
+                this._forceProviderCooldown(provider, c.cooldownMs, c.reason);
+                break;
+              case "cooldown-paid-only":
+                this._cooldownPaidOnly(provider, c.cooldownMs);
+                break;
+              case "flag-provider":
+                console.log(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
+                this._flagProviderAttention(provider, c.reason, errorDetails.message || errorDetails.error || "");
+                break;
+              case "cooldown-model": {
+                const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
+                if (isTransient) {
+                  this.db.prepare(`UPDATE models SET consecutive_5xx = consecutive_5xx + 1 WHERE id = ?`).run(modelId);
+                }
+                // Apply cooldown to model
+                if (c.cooldownMs > 0) {
+                  this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + c.cooldownMs, modelId);
+                } else if (isTransient) {
+                  // For transient errors (server-error, timeout, unknown), set a default cooldown
+                  // Use the model's cooldown based on its current fail count
+                  const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
+                  const failCount = model ? model.fails : 0;
+                  const cooldownMs = this._getModelCooldownMs(failCount + 1);
+                  if (cooldownMs && cooldownMs > 0) {
+                    this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, modelId);
+                  }
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (success) {
+        this.db.prepare(
+          `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0
+           WHERE id = ?`
+        ).run(reward, modelId);
+        this._lastReward.set(modelId, reward);
+      } else {
+        this.db.prepare(
+          `UPDATE models SET fails = fails + 1, last_used_index = last_used_index + 1
+           WHERE id = ?`
+        ).run(modelId);
+      }
+    });
+    tx();
+  }
+
+  _classifyError(errorDetails, provider) {
+    const status = errorDetails.status || 0;
+    const message = errorDetails.message || "";
+    const reason = errorDetails.reason || "unknown";
+    const is429 = status === 429;
+    // 404 model not found (varianti: "does not exist", "not found", "no longer available")
+    if (status === 404 && /does not exist|not found|no longer available/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "model-not-found" };
+    }
+    // 400 model non utilizzabile (non supportato, provider sconosciuto, code=model_not_found)
+    if (status === 400 && /not supported|unknown provider for model|model_not_found/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "model-not-supported" };
+    }
+    // Upstream bug (Assignment to constant) -> ban-model
+    if (/Assignment to constant variable/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "upstream-bug" };
+    }
+    // 410 model shutdown (end of life) -> ban-model
+    if (status === 410 && /model_shutdown|model is gone|end of life|no longer available|model_shutdown/i.test(message + " " + (errorDetails.code || ""))) {
+      return { action: "ban-model", scope: "model", reason: "model-shutdown" };
+    }
+    // No auth provided -> flag-provider
+    if (status === 502 && /No auth provided|Please log in/i.test(message)) {
+      return { action: "flag-provider", reason: "provider-misconfigured" };
+    }
+    // Playwright not available -> flag-provider
+    if (status === 502 && /Playwright is not available/i.test(message)) {
+      return { action: "flag-provider", reason: "provider-misconfigured" };
+    }
+    // CLI / binario mancante o non configurato -> flag-provider
+    if (status === 502 && /CLI not found|is not configured|missing url or token|transport is not configured|command not found/i.test(message)) {
+      return { action: "flag-provider", reason: "provider-misconfigured" };
+    }
+    // 403 banned -> ban-provider
+    if (status === 403 && /account disabled|banned/i.test(message)) {
+      return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
+    }
+    // 403 Key limit exceeded (OpenRouter) -> cooldown-provider breve
+    if (status === 403 && /Key limit exceeded|total limit/i.test(message)) {
+      const m = message.match(/reset after (\d+)(s|m|h)/i);
+      let cooldownMs = 60000;
+      if (m) {
+        const v = parseInt(m[1], 10);
+        const u = m[2].toLowerCase();
+        if (u === 's') cooldownMs = v * 1000;
+        else if (u === 'm') cooldownMs = v * 60000;
+        else if (u === 'h') cooldownMs = v * 3600000;
+      }
+      cooldownMs = Math.max(cooldownMs, 30000);
+      return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs };
+    }
+
+    // 429 with model_cooldown code -> cooldown-model
+    if (is429 && errorDetails.code === "model_cooldown") {
+      return { action: "cooldown-model", scope: "model", reason: "rate-limit", cooldownMs: 0 };
+    }
+
+    // 429 quota exhausted -> cooldown-provider
+    if (is429) {
+      let cooldownMs;
+      // Try to parse retryAfter from message (e.g., "reset after 5m")
+      const retryAfterMatch = errorDetails.message.match(/reset after (\d+)(s|m|h)/i);
+      if (retryAfterMatch) {
+        const unit = retryAfterMatch[2];
+        const value = parseInt(retryAfterMatch[1], 10);
+        if (unit === 's') cooldownMs = value * 1000;
+        else if (unit === 'm') cooldownMs = value * 60 * 1000;
+        else if (unit === 'h') cooldownMs = value * 3600 * 1000;
+      }
+      if (cooldownMs === undefined) {
+        const retryAfter = errorDetails.retryAfter || 0;
+        cooldownMs = retryAfter > 0 ? retryAfter * 1000 : 30 * 60 * 1000;
+      }
+
+      const modelId = errorDetails.modelId || "";
+      const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
+      const repeated429 = model && model.fails >= 2;
+
+      if (repeated429) {
+        const cooldownMultiplier = 2;
+        return {
+          action: "cooldown-provider",
+          reason: "quota-exhausted",
+          cooldownMs: cooldownMs * cooldownMultiplier
+        };
+      } else {
+        return {
+          action: "cooldown-provider",
+          reason: "quota-exhausted",
+          cooldownMs: cooldownMs
+        };
+      }
+    }
+
+    // Timeout -> cooldown-model 10m
+    if (/fetch timeout|timeout/i.test(message)) {
+      return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000 };
+    }
+
+    // 5xx -> cooldown-model (non provider)
+    if (status >= 500 && status < 600) {
+      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 0 };
+    }
+
+    // 402 insufficient funds -> cooldown-provider 6h
+    if (status === 402 && /insufficient|funds|credit/i.test(message)) {
+      return { action: "cooldown-provider", reason: "no-credit", cooldownMs: 6 * 3600 * 1000 };
+    }
+
+    // 418 anti-abuse -> cooldown-provider 6h
+    if (status === 418 && /anti-abuse/i.test(message)) {
+      return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 6 * 3600 * 1000 };
+    }
+
+    return {
+      action: "cooldown-model",
+      reason: reason,
+      cooldownMs: 0
+    };
+  }
+
+  _parseResetAfter(message) {
+    if (!message || typeof message !== "string") return 0;
+    // Try "reset after 5m" / "retry after 30s"
+    const match = message.match(/(?:reset|retry)\s+after\s+(\d+)(s|m|h)/i);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      const unit = match[2].toLowerCase();
+      if (unit === "s") return value * 1000;
+      if (unit === "m") return value * 60 * 1000;
+      if (unit === "h") return value * 3600 * 1000;
+    }
+    // Try JSON-like '"reset_seconds":117'
+    const secsMatch = message.match(/"reset_seconds"\s*:\s*(\d+)/);
+    if (secsMatch) {
+      return parseInt(secsMatch[1], 10) * 1000;
+    }
+    return 0;
+  }
+
+  _unlockProvider(provider) {
+    this.db.prepare(
+      `UPDATE provider_history
+       SET cooldown_until = 0,
+           needs_attention = 0,
+           attention_reason = NULL,
+           attention_message = NULL
+       WHERE provider = ?`
+    ).run(provider);
+  }
+
+  _recordTrainingFeedback(modelId, success, reward = 1.0) {
+    this.db.prepare(
+      `INSERT INTO models_train (id, provider, sum_reward, N, last_used_index)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         sum_reward = sum_reward + excluded.sum_reward,
+         N = N + excluded.N,
+         last_used_index = last_used_index + 1`
+    ).run(modelId, this._getProvider(modelId), reward, 1, 1);
+  }
+
+  _recordProviderFailure(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET fails = fails + 1 WHERE provider = ?`
+    ).run(provider);
+  }
+
+  _forceProviderCooldown(provider, cooldownMs, reason = "") {
+    const now = Date.now();
+    this.db.prepare(
+      `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+    ).run(now + cooldownMs, reason, "Quota esaurita", provider);
+  }
+
+  _triggerFallback(modelId) {
+    const fallbackModels = this.getFallbackModels();
+    if (fallbackModels.length > 0) {
+      console.log(`[BANDIT] Triggering fallback for model ${modelId}`);
+      return fallbackModels[0];
+    }
+    return null;
+  }
+
+  _banProvider(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET permanent = 1 WHERE provider = ?`
+    ).run(provider);
+  }
+
+  _cooldownPaidOnly(provider, cooldownMs) {
+    this.db.prepare(
+      `UPDATE models SET cooldown_until = ?, permanent = 0 WHERE provider = ?`
+    ).run(Date.now() + cooldownMs, provider);
+  }
+
+  _flagProviderAttention(provider, reason, message) {
+    this.db.prepare(
+      `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+    ).run(Date.now() + 24 * 3600000, reason, message, provider);
+  }
+
+  _getModelCooldownMs(fails) {
+    if (fails >= 4) return null;
+    const cooldowns = [
+      0,
+      30 * 60000,    // 1° fail → 30 min
+      4 * 3600000,   // 2° fail → 4h
+      12 * 3600000   // 3° fail → 12h
+    ];
+    return cooldowns[Math.min(fails, 3)];
+  }
+
+  _getProviderCooldownMs(fails) {
+    if (fails >= 4) return null;
+    const cooldowns = [
+      0,
+      2 * 3600000,   // 1° fail → 2h
+      8 * 3600000,   // 2° fail → 8h
+      24 * 3600000   // 3° fail → 24h
+    ];
+    return cooldowns[Math.min(fails, 3)];
+  }
+
+  resetModel(modelId) {
+    this.db.prepare(
+      `UPDATE models SET fails = 0, cooldown_until = 0, permanent = 0, degraded = 0, consecutive_5xx = 0 WHERE id = ?`
+    ).run(modelId);
+  }
+
+  resetProvider(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET fails = 0, cooldown_until = 0, permanent = 0, needs_attention = 0 WHERE provider = ?`
+    ).run(provider);
+  }
+
+  resetGlobalCounters() {
+    this.db.prepare("UPDATE meta SET value = 0 WHERE key = 'totalRequests'").run();
+    this.db.prepare("UPDATE meta SET value = 0 WHERE key = 'totalObservations'").run();
+  }
+
+  blockModel(modelId) {
+    this.db.prepare(
+      `UPDATE models SET permanent = 1 WHERE id = ?`
+    ).run(modelId);
+  }
+
+  clearProviderAttention(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET needs_attention = 0, attention_reason = '', attention_message = '' WHERE provider = ?`
+    ).run(provider);
+  }
+
+  ignoreProvider(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET needs_attention = 0 WHERE provider = ?`
+    ).run(provider);
+  }
+
+  getMetrics() {
+    const models = this.db.prepare(
+      `SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent
+       FROM models`
+    ).all();
+    const providers = this.db.prepare(
+      `SELECT provider, fails, cooldown_until, permanent, needs_attention
+       FROM provider_history`
+    ).all();
+    return { models, providers };
+  }
+  isModelAvailable(modelId) {
+    const model = this.db.prepare(
+      `SELECT cooldown_until, permanent, degraded FROM models WHERE id = ?`
+    ).get(modelId);
+    if (!model) return true; // mai visto → disponibile (il bandit deciderà)
+    if (model.permanent === 1) return false;
+    if (model.degraded === 1) return false;
+    return !model.cooldown_until || model.cooldown_until <= Date.now();
+  }
+  estimateTokens(body) {
+    // Implementazione realistica: stima approssimativa del numero di token
+    if (!body || typeof body !== "object") return 0;
+    
+    // Conta i messaggi
+    const messages = body.messages || [];
+    let totalChars = 0;
+    
+    for (const msg of messages) {
+      if (typeof msg.content === "string") {
+        totalChars += msg.content.length;
+      } else if (Array.isArray(msg.content)) {
+        // Per i messaggi con contenuti multimodali, stima approssimativa
+        for (const part of msg.content) {
+          if (part.text) totalChars += part.text.length;
+          if (part.type === "image_url") totalChars += 1000; // Stima approssimativa per immagine
+        }
+      } else {
+        // Fallback: converti in JSON
+        totalChars += JSON.stringify(msg.content).length;
+      }
+    }
+    
+    // Conversione approssimativa da caratteri a token (media ~4 caratteri per token)
+    return Math.ceil(totalChars / 4);
+  }
+
+  maxCatalogInput() {
+    const row = this.db.prepare("SELECT MAX(max_input_tokens) FROM catalog").get();
+    return row ? row['MAX(max_input_tokens)'] : 0;
+  }
+
+  getProviderCount() {
+    return this.db.prepare("SELECT COUNT(DISTINCT provider) FROM catalog").get()['COUNT(DISTINCT provider)'] || 0;
+  }
+
   getModelRank(modelId) {
     const now = Date.now();
     if (now - this._rankCache.at > 30000) {
@@ -913,6 +1322,7 @@ export class DiscountedUCB1Bandit {
   }
 
   selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, profile = null, cooledDownThisRequest = true) {
+    const DEBUG = String(process.env.DEBUG || "false").toLowerCase() === "true";
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excluded);
 
@@ -925,6 +1335,7 @@ export class DiscountedUCB1Bandit {
       SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent
       FROM models m
     `).all();
+    if (DEBUG) console.log(`[BANDIT][DEBUG] selectModel: catalog=${catalogModels.length} db=${dbModels.length} excluded=${excludeSet.size} tokens=${estimatedTokens} tools=${requireTools}`);
     // Combine catalog and db models, preferring db models when there's a conflict
     const modelMap = new Map();
     for (const model of catalogModels) {
@@ -935,14 +1346,10 @@ export class DiscountedUCB1Bandit {
     }
     const models = Array.from(modelMap.values());
 
-    // Log filter criteria for debugging
-    console.log(`[BANDIT] selectModel: estimatedTokens=${estimatedTokens} requireTools=${requireTools} excluded=${[...excludeSet].join(",")} profile=${profile}`);
-
     // Filter out models that are unavailable
     const availableModels = models.filter(model => {
       // Skip if model is in cooldown
       if (model.cooldown_until && model.cooldown_until > now) {
-        console.log(`[BANDIT] Filter ${model.id}: in cooldown`);
         return false;
       }
       // Check provider status: cooldown, permanent, needs_attention
@@ -951,11 +1358,9 @@ export class DiscountedUCB1Bandit {
       ).get(model.provider);
       if (prov) {
         if (prov.cooldown_until > now) {
-          console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} in cooldown`);
           return false;
         }
         if (prov.permanent === 1) {
-          console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} permanently banned`);
           return false;
         }
         if (prov.needs_attention === 1) {
@@ -963,19 +1368,16 @@ export class DiscountedUCB1Bandit {
           if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
             this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(model.provider);
           } else {
-            console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} needs attention`);
             return false;
           }
         }
       }
       // Skip if permanently banned at model level
       if (model.permanent === 1) {
-        console.log(`[BANDIT] Filter ${model.id}: permanently banned`);
         return false;
       }
       // Skip if in exclude set
       if (excludeSet.has(model.id)) {
-        console.log(`[BANDIT] Filter ${model.id}: in excluded set`);
         return false;
       }
       // Skip if model can't handle the estimated tokens
@@ -983,13 +1385,11 @@ export class DiscountedUCB1Bandit {
         const maxInput = model.max_input_tokens || 0;
         // Allow 10% margin for estimation error
         if (maxInput > 0 && estimatedTokens > maxInput * 1.1) {
-          console.log(`[BANDIT] Filter ${model.id}: estimatedTokens=${estimatedTokens} > max_input_tokens=${maxInput}`);
           return false;
         }
       }
       // Skip if model doesn't support tools and tools are required
       if (requireTools && !(model.supports_tools || 0)) {
-        console.log(`[BANDIT] Filter ${model.id}: requires tools but doesn't support them`);
         return false;
       }
       return true;
@@ -1011,6 +1411,461 @@ export class DiscountedUCB1Bandit {
         bestModel = model;
       }
     }
+
+    // Register the selected model use
+    this._registerModelUse(bestModel.id, bestModel.provider);
+
+    return bestModel.id;
+  }
+
+  getUnhealthyModels(batchSize = 5) {
+    const now = Date.now();
+    return this.db.prepare(`
+      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent
+      FROM models m
+      WHERE m.degraded = 1 OR (m.cooldown_until > 0 AND m.cooldown_until > ?) OR
+            EXISTS (
+              SELECT 1 FROM provider_history WHERE provider = m.provider AND quota_resets_at > ?
+            )
+      LIMIT ?
+    `).all(now, now, batchSize);
+  }
+  getModelMaxInput(modelId) {
+    // Catalog: max_input_tokens (dal provider)
+    try {
+      const catRow = this.db.prepare(
+        `SELECT max_input_tokens FROM catalog WHERE id = ?`
+      ).get(modelId);
+      if (catRow && catRow.max_input_tokens > 0) return catRow.max_input_tokens;
+    } catch (_) {}
+
+    // models: dynamic_max_tokens (appreso dai 413 ITPM)
+    try {
+      const modelRow = this.db.prepare(
+        `SELECT dynamic_max_tokens FROM models WHERE id = ?`
+      ).get(modelId);
+      if (modelRow && modelRow.dynamic_max_tokens > 0) return modelRow.dynamic_max_tokens;
+    } catch (_) {}
+
+    return 0;
+  }
+
+  reviveModel(modelId) {
+    this.db.prepare(
+      `UPDATE models SET cooldown_until = 0, degraded = 0 WHERE id = ?`
+    ).run(modelId);
+  }
+
+  getModels(source = "prod", filters = {}) {
+    const now = Date.now();
+    let query = `
+      SELECT
+        m.id,
+        m.provider,
+        m.N,
+        m.sum_reward,
+        m.fails,
+        m.cooldown_until,
+        m.permanent,
+        m.degraded,
+        m.consecutive_5xx,
+        m.dynamic_max_tokens,
+        c.is_free,
+        c.supports_tools,
+        c.max_input_tokens
+    `;
+    
+    if (source === "train") {
+      query += `, 0 AS is_paid`;
+      query += `
+        FROM models_train m
+        LEFT JOIN catalog c ON m.id = c.id
+      `;
+      // models_train table doesn't have these columns, provide defaults
+      query = query.replace('m.fails,', '0 AS fails,')
+                   .replace('m.cooldown_until,', '0 AS cooldown_until,')
+                   .replace('m.permanent,', '0 AS permanent,')
+                   .replace('m.degraded,', '0 AS degraded,')
+                   .replace('m.consecutive_5xx,', '0 AS consecutive_5xx,')
+                   .replace('m.dynamic_max_tokens,', '0 AS dynamic_max_tokens,');
+    } else {
+      query += `, m.is_paid`;
+      query += `
+        FROM models m
+        LEFT JOIN catalog c ON m.id = c.id
+      `;
+    }
+    
+    const conditions = [];
+    const params = [];
+    
+    // Provider filter
+    if (filters.provider) {
+      conditions.push("m.provider = ?");
+      params.push(filters.provider);
+    }
+    
+    // Status filter
+    if (filters.status) {
+      switch (filters.status) {
+        case "active":
+          conditions.push("(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND m.permanent = 0 AND m.degraded = 0");
+          params.push(now);
+          break;
+        case "cooldown":
+          conditions.push("m.cooldown_until > ?");
+          params.push(now);
+          break;
+        case "degraded":
+          conditions.push("m.degraded = 1");
+          break;
+        case "banned":
+          conditions.push("m.permanent = 1");
+          break;
+      }
+    }
+    
+    // minN filter
+    if (filters.minN !== undefined && filters.minN !== null) {
+      conditions.push("m.N >= ?");
+      params.push(filters.minN);
+    }
+    
+    // minAvg filter
+    if (filters.minAvg !== undefined && filters.minAvg !== null) {
+      conditions.push("(m.sum_reward / NULLIF(m.N, 0)) >= ?");
+      params.push(filters.minAvg);
+    }
+    
+    // search filter (substring on id)
+    if (filters.search) {
+      conditions.push("m.id LIKE ?");
+      params.push(`%${filters.search}%`);
+    }
+    
+    // Exclude paid models if configured
+    if (this.excludePaid) {
+      conditions.push("m.is_paid = 0");
+    }
+    
+    // Only free models if configured
+    if (this.onlyFree) {
+      conditions.push("(c.is_free = 1 OR c.is_free IS NULL)");
+    }
+    
+    // Exclude thinking models if configured
+    if (this.excludeThinking) {
+      // This would need to be implemented based on how thinking models are identified
+      // For now, we'll skip this filter as it's not in the schema
+    }
+    
+    if (conditions.length > 0) {
+      query += " WHERE " + conditions.join(" AND ");
+    }
+    
+    // Add ordering
+    query += " ORDER BY m.N DESC, m.sum_reward DESC";
+    
+    // Add limit
+    const limit = filters.limit !== undefined && filters.limit !== null ? parseInt(filters.limit) : 500;
+    query += " LIMIT ?";
+    params.push(limit);
+    
+    const stmt = this.db.prepare(query);
+    const models = stmt.all(...params);
+    
+    // Calculate rank and add computed fields
+    return models.map((model, index) => {
+      // Calculate rank position among models with N >= 3 AND permanent = 0 AND degraded = 0
+      let rank = null;
+      if (model.N >= 3 && model.permanent === 0 && model.degraded === 0) {
+        // We'll calculate this after getting all qualifying models
+        rank = 0; // placeholder
+      }
+      
+      // Calculate cooldownRemaining
+      const cooldownRemaining = model.cooldown_until > now ? model.cooldown_until - now : 0;
+      
+      // Determine status
+      let status = "unknown";
+      if (model.permanent === 1) {
+        status = "banned";
+      } else if (model.degraded === 1) {
+        status = "degraded";
+      } else if (model.cooldown_until > now) {
+        status = "cooldown";
+      } else {
+        status = "active";
+      }
+      
+      return {
+        id: model.id,
+        provider: model.provider,
+        N: model.N,
+        sum_reward: model.sum_reward,
+        avg: model.N > 0 ? model.sum_reward / model.N : 0,
+        fails: model.fails,
+        cooldown_until: model.cooldown_until,
+        cooldownRemaining,
+        permanent: model.permanent === 1,
+        degraded: model.degraded === 1,
+        is_paid: model.is_paid === 1,
+        is_free: model.is_free === 1,
+        supports_tools: model.supports_tools === 1,
+        dynamic_max_tokens: model.dynamic_max_tokens,
+        consecutive_5xx: model.consecutive_5xx,
+        rank: rank // Will be updated below
+      };
+    }).map((model, index) => {
+      // Second pass to calculate rank correctly
+      if (model.N >= 3 && model.permanent === 0 && model.degraded === 0) {
+        // Count how many models have higher avg
+        const betterModels = models.filter(m =>
+          m.N >= 3 &&
+          m.permanent === 0 &&
+          m.degraded === 0 &&
+          m.N > 0 &&
+          (m.sum_reward / m.N) > (model.sum_reward / model.N)
+        );
+        model.rank = betterModels.length + 1;
+      }
+      return model;
+    });
+  }
+  
+  getModelsSummary(source = "prod") {
+    const now = Date.now();
+    
+    // Base query for counting models
+    let baseQuery = `
+      FROM models m
+      LEFT JOIN catalog c ON m.id = c.id
+    `;
+    
+    if (source === "train") {
+      baseQuery = `
+        FROM models_train m
+        LEFT JOIN catalog c ON m.id = c.id
+      `;
+    }
+    
+    // Build WHERE conditions
+    const conditions = [];
+    const params = [];
+    
+    // Exclude paid models if configured
+    if (this.excludePaid) {
+      conditions.push("m.is_paid = 0");
+    }
+    
+    // Only free models if configured
+    if (this.onlyFree) {
+      conditions.push("(c.is_free = 1 OR c.is_free IS NULL)");
+    }
+    
+    // Exclude thinking models if configured
+    if (this.excludeThinking) {
+      // This would need to be implemented based on how thinking models are identified
+      // For now, we'll skip this filter as it's not in the schema
+    }
+    
+    const whereClause = conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
+    
+    // Get total count
+    const totalStmt = this.db.prepare(`SELECT COUNT(*) AS count ${baseQuery}${whereClause}`);
+    const totalResult = totalStmt.all(...params);
+    const total = totalResult[0].count;
+    
+    // Get active count
+    const activeStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      WHERE (m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0)
+        AND m.permanent = 0
+        AND m.degraded = 0${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const activeParams = [now, ...params];
+    const activeResult = activeStmt.all(activeParams);
+    const active = activeResult[0].count;
+    
+    // Get cooldown count
+    const cooldownStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      WHERE m.cooldown_until > ?${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const cooldownParams = [now, ...params];
+    const cooldownResult = cooldownStmt.all(cooldownParams);
+    const cooldown = cooldownResult[0].count;
+    
+    // Get degraded count
+    const degradedStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      WHERE m.degraded = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const degradedResult = degradedStmt.all(...params);
+    const degraded = degradedResult[0].count;
+    
+    // Get banned count
+    const bannedStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      WHERE m.permanent = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const bannedResult = bannedStmt.all(...params);
+    const banned = bannedResult[0].count;
+    
+    // Get counts by provider
+    const providerStmt = this.db.prepare(`
+      SELECT
+        m.provider,
+        COUNT(*) AS count
+      ${baseQuery}
+      GROUP BY m.provider
+    `);
+    const providerResult = providerStmt.all(...params);
+    const byProvider = {};
+    providerResult.forEach(row => {
+      byProvider[row.provider] = row.count;
+    });
+    
+    return {
+      total,
+      active,
+      cooldown,
+      degraded,
+      banned,
+      byProvider
+    };
+  }
+  
+  getProviders() {
+    const now = Date.now();
+    
+    const query = `
+      SELECT
+        ph.provider,
+        ph.fails,
+        ph.cooldown_until,
+        ph.permanent,
+        ph.needs_attention,
+        ph.attention_reason,
+        COUNT(m.id) AS modelCount
+      FROM provider_history ph
+      LEFT JOIN models m ON m.provider = ph.provider
+      GROUP BY ph.provider
+    `;
+    
+    const stmt = this.db.prepare(query);
+    const providers = stmt.all();
+    
+    return providers.map(provider => ({
+      provider: provider.provider,
+      fails: provider.fails,
+      cooldown_until: provider.cooldown_until,
+      cooldownRemaining: provider.cooldown_until > now ? provider.cooldown_until - now : 0,
+      permanent: provider.permanent === 1,
+      needs_attention: provider.needs_attention === 1,
+      attention_reason: provider.attention_reason,
+      modelCount: provider.modelCount
+    }));
+  }
+
+  close() {
+    if (this.db) {
+      this.db.close();
+    }
+  }
+
+  selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, profile = null, cooledDownThisRequest = true) {
+    const DEBUG = String(process.env.DEBUG || "false").toLowerCase() === "true";
+    const now = Date.now();
+    const excludeSet = this._normalizeExcludedModels(excluded);
+
+    // Get all models from catalog that are available
+    const catalogModels = this.db.prepare(`
+      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools
+      FROM catalog c
+    `).all();
+    const dbModels = this.db.prepare(`
+      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent
+      FROM models m
+    `).all();
+    if (DEBUG) console.log(`[BANDIT][DEBUG] selectModel: catalog=${catalogModels.length} db=${dbModels.length} excluded=${excludeSet.size} tokens=${estimatedTokens} tools=${requireTools}`);
+    // Combine catalog and db models, preferring db models when there's a conflict
+    const modelMap = new Map();
+    for (const model of catalogModels) {
+      modelMap.set(model.id, model);
+    }
+    for (const model of dbModels) {
+      modelMap.set(model.id, model); // db models overwrite catalog models
+    }
+    const models = Array.from(modelMap.values());
+
+    // Filter out models that are unavailable
+    const availableModels = models.filter(model => {
+      // Skip if model is in cooldown
+      if (model.cooldown_until && model.cooldown_until > now) {
+        return false;
+      }
+      // Check provider status: cooldown, permanent, needs_attention
+      const prov = this.db.prepare(
+        `SELECT cooldown_until, permanent, needs_attention FROM provider_history WHERE provider = ?`
+      ).get(model.provider);
+      if (prov) {
+        if (prov.cooldown_until > now) {
+          return false;
+        }
+        if (prov.permanent === 1) {
+          return false;
+        }
+        if (prov.needs_attention === 1) {
+          // Auto-reset se il cooldown è scaduto (flag stale da _forceProviderCooldown)
+          if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
+            this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(model.provider);
+          } else {
+            return false;
+          }
+        }
+      }
+      // Skip if permanently banned at model level
+      if (model.permanent === 1) {
+        return false;
+      }
+      // Skip if in exclude set
+      if (excludeSet.has(model.id)) {
+        return false;
+      }
+      // Skip if model can't handle the estimated tokens
+      if (estimatedTokens > 0) {
+        const maxInput = model.max_input_tokens || 0;
+        // Allow 10% margin for estimation error
+        if (maxInput > 0 && estimatedTokens > maxInput * 1.1) {
+          return false;
+        }
+      }
+      // Skip if model doesn't support tools and tools are required
+      if (requireTools && !(model.supports_tools || 0)) {
+        return false;
+      }
+      return true;
+    });
+
+    if (availableModels.length === 0) {
+      if (DEBUG) console.log(`[BANDIT][DEBUG] selectModel: nessun modello disponibile`);
+      return null;
+    }
+
+    // Select model using UCB1-like ranking (simplified: pick highest rank)
+    // First, filter out cooldown models and rank the rest
+    let bestModel = availableModels[0];
+    let bestScore = -Infinity;
+
+    for (const model of availableModels) {
+      const rank = this.getModelRank(model.id) ?? 0;
+      if (rank > bestScore) {
+        bestScore = rank;
+        bestModel = model;
+      }
+    }
+    if (DEBUG) console.log(`[BANDIT][DEBUG] selectModel: scelti=${availableModels.length} → ${bestModel.id} (provider=${bestModel.provider}, rank=${bestScore})`);
 
     // Register the selected model use
     this._registerModelUse(bestModel.id, bestModel.provider);

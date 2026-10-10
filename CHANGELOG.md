@@ -2,12 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
-## v1.1.1 — 2026-10-10
-- **API di gestione modelli e provider**: nuove endpoint GET `/v1/models`, `/v1/models/summary`, `/v1/providers` (richiedono auth) per interrogare database e popolare la dashboard
-- **Bandit `getModels()`**: query con filtri per `source` (prod/train) e `filters` (provider, status: active/cooldown/degraded/banned, minN, minAvg, search, limit)
-- **Bandit `getModelsSummary()`**: conteggi aggregati (total, active, cooldown, degraded, banned) con distribuzione per provider
-- **Bandit `getProviders()`**: elenco provider con fails, cooldown, permanent ban, needs_attention e modelCount
-- **Dashboard**: corretto tag HTML non pairato (`</div>` non abbinato) in `public/dashboard.html`
+## v1.0.12 — 2026-10-10
+- Dashboard: filtri tab Modelli (provider, stato, N≥, avg≥, search)
+- Dashboard: nuovo tab Train (mirror su models_train)
+- API: /v1/models, /v1/models/summary, /v1/providers
 
 ## v1.1.0 — 2026-10-10
 - **Provider Quota System**: Added dashboard tab with provider quota table showing RPM, RPD, quota reset countdown, and provider state

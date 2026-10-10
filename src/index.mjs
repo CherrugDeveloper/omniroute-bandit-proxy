@@ -1,7 +1,8 @@
 import express from "express";
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 import "dotenv/config";
-import { EventEmitter } from "events";
 import path from "path";
 import { fileURLToPath } from "url";
 import { DiscountedUCB1Bandit } from "./bandit.mjs";
@@ -258,6 +259,7 @@ app.use((req, res, next) => {
     || req.path.startsWith("/v1/logs")
     || req.path.startsWith("/v1/active")
     || req.path.startsWith("/v1/modes")
+    || req.path.startsWith("/v1/models")
     || req.path.startsWith("/v1/debug/status")
     || req.path.startsWith("/v1/inflight");
   if (isApi && !isPolling) {
@@ -638,6 +640,12 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
   }
 });
 
+// Throttling per i log di /v1/models: la dashboard lo polla frequentemente.
+// Logga solo una riga di riepilogo ogni MODELS_LOG_THROTTLE_MS (default 60s)
+// e porta il conteggio delle chiamate throttlellate. Gli errori sono sempre loggati.
+const MODELS_LOG_THROTTLE_MS = parseInt(process.env.MODELS_LOG_THROTTLE_MS || "60000", 10);
+let modelsLogState = { lastLogAt: 0, suppressed: 0 };
+
 app.get("/v1/models", requireAuth, (req, res) => {
   try {
     const source = req.query.source || "prod";
@@ -650,6 +658,17 @@ app.get("/v1/models", requireAuth, (req, res) => {
       limit: req.query.limit !== undefined ? parseInt(req.query.limit) : undefined
     };
     const models = bandit.getModels(source, filters);
+
+    const now = Date.now();
+    if (now - modelsLogState.lastLogAt >= MODELS_LOG_THROTTLE_MS) {
+      const suppressed = modelsLogState.suppressed;
+      modelsLogState.lastLogAt = now;
+      modelsLogState.suppressed = 0;
+      console.log(`[API] GET /v1/models source=${source} results=${models.length}${suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""}`);
+    } else {
+      modelsLogState.suppressed++;
+    }
+
     res.json({ models });
   } catch (e) {
     console.error("[API] Errore /v1/models:", e.message);
@@ -786,6 +805,130 @@ app.post("/v1/provider/ignore/:p", requireAuth, (req, res) => {
     res.json({ ok });
   } catch (e) {
     console.error("[API] Errore ignore provider:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========================================
+// SCRIPT MANAGER ENDPOINTS
+// ========================================
+
+app.get("/v1/scripts", requireAuth, (req, res) => {
+  try {
+    const scriptsDir = path.join(__dirname, "../scripts");
+    const files = fs.readdirSync(scriptsDir);
+    const scripts = files
+      .filter(f => f.endsWith('.mjs') || f.endsWith('.sh'))
+      .map(f => {
+        const fullPath = path.join(scriptsDir, f);
+        const stats = fs.statSync(fullPath);
+        return {
+          name: f,
+          path: fullPath,
+          size: stats.size,
+          modified: stats.mtime.toISOString(),
+          isExecutable: (stats.mode & 0o111) !== 0,
+          type: f.endsWith('.mjs') ? 'javascript' : 'shell'
+        };
+      });
+    res.json({ scripts });
+  } catch (e) {
+    console.error("[API] Errore lettura script:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
+  try {
+    const { scriptPath, args = [] } = req.body || {};
+    if (!scriptPath) {
+      return res.status(400).json({ error: "scriptPath richiesto" });
+    }
+    
+    // Validazione del percorso per prevenire path traversal
+    const scriptsDir = path.join(__dirname, "../scripts");
+    const normalizedPath = path.normalize(scriptPath);
+    const absolutePath = path.join(scriptsDir, normalizedPath);
+    
+    if (!absolutePath.startsWith(scriptsDir)) {
+      return res.status(403).json({ error: "Percorso non autorizzato" });
+    }
+    
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ error: "Script non trovato" });
+    }
+    
+    // Esecuzione dello script
+    const spawn = require("child_process").spawn;
+    const isShell = absolutePath.endsWith('.sh');
+    
+    let command, options;
+    if (isShell) {
+      command = "bash";
+      options = { shell: true };
+    } else {
+      command = "node";
+      options = {};
+    }
+    
+    const child = spawn(command, [absolutePath, ...args], {
+      cwd: scriptsDir,
+      stdio: ["pipe", "pipe", "pipe"],
+      ...options
+    });
+    
+    const output = {
+      pid: child.pid,
+      command: `${command} ${absolutePath} ${args.join(' ')}`,
+      startTime: Date.now(),
+      status: "running"
+    };
+    
+    let stdoutData = "";
+    let stderrData = "";
+    
+    child.stdout?.on("data", (data) => {
+      stdoutData += data.toString();
+    });
+    
+    child.stderr?.on("data", (data) => {
+      stderrData += data.toString();
+    });
+    
+    child.on("close", (code) => {
+      output.status = "completed";
+      output.exitCode = code;
+      output.stdout = stdoutData;
+      output.stderr = stderrData;
+      output.endTime = Date.now();
+      output.duration = output.endTime - output.startTime;
+      
+      // Salva l'output in un file per riferimento
+      const outputFile = path.join(scriptsDir, `.script-output-${child.pid}.json`);
+      fs.writeFileSync(outputFile, JSON.stringify(output, null, 2));
+    });
+    
+    res.json(output);
+  } catch (e) {
+    console.error("[API] Errore esecuzione script:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/v1/scripts/output/:pid", requireAuth, (req, res) => {
+  try {
+    const { pid } = req.params;
+    const scriptsDir = path.join(__dirname, "../scripts");
+    const outputFile = path.join(scriptsDir, `.script-output-${pid}.json`);
+    
+    if (!fs.existsSync(outputFile)) {
+      return res.status(404).json({ error: "Output script non trovato" });
+    }
+    
+    const output = JSON.parse(fs.readFileSync(outputFile, "utf8"));
+    res.json(output);
+  } catch (e) {
+    console.error("[API] Errore lettura output script:", e.message);
     res.status(500).json({ error: e.message });
   }
 });

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 class ProviderQuota {
     constructor(db) {
@@ -8,8 +9,8 @@ class ProviderQuota {
     }
 
     _loadProviderLimits() {
-        const modulePath = path.dirname(import.meta.url);
-        const configPath = path.join(modulePath, "../../config/provider-limits.json");
+        const modulePath = fileURLToPath(import.meta.url);
+        const configPath = path.join(path.dirname(modulePath), "..", "config", "provider-limits.json");
         try {
             const content = fs.readFileSync(configPath, "utf8");
             return JSON.parse(content).providers;
