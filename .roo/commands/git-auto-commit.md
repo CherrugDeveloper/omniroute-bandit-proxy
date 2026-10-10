@@ -1,6 +1,6 @@
 ---
 description: Automate git commit-and-push workflow with idempotent behavior, conventional commit generation, history feedback, and retry-on-conflict push
-argument-hint: [-m "custom message"] [-b branch] [--dry-run] [--json] [--self-test]
+arguments: [-m "custom message"] [-b branch] [--dry-run] [--json] [--self-test]
 ---
 
 # Git Auto Commit Command
