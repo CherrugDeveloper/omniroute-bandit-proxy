@@ -46,6 +46,7 @@ This command runs the `git-auto-commit` skill to automate the complete git commi
 - `GIT_AUTO_COMMIT_AUTO_MESSAGE` - Auto-generate commit message [default: true]
 - `GIT_AUTO_COMMIT_HISTORY_DEPTH` - Number of commits to analyze [default: 20]
 - `GIT_AUTO_COMMIT_SQUASH_THRESHOLD` - Suggest squash if N+ related commits [default: 3]
+- `GIT_AUTO_COMMIT_WSL_EXEC` - Execute git commands via WSL/Ubuntu [default: true]
 
 ## Exit Codes
 
