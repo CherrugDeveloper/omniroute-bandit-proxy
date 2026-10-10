@@ -638,6 +638,16 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
   }
 });
 
+app.get("/v1/quota", requireAuth, (req, res) => {
+  try {
+    const quotaData = bandit.quota.snapshot();
+    res.json({ quota: quotaData });
+  } catch (e) {
+    console.error("[API] Errore /v1/quota:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get("/v1/sessions", requireAuth, (req, res) => {
   const now = Date.now();
   const sessions = Array.from(sessionModels.entries()).map(([k, v]) => ({
@@ -1158,6 +1168,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         }
       }
     }
+      // Strip campi reasoning non universali (OpenRouter-only).
+      // Groq, nvidia, mistral li rifiutano come "unsupported".
+      if (Array.isArray(requestBody?.messages)) {
+        for (const m of requestBody.messages) {
+          if (m && typeof m === "object" && m.role === "assistant") {
+            if ("reasoning_details" in m) delete m.reasoning_details;
+            if ("reasoning_content" in m) delete m.reasoning_content;
+            if ("reasoning" in m) delete m.reasoning;
+          }
+        }
+      }
     trackRequestUpdate(requestId, {
       model,
       attempt,
