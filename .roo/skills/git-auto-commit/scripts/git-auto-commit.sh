@@ -116,16 +116,13 @@ main() {
     # Validate .gitignore
     validate_gitignore
     
+    # Pull with rebase if behind
+    local current_branch
+    current_branch=$(git_cmd "git rev-parse --abbrev-ref HEAD")
+    pull_rebase_if_behind "$current_branch"
+    
     # Stage all changes
-    log_info "Staging all changes..."
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_info "[DRY RUN] Would run: git add -A"
-    else
-        if ! git_cmd "git add -A"; then
-            log_error "Failed to stage changes"
-            return 2
-        fi
-    fi
+    stage_all_changes
     
     # Check if there are changes to commit
     local staged_count
@@ -183,32 +180,11 @@ main() {
     if [[ "$DRY_RUN" == "true" ]]; then
         log_info "[DRY RUN] Would run: git push origin HEAD:${push_branch}"
     else
-        # Try push with retry logic
-        local push_attempts=0
-        local max_attempts=2
-        
-        while [[ $push_attempts -lt $max_attempts ]]; do
-            if git_cmd "git push origin HEAD:${push_branch}"; then
-                log_info "Push successful"
-                break
-            else
-                local push_exit=$?
-                push_attempts=$((push_attempts + 1))
-                
-                if [[ $push_attempts -lt $max_attempts ]]; then
-                    log_warn "Push failed (attempt $push_attempts/$max_attempts), attempting pull --rebase..."
-                    if git_cmd "git pull --rebase origin ${push_branch}"; then
-                        log_info "Pull --rebase successful, retrying push..."
-                    else
-                        log_error "Pull --rebase failed, aborting push"
-                        return 3
-                    fi
-                else
-                    log_error "Push failed after $max_attempts attempts"
-                    return 3
-                fi
-            fi
-        done
+        if ! git_cmd "git push origin HEAD:${push_branch}"; then
+            log_error "Push failed"
+            return 3
+        fi
+        log_info "Push successful"
     fi
     
     # Post-push history analysis

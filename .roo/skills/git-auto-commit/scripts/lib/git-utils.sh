@@ -155,6 +155,48 @@ clean_stale_staged() {
     fi
 }
 
+# Ensure all changes are staged
+stage_all_changes() {
+    log_info "Staging all changes..."
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] Would run: git add -A"
+    else
+        if ! git_cmd "git add -A"; then
+            log_error "Failed to stage changes"
+            return 2
+        fi
+    fi
+}
+
+# Pull with rebase if behind
+pull_rebase_if_behind() {
+    local branch="$1"
+    log_info "Checking if branch '$branch' is behind origin..."
+    
+    # Fetch latest
+    git_cmd "git fetch origin" >/dev/null
+    
+    # Check if behind
+    local local_hash
+    local remote_hash
+    local_hash=$(git_cmd "git rev-parse $branch")
+    remote_hash=$(git_cmd "git rev-parse origin/$branch")
+    
+    if [[ "$local_hash" != "$remote_hash" ]]; then
+        log_info "Branch is behind origin, performing pull --rebase..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would run: git pull --rebase origin $branch"
+        else
+            if ! git_cmd "git pull --rebase origin $branch"; then
+                log_error "Failed to pull --rebase"
+                return 5
+            fi
+        fi
+    else
+        log_info "Branch is up to date with origin"
+    fi
+}
+
 # Validate .gitignore covers common patterns
 validate_gitignore() {
     log_info "Validating .gitignore coverage..."
