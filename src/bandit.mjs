@@ -958,8 +958,15 @@ export class DiscountedUCB1Bandit {
           console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} permanently banned`);
           return false;
         }
-        // needs_attention è informativo (dashboard), non blocca la selezione
-      }
+        if (prov.needs_attention === 1) {
+          // Auto-reset se il cooldown è scaduto (flag stale da _forceProviderCooldown)
+          if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
+            this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(model.provider);
+          } else {
+            console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} needs attention`);
+            return false;
+          }
+        }
       // Skip if permanently banned at model level
       if (model.permanent === 1) {
         console.log(`[BANDIT] Filter ${model.id}: permanently banned`);

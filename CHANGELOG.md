@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.0 — 2026-10-10
+- **Provider Quota System**: Added dashboard tab with provider quota table showing RPM, RPD, quota reset countdown, and provider state
+- **Bandit Algorithm Enhancement**: Added `needs_attention` filter in `selectModel()` to skip providers with `needs_attention=1` in `provider_history`
+- **Dashboard UI**: Added "Provider Quota" tab with color-coded RPM/RPD display, relative countdown for quota reset, and state badges (attivo, quota-exhausted, cooldown, banned)
+- **Provider Status Management**: Provider filtering now checks cooldown, permanent ban, and needs_attention flags
+
 ## v1.0.12 — 2026-10-06
 - **HTTP 429 Rate Limit Handling**:
   - **Summary**: Implemented robust retry logic with exponential backoff to handle HTTP 429 rate limit errors. Added fallback mechanisms to alternative models (e.g., `mistral/ministral-8b-latest`, `groq/allam-2-7b`) and updated the Bandit algorithm to penalize or ban models that repeatedly hit rate limits.
