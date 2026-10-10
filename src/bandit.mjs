@@ -156,6 +156,31 @@ export class DiscountedUCB1Bandit {
           console.error("[BANDIT] Errore aggiunta colonna supports_tools:", err.message);
           throw err;
         }
+        }
+
+      // Migrazione quota provider (colonne per sistema quota)
+      const quotaCols = [
+        "rpm_limit INTEGER DEFAULT 0",
+        "rpd_limit INTEGER DEFAULT 0",
+        "calls_last_minute INTEGER DEFAULT 0",
+        "calls_minute_started INTEGER DEFAULT 0",
+        "calls_today INTEGER DEFAULT 0",
+        "calls_today_date TEXT DEFAULT ''",
+        "quota_resets_at INTEGER DEFAULT 0",
+        "quota_reason TEXT DEFAULT ''"
+      ];
+      for (const colDef of quotaCols) {
+        const colName = colDef.split(" ")[0];
+        const has = providerColumns.some(c => c.name === colName);
+        if (!has) {
+          try {
+            this.db.exec(`ALTER TABLE provider_history ADD COLUMN ${colDef}`);
+            console.log(`[BANDIT] Migrazione: aggiungo ${colName} a provider_history`);
+          } catch (e) {
+            console.error(`[BANDIT] Errore aggiunta ${colName}:`, e.message);
+          }
+      }
+
       }
 
       const hasCatalogIsFree = catalogColumns.some(col => col.name === "is_free");
@@ -933,6 +958,7 @@ export class DiscountedUCB1Bandit {
           console.log(`[BANDIT] Filter ${model.id}: provider ${model.provider} permanently banned`);
           return false;
         }
+        // needs_attention è informativo (dashboard), non blocca la selezione
       }
       // Skip if permanently banned at model level
       if (model.permanent === 1) {
@@ -989,9 +1015,12 @@ export class DiscountedUCB1Bandit {
     return this.db.prepare(`
       SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent
       FROM models m
-      WHERE m.degraded = 1 OR (m.cooldown_until > 0 AND m.cooldown_until > ?)
+      WHERE m.degraded = 1 OR (m.cooldown_until > 0 AND m.cooldown_until > ?) OR
+            EXISTS (
+              SELECT 1 FROM provider_history WHERE provider = m.provider AND quota_resets_at > ?
+            )
       LIMIT ?
-    `).all(now, batchSize);
+    `).all(now, now, batchSize);
   }
   getModelMaxInput(modelId) {
     // Catalog: max_input_tokens (dal provider)
