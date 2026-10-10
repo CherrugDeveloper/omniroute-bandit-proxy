@@ -967,6 +967,7 @@ export class DiscountedUCB1Bandit {
             return false;
           }
         }
+      }
       // Skip if permanently banned at model level
       if (model.permanent === 1) {
         console.log(`[BANDIT] Filter ${model.id}: permanently banned`);

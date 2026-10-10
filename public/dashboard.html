@@ -763,6 +763,7 @@
         <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
         <button class="tab-btn" data-tab="models">📦 Modelli</button>
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
+        <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
     </div>
 
     <div id="tab-logs" class="tab-content active">
@@ -854,6 +855,23 @@
         <div class="card" style="margin-top:10px;">
             <h3>Discovery in attesa</h3>
             <div id="modes-discovered-list" style="margin-top:8px;">Nessuna discovery.</div>
+        </div>
+    </div>
+
+    <div id="tab-providers" class="tab-content">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Provider</th>
+                        <th>RPM</th>
+                        <th>RPD</th>
+                        <th>Quota reset</th>
+                        <th>Stato</th>
+                    </tr>
+                </thead>
+                <tbody id="providers-tbody"></tbody>
+            </table>
         </div>
     </div>
 
@@ -1770,6 +1788,70 @@
             finally { refreshing = false; }
         }
 
+        async function fetchQuota() {
+            try {
+                const r = await apiFetch('/v1/quota');
+                if (r.status === 401) { show401Banner(); return; }
+                if (!r.ok) return;
+                const d = await r.json();
+                renderProviderQuota(d);
+            } catch (e) { console.error('Errore fetch quota:', e); }
+        }
+
+        function renderProviderQuota(providers) {
+            const tbody = document.getElementById('providers-tbody');
+            if (!providers || providers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessun dato quota disponibile</td></tr>';
+                return;
+            }
+
+            const fmtMs = (ms) => {
+                if (ms <= 0) return '—';
+                const days = Math.floor(ms / 86400000);
+                const hours = Math.floor((ms % 86400000) / 3600000);
+                const mins = Math.floor(((ms % 3600000) / 60000));
+                if (days > 0) return days + 'd ' + hours + 'h';
+                if (hours > 0) return hours + 'h ' + mins + 'm';
+                return mins + 'm';
+            };
+
+            const rpmColor = (used, limit) => {
+                if (limit === 0) return 'gray';
+                const pct = (used / limit) * 100;
+                if (pct >= 80) return 'red';
+                if (pct >= 50) return 'yellow';
+                return 'green';
+            };
+
+            let html = '';
+            providers.forEach(p => {
+                const rpmUsed = p.rpm_used || 0;
+                const rpmLimit = p.rpm_limit || 0;
+                const rpdUsed = p.rpd_used || 0;
+                const rpdLimit = p.rpd_limit || 0;
+                const quotaReset = p.quota_resets_at ? fmtMs(p.quota_resets_at - Date.now()) : '—';
+                let state = 'attivo';
+                if (p.quota_resets_at && p.quota_resets_at > Date.now()) {
+                    state = 'quota-exhausted';
+                } else if (rpmUsed >= rpmLimit * 0.8 && rpmLimit > 0) {
+                    state = 'cooldown';
+                }
+
+                const rpmClass = rpmColor(rpmUsed, rpmLimit);
+                const rpdClass = rpmColor(rpdUsed, rpdLimit);
+
+                html += '<tr>' +
+                    '<td>' + escapeHtml(p.provider) + '</td>' +
+                    '<td><span class="stats" style="color:' + rpmClass + '">' + rpmUsed + ' / ' + rpmLimit + '</span></td>' +
+                    '<td><span class="stats" style="color:' + rpdClass + '">' + rpdUsed + ' / ' + rpdLimit + '</span></td>' +
+                    '<td>' + quotaReset + '</td>' +
+                    '<td>' + (state === 'quota-exhausted' ? 'quota-exhausted' : state === 'cooldown' ? 'cooldown' : 'attivo') + '</td>' +
+                '</tr>';
+            });
+
+            tbody.innerHTML = html;
+        }
+
         async function fetchLogs() {
             try {
                 const r = await apiFetch('/v1/logs');
@@ -1959,9 +2041,11 @@
         refreshAll();
         fetchLogs();
         fetchActive();
+        fetchQuota();
         setInterval(refreshAll, 250);
         setInterval(fetchLogs, 250);
         setInterval(fetchActive, 250);
+        setInterval(fetchQuota, 15000);
         document.addEventListener('DOMContentLoaded', () => {
             const fab = document.getElementById('dev-fab');
             const menu = document.getElementById('dev-menu');
