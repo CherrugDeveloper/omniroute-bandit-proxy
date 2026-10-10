@@ -496,7 +496,11 @@ export class DiscountedUCB1Bandit {
                 break;
               case "ban-model":
                 console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
-                this.db.prepare(`UPDATE models SET permanent = 1 WHERE id = ?`).run(modelId);
+                this.db.prepare(
+                  `INSERT INTO models (id, provider, permanent, N, sum_reward, fails, cooldown_until, last_used_index)
+                   VALUES (?, ?, 1, 0, 0, 0, 0, 0)
+                   ON CONFLICT(id) DO UPDATE SET permanent = 1`
+                ).run(modelId, provider);
                 break;
               case "cooldown-provider":
                 console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
