@@ -1056,6 +1056,318 @@ export class DiscountedUCB1Bandit {
     ).run(modelId);
   }
 
+  getModels(source = "prod", filters = {}) {
+    const now = Date.now();
+    let query = `
+      SELECT
+        m.id,
+        m.provider,
+        m.N,
+        m.sum_reward,
+        m.fails,
+        m.cooldown_until,
+        m.permanent,
+        m.degraded,
+        m.consecutive_5xx,
+        m.dynamic_max_tokens,
+        c.is_free,
+        c.supports_tools,
+        c.max_input_tokens
+    `;
+    
+    if (source === "train") {
+      query += `, 0 AS is_paid`;
+      query += `
+        FROM models_train m
+        LEFT JOIN catalog c ON m.id = c.id
+      `;
+      // models_train table doesn't have these columns, provide defaults
+      query = query.replace('m.fails,', '0 AS fails,')
+                   .replace('m.cooldown_until,', '0 AS cooldown_until,')
+                   .replace('m.permanent,', '0 AS permanent,')
+                   .replace('m.degraded,', '0 AS degraded,')
+                   .replace('m.consecutive_5xx,', '0 AS consecutive_5xx,')
+                   .replace('m.dynamic_max_tokens,', '0 AS dynamic_max_tokens,');
+    } else {
+      query += `, m.is_paid`;
+      query += `
+        FROM models m
+        LEFT JOIN catalog c ON m.id = c.id
+      `;
+    }
+    
+    const conditions = [];
+    const params = [];
+    
+    // Provider filter
+    if (filters.provider) {
+      conditions.push("m.provider = ?");
+      params.push(filters.provider);
+    }
+    
+    // Status filter
+    if (filters.status) {
+      switch (filters.status) {
+        case "active":
+          conditions.push("(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND m.permanent = 0 AND m.degraded = 0");
+          params.push(now);
+          break;
+        case "cooldown":
+          conditions.push("m.cooldown_until > ?");
+          params.push(now);
+          break;
+        case "degraded":
+          conditions.push("m.degraded = 1");
+          break;
+        case "banned":
+          conditions.push("m.permanent = 1");
+          break;
+      }
+    }
+    
+    // minN filter
+    if (filters.minN !== undefined && filters.minN !== null) {
+      conditions.push("m.N >= ?");
+      params.push(filters.minN);
+    }
+    
+    // minAvg filter
+    if (filters.minAvg !== undefined && filters.minAvg !== null) {
+      conditions.push("(m.sum_reward / NULLIF(m.N, 0)) >= ?");
+      params.push(filters.minAvg);
+    }
+    
+    // search filter (substring on id)
+    if (filters.search) {
+      conditions.push("m.id LIKE ?");
+      params.push(`%${filters.search}%`);
+    }
+    
+    // Exclude paid models if configured
+    if (this.excludePaid) {
+      conditions.push("m.is_paid = 0");
+    }
+    
+    // Only free models if configured
+    if (this.onlyFree) {
+      conditions.push("(c.is_free = 1 OR c.is_free IS NULL)");
+    }
+    
+    // Exclude thinking models if configured
+    if (this.excludeThinking) {
+      // This would need to be implemented based on how thinking models are identified
+      // For now, we'll skip this filter as it's not in the schema
+    }
+    
+    if (conditions.length > 0) {
+      query += " WHERE " + conditions.join(" AND ");
+    }
+    
+    // Add ordering
+    query += " ORDER BY m.N DESC, m.sum_reward DESC";
+    
+    // Add limit
+    const limit = filters.limit !== undefined && filters.limit !== null ? parseInt(filters.limit) : 500;
+    query += " LIMIT ?";
+    params.push(limit);
+    
+    const stmt = this.db.prepare(query);
+    const models = stmt.all(...params);
+    
+    // Calculate rank and add computed fields
+    return models.map((model, index) => {
+      // Calculate rank position among models with N >= 3 AND permanent = 0 AND degraded = 0
+      let rank = null;
+      if (model.N >= 3 && model.permanent === 0 && model.degraded === 0) {
+        // We'll calculate this after getting all qualifying models
+        rank = 0; // placeholder
+      }
+      
+      // Calculate cooldownRemaining
+      const cooldownRemaining = model.cooldown_until > now ? model.cooldown_until - now : 0;
+      
+      // Determine status
+      let status = "unknown";
+      if (model.permanent === 1) {
+        status = "banned";
+      } else if (model.degraded === 1) {
+        status = "degraded";
+      } else if (model.cooldown_until > now) {
+        status = "cooldown";
+      } else {
+        status = "active";
+      }
+      
+      return {
+        id: model.id,
+        provider: model.provider,
+        N: model.N,
+        sum_reward: model.sum_reward,
+        avg: model.N > 0 ? model.sum_reward / model.N : 0,
+        fails: model.fails,
+        cooldown_until: model.cooldown_until,
+        cooldownRemaining,
+        permanent: model.permanent === 1,
+        degraded: model.degraded === 1,
+        is_paid: model.is_paid === 1,
+        is_free: model.is_free === 1,
+        supports_tools: model.supports_tools === 1,
+        dynamic_max_tokens: model.dynamic_max_tokens,
+        consecutive_5xx: model.consecutive_5xx,
+        rank: rank // Will be updated below
+      };
+    }).map((model, index) => {
+      // Second pass to calculate rank correctly
+      if (model.N >= 3 && model.permanent === 0 && model.degraded === 0) {
+        // Count how many models have higher avg
+        const betterModels = models.filter(m =>
+          m.N >= 3 &&
+          m.permanent === 0 &&
+          m.degraded === 0 &&
+          m.N > 0 &&
+          (m.sum_reward / m.N) > (model.sum_reward / model.N)
+        );
+        model.rank = betterModels.length + 1;
+      }
+      return model;
+    });
+  }
+  
+  getModelsSummary(source = "prod") {
+    const now = Date.now();
+    
+    // Base query for counting models
+    let baseQuery = `
+      FROM models m
+      LEFT JOIN catalog c ON m.id = c.id
+    `;
+    
+    if (source === "train") {
+      baseQuery = `
+        FROM models_train m
+        LEFT JOIN catalog c ON m.id = c.id
+      `;
+    }
+    
+    // Build WHERE conditions
+    const conditions = [];
+    const params = [];
+    
+    // Exclude paid models if configured
+    if (this.excludePaid) {
+      conditions.push("m.is_paid = 0");
+    }
+    
+    // Only free models if configured
+    if (this.onlyFree) {
+      conditions.push("(c.is_free = 1 OR c.is_free IS NULL)");
+    }
+    
+    // Exclude thinking models if configured
+    if (this.excludeThinking) {
+      // This would need to be implemented based on how thinking models are identified
+      // For now, we'll skip this filter as it's not in the schema
+    }
+    
+    const whereClause = conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
+    
+    // Get total count
+    const totalStmt = this.db.prepare(`SELECT COUNT(*) AS count ${baseQuery}${whereClause}`);
+    const totalResult = totalStmt.all(...params);
+    const total = totalResult[0].count;
+    
+    // Get active count
+    const activeStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      WHERE (m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0)
+        AND m.permanent = 0
+        AND m.degraded = 0${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const activeParams = [now, ...params];
+    const activeResult = activeStmt.all(...activeParams);
+    const active = activeResult[0].count;
+    
+    // Get cooldown count
+    const cooldownStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      WHERE m.cooldown_until > ?${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const cooldownParams = [now, ...params];
+    const cooldownResult = cooldownStmt.all(...cooldownParams);
+    const cooldown = cooldownResult[0].count;
+    
+    // Get degraded count
+    const degradedStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      WHERE m.degraded = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const degradedResult = degradedStmt.all(...params);
+    const degraded = degradedResult[0].count;
+    
+    // Get banned count
+    const bannedStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      WHERE m.permanent = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const bannedResult = bannedStmt.all(...params);
+    const banned = bannedResult[0].count;
+    
+    // Get counts by provider
+    const providerStmt = this.db.prepare(`
+      SELECT
+        m.provider,
+        COUNT(*) AS count
+      ${baseQuery}
+      GROUP BY m.provider
+    `);
+    const providerResult = providerStmt.all(...params);
+    const byProvider = {};
+    providerResult.forEach(row => {
+      byProvider[row.provider] = row.count;
+    });
+    
+    return {
+      total,
+      active,
+      cooldown,
+      degraded,
+      banned,
+      byProvider
+    };
+  }
+  
+  getProviders() {
+    const now = Date.now();
+    
+    const query = `
+      SELECT
+        ph.provider,
+        ph.fails,
+        ph.cooldown_until,
+        ph.permanent,
+        ph.needs_attention,
+        ph.attention_reason,
+        COUNT(m.id) AS modelCount
+      FROM provider_history ph
+      LEFT JOIN models m ON m.provider = ph.provider
+      GROUP BY ph.provider
+    `;
+    
+    const stmt = this.db.prepare(query);
+    const providers = stmt.all();
+    
+    return providers.map(provider => ({
+      provider: provider.provider,
+      fails: provider.fails,
+      cooldown_until: provider.cooldown_until,
+      cooldownRemaining: provider.cooldown_until > now ? provider.cooldown_until - now : 0,
+      permanent: provider.permanent === 1,
+      needs_attention: provider.needs_attention === 1,
+      attention_reason: provider.attention_reason,
+      modelCount: provider.modelCount
+    }));
+  }
+
   close() {
     if (this.db) {
       this.db.close();

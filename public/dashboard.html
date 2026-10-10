@@ -717,9 +717,9 @@
             <span>🐛 Debug verbose</span>
         </label>
     </div>
-    </div>
         <div id="active-panel" class="active-panel" style="display:none">
             <div id="active-list"></div>
+        </div>
         </div>
         <div class="stats-container">
             <div class="stats"><strong>Richieste:</strong> <span id="total-req">0</span></div>
@@ -727,7 +727,7 @@
                 <strong>Top model:</strong> <span id="top-model" class="mono">—</span>
             </div>
             <div class="stats">
-            <strong>Osservazioni:</strong> <span id="total-obs">0</span> <span class="muted" id="success-rate">(successo: —)</span>
+                <strong>Osservazioni:</strong> <span id="total-obs">0</span> <span class="muted" id="success-rate">(successo: —)</span>
                 <button class="btn btn-reset" style="margin-left:8px;padding:2px 6px;font-size:11px" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
             </div>
 
@@ -757,11 +757,11 @@
                 <span class="muted">(su <span id="total-providers">0</span> monitorati, <span id="catalog-providers">0</span> in catalogo)</span>
             </div>
         </div>
-    </div>
 
-    <div class="tabs">
+<div class="tabs">
         <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
         <button class="tab-btn" data-tab="models">📦 Modelli</button>
+        <button class="tab-btn" data-tab="train">🏋️ Train</button>
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
         <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
     </div>
@@ -808,30 +808,97 @@
     </div>
 
     <div id="tab-models" class="tab-content">
-        <div class="filter-bar">
-            <input type="text" class="filter-input" id="filter-models" placeholder="🔍 Filtra modelli o provider...">
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#8b949e">
-                <input type="checkbox" id="filter-problems"> Solo problematici
-            </label>
-            <button id="toggle-flat" class="btn btn-copy" style="display:none; margin-left:auto;" title="Torna alla vista raggruppata per provider">📁 Raggruppa per provider</button>
+        <div class="filter-bar" id="models-filter-form">
+            <input type="text" class="filter-input" id="models-filter-search" placeholder="🔍 Cerca per ID modello (es. llama3...)">
+            <select class="filter-input" id="models-filter-provider">
+                <option value="">Tutti i provider</option>
+                <!-- populated from /v1/providers -->
+            </select>
+            <select class="filter-input" id="models-filter-status">
+                <option value="">Tutti</option>
+                <option value="active">Attivi</option>
+                <option value="cooldown">In cooldown</option>
+                <option value="degraded">Degradati</option>
+                <option value="banned">Bannati</option>
+            </select>
+            <input type="number" class="filter-input" id="models-filter-minN" min="0" step="1" placeholder="N ≥" value="0" style="width:70px">
+            <input type="number" class="filter-input" id="models-filter-minAvg" min="0" step="0.05" placeholder="avg ≥" value="0" style="width:70px">
+            <button id="models-reset-filters" class="btn">Reset filtri</button>
+        </div>
+        <div class="counter-bar" id="models-counters">
+            <span>Totale: <b id="models-count-total">0</b></span>
+            <span>Attivi: <b id="models-count-active">0</b></span>
+            <span>Cooldown: <b id="models-count-cooldown">0</b></span>
+            <span>Degradati: <b id="models-count-degraded">0</b></span>
+            <span>Bannati: <b id="models-count-banned">0</b></span>
         </div>
         <div class="table-wrapper">
             <table>
                 <thead>
                     <tr>
-                        <th data-sort="id">Modello</th>
+                        <th data-sort="rank">Rank</th>
+                        <th data-sort="id">ID modello</th>
                         <th data-sort="provider">Provider</th>
                         <th data-sort="N" class="mono">N</th>
                         <th data-sort="avg" class="mono">Avg Reward</th>
-                        <th data-sort="score" class="mono">Score UCB1</th>
                         <th data-sort="fails">Fails</th>
-                        <th data-sort="cooldownRemaining">Stato</th>
+                        <th>Stato</th>
+                        <th>Free</th>
+                        <th>Paid</th>
+                        <th>Strumenti</th>
                         <th>Azioni</th>
                     </tr>
                 </thead>
                 <tbody id="models-tbody"></tbody>
             </table>
         </div>
+    </div>
+    <div id="tab-train" class="tab-content">
+        <div class="filter-bar" id="train-filter-form">
+            <input type="text" class="filter-input" id="models-filter-search-train" placeholder="🔍 Cerca per ID modello (es. llama3...)">
+            <select class="filter-input" id="models-filter-provider-train">
+                <option value="">Tutti i provider</option>
+                <!-- populated from /v1/providers -->
+            </select>
+            <select class="filter-input" id="models-filter-status-train">
+                <option value="">Tutti</option>
+                <option value="active">Attivi</option>
+                <option value="cooldown">In cooldown</option>
+                <option value="degraded">Degradati</option>
+                <option value="banned">Bannati</option>
+            </select>
+            <input type="number" class="filter-input" id="models-filter-minN-train" min="0" step="1" placeholder="N ≥" value="0" style="width:70px">
+            <input type="number" class="filter-input" id="models-filter-minAvg-train" min="0" step="0.05" placeholder="avg ≥" value="0" style="width:70px">
+            <button id="models-reset-filters-train" class="btn">Reset filtri</button>
+        </div>
+        <div class="counter-bar" id="train-counters">
+            <span>Totale: <b id="train-count-total">0</b></span>
+            <span>Attivi: <b id="train-count-active">0</b></span>
+            <span>Cooldown: <b id="train-count-cooldown">0</b></span>
+            <span>Degradati: <b id="train-count-degraded">0</b></span>
+            <span>Bannati: <b id="train-count-banned">0</b></span>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th data-sort="rank">Rank</th>
+                        <th data-sort="id">ID modello</th>
+                        <th data-sort="provider">Provider</th>
+                        <th data-sort="N" class="mono">N</th>
+                        <th data-sort="avg" class="mono">Avg Reward</th>
+                        <th data-sort="fails">Fails</th>
+                        <th>Stato</th>
+                        <th>Free</th>
+                        <th>Paid</th>
+                        <th>Strumenti</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody id="train-tbody"></tbody>
+            </table>
+        </div>
+        <div class="helper-text">Modelli testati dal training daemon. I dati sono isolati da quelli di produzione.</div>
     </div>
     <div id="tab-modes" class="tab-content">
         <div class="card">
@@ -877,10 +944,15 @@
 
     <script>
         let allData = { providers: [], models: [] };
+        let trainData = { providers: [], models: [] };
         let sortCol = null;
         let sortDir = 'asc';
+        let trainSortCol = null;
+        let trainSortDir = 'asc';
         let flatMode = false;
+        let trainFlatMode = false;
         const collapsedProviders = new Set();
+        const trainCollapsedProviders = new Set();
         // === Auth token (persistente tra tab) ===
         const API_TOKEN =
             new URLSearchParams(location.search).get('token') ||
@@ -1276,124 +1348,322 @@
         // ============= RENDER =============
         function renderAll() {
             const tbody = document.getElementById('models-tbody');
-            const filter = document.getElementById('filter-models').value.toLowerCase();
-            const onlyProblems = document.getElementById('filter-problems').checked;
-
-            // Raggruppa modelli per provider
-            const modelsByProvider = {};
-            for (const m of allData.models || []) {
-                const p = m.provider || 'unknown';
-                if (!modelsByProvider[p]) modelsByProvider[p] = [];
-                modelsByProvider[p].push(m);
-            }
-
-            // Info provider
-            const providerInfo = {};
-            for (const p of allData.providers || []) {
-                providerInfo[p.provider] = p;
-            }
-
-            // Lista provider (unione dei provider con modelli e di quelli in provider_history)
-            const allProviders = new Set([
-                ...Object.keys(modelsByProvider),
-                ...(allData.providers || []).map(p => p.provider)
-            ]);
-
-            const providerNames = Array.from(allProviders).sort((a, b) => a.localeCompare(b));
-            const forceExpand = filter.length > 0;
-
-            let html = '';
-
-            // Bottone toggle visibile solo in flat mode
-            const toggleBtn = document.getElementById('toggle-flat');
-            if (toggleBtn) toggleBtn.style.display = flatMode ? 'inline-block' : 'none';
-
-            if (flatMode) {
-                // === FLAT MODE: tutti i modelli in un'unica tabella, sort globale ===
-                let allModels = [];
-                for (const provider of providerNames) {
-                    const models = modelsByProvider[provider] || [];
-                    const info = providerInfo[provider];
-                    const providerMatches = provider.toLowerCase().includes(filter);
-                    const matchingModels = filter
-                        ? models.filter(m => String(m.id).toLowerCase().includes(filter) || String(m.provider).toLowerCase().includes(filter))
-                        : models;
-                    if (filter && !providerMatches && matchingModels.length === 0) continue;
-
-                    if (onlyProblems) {
-                        const providerProblem = info && (
-                            Number(info.needs_attention) ||
-                            Number(info.permanent) ||
-                            (info.cooldown_until && info.cooldown_until > Date.now())
-                        );
-                        const modelsProblem = models.some(m =>
-                            Number(m.permanent) || Number(m.degraded) || Number(m.needs_attention) ||
-                            (m.cooldown_until && m.cooldown_until > Date.now())
-                        );
-                        if (!providerProblem && !modelsProblem) continue;
+            
+            // Get filter values
+            const search = document.getElementById('models-filter-search').value.toLowerCase();
+            const provider = document.getElementById('models-filter-provider').value;
+            const status = document.getElementById('models-filter-status').value;
+            const minN = parseInt(document.getElementById('models-filter-minN').value) || 0;
+            const minAvg = parseFloat(document.getElementById('models-filter-minAvg').value) || 0;
+            
+            // Fetch models and summary
+            fetch('/v1/models?source=prod&provider=' + encodeURIComponent(provider) +
+                  '&status=' + encodeURIComponent(status) +
+                  '&minN=' + minN +
+                  '&minAvg=' + minAvg +
+                  '&search=' + encodeURIComponent(search) +
+                  '&limit=500')
+                .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+                .then(models => {
+                    // Fetch summary
+                    return fetch('/v1/models/summary?source=prod')
+                        .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+                        .then(summary => ({models, summary}));
+                })
+                .then(({models, summary}) => {
+                    // Update counters
+                    document.getElementById('models-count-total').textContent = summary.total || 0;
+                    document.getElementById('models-count-active').textContent = summary.active || 0;
+                    document.getElementById('models-count-cooldown').textContent = summary.cooldown || 0;
+                    document.getElementById('models-count-degraded').textContent = summary.degraded || 0;
+                    document.getElementById('models-count-banned').textContent = summary.banned || 0;
+                    
+                    // Store data for sorting
+                    allData.models = models;
+                    allData.providers = []; // We'll get providers from a separate endpoint if needed
+                    
+                    // Raggruppa modelli per provider
+                    const modelsByProvider = {};
+                    for (const m of models) {
+                        const p = m.provider || 'unknown';
+                        if (!modelsByProvider[p]) modelsByProvider[p] = [];
+                        modelsByProvider[p].push(m);
                     }
 
-                    for (const m of matchingModels) {
-                        if (onlyProblems) {
-                            const isProb = Number(m.permanent) || Number(m.degraded) || Number(m.needs_attention) ||
-                                           (m.cooldown_until && m.cooldown_until > Date.now());
-                            if (!isProb) continue;
+                    // Info provider (we'll need to fetch this separately or use a placeholder)
+                    const providerInfo = {};
+                    // For now, we'll create minimal provider info from the models data
+                    // In a real implementation, we'd fetch /v1/providers
+                    const providerSet = new Set(models.map(m => m.provider));
+                    providerSet.forEach(p => {
+                        providerInfo[p] = {
+                            provider: p,
+                            permanent: 0,
+                            needs_attention: 0,
+                            cooldown_until: 0
+                        };
+                    });
+
+                    // Lista provider
+                    const providerNames = Array.from(Object.keys(modelsByProvider)).sort((a, b) => a.localeCompare(b));
+                    const forceExpand = search.length > 0;
+
+                    let html = '';
+
+                    // Bottone toggle visibile solo in flat mode
+                    const toggleBtn = document.getElementById('toggle-flat');
+                    if (toggleBtn) toggleBtn.style.display = flatMode ? 'inline-block' : 'none';
+
+                    if (flatMode) {
+                        // === FLAT MODE: tutti i modelli in un'unica tabella, sort globale ===
+                        let allModels = [];
+                        for (const provider of providerNames) {
+                            const models = modelsByProvider[provider] || [];
+                            const info = providerInfo[provider];
+                            const providerMatches = provider.toLowerCase().includes(search);
+                            const matchingModels = search
+                                ? models.filter(m => String(m.id).toLowerCase().includes(search) || String(m.provider).toLowerCase().includes(search))
+                                : models;
+                            if (search && !providerMatches && matchingModels.length === 0) continue;
+
+                            // Apply additional filters
+                            const filteredModels = matchingModels.filter(m => {
+                                // Status filter
+                                if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
+                                if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
+                                if (status === 'degraded' && Number(m.degraded) === 1) return true;
+                                if (status === 'banned' && Number(m.permanent) === 1) return true;
+                                if (status === '') return true; // No status filter
+                                return false;
+                            });
+                            
+                            // N filter
+                            const nFiltered = filteredModels.filter(m => Number(m.N) >= minN);
+                            
+                            // Avg filter
+                            const avgFiltered = nFiltered.filter(m => Number(m.avg) >= minAvg);
+                            
+                            if (search && !providerMatches && avgFiltered.length === 0) continue;
+
+                            for (const m of avgFiltered) {
+                                allModels.push(m);
+                            }
                         }
-                        allModels.push(m);
+                        const sorted = sortRows(allModels);
+                        for (const m of sorted) {
+                            html += renderModelRow(m);
+                        }
+                    } else {
+                        // GROUPED MODE
+                        for (const provider of providerNames) {
+                            const models = modelsByProvider[provider] || [];
+                            const info = providerInfo[provider];
+                            
+                            // Apply filters
+                            const filteredModels = models.filter(m => {
+                                // Search filter
+                                if (search && !String(m.id).toLowerCase().includes(search) && !String(m.provider).toLowerCase().includes(search)) return false;
+                                
+                                // Status filter
+                                if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
+                                if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
+                                if (status === 'degraded' && Number(m.degraded) === 1) return true;
+                                if (status === 'banned' && Number(m.permanent) === 1) return true;
+                                if (status === '') return true; // No status filter
+                                return false;
+                            });
+                            
+                            // N filter
+                            const nFiltered = filteredModels.filter(m => Number(m.N) >= minN);
+                            
+                            // Avg filter
+                            const avgFiltered = nFiltered.filter(m => Number(m.avg) >= minAvg);
+                            
+                            if (search && !provider.toLowerCase().includes(search) && avgFiltered.length === 0) continue;
+
+                            const isCollapsed = !forceExpand && collapsedProviders.has(provider);
+                            const modelsToShow = (forceExpand && !provider.toLowerCase().includes(search)) ? avgFiltered : avgFiltered;
+
+                            html += renderProviderHeader(provider, info, models.length, isCollapsed);
+
+                            if (!isCollapsed || (forceExpand && modelsToShow.length > 0)) {
+                                const sorted = sortRows(modelsToShow);
+                                for (const m of sorted) {
+                                    html += renderModelRow(m);
+                                }
+                            }
+                        }
                     }
-                }
-                const sorted = sortRows(allModels);
-                for (const m of sorted) {
-                    html += renderModelRow(m);
-                }
-            } else {
 
-            for (const provider of providerNames) {
-                const models = modelsByProvider[provider] || [];
-                const info = providerInfo[provider];
-
-                // Filtro
-                const providerMatches = provider.toLowerCase().includes(filter);
-                const matchingModels = filter
-                    ? models.filter(m => String(m.id).toLowerCase().includes(filter) || String(m.provider).toLowerCase().includes(filter))
-                    : models;
-
-                if (filter && !providerMatches && matchingModels.length === 0) continue;
-
-                // Filtro "solo problematici"
-                if (onlyProblems) {
-                    const providerProblem = info && (
-                        Number(info.needs_attention) ||
-                        Number(info.permanent) ||
-                        (info.cooldown_until && info.cooldown_until > Date.now())
-                    );
-                    const modelsProblem = models.some(m =>
-                        Number(m.permanent) || Number(m.degraded) || Number(m.needs_attention) ||
-                        (m.cooldown_until && m.cooldown_until > Date.now())
-                    );
-                    if (!providerProblem && !modelsProblem) continue;
-                }
-
-                const isCollapsed = !forceExpand && collapsedProviders.has(provider);
-                const modelsToShow = (forceExpand && !providerMatches) ? matchingModels : models;
-
-                html += renderProviderHeader(provider, info, models.length, isCollapsed);
-
-                if (!isCollapsed || (forceExpand && modelsToShow.length > 0)) {
-                    const sorted = sortRows(modelsToShow);
-                    for (const m of sorted) {
-                        html += renderModelRow(m);
+                    if (html === '') {
+                        tbody.innerHTML = '<tr><td colspan="11" class="empty">Nessun risultato</td></tr>';
+                    } else {
+                        tbody.innerHTML = html;
                     }
-                }
-            }
+                })
+                .catch(err => {
+                    console.error('Errore fetch modelli:', err);
+                    tbody.innerHTML = '<tr><td colspan="11" class="empty">Errore caricamento dati</td></tr>';
+                });
+        }
+        
+        function renderTrainAll() {
+            const tbody = document.getElementById('train-tbody');
+            
+            // Get filter values
+            const search = document.getElementById('models-filter-search-train').value.toLowerCase();
+            const provider = document.getElementById('models-filter-provider-train').value;
+            const status = document.getElementById('models-filter-status-train').value;
+            const minN = parseInt(document.getElementById('models-filter-minN-train').value) || 0;
+            const minAvg = parseFloat(document.getElementById('models-filter-minAvg-train').value) || 0;
+            
+            // Fetch models and summary
+            fetch('/v1/models?source=train&provider=' + encodeURIComponent(provider) +
+                  '&status=' + encodeURIComponent(status) +
+                  '&minN=' + minN +
+                  '&minAvg=' + minAvg +
+                  '&search=' + encodeURIComponent(search) +
+                  '&limit=500')
+                .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+                .then(models => {
+                    // Fetch summary
+                    return fetch('/v1/models/summary?source=train')
+                        .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+                        .then(summary => ({models, summary}));
+                })
+                .then(({models, summary}) => {
+                    // Update counters
+                    document.getElementById('train-count-total').textContent = summary.total || 0;
+                    document.getElementById('train-count-active').textContent = summary.active || 0;
+                    document.getElementById('train-count-cooldown').textContent = summary.cooldown || 0;
+                    document.getElementById('train-count-degraded').textContent = summary.degraded || 0;
+                    document.getElementById('train-count-banned').textContent = summary.banned || 0;
+                    
+                    // Store data for sorting
+                    trainData.models = models;
+                    trainData.providers = [];
+                    
+                    // Raggruppa modelli per provider
+                    const modelsByProvider = {};
+                    for (const m of models) {
+                        const p = m.provider || 'unknown';
+                        if (!modelsByProvider[p]) modelsByProvider[p] = [];
+                        modelsByProvider[p].push(m);
+                    }
 
-            }   // ← chiude il blocco "else" del flat mode
+                    // Info provider
+                    const providerInfo = {};
+                    const providerSet = new Set(models.map(m => m.provider));
+                    providerSet.forEach(p => {
+                        providerInfo[p] = {
+                            provider: p,
+                            permanent: 0,
+                            needs_attention: 0,
+                            cooldown_until: 0
+                        };
+                    });
 
-            if (html === '') {
-                tbody.innerHTML = '<tr><td colspan="8" class="empty">Nessun risultato</td></tr>';
-            } else {
-                tbody.innerHTML = html;
-            }
+                    // Lista provider
+                    const providerNames = Array.from(Object.keys(modelsByProvider)).sort((a, b) => a.localeCompare(b));
+                    const forceExpand = search.length > 0;
+
+                    let html = '';
+
+                    // Bottone toggle visibile solo in flat mode
+                    const toggleBtn = document.getElementById('toggle-flat');
+                    if (toggleBtn) toggleBtn.style.display = trainFlatMode ? 'inline-block' : 'none';
+
+                    if (trainFlatMode) {
+                        // === FLAT MODE: tutti i modelli in un'unica tabella, sort globale ===
+                        let allModels = [];
+                        for (const provider of providerNames) {
+                            const models = modelsByProvider[provider] || [];
+                            const info = providerInfo[provider];
+                            const providerMatches = provider.toLowerCase().includes(search);
+                            const matchingModels = search
+                                ? models.filter(m => String(m.id).toLowerCase().includes(search) || String(m.provider).toLowerCase().includes(search))
+                                : models;
+                            if (search && !providerMatches && matchingModels.length === 0) continue;
+
+                            // Apply additional filters
+                            const filteredModels = matchingModels.filter(m => {
+                                // Status filter
+                                if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
+                                if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
+                                if (status === 'degraded' && Number(m.degraded) === 1) return true;
+                                if (status === 'banned' && Number(m.permanent) === 1) return true;
+                                if (status === '') return true; // No status filter
+                                return false;
+                            });
+                            
+                            // N filter
+                            const nFiltered = filteredModels.filter(m => Number(m.N) >= minN);
+                            
+                            // Avg filter
+                            const avgFiltered = nFiltered.filter(m => Number(m.avg) >= minAvg);
+                            
+                            if (search && !providerMatches && avgFiltered.length === 0) continue;
+
+                            for (const m of avgFiltered) {
+                                allModels.push(m);
+                            }
+                        }
+                        const sorted = sortRows(allModels);
+                        for (const m of sorted) {
+                            html += renderModelRow(m);
+                        }
+                    } else {
+                        // GROUPED MODE
+                        for (const provider of providerNames) {
+                            const models = modelsByProvider[provider] || [];
+                            const info = providerInfo[provider];
+                            
+                            // Apply filters
+                            const filteredModels = models.filter(m => {
+                                // Search filter
+                                if (search && !String(m.id).toLowerCase().includes(search) && !String(m.provider).toLowerCase().includes(search)) return false;
+                                
+                                // Status filter
+                                if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
+                                if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
+                                if (status === 'degraded' && Number(m.degraded) === 1) return true;
+                                if (status === 'banned' && Number(m.permanent) === 1) return true;
+                                if (status === '') return true; // No status filter
+                                return false;
+                            });
+                            
+                            // N filter
+                            const nFiltered = filteredModels.filter(m => Number(m.N) >= minN);
+                            
+                            // Avg filter
+                            const avgFiltered = nFiltered.filter(m => Number(m.avg) >= minAvg);
+                            
+                            if (search && !provider.toLowerCase().includes(search) && avgFiltered.length === 0) continue;
+
+                            const isCollapsed = !forceExpand && trainCollapsedProviders.has(provider);
+                            const modelsToShow = (forceExpand && !provider.toLowerCase().includes(search)) ? avgFiltered : avgFiltered;
+
+                            html += renderProviderHeader(provider, info, models.length, isCollapsed);
+
+                            if (!isCollapsed || (forceExpand && modelsToShow.length > 0)) {
+                                const sorted = sortRows(modelsToShow);
+                                for (const m of sorted) {
+                                    html += renderModelRow(m);
+                                }
+                            }
+                        }
+                    }
+
+                    if (html === '') {
+                        tbody.innerHTML = '<tr><td colspan="11" class="empty">Nessun risultato</td></tr>';
+                    } else {
+                        tbody.innerHTML = html;
+                    }
+                })
+                .catch(err => {
+                    console.error('Errore fetch modelli train:', err);
+                    tbody.innerHTML = '<tr><td colspan="11" class="empty">Errore caricamento dati</td></tr>';
+                });
         }
 
         function renderProviderHeader(provider, info, modelCount, isCollapsed) {
@@ -1426,7 +1696,7 @@
             }
 
             return '<tr class="provider-header' + (isCollapsed ? ' collapsed' : '') + '" data-action="toggle-provider" data-name="' + safe + '">' +
-                '<td colspan="8">' +
+                '<td colspan="11">' +
                     '<div class="header-content">' +
                         '<span class="arrow">▼</span>' +
                         '<span class="provider-name">' + safe + '</span>' +
@@ -1451,10 +1721,31 @@
                 : '<button class="btn btn-reset" data-action="reset-model" data-id="' + safe + '">Reset</button>' +
                   ' <button class="btn btn-block" data-action="block-model" data-id="' + safe + '">🚫 Blocca</button>';
 
-            return '<tr><td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td><td>' + escapeHtml(m.provider) + '</td><td class="mono">' +
-                n.toFixed(1) + '</td><td class="mono">' + avg.toFixed(3) + '</td><td class="mono">' + score +
-                '</td><td>' + fails + '</td><td>' + badge(m) +
-                '</td><td>' + actions + '</td></tr>';
+            // Rank
+            const rank = (m.rank != null && m.rank > 0) ? m.rank : '—';
+            // Free/Paid badges
+            const isFree = m.is_free === 1;
+            const isPaid = m.is_paid === 1;
+            const freeBadge = isFree ? '<span class="badge badge-active">Free</span>' : (isPaid ? '<span class="badge badge-cooldown">Paid</span>' : '<span class="muted">—</span>');
+            const paidBadge = isPaid ? '<span class="badge badge-cooldown">Paid</span>' : (isFree ? '<span class="badge badge-active">Free</span>' : '<span class="muted">—</span>');
+            // Tools badge
+            const toolsBadge = m.supports_tools === 1
+                ? '<span class="badge badge-active">✓</span>'
+                : (m.supports_tools === 0 ? '<span class="muted">—</span>' : '<span class="muted">?</span>');
+
+            return '<tr>' +
+                '<td class="mono" style="text-align:center">' + rank + '</td>' +
+                '<td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td>' +
+                '<td>' + escapeHtml(m.provider) + '</td>' +
+                '<td class="mono">' + n.toFixed(1) + '</td>' +
+                '<td class="mono">' + avg.toFixed(3) + '</td>' +
+                '<td>' + fails + '</td>' +
+                '<td>' + badge(m) + '</td>' +
+                '<td style="text-align:center">' + freeBadge + '</td>' +
+                '<td style="text-align:center">' + paidBadge + '</td>' +
+                '<td style="text-align:center">' + toolsBadge + '</td>' +
+                '<td>' + actions + '</td>' +
+                '</tr>';
         }
 
         // ============= AZIONI =============
@@ -2131,6 +2422,87 @@
                 const cl = document.getElementById('changelog-content');
                 if (cl) cl.dataset.latestVersion = latest;
             }).catch(() => {});
+
+            // Inizializza filtri con localStorage
+            function initFilters() {
+                // Models filters
+                const savedModelsFilters = localStorage.getItem('models.filters');
+                if (savedModelsFilters) {
+                    const filters = JSON.parse(savedModelsFilters);
+                    if (filters.search) document.getElementById('models-filter-search').value = filters.search;
+                    if (filters.provider) document.getElementById('models-filter-provider').value = filters.provider;
+                    if (filters.status) document.getElementById('models-filter-status').value = filters.status;
+                    if (filters.minN !== undefined) document.getElementById('models-filter-minN').value = filters.minN;
+                    if (filters.minAvg !== undefined) document.getElementById('models-filter-minAvg').value = filters.minAvg;
+                }
+
+                // Train filters
+                const savedTrainFilters = localStorage.getItem('train.filters');
+                if (savedTrainFilters) {
+                    const filters = JSON.parse(savedTrainFilters);
+                    if (filters.search) document.getElementById('models-filter-search-train').value = filters.search;
+                    if (filters.provider) document.getElementById('models-filter-provider-train').value = filters.provider;
+                    if (filters.status) document.getElementById('models-filter-status-train').value = filters.status;
+                    if (filters.minN !== undefined) document.getElementById('models-filter-minN-train').value = filters.minN;
+                    if (filters.minAvg !== undefined) document.getElementById('models-filter-minAvg-train').value = filters.minAvg;
+                }
+
+                // Add event listeners to save filters
+                const filterInputs = document.querySelectorAll('.filter-input');
+                filterInputs.forEach(input => {
+                    input.addEventListener('change', () => {
+                        const form = input.closest('.filter-bar');
+                        if (form.id === 'models-filter-form') {
+                            const filters = {
+                                search: document.getElementById('models-filter-search').value,
+                                provider: document.getElementById('models-filter-provider').value,
+                                status: document.getElementById('models-filter-status').value,
+                                minN: parseInt(document.getElementById('models-filter-minN').value) || 0,
+                                minAvg: parseFloat(document.getElementById('models-filter-minAvg').value) || 0
+                            };
+                            localStorage.setItem('models.filters', JSON.stringify(filters));
+                            renderAll();
+                        } else if (form.id === 'train-filter-form') {
+                            const filters = {
+                                search: document.getElementById('models-filter-search-train').value,
+                                provider: document.getElementById('models-filter-provider-train').value,
+                                status: document.getElementById('models-filter-status-train').value,
+                                minN: parseInt(document.getElementById('models-filter-minN-train').value) || 0,
+                                minAvg: parseFloat(document.getElementById('models-filter-minAvg-train').value) || 0
+                            };
+                            localStorage.setItem('train.filters', JSON.stringify(filters));
+                            renderTrainAll();
+                        }
+                    });
+                });
+
+                // Add reset button event listeners
+                document.getElementById('models-reset-filters')?.addEventListener('click', () => {
+                    document.getElementById('models-filter-search').value = '';
+                    document.getElementById('models-filter-provider').value = '';
+                    document.getElementById('models-filter-status').value = '';
+                    document.getElementById('models-filter-minN').value = '0';
+                    document.getElementById('models-filter-minAvg').value = '0';
+                    localStorage.removeItem('models.filters');
+                    renderAll();
+                });
+
+                document.getElementById('models-reset-filters-train')?.addEventListener('click', () => {
+                    document.getElementById('models-filter-search-train').value = '';
+                    document.getElementById('models-filter-provider-train').value = '';
+                    document.getElementById('models-filter-status-train').value = '';
+                    document.getElementById('models-filter-minN-train').value = '0';
+                    document.getElementById('models-filter-minAvg-train').value = '0';
+                    localStorage.removeItem('train.filters');
+                    renderTrainAll();
+                });
+
+                // Apply filters initially
+                renderAll();
+                renderTrainAll();
+            }
+
+            initFilters();
         });
         fetch('/v1/version').then(r => r.json()).then(d => {
                 const v = (d.version || 'dev');

@@ -638,6 +638,46 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
   }
 });
 
+app.get("/v1/models", requireAuth, (req, res) => {
+  try {
+    const source = req.query.source || "prod";
+    const filters = {
+      provider: req.query.provider,
+      status: req.query.status,
+      minN: req.query.minN !== undefined ? parseInt(req.query.minN) : undefined,
+      minAvg: req.query.minAvg !== undefined ? parseFloat(req.query.minAvg) : undefined,
+      search: req.query.search,
+      limit: req.query.limit !== undefined ? parseInt(req.query.limit) : undefined
+    };
+    const models = bandit.getModels(source, filters);
+    res.json({ models });
+  } catch (e) {
+    console.error("[API] Errore /v1/models:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/v1/models/summary", requireAuth, (req, res) => {
+  try {
+    const source = req.query.source || "prod";
+    const summary = bandit.getModelsSummary(source);
+    res.json(summary);
+  } catch (e) {
+    console.error("[API] Errore /v1/models/summary:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/v1/providers", requireAuth, (req, res) => {
+  try {
+    const providers = bandit.getProviders();
+    res.json({ providers });
+  } catch (e) {
+    console.error("[API] Errore /v1/providers:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get("/v1/quota", requireAuth, (req, res) => {
   try {
     const quotaData = bandit.quota.snapshot();
