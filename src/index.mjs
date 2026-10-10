@@ -829,7 +829,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const feedbackSource = (req.get("x-source") || "").toLowerCase() === "training" ? "training" : "prod";
   // Initialize attempt counter before session affinity code that references it
   let attempt = 0;
-    // === Session key per affinity ===
+  const fallbackTried = new Set();
+  // === Session key per affinity ===
   const sessionKey = computeSessionKey(req.body?.messages);
   if (sessionKey) {
     const sys = req.body?.messages?.find(m => m.role === "system");
@@ -1012,6 +1013,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const fallbackModels = bandit.getFallbackModels();
       if (fallbackModels.length > 0) {
         const fallbackModel = fallbackModels[0];
+        if (fallbackTried.has(fallbackModel) || !bandit.isModelAvailable(fallbackModel)) {
+          console.error(`[FALLBACK] ${fallbackModel} non disponibile o già tentato → 503`);
+          cleanup();
+          return res.status(503).json({ error: { message: "No models available", status: 503 } });
+        }
+        fallbackTried.add(fallbackModel);
         console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${fallbackModel} due to retries exhausted for ${model}`);
         model = fallbackModel;
         retriesExhausted = false; // Reset flag after fallback
@@ -1101,20 +1108,23 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         estimatedTokens,
         attempt
       }).catch(() => {});
-       
-      // Check if fallback models are available
-      const fallbackModels = bandit.getFallbackModels();
-      if (fallbackModels.length > 0) {
-        const fallbackModel = fallbackModels[0];
-        console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${fallbackModel} due to no available models`);
-        model = fallbackModel;
-      } else {
-        console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
-        cleanup();
-        return res.status(503).json({ error: { message: "No models available", status: 503 } });
-      }
-    }
-
+        // Check if fallback models are available
+        const fallbackModels = bandit.getFallbackModels();
+        if (fallbackModels.length > 0) {
+          const fallbackModel = fallbackModels[0];
+          if (fallbackTried.has(fallbackModel) || !bandit.isModelAvailable(fallbackModel)) {
+            console.error(`[FALLBACK] ${fallbackModel} non disponibile o già tentato → 503`);
+            cleanup();
+            return res.status(503).json({ error: { message: "No models available", status: 503 } });
+          }
+          fallbackTried.add(fallbackModel);
+          console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${fallbackModel} due to no available models`);
+          model = fallbackModel;
+        } else {
+          console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
+          cleanup();
+          return res.status(503).json({ error: { message: "No models available", status: 503 } });
+        }
     console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt})`);
 
     // === AUTO-COMPRESS per il modello specifico ===
