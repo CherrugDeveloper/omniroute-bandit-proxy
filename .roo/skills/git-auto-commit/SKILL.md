@@ -114,6 +114,7 @@ GIT_AUTO_COMMIT_LOG_LEVEL=DEBUG scripts/git-auto-commit.sh --dry-run
 | `GIT_AUTO_COMMIT_AUTO_MESSAGE` | `true` | Auto-generate commit message from diff |
 | `GIT_AUTO_COMMIT_HISTORY_DEPTH` | `20` | Number of commits to analyze |
 | `GIT_AUTO_COMMIT_SQUASH_THRESHOLD` | `3` | Suggest squash if N+ related commits share type/scope |
+| `GIT_AUTO_COMMIT_WSL_EXEC` | `true` | Execute git commands via WSL/Ubuntu [default: true] |
 
 # Exit codes
 
