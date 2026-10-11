@@ -85,6 +85,12 @@ export class DiscountedUCB1Bandit {
           supports_tools INTEGER DEFAULT 0
         );
 
+        CREATE TABLE IF NOT EXISTS request_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          started_at REAL,
+          ended_at REAL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
         CREATE INDEX IF NOT EXISTS idx_catalog_provider ON catalog(provider);
 
@@ -295,6 +301,9 @@ export class DiscountedUCB1Bandit {
   recordRequest() {
     this.totalRequests++;
     this._setMeta("totalRequests", this.totalRequests);
+    this.totalObservations++;
+    this._setMeta("totalObservations", this.totalObservations);
+    this.db.prepare("INSERT INTO request_logs (started_at) VALUES (?)").run(Date.now());
   }
 
   async fetchAndSyncModels() {
@@ -569,10 +578,13 @@ export class DiscountedUCB1Bandit {
       }
 
       if (success) {
+        this.totalObservations++;
+        this._setMeta("totalObservations", this.totalObservations);
         this.db.prepare(
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0
            WHERE id = ?`
         ).run(reward, modelId);
+        this.db.prepare("UPDATE request_logs SET ended_at = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1").run(Date.now());
         this._lastReward.set(modelId, reward);
       } else {
         this.db.prepare(
@@ -853,6 +865,72 @@ export class DiscountedUCB1Bandit {
        FROM provider_history`
     ).all();
     return { models, providers };
+  }
+
+  getDashboardStats() {
+    const totalRequests = this._getMeta("totalRequests");
+    const totalObservations = this._getMeta("totalObservations");
+    
+    const stats = this.db.prepare(`
+      SELECT
+        SUM(N) as totalN,
+        SUM(sum_reward) as totalReward,
+        AVG(sum_reward / NULLIF(N, 0)) as avgReward
+      FROM models
+    `).get();
+
+    let latency = { avgLatency: 0 };
+    try {
+      latency = this.db.prepare(`
+        SELECT AVG(duration) as avgLatency
+        FROM (
+          SELECT (ended_at - started_at) as duration
+          FROM request_logs
+          WHERE ended_at IS NOT NULL AND started_at IS NOT NULL
+          ORDER BY ended_at DESC
+          LIMIT 1000
+        )
+      `).get();
+    } catch (e) {
+      console.warn("[BANDIT] Errore calcolo latenza (request_logs mancante?):", e.message);
+    }
+
+    const freeActive = this.db.prepare(`
+      SELECT COUNT(*) as count
+      FROM models m
+      JOIN catalog c ON m.id = c.id
+      WHERE c.is_free = 1 AND m.cooldown_until <= ? AND m.permanent = 0 AND m.degraded = 0
+    `).get(Date.now());
+
+    const topModel = this.db.prepare(`
+      SELECT id, (sum_reward / NULLIF(N, 0)) as avg
+      FROM models
+      WHERE N >= 10
+      ORDER BY avg DESC
+      LIMIT 1
+    `).get();
+
+    const catalogCounts = this.db.prepare(`
+      SELECT COUNT(*) as total, SUM(is_free) as free
+      FROM catalog
+    `).get();
+
+    const totalModels = this.db.prepare(`
+      SELECT COUNT(*) as count
+      FROM models
+    `).get();
+
+    return {
+      totalRequests,
+      totalObservations,
+      avgReward: stats.avgReward || 0,
+      avgLatencySec: (latency.avgLatency || 0) / 1000,
+      freeActive: freeActive.count,
+      topModel: topModel ? topModel.id : null,
+      catalogTotal: catalogCounts.total,
+      catalogFree: catalogCounts.free,
+      totalModels: totalModels.count
+    };
   }
   isModelAvailable(modelId) {
     const model = this.db.prepare(

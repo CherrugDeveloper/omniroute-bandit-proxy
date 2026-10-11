@@ -1,5 +1,6 @@
 import express from "express";
 import { createHash } from "node:crypto";
+console.log("[STARTUP] Server loading index.mjs");
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import "dotenv/config";
@@ -254,6 +255,14 @@ function compressBody(body, targetTokens) {
 // Access log: solo le route API (v1), escludendo metriche e log (che vengono
 // pollate ogni secondo dalla dashboard). Esclude anche gli asset statici.
 app.use((req, res, next) => {
+  if (req.path === "/manifest.json") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
+  next();
+});
+
+// Single entry point: canonical per-request log + optional verbose body inspection
+app.use((req, res, next) => {
   const isApi = req.path.startsWith("/v1/");
   const isPolling = req.path.startsWith("/v1/metrics")
     || req.path.startsWith("/v1/logs")
@@ -261,25 +270,35 @@ app.use((req, res, next) => {
     || req.path.startsWith("/v1/modes")
     || req.path.startsWith("/v1/models")
     || req.path.startsWith("/v1/debug/status")
-    || req.path.startsWith("/v1/inflight");
+    || req.path.startsWith("/v1/inflight")
+    || req.path.startsWith("/v1/dashboard/stats");
+  if (req.path === '/v1/dashboard/stats') {
+    const now = Date.now();
+    if (now - dashboardStatsLogState.lastLogAt >= DASHBOARD_STATS_LOG_INTERVAL_MS) {
+      const suppressed = dashboardStatsLogState.suppressed;
+      dashboardStatsLogState.lastLogAt = now;
+      dashboardStatsLogState.suppressed = 0;
+      console.log(`[DASHBOARD_STATS_DEBUG] isApi=${isApi}, isPolling=${isPolling}, condition=${isApi && !isPolling}${suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""}`);
+    } else {
+      dashboardStatsLogState.suppressed++;
+    }
+  }
   if (isApi && !isPolling) {
     let suffix = '';
     if (req.method === 'POST' && req.path === '/v1/chat/completions') {
       suffix = req.get('x-source') === 'training' ? ' [TRAIN]' : ' [ZOO]';
     }
-    console.log(`[PROXY] ${req.method} ${req.path}${suffix}`);
+    if (debugVerbose) {
+      console.log(`[DEBUG] Incoming ${req.method} ${req.path}${suffix} source=${req.get('x-source') || '-'} client=${req.ip || req.connection?.remoteAddress || '?'}`);
+    } else {
+      console.log(`[PROXY] ${req.method} ${req.path}${suffix}`);
+    }
   }
   next();
 });
 
-app.use((req, res, next) => {
-  if (req.path === "/manifest.json") {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  }
-  next();
-});
-
-app.use(express.static(path.join(__dirname, "../public")));
+// API routes must be registered before static middleware to avoid 404s for /v1/* paths
+// Static files served after API routes
 
 const bandit = new DiscountedUCB1Bandit();
 
@@ -530,8 +549,44 @@ function trackRequestComplete(id, meta) {
 }
 
 function pushLog(message) {
-  const timestamp = new Date().toLocaleTimeString();
-  logBuffer.push(`[${timestamp}] ${message}`);
+   // Event grouping: if the same message repeats within 5 seconds, increment counter instead of new log entry
+   const now = Date.now();
+   if (global.lastLogMessage === message && global.lastLogTime && (now - global.lastLogTime) < 5000) {
+     // Same message within 5 seconds, increment counter
+     global.logMessageCount++;
+     // Update the last entry in logBuffer to show the count
+     const lastEntry = logBuffer.getAll().pop();
+     if (lastEntry && lastEntry.includes(message)) {
+       // Replace the last entry with grouped version
+       logBuffer.push(`[${new Date().toLocaleTimeString()}] ${message} (x${global.logMessageCount + 1})`);
+       // Remove the previous entry since we're replacing it
+       if (logBuffer.buffer.length > 0) {
+         logBuffer.buffer.pop();
+         if (logBuffer.index > 0) logBuffer.index--;
+       }
+     }
+   } else {
+     // New message or timeout exceeded, reset counter and log normally
+     if (global.logMessageCount > 0) {
+       // If we had a grouped message, add it with its final count
+       const groupedMessage = `${global.lastLogMessage} (x${global.logMessageCount + 1})`;
+       logBuffer.push(`[${new Date().toLocaleTimeString()}] ${groupedMessage}`);
+     }
+     global.lastLogMessage = message;
+     global.logMessageCount = 0;
+     global.lastLogTime = now;
+     const timestamp = new Date().toLocaleTimeString();
+     logBuffer.push(`[${timestamp}] ${message}`);
+   }
+ }
+
+// Consolidated request outcome log
+function logSuccess(model, dur, opts = {}) {
+  const { stream, toolNames, hasWritten, rewardScore, baseReward } = opts;
+  const tag = stream ? "[SUCCESS-STREAM]" : "[SUCCESS]";
+  console.log(`${tag} ${model} in ${dur.toFixed(2)}s ` +
+              `(reward: ${(rewardScore || 0).toFixed(3)} = base ${(baseReward || 0).toFixed(3)} ` +
+              `x ${(toolNames ? 0.6 : 1).toFixed(1)} tool=${toolNames?.[0] || 'none'} hasWritten=${hasWritten ?? '?'})`);
 }
 
 // ========================================
@@ -640,11 +695,26 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
   }
 });
 
+app.get("/v1/dashboard/stats", requireAuth, (req, res) => {
+  try {
+    res.json(bandit.getDashboardStats());
+  } catch (e) {
+    console.error("[API] Errore /v1/dashboard/stats:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Throttling per i log di /v1/models: la dashboard lo polla frequentemente.
 // Logga solo una riga di riepilogo ogni MODELS_LOG_THROTTLE_MS (default 60s)
 // e porta il conteggio delle chiamate throttlellate. Gli errori sono sempre loggati.
 const MODELS_LOG_THROTTLE_MS = parseInt(process.env.MODELS_LOG_THROTTLE_MS || "60000", 10);
 let modelsLogState = { lastLogAt: 0, suppressed: 0 };
+
+// Throttling per i log di /v1/dashboard/stats: la dashboard lo polla frequentemente.
+// Logga solo una riga di riepilogo ogni DASHBOARD_STATS_LOG_INTERVAL_MS (default 60s)
+// e porta il conteggio delle chiamate throttlellate.
+const DASHBOARD_STATS_LOG_INTERVAL_MS = parseInt(process.env.DASHBOARD_STATS_LOG_INTERVAL_MS || "60000", 10);
+let dashboardStatsLogState = { lastLogAt: 0, suppressed: 0 };
 
 app.get("/v1/models", requireAuth, (req, res) => {
   try {
@@ -1081,9 +1151,6 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           console.log(`[AFFINITY] Attempt ${attempt}: ⚠ Loop detected: 3 ask_followup_question consecutivi → changing model`);
         }
       }
-    }
-    if (isAskLoop) {
-      console.log(`[AFFINITY] Attempt ${attempt}: ⚠ Loop detected: 3 ask_followup_question consecutivi → changing model`);
     }
   if (debugVerbose) {
     const lastMsg = allMsgs[allMsgs.length - 1];
@@ -1561,7 +1628,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             const mult = computeToolRewardMultiplier(streamToolNames, hasWritten);
             const rewardScore = baseReward * mult;
             bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
-            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${streamToolNames[0] || 'none'} hasWritten=${hasWritten})`);
+            logSuccess(model, dur, { stream: true, toolNames: streamToolNames, hasWritten, rewardScore, baseReward });
             trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
           } else if (streamFailed) {
             bandit.recordFeedback(model, false, 0, { message: "stream error" }, { source: feedbackSource });
@@ -1593,9 +1660,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           const msg = data.choices?.[0]?.message;
           const tc = msg?.tool_calls;
           const content = msg?.content;
-          console.log(`[RESPONSE] ${model} | tool_calls: ${tc?.length || 0} | content: ${(content || "").substring(0, 100)}`);
-          if (tc && tc.length > 0) {
-            console.log(`[RESPONSE] tool chiamati: ${tc.map(t => t.function?.name).join(", ")}`);
+          if (debugVerbose) {
+            console.log(`[RESPONSE] ${model} | tool_calls: ${tc?.length || 0} | content: ${(content || "").substring(0, 100)} ${tc && tc.length > 0 ? `tool chiamati: ${tc.map(t => t.function?.name).join(", ")}` : ''}`);
           }
         }
         if (invalidReason) {
@@ -1612,7 +1678,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         const mult = computeToolRewardMultiplier(respToolNames, hasWritten);
         const rewardScore = baseReward * mult;
         bandit.recordFeedback(model, true, rewardScore, null, { source: feedbackSource });
-            console.log(`[SUCCESS] ${model} in ${dur.toFixed(2)}s (reward: ${rewardScore.toFixed(3)} = base ${baseReward.toFixed(3)} × ${mult} tool=${respToolNames[0] || 'none'} hasWritten=${hasWritten})`);
+        logSuccess(model, dur, { stream: false, toolNames: respToolNames, hasWritten, rewardScore, baseReward });
         trackRequestUpdate(requestId, { status: "success", lastDurationSec: dur });
         cleanup();
         return res.json(data);

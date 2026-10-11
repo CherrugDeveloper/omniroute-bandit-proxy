@@ -2061,17 +2061,11 @@
             if (refreshing) return;
             refreshing = true;
             try {
-                const r = await apiFetch('/v1/metrics');
+                const r = await apiFetch('/v1/dashboard/stats');
                 if (r.status === 401) { show401Banner(); return; }
                 if (!r.ok) return;
                 const d = await r.json();
                 allData = d;
-                const now = Date.now();
-
-                const isActive = (x) => !Number(x.permanent) && !Number(x.needs_attention) && (!Number(x.cooldown_until) || Number(x.cooldown_until) < now);
-                const isCooling = (x) => !Number(x.permanent) && !Number(x.needs_attention) && Number(x.cooldown_until) >= now;
-                const isBanned = (x) => !!Number(x.permanent) && !Number(x.needs_attention);
-                const isAttention = (x) => !!Number(x.needs_attention);
 
                 const reqs = Number(d.totalRequests) || 0;
                 const obs = Number(d.totalObservations) || 0;
@@ -2088,39 +2082,19 @@
                     rateEl.className = pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'err';
                 }
 
-                document.getElementById('active-models').textContent = d.models.filter(isActive).length;
-                document.getElementById('cooldown-models').textContent = d.models.filter(isCooling).length;
-                document.getElementById('banned-models').textContent = d.models.filter(isBanned).length;
-                document.getElementById('degraded-models').textContent = d.models.filter(x => Number(x.degraded) === 1).length;
-                document.getElementById('attention-models').textContent = d.models.filter(isAttention).length;
-                document.getElementById('total-models').textContent = d.models.length;
-                document.getElementById('catalog-models').textContent = d.catalogCount ?? '?';
-                document.getElementById('catalog-free').textContent = d.catalogFreeCount ?? '?';
-                document.getElementById('catalog-models-raw').textContent = d.catalogRawCount ?? '?';
-
-                if (d.summary) {
-                    document.getElementById('avg-reward').textContent = d.summary.avgReward.toFixed(3);
-                    document.getElementById('avg-latency').textContent = d.summary.avgLatencySec.toFixed(1) + 's';
-                    document.getElementById('free-active').textContent = d.summary.freeActive;
-                    const tm = d.summary.topModel;
-                    if (tm) {
-                      const arrow = tm.trend === 'up' ? '↗' : tm.trend === 'down' ? '↘' : '→';
-                      const cls = tm.trend === 'up' ? 'trend-up' : tm.trend === 'down' ? 'trend-down' : 'trend-flat';
-                      document.getElementById('top-model').innerHTML =
-                        escapeHtml(tm.id) +
-                        ' <span class="model-info">(N=' + tm.N + ' · avg=' + tm.avg +
-                        ' <span class="' + cls + '">' + arrow + '</span>)</span>';
-                    } else {
-                      document.getElementById('top-model').textContent = '—';
-                    }
+                document.getElementById('avg-reward').textContent = d.avgReward.toFixed(3);
+                document.getElementById('avg-latency').textContent = d.avgLatencySec.toFixed(1) + 's';
+                document.getElementById('free-active').textContent = d.freeActive;
+                
+                if (d.topModel) {
+                    document.getElementById('top-model').textContent = d.topModel;
+                } else {
+                    document.getElementById('top-model').textContent = '—';
                 }
 
-                document.getElementById('active-providers').textContent = d.providers.filter(isActive).length;
-                document.getElementById('cooldown-providers').textContent = d.providers.filter(isCooling).length;
-                document.getElementById('banned-providers').textContent = d.providers.filter(isBanned).length;
-                document.getElementById('attention-providers').textContent = d.providers.filter(isAttention).length;
-                document.getElementById('total-providers').textContent = d.providers.length;
-                document.getElementById('catalog-providers').textContent = d.catalogProviderCount ?? '?';
+                document.getElementById('catalog-models').textContent = d.catalogTotal ?? '?';
+                document.getElementById('catalog-free').textContent = d.catalogFree ?? '?';
+                document.getElementById('catalog-models-raw').textContent = '?';
 
                 renderAll();
             } catch (e) { console.error('Errore fetch:', e); }
