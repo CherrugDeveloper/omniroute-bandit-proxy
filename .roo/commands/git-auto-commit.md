@@ -7,6 +7,19 @@ arguments: <-m "custom message"> <-b branch> <--dry-run> <--json> <--self-test>
 
 This command runs the `git-auto-commit` skill to automate the complete git commit-and-push workflow with safety guarantees and comprehensive feedback.
 
+## Executable Wrapper
+
+An executable wrapper script is available at [.roo/commands/git-auto-commit.sh](.roo/commands/git-auto-commit.sh). This wrapper:
+- Resolves the workspace root automatically
+- Invokes the skill script with all arguments
+- Forwards environment variables
+- Propagates exit codes
+
+You can invoke it directly:
+```bash
+./.roo/commands/git-auto-commit.sh [options]
+```
+
 ## Usage
 
 ```

@@ -45,53 +45,54 @@ Do NOT use this skill when:
 
 | File | Purpose |
 |------|---------|
-| [`scripts/git-auto-commit.sh`](scripts/git-auto-commit.sh) | Main executable script |
+| [`.roo/commands/git-auto-commit.sh`](.roo/commands/git-auto-commit.sh) | Slash command wrapper (resolves workspace root and invokes skill script) |
+| [`scripts/git-auto-commit.sh`](scripts/git-auto-commit.sh) | Main executable script (internal use) |
 | [`scripts/lib/git-utils.sh`](scripts/lib/git-utils.sh) | Shared library (logging, git wrappers, history analysis) |
 
-Execute the script directly; source `scripts/lib/git-utils.sh` only if you need to reuse its functions.
+Use the slash command wrapper at `.roo/commands/git-auto-commit.sh` for execution. The skill script is invoked internally by the wrapper.
 
 # Examples
 
 ## Basic usage
 
 ```bash
-scripts/git-auto-commit.sh
+.roo/commands/git-auto-commit.sh
 ```
 
 ## With custom commit message
 
 ```bash
-scripts/git-auto-commit.sh -m "feat: add user authentication middleware"
+.roo/commands/git-auto-commit.sh -m "feat: add user authentication middleware"
 ```
 
 ## With target branch
 
 ```bash
-scripts/git-auto-commit.sh -b main
+.roo/commands/git-auto-commit.sh -b main
 ```
 
 ## Dry run mode
 
 ```bash
-scripts/git-auto-commit.sh --dry-run
+.roo/commands/git-auto-commit.sh --dry-run
 ```
 
 ## JSON output for machine processing
 
 ```bash
-scripts/git-auto-commit.sh --json
+.roo/commands/git-auto-commit.sh --json
 ```
 
 ## Self-test mode
 
 ```bash
-scripts/git-auto-commit.sh --self-test
+.roo/commands/git-auto-commit.sh --self-test
 ```
 
 ## Debug output
 
 ```bash
-GIT_AUTO_COMMIT_LOG_LEVEL=DEBUG scripts/git-auto-commit.sh --dry-run
+GIT_AUTO_COMMIT_LOG_LEVEL=DEBUG .roo/commands/git-auto-commit.sh --dry-run
 ```
 
 # Flags
@@ -192,7 +193,7 @@ Orphaned branches: feature/login
 ```yaml
 - name: Auto-commit and push
   run: |
-    scripts/git-auto-commit.sh
+    .roo/commands/git-auto-commit.sh
   env:
     GIT_AUTO_COMMIT_LOG_LEVEL: INFO
     GIT_AUTO_COMMIT_DRY_RUN: false
@@ -204,7 +205,7 @@ Orphaned branches: feature/login
 ```yaml
 auto_commit:
   script:
-    - scripts/git-auto-commit.sh
+    - .roo/commands/git-auto-commit.sh
   only:
     - merge_requests
     - main
@@ -213,7 +214,7 @@ auto_commit:
 ## Local invocation from the workspace root
 
 ```bash
-./scripts/git-auto-commit.sh --message "feat: auto-commit workflow change" --branch feature/x
+.roo/commands/git-auto-commit.sh --message "feat: auto-commit workflow change" --branch feature/x
 ```
 
 ## Best practices
