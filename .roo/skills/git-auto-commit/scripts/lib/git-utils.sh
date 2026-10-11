@@ -218,52 +218,44 @@ validate_gitignore() {
     )
     
     local missing_patterns=()
-    local test_file
+    local gitignore_file=""
     
-    # Create a temporary directory for our tests
-    local temp_dir
-    temp_dir=$(mktemp -d)
-    local original_dir
-    original_dir=$(pwd)
+    # Find .gitignore in the actual repo (no temp directory needed)
+    if [[ -f "$SKILL_ROOT/../.gitignore" ]]; then
+        gitignore_file="$SKILL_ROOT/../.gitignore"
+    elif [[ -f "$SKILL_ROOT/../../.gitignore" ]]; then
+        gitignore_file="$SKILL_ROOT/../../.gitignore"
+    elif [[ -f "$SKILL_ROOT/../../../.gitignore" ]]; then
+        gitignore_file="$SKILL_ROOT/../../../.gitignore"
+    fi
     
-    cd "$temp_dir" || {
-        log_error "Failed to create temporary directory for .gitignore validation"
-        return 0  # Don't fail the whole skill for this
-    }
-    
-    # Initialize a git repo in temp dir for testing
-    if ! git init -q; then
-        log_error "Failed to initialize git repo for .gitignore validation"
-        cd "$original_dir"
-        rm -rf "$temp_dir"
+    if [[ -z "$gitignore_file" || ! -f "$gitignore_file" ]]; then
+        log_warn "No .gitignore found in repository root"
         return 0
     fi
     
-    # Copy the .gitignore from the actual repo to temp dir for testing
-    if [[ -f "$SKILL_ROOT/../.gitignore" ]]; then
-        cp "$SKILL_ROOT/../.gitignore" .gitignore
-    elif [[ -f "$SKILL_ROOT/../../.gitignore" ]]; then
-        cp "$SKILL_ROOT/../../.gitignore" .gitignore
-    elif [[ -f "$SKILL_ROOT/../../../.gitignore" ]]; then
-        cp "$SKILL_ROOT/../../../.gitignore" .gitignore
-    fi
+    # Read .gitignore content once
+    local gitignore_content
+    gitignore_content=$(cat "$gitignore_file")
     
+    # Check each pattern against .gitignore content using git check-ignore directly
+    # This avoids creating temp directories and repos
     for pattern in "${common_patterns[@]}"; do
-        # Create a test file matching the pattern
+        # Create a test file in the actual repo (will be cleaned up immediately)
+        local test_file
         case $pattern in
             */)  # Directory pattern
-                test_file="${pattern}testfile"
+                test_file="${pattern}testfile_$$"
                 mkdir -p "$(dirname "$test_file")"
                 touch "$test_file"
                 ;;
             *)     # File pattern or exact match
-                test_file="test.$pattern"
+                test_file="test_$$.${pattern#*.}"
                 touch "$test_file"
                 ;;
         esac
         
-        # Check if git would ignore this file
-        # git check-ignore exits 0 if ignored, 1 if NOT ignored (both are valid)
+        # Check if git would ignore this file using the actual repo's .gitignore
         if git check-ignore --quiet "$test_file" 2>/dev/null; then
             : # pattern is covered
         else
@@ -271,13 +263,9 @@ validate_gitignore() {
             missing_patterns+=("$pattern")
         fi
         
-        # Clean up test file
+        # Clean up test file immediately
         rm -rf "$test_file"
     done
-    
-    # Cleanup
-    cd "$original_dir"
-    rm -rf "$temp_dir"
     
     if [[ ${#missing_patterns[@]} -gt 0 ]]; then
         log_warn "Missing .gitignore patterns: ${missing_patterns[*]}"
@@ -294,23 +282,22 @@ check_secrets() {
     staged_files=$(git_cmd "git diff --cached --name-only" 2>/dev/null || true)
     
     if [[ -n "$staged_files" ]]; then
-        # Simple heuristic: check for common patterns
-        local potential_secrets=()
+        # Check for secrets using a single grep pass on all staged files content
+        local potential_secrets=""
         
-        for file in $staged_files; do
-            if [[ "$file" == *.env ]] || [[ "$file" == *.json ]] || [[ "$file" == *.js ]]; then
-                # Check for common secret patterns
-                if git diff --cached -- "$file" | grep -E "(password|secret|key|token|auth)" >/dev/null 2>&1; then
-                    potential_secrets+=("$file")
-                fi
+        # Get all staged file diffs at once
+        local staged_diff
+        staged_diff=$(git_cmd "git diff --cached" 2>/dev/null || true)
+        
+        if [[ -n "$staged_diff" ]]; then
+            # Single grep pass to find common secret patterns across all staged files
+            local secrets_found
+            secrets_found=$(echo "$staged_diff" | grep -E -i "(password|secret|key\s*[=:]\s*['\"][a-zA-Z0-9_\-]+['\"]|token\s*[=:]\s*['\"][a-zA-Z0-9_\-]+['\"]|api_key|auth)" 2>/dev/null || true)
+            
+            if [[ -n "$secrets_found" ]]; then
+                log_warn "Potential secrets found in staged files"
+                return 4
             fi
-        done
-        
-        if [[ ${#potential_secrets[@]} -gt 0 ]]; then
-            log_warn "Potential secrets found in staged files: ${potential_secrets[*]}"
-            return 4
-        else
-            log_info "No obvious secrets detected in staged files"
         fi
     fi
     return 0
@@ -442,113 +429,75 @@ analyze_history() {
 EOF
 )
     
-    # Get recent commits
-    local recent_commits
-    recent_commits=$(git_cmd "git log --oneline -${HISTORY_DEPTH} --pretty=format:'%H|%s|%an|%ad' --date=iso" 2>/dev/null || true)
+    # Get recent commits - single efficient query (no hash needed for analysis)
+    local log_data
+    log_data=$(git log -n "${HISTORY_DEPTH}" --format='%s' 2>/dev/null)
     
-    if [[ -z "$recent_commits" ]]; then
+    if [[ -z "$log_data" ]]; then
         log_warn "Could not retrieve recent commit history"
         echo "$analysis_json"
         return
     fi
     
-    # Parse commits
     local commit_count=0
     local conventional_count=0
-    local subjects=()
-    local commit_hashes=()
+    declare -A subject_counts
+    declare -A type_scope_counts
     
-    while IFS='|' read -r hash subject author date; do
-        [[ -z "$hash" ]] && continue
-        
+    while IFS= read -r subject; do
+        [[ -z "$subject" ]] && continue
         commit_count=$((commit_count + 1))
-        commit_hashes+=("$hash")
-        subjects+=("$subject")
         
-        # Check conventional commit compliance
+        # Count subjects for duplicates
+        subject_counts["$subject"]=$(( ${subject_counts["$subject"]:-0} + 1 ))
+        
+        # Check conventional compliance and type/scope
         if [[ "$subject" =~ ^([a-z]+)(\([a-z0-9_]+\))?:\ .+ ]]; then
             conventional_count=$((conventional_count + 1))
-        fi
-    done <<< "$recent_commits"
-    
-    # Calculate compliance rate
-    local compliance_rate=0
-    if [[ $commit_count -gt 0 ]]; then
-        compliance_rate=$(echo "scale=2; $conventional_count / $commit_count" | bc 2>/dev/null || echo "0")
-        # Ensure leading zero for values < 1
-        if [[ "$compliance_rate" == .* ]]; then
-            compliance_rate="0$compliance_rate"
-        fi
-    fi
-    
-    # Find duplicates (same subject)
-    local duplicates=()
-    if [[ ${#subjects[@]} -gt 0 ]]; then
-        declare -A subject_counts
-        for subj in "${subjects[@]}"; do
-            subject_counts["$subj"]=$(( ${subject_counts["$subj"]:-0} + 1 ))
-        done
-        
-        for subj in "${!subject_counts[@]}"; do
-            if [[ ${subject_counts["$subj"]} -gt 1 ]]; then
-                duplicates+=("$subj")
-            fi
-        done
-    fi
-    
-    # Find squash suggestions (same type/scope commits)
-    local suggestions=()
-    declare -A type_scope_counts
-    for subj in "${subjects[@]}"; do
-        if [[ "$subj" =~ ^([a-z]+)(\([a-z0-9_]+\))?:\ .+ ]]; then
             local type="${BASH_REMATCH[1]}"
             local scope="${BASH_REMATCH[2]}"
             local key="$type$scope"
             type_scope_counts["$key"]=$((${type_scope_counts["$key"]:-0} + 1))
         fi
+    done <<< "$log_data"
+    
+    # Calculate compliance rate
+    local compliance_rate="0.00"
+    if [[ $commit_count -gt 0 ]]; then
+        compliance_rate=$(printf "%.2f" "$(echo "scale=4; $conventional_count / $commit_count" | bc 2>/dev/null || echo "0")")
+    fi
+    
+    # Collect duplicates
+    local duplicates=()
+    for subj in "${!subject_counts[@]}"; do
+        if [[ ${subject_counts["$subj"]} -gt 1 ]]; then
+            duplicates+=("$subj")
+        fi
     done
     
+    # Collect suggestions
+    local suggestions=()
     for key in "${!type_scope_counts[@]}"; do
         if [[ ${type_scope_counts["$key"]} -ge $SQUASH_THRESHOLD ]]; then
             suggestions+=("Found ${type_scope_counts["$key"]} commits with type/scope $key - consider squashing")
         fi
     done
     
-    # Find orphaned branches
+    # Find orphaned branches (merged but not deleted)
     local orphaned_branches=()
     local current_branch
-    current_branch=$(git_cmd "git rev-parse --abbrev-ref HEAD" 2>/dev/null || echo "HEAD")
+    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
     
     if [[ "$current_branch" != "HEAD" ]]; then
-        local branches
-        branches=$(git branch --all --no-color 2>/dev/null || true)
-        
-        while IFS= read -r branch; do
-            branch=$(echo "$branch" | sed 's/^[ *]*//')
+        while read -r branch; do
             [[ -z "$branch" ]] && continue
-            
-            # Skip remote-tracking branches and HEAD ref
-            if [[ "$branch" == remotes/* ]] || [[ "$branch" == HEAD* ]]; then
-                continue
-            fi
-            
-            # Skip current branch
-            if [[ "$branch" == "$current_branch" ]]; then
-                continue
-            fi
-            
-            # Check if branch is merged into current branch
-            if ! git merge-base --is-ancestor "$branch" "$current_branch" 2>/dev/null; then
-                # Check if branch has commits ahead of current (local branches only)
-                if [[ "$branch" != remotes/* ]]; then
-                    local ahead_count
-                    ahead_count=$(git rev-list --count "$branch..$current_branch" 2>/dev/null || echo "0")
-                    if [[ "$ahead_count" =~ ^[0-9]+$ ]] && [[ "$ahead_count" -eq 0 ]]; then
-                        orphaned_branches+=("$branch")
-                    fi
-                fi
-            fi
-        done <<< "$branches"
+            # Clean branch name (remove * and whitespace)
+            branch="${branch//[* ]/}"
+            # Skip common branches and current
+            [[ "$branch" =~ ^(master|main|HEAD|remotes/.*)$ ]] && continue
+            [[ "$branch" == "$current_branch" ]] && continue
+            orphaned_branches+=("$branch")
+        done <<< "$(git branch --merged "$current_branch" 2>/dev/null)"
     fi
     
     # Build analysis JSON - handle empty arrays properly

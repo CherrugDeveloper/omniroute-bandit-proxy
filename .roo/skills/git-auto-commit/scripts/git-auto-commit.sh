@@ -117,18 +117,28 @@ main() {
     validate_gitignore
     
     # Pull with rebase if behind
-    local current_branch
-    current_branch=$(git_cmd "git rev-parse --abbrev-ref HEAD")
-    pull_rebase_if_behind "$current_branch"
+    pull_rebase_if_behind "$(git_cmd "git rev-parse --abbrev-ref HEAD")"
     
     # Stage all changes
     stage_all_changes
     
     # Check if there are changes to commit
-    local staged_count
-    staged_count=$(git_cmd_capture "git diff --cached --stat | head -1" 2>/dev/null || echo "0 files changed")
+    # Get diff information once and reuse
+    local staged_info
+    staged_info=$(git_cmd_capture "git diff --cached --stat --name-only" 2>/dev/null || echo "0 files changed|")
     
-    if [[ "$staged_count" == "0 files changed"* ]] || [[ -z "$(git_cmd_capture "git diff --cached --name-only")" ]]; then
+    # Parse staged info
+    local staged_count staged_names
+    if [[ "$staged_info" == "0 files changed|"* ]]; then
+        staged_count=0
+        staged_names=""
+    else
+        # First line is the stat, remaining are names separated by newline
+        staged_count=$(echo "$staged_info" | head -1)
+        staged_names=$(echo "$staged_info" | tail -n +2 | tr '\n' ' ')
+    fi
+    
+    if [[ "$staged_count" == "0" ]] || [[ -z "$staged_names" ]]; then
         log_info "No changes to commit - idempotent exit"
         if [[ "$JSON_OUTPUT" == "true" ]]; then
             print_json_output
@@ -141,10 +151,9 @@ main() {
         return 4
     fi
     
-    # Get diff information for commit message generation
-    local diff_stat diff_names
-    diff_stat=$(git_cmd_capture "git diff --cached --stat")
-    diff_names=$(git_cmd_capture "git diff --cached --name-only")
+    # Get diff information for commit message generation (already have it from above)
+    local diff_stat="${staged_info%%|*}"
+    local diff_names="$staged_names"
     
     # Determine commit message
     local commit_msg
