@@ -163,6 +163,36 @@ if [[ "$JSON_OUTPUT" == "true" ]]; then
     enable_json_output
 fi
 
+# Run history analysis and auto-fix
+run_history_analysis_and_fix() {
+    # Post-push history analysis and auto-fix (runs even when no changes)
+    if [[ "${GIT_AUTO_COMMIT_ANALYZE_HISTORY:-true}" == "true" ]]; then
+        log_info "Analyzing commit history..."
+        local history_analysis
+        history_analysis=$(analyze_history)
+
+        if [[ "$JSON_OUTPUT" == "true" ]]; then
+            # Add history analysis to JSON output
+            echo "$history_analysis" | jq -s '.[0]'
+        else
+            # Human-readable output
+            echo "=== Commit History Analysis ==="
+            # Write history analysis to temp file and use Python
+            temp_file=$(mktemp)
+            echo "$history_analysis" > "$temp_file"
+            python3 -c "import json, sys; data = json.load(open(sys.argv[1])); print('Commit count: ' + str(data['commit_count'])); print('Conventional compliance: ' + str(data['conventional_compliance'] * 100) + '%'); [print(x + ': ' + ', '.join(data[x])) if data.get(x) else None for x in ['duplicates', 'suggestions', 'orphaned_branches']]" "$temp_file"
+            rm -f "$temp_file"
+        fi
+    fi
+
+    # Auto-fix issues found in history analysis (runs even when no changes)
+    if [[ "${GIT_AUTO_COMMIT_AUTO_FIX:-true}" == "true" ]]; then
+        log_info "Running auto-fix for history issues..."
+        auto_squash_duplicates "$HISTORY_DEPTH"
+        auto_cleanup_orphaned_branches
+    fi
+}
+
 # Main execution
 main() {
     log_info "Starting git-auto-commit skill"
@@ -208,124 +238,90 @@ main() {
     fi
 
     local staged_info
-    staged_info=$(git_cmd_capture "git diff --cached --stat --name-only" 2>/dev/null || echo "0 files changed|")
+    staged_info=$(git_cmd_capture "git diff --cached --name-only" 2>/dev/null || true)
 
-    # Check for files with only whitespace/permission changes
-    if [[ "$staged_info" == "0 files changed|"* ]]; then
-        # Verify there are truly no changes
-        local raw_diff
-        raw_diff=$(git_cmd_capture "git diff --cached" 2>/dev/null || true)
-        if [[ -z "$raw_diff" ]]; then
-            log_info "No changes to commit - idempotent exit"
-            if [[ "$JSON_OUTPUT" == "true" ]]; then
-                print_json_output
-            fi
-            return 0
-        fi
-    fi
+    # If no staged changes, skip commit but still run history analysis and auto-fix
+    if [[ -z "$staged_info" ]]; then
+        log_info "No changes to commit"
 
-    # Parse staged info for count and names
-    local staged_count staged_names
-    if [[ "$staged_info" == "0 files changed|"* ]]; then
-        staged_count=0
-        staged_names=""
-    else
-        # First line is the stat, remaining are names separated by newline
-        staged_count=$(echo "$staged_info" | head -1)
-        staged_names=$(echo "$staged_info" | tail -n +2 | tr '\n' ' ')
-    fi
+        # Run history analysis and auto-fix even when no changes
+        run_history_analysis_and_fix
 
-    if [[ "$staged_count" == "0" ]] || [[ -z "$staged_names" ]]; then
-        log_info "No changes to commit - idempotent exit"
+        log_info "git-auto-commit completed successfully (no changes)"
+
         if [[ "$JSON_OUTPUT" == "true" ]]; then
             print_json_output
         fi
+
         return 0
     fi
 
-    # Check for secrets
-    if ! check_secrets; then
-        return 4
-    fi
+    # There ARE staged changes - parse for count and names
+    local staged_count staged_names
+    staged_count=$(echo "$staged_info" | wc -l | tr -d '[:space:]')
+    staged_names=$(echo "$staged_info" | tr '\n' ' ')
 
-    # Get diff information for commit message generation (already have it from above)
-    local diff_stat="${staged_info%%|*}"
-    local diff_names="$staged_names"
-
-    # Determine commit message
-    local commit_msg
-    if [[ -n "$CUSTOM_MESSAGE" ]]; then
-        commit_msg="$CUSTOM_MESSAGE"
-        log_info "Using custom commit message: $commit_msg"
-    elif [[ "$AUTO_MESSAGE" == "true" ]]; then
-        commit_msg=$(generate_conventional_commit "$diff_stat" "$diff_names")
-        log_info "Generated conventional commit message"
-        log_debug "Generated message:\n$commit_msg"
-    else
-        log_error "No commit message provided and auto-generation disabled"
-        return 4
-    fi
-
-    # Commit changes
-    log_info "Committing changes..."
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_info "[DRY RUN] Would commit with message:"
-        echo "$commit_msg" | while IFS= read -r line; do log_info "[DRY RUN] $line"; done
-    else
-        if ! git_cmd "git commit -m \"$commit_msg\""; then
-            log_error "Failed to commit changes"
-            return 2
+    if [[ "$staged_count" != "0" ]] && [[ -n "$staged_names" ]]; then
+        # Check for secrets
+        if ! check_secrets; then
+            return 4
         fi
-        log_info "Changes committed successfully"
-    fi
 
-    # Push to origin with safe retry logic
-    local push_branch="${TARGET_BRANCH:-$(git_cmd "git rev-parse --abbrev-ref HEAD")}"
-    log_info "Pushing to origin/$push_branch..."
+        # Get diff stat for commit message generation
+        local diff_stat
+        diff_stat=$(git_cmd_capture "git diff --cached --stat --name-only" 2>/dev/null | head -1)
 
-    local push_command="git push --progress origin HEAD:${push_branch}"
+        # Determine commit message
+        local commit_msg
+        if [[ -n "$CUSTOM_MESSAGE" ]]; then
+            commit_msg="$CUSTOM_MESSAGE"
+            log_info "Using custom commit message: $commit_msg"
+        elif [[ "$AUTO_MESSAGE" == "true" ]]; then
+            commit_msg=$(generate_conventional_commit "$diff_stat" "$staged_names")
+            log_info "Generated conventional commit message"
+            log_debug "Generated message:\n$commit_msg"
+        else
+            log_error "No commit message provided and auto-generation disabled"
+            return 4
+        fi
 
-    if ! safe_push "$push_command"; then
-        log_error "Push failed - attempting conflict recovery..."
-
-        # Try to recover from merge conflicts
-        if recover_merge_conflicts; then
-            log_info "Retrying push after conflict recovery..."
-            if ! safe_push "$push_command"; then
-                log_error "Push failed after recovery attempt"
-                return 3
+        # Commit changes
+        log_info "Committing changes..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would commit with message:"
+            echo "$commit_msg" | while IFS= read -r line; do log_info "[DRY RUN] $line"; done
+        else
+            if ! git_cmd "git commit -m \"$commit_msg\""; then
+                log_error "Failed to commit changes"
+                return 2
             fi
-        else
-            log_error "Unable to recover from conflicts - manual resolution required"
-            return 5
+            log_info "Changes committed successfully"
         fi
-    fi
 
-    # Post-push history analysis (optional)
-    if [[ "${GIT_AUTO_COMMIT_ANALYZE_HISTORY:-true}" == "true" ]]; then
-        log_info "Analyzing commit history..."
-        local history_analysis
-        history_analysis=$(analyze_history)
+        # Push to origin with safe retry logic
+        local push_branch="${TARGET_BRANCH:-$(git_cmd "git rev-parse --abbrev-ref HEAD")}"
+        log_info "Pushing to origin/$push_branch..."
 
-        if [[ "$JSON_OUTPUT" == "true" ]]; then
-            # Add history analysis to JSON output
-            echo "$history_analysis" | jq -s '.[0]'
-        else
-            # Human-readable output
-            echo "=== Commit History Analysis ==="
-            # Write history analysis to temp file and use Python
-            temp_file=$(mktemp)
-            echo "$history_analysis" > "$temp_file"
-            python3 -c "import json, sys; data = json.load(open(sys.argv[1])); print('Commit count: ' + str(data['commit_count'])); print('Conventional compliance: ' + str(data['conventional_compliance'] * 100) + '%'); [print(x + ': ' + ', '.join(data[x])) if data.get(x) else None for x in ['duplicates', 'suggestions', 'orphaned_branches']]" "$temp_file"
-            rm -f "$temp_file"
+        local push_command="git push --progress origin HEAD:${push_branch}"
+
+        if ! safe_push "$push_command"; then
+            log_error "Push failed - attempting conflict recovery..."
+
+            # Try to recover from merge conflicts
+            if recover_merge_conflicts; then
+                log_info "Retrying push after conflict recovery..."
+                if ! safe_push "$push_command"; then
+                    log_error "Push failed after recovery attempt"
+                    return 3
+                fi
+            else
+                log_error "Unable to recover from conflicts - manual resolution required"
+                return 5
+            fi
         fi
-    fi
 
-    # Auto-fix issues found in history analysis
-    if [[ "${GIT_AUTO_COMMIT_AUTO_FIX:-true}" == "true" ]]; then
-        log_info "Running auto-fix for history issues..."
-        auto_squash_duplicates "$HISTORY_DEPTH"
-        auto_cleanup_orphaned_branches
+        # Run history analysis and auto-fix after successful push
+        run_history_analysis_and_fix
     fi
 
     log_info "git-auto-commit completed successfully"
