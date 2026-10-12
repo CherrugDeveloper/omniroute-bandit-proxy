@@ -91,6 +91,11 @@ done
 
 # Initialize skill
 init_skill
+normalize_staged_files() {
+    git diff --cached --name-only -z | while IFS= read -r -d '' file; do
+        [[ -f "$file" ]] && sed -i 's/\r$//' "$file" && sed -i 's/[[:space:]]*$//' "$file"
+    done
+}
 
 # Override config from command line
 if [[ "$SELF_TEST" == "true" ]]; then
@@ -105,31 +110,33 @@ fi
 # Main execution
 main() {
     log_info "Starting git-auto-commit skill"
-    
+
     # Verify git repository
     if ! check_git_repo; then
         return 2
     fi
-    
+
     # Check for stale staged entries
     clean_stale_staged
-    
+
     # Validate .gitignore
     validate_gitignore
-    
+
     # Sync repository state (stash, pull, pop)
     local current_branch
     current_branch=$(git_cmd_capture "git rev-parse --abbrev-ref HEAD")
     if [[ "$current_branch" != "HEAD" ]]; then
         sync_repository_state "$current_branch"
     fi
-    
+
     # Check if there are changes to commit
     # Batch: git add and status check
     git_cmd "git add -A" >/dev/null
+    normalize_staged_files
+    git_cmd "git add -A" >/dev/null
     local staged_info
     staged_info=$(git_cmd_capture "git diff --cached --stat --name-only" 2>/dev/null || echo "0 files changed|")
-    
+
     # Parse staged info
     local staged_count staged_names
     if [[ "$staged_info" == "0 files changed|"* ]]; then
@@ -140,7 +147,7 @@ main() {
         staged_count=$(echo "$staged_info" | head -1)
         staged_names=$(echo "$staged_info" | tail -n +2 | tr '\n' ' ')
     fi
-    
+
     if [[ "$staged_count" == "0" ]] || [[ -z "$staged_names" ]]; then
         log_info "No changes to commit - idempotent exit"
         if [[ "$JSON_OUTPUT" == "true" ]]; then
@@ -148,16 +155,16 @@ main() {
         fi
         return 0
     fi
-    
+
     # Check for secrets
     if ! check_secrets; then
         return 4
     fi
-    
+
     # Get diff information for commit message generation (already have it from above)
     local diff_stat="${staged_info%%|*}"
     local diff_names="$staged_names"
-    
+
     # Determine commit message
     local commit_msg
     if [[ -n "$CUSTOM_MESSAGE" ]]; then
@@ -171,7 +178,7 @@ main() {
         log_error "No commit message provided and auto-generation disabled"
         return 4
     fi
-    
+
     # Commit changes
     log_info "Committing changes..."
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -184,11 +191,11 @@ main() {
         fi
         log_info "Changes committed successfully"
     fi
-    
+
     # Push to origin
     local push_branch="${TARGET_BRANCH:-$(git_cmd "git rev-parse --abbrev-ref HEAD")}"
     log_info "Pushing to origin/$push_branch..."
-    
+
     if [[ "$DRY_RUN" == "true" ]]; then
         log_info "[DRY RUN] Would run: git push origin HEAD:${push_branch}"
     else
@@ -199,13 +206,13 @@ main() {
         fi
         log_info "Push successful"
     fi
-    
+
     # Post-push history analysis (optional)
     if [[ "${GIT_AUTO_COMMIT_ANALYZE_HISTORY:-true}" == "true" ]]; then
         log_info "Analyzing commit history..."
         local history_analysis
         history_analysis=$(analyze_history)
-        
+
         if [[ "$JSON_OUTPUT" == "true" ]]; then
             # Add history analysis to JSON output
             echo "$history_analysis" | jq -s '.[0]'
@@ -219,30 +226,30 @@ main() {
             rm -f "$temp_file"
         fi
     fi
-    
+
     log_info "git-auto-commit completed successfully"
-    
+
     if [[ "$JSON_OUTPUT" == "true" ]]; then
         print_json_output
     fi
-    
+
     return 0
 }
 
 # Self-test mode
 self_test() {
     log_info "Running self-test in temporary git repository..."
-    
+
     local test_dir
     test_dir=$(mktemp -d)
     local original_dir
     original_dir=$(pwd)
-    
+
     cd "$test_dir" || {
         log_error "Failed to create test directory"
         return 1
     }
-    
+
     # Initialize test repo
     if ! git init; then
         log_error "Failed to initialize test git repository"
@@ -250,11 +257,11 @@ self_test() {
         rm -rf "$test_dir"
         return 2
     fi
-    
+
     # Configure git for test
     git config user.name "Test User"
     git config user.email "test@example.com"
-    
+
     # Create initial commit
     echo "Initial commit" > README.md
     git add README.md
@@ -264,7 +271,7 @@ self_test() {
         rm -rf "$test_dir"
         return 2
     fi
-    
+
     # Test 1: No changes (should exit 0)
     log_info "Test 1: No changes scenario"
     if output=$(GIT_AUTO_COMMIT_LOG_LEVEL=ERROR "$SCRIPT_DIR/../git-auto-commit.sh" 2>&1); then
@@ -282,7 +289,7 @@ self_test() {
         rm -rf "$test_dir"
         return 1
     fi
-    
+
     # Test 2: Simple changes (dry-run to avoid needing a remote)
     log_info "Test 2: Simple changes scenario"
     echo "Test content" > test.txt
@@ -301,7 +308,7 @@ self_test() {
         rm -rf "$test_dir"
         return 1
     fi
-    
+
     # Test 3: Dry run
     log_info "Test 3: Dry run scenario"
     echo "More content" >> test.txt
@@ -320,11 +327,11 @@ self_test() {
         rm -rf "$test_dir"
         return 1
     fi
-    
+
     # Cleanup
     cd "$original_dir"
     rm -rf "$test_dir"
-    
+
     log_info "All self-tests passed"
     return 0
 }
