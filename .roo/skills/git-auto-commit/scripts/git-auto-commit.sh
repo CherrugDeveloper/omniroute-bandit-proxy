@@ -118,13 +118,15 @@ main() {
     validate_gitignore
     
     # Pull with rebase if behind
-    pull_rebase_if_behind "$(git_cmd "git rev-parse --abbrev-ref HEAD")"
-    
-    # Stage all changes
-    stage_all_changes
+    local current_branch
+    current_branch=$(git_cmd_capture "git rev-parse --abbrev-ref HEAD")
+    if [[ "$current_branch" != "HEAD" ]]; then
+        pull_rebase_if_behind "$current_branch"
+    fi
     
     # Check if there are changes to commit
-    # Get diff information once and reuse
+    # Batch: git add and status check
+    git_cmd "git add -A" >/dev/null
     local staged_info
     staged_info=$(git_cmd_capture "git diff --cached --stat --name-only" 2>/dev/null || echo "0 files changed|")
     
@@ -190,29 +192,32 @@ main() {
     if [[ "$DRY_RUN" == "true" ]]; then
         log_info "[DRY RUN] Would run: git push origin HEAD:${push_branch}"
     else
-        if ! git_cmd "git push origin HEAD:${push_branch}"; then
+        # Push with progress feedback
+        if ! git_cmd "git push --progress origin HEAD:${push_branch}"; then
             log_error "Push failed"
             return 3
         fi
         log_info "Push successful"
     fi
     
-    # Post-push history analysis
-    log_info "Analyzing commit history..."
-    local history_analysis
-    history_analysis=$(analyze_history)
-    
-    if [[ "$JSON_OUTPUT" == "true" ]]; then
-        # Add history analysis to JSON output
-        echo "$history_analysis" | jq -s '.[0]'
-    else
-        # Human-readable output
-        echo "=== Commit History Analysis ==="
-        # Write history analysis to temp file and use Python
-        temp_file=$(mktemp)
-        echo "$history_analysis" > "$temp_file"
-        python3 -c "import json, sys; data = json.load(open(sys.argv[1])); print('Commit count: ' + str(data['commit_count'])); print('Conventional compliance: ' + str(data['conventional_compliance'] * 100) + '%'); [print(x + ': ' + ', '.join(data[x])) if data.get(x) else None for x in ['duplicates', 'suggestions', 'orphaned_branches']]" "$temp_file"
-        rm -f "$temp_file"
+    # Post-push history analysis (optional)
+    if [[ "${GIT_AUTO_COMMIT_ANALYZE_HISTORY:-true}" == "true" ]]; then
+        log_info "Analyzing commit history..."
+        local history_analysis
+        history_analysis=$(analyze_history)
+        
+        if [[ "$JSON_OUTPUT" == "true" ]]; then
+            # Add history analysis to JSON output
+            echo "$history_analysis" | jq -s '.[0]'
+        else
+            # Human-readable output
+            echo "=== Commit History Analysis ==="
+            # Write history analysis to temp file and use Python
+            temp_file=$(mktemp)
+            echo "$history_analysis" > "$temp_file"
+            python3 -c "import json, sys; data = json.load(open(sys.argv[1])); print('Commit count: ' + str(data['commit_count'])); print('Conventional compliance: ' + str(data['conventional_compliance'] * 100) + '%'); [print(x + ': ' + ', '.join(data[x])) if data.get(x) else None for x in ['duplicates', 'suggestions', 'orphaned_branches']]" "$temp_file"
+            rm -f "$temp_file"
+        fi
     fi
     
     log_info "git-auto-commit completed successfully"

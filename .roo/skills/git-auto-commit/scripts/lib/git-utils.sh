@@ -123,13 +123,23 @@ git_cmd_capture() {
     return $exit_code
 }
 
-# Check if we're in a git repository
+# Check if we're in a git repository and get root
 check_git_repo() {
-    if ! git_cmd "git rev-parse --git-dir" >/dev/null 2>&1; then
+    local root
+    root=$(git_cmd_capture "git rev-parse --show-toplevel" 2>/dev/null)
+    if [[ -z "$root" ]]; then
         log_error "Not in a git repository"
         return 2
     fi
-    log_info "Git repository verified"
+    
+    # Handle detached HEAD
+    local branch
+    branch=$(git_cmd_capture "git rev-parse --abbrev-ref HEAD" 2>/dev/null)
+    if [[ "$branch" == "HEAD" ]]; then
+        log_warn "Detached HEAD state detected. Commits may be lost if not on a branch."
+    fi
+    
+    log_info "Git repository verified at $root"
     return 0
 }
 
@@ -239,33 +249,12 @@ validate_gitignore() {
     local gitignore_content
     gitignore_content=$(cat "$gitignore_file")
     
-    # Check each pattern against .gitignore content using git check-ignore directly
-    # This avoids creating temp directories and repos
+    # Check each pattern against .gitignore content directly
     for pattern in "${common_patterns[@]}"; do
-        # Create a test file in the actual repo (will be cleaned up immediately)
-        local test_file
-        case $pattern in
-            */)  # Directory pattern
-                test_file="${pattern}testfile_$$"
-                mkdir -p "$(dirname "$test_file")"
-                touch "$test_file"
-                ;;
-            *)     # File pattern or exact match
-                test_file="test_$$.${pattern#*.}"
-                touch "$test_file"
-                ;;
-        esac
-        
-        # Check if git would ignore this file using the actual repo's .gitignore
-        if git check-ignore --quiet "$test_file" 2>/dev/null; then
-            : # pattern is covered
-        else
+        if ! echo "$pattern" | grep -qFf <(echo "$gitignore_content") && ! grep -qF "$pattern" "$gitignore_file"; then
             log_warn "Pattern '$pattern' may not be covered by .gitignore"
             missing_patterns+=("$pattern")
         fi
-        
-        # Clean up test file immediately
-        rm -rf "$test_file"
     done
     
     if [[ ${#missing_patterns[@]} -gt 0 ]]; then
@@ -501,26 +490,29 @@ EOF
         done <<< "$(git branch --merged "$current_branch" 2>/dev/null)"
     fi
     
-    # Build analysis JSON - handle empty arrays properly
+    # Build analysis JSON - handle empty arrays properly with jq fallback
     local duplicates_json suggestions_json orphaned_branches_json
     
-    if [[ ${#duplicates[@]} -gt 0 ]]; then
-        duplicates_json=$(printf '%s\n' "${duplicates[@]}" | jq -R . | jq -s .)
-    else
-        duplicates_json='[]'
-    fi
+    json_array() {
+        if command -v jq >/dev/null 2>&1; then
+            printf '%s\n' "$@" | jq -R . | jq -s .
+        else
+            # Fallback: manual JSON array construction
+            local res="["
+            local first=true
+            for item in "$@"; do
+                [[ "$first" == "false" ]] && res+=", "
+                res+="\"$item\""
+                first=false
+            done
+            res+="]"
+            echo "$res"
+        fi
+    }
     
-    if [[ ${#suggestions[@]} -gt 0 ]]; then
-        suggestions_json=$(printf '%s\n' "${suggestions[@]}" | jq -R . | jq -s .)
-    else
-        suggestions_json='[]'
-    fi
-    
-    if [[ ${#orphaned_branches[@]} -gt 0 ]]; then
-        orphaned_branches_json=$(printf '%s\n' "${orphaned_branches[@]}" | jq -R . | jq -s .)
-    else
-        orphaned_branches_json='[]'
-    fi
+    duplicates_json=$(json_array "${duplicates[@]}")
+    suggestions_json=$(json_array "${suggestions[@]}")
+    orphaned_branches_json=$(json_array "${orphaned_branches[@]}")
     
     analysis_json=$(cat <<EOF
 {
