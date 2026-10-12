@@ -1026,12 +1026,11 @@ auto_squash_duplicates() {
         local hash="${line%% *}"
         local subject="${line#* }"
         subject_count["$subject"]=$((${subject_count["$subject"]:-0} + 1))
+        # Always record the hash for this subject
+        subject_hashes["$subject"]="${subject_hashes["$subject"]:-} $hash"
         if [[ ${subject_count["$subject"]} -eq 2 ]]; then
-            # First duplicate found - record both hashes
-            subject_hashes["$subject"]="${subject_hashes["$subject"]:-} $hash"
+            # First time we see this subject as a duplicate
             duplicates_found=$((duplicates_found + 1))
-        elif [[ ${subject_count["$subject"]} -gt 2 ]]; then
-            subject_hashes["$subject"]="${subject_hashes["$subject"]:-} $hash"
         fi
     done <<< "$commits"
 
