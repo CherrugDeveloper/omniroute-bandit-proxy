@@ -117,11 +117,11 @@ main() {
     # Validate .gitignore
     validate_gitignore
     
-    # Pull with rebase if behind
+    # Sync repository state (stash, pull, pop)
     local current_branch
     current_branch=$(git_cmd_capture "git rev-parse --abbrev-ref HEAD")
     if [[ "$current_branch" != "HEAD" ]]; then
-        pull_rebase_if_behind "$current_branch"
+        sync_repository_state "$current_branch"
     fi
     
     # Check if there are changes to commit

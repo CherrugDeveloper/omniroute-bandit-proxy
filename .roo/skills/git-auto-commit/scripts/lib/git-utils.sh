@@ -179,7 +179,77 @@ stage_all_changes() {
     fi
 }
 
-# Pull with rebase if behind
+# Sync repository state: stash changes, pull with rebase, then pop stash
+sync_repository_state() {
+    local branch="$1"
+    log_info "Syncing repository state for branch '$branch'..."
+    
+    # Check for uncommitted changes
+    local has_changes
+    if ! git_cmd_capture "git diff-index --quiet HEAD --"; then
+        has_changes=true
+        log_info "Uncommitted changes detected, stashing..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would run: git stash push -u -m \"auto-commit stash before sync\""
+        else
+            # Stash changes including untracked files
+            if ! git_cmd "git stash push -u -m \"auto-commit stash before sync\""; then
+                log_error "Failed to stash changes"
+                return 2
+            fi
+        fi
+    else
+        has_changes=false
+        log_info "No uncommitted changes found"
+    fi
+    
+    # Fetch latest
+    git_cmd "git fetch origin" >/dev/null
+    
+    # Check if behind
+    local local_hash
+    local remote_hash
+    local_hash=$(git_cmd "git rev-parse $branch")
+    remote_hash=$(git_cmd "git rev-parse origin/$branch")
+    
+    if [[ "$local_hash" != "$remote_hash" ]]; then
+        log_info "Branch is behind origin, performing pull --rebase..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would run: git pull --rebase origin $branch"
+        else
+            if ! git_cmd "git pull --rebase origin $branch"; then
+                log_error "Failed to pull --rebase"
+                # If we stashed changes, try to restore them before returning
+                if [[ "$has_changes" == "true" && "$DRY_RUN" != "true" ]]; then
+                    log_warn "Attempting to restore stashed changes after pull failure..."
+                    git_cmd "git stash pop" >/dev/null 2>&1 || true
+                fi
+                return 5
+            fi
+        fi
+    else
+        log_info "Branch is up to date with origin"
+    fi
+    
+    # Pop stash if we had changes
+    if [[ "$has_changes" == "true" ]]; then
+        log_info "Restoring stashed changes..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would run: git stash pop"
+        else
+            if ! git_cmd "git stash pop"; then
+                log_warn "Conflicts occurred when popping stash - manual resolution may be needed"
+                # Don't return error here as the pull succeeded, just warn about conflicts
+            else
+                log_info "Stashed changes restored successfully"
+            fi
+        fi
+    fi
+    
+    log_info "Repository state synchronized"
+}
+
+# Pull with rebase if behind (kept for backward compatibility)
 pull_rebase_if_behind() {
     local branch="$1"
     log_info "Checking if branch '$branch' is behind origin..."
