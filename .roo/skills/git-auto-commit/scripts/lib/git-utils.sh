@@ -1042,8 +1042,10 @@ auto_squash_duplicates() {
     log_warn "Found $duplicates_found duplicate commit subject(s)"
 
     if [[ "$DRY_RUN" == "true" ]]; then
-        for subj in "${!subject_hashes[@]}"; do
-            log_info "[DRY RUN] Would squash duplicates for: $subj"
+        for subj in "${!subject_count[@]}"; do
+            if [[ ${subject_count["$subj"]} -ge 2 ]]; then
+                log_info "[DRY RUN] Would squash duplicates for: $subj"
+            fi
         done
         return 0
     fi
@@ -1061,45 +1063,50 @@ auto_squash_duplicates() {
     git_cmd "git branch \"$backup_branch\"" >/dev/null 2>&1
     log_info "Created backup branch: $backup_branch"
 
-    # Collect all duplicate commit hashes (all but the first of each group)
-    local squash_hashes=""
-    for subj in "${!subject_hashes[@]}"; do
-        local hashes="${subject_hashes[$subj]}"
-        # Skip the first hash (to keep), collect the rest
-        local rest
-        rest=$(echo "$hashes" | cut -d' ' -f2-)
-        squash_hashes="$squash_hashes $rest"
-    done
+    # Build a todo list for interactive rebase
+    # We'll use GIT_SEQUENCE_EDITOR to inject fixup commands
+    local base_commit
+    base_commit=$(git rev-parse "HEAD~$max_commits" 2>/dev/null || git rev-list --max-parents=0 HEAD 2>/dev/null || echo "")
 
-    if [[ -z "$squash_hashes" ]]; then
-        log_info "No commits to squash"
+    if [[ -z "$base_commit" ]]; then
+        log_warn "Could not determine base commit for rebase - skipping auto-squash"
         return 0
     fi
 
-    log_info "Squashing duplicate commits using git reset --soft + recommit..."
+    # Create a todo script that marks duplicate commits with 'fixup'
+    local todo_script
+    todo_script=$(mktemp)
 
-    # For each duplicate group, reset to before the first commit and recommit
-    for subj in "${!subject_hashes[@]}"; do
-        local hashes="${subject_hashes[$subj]}"
-        local first_hash
-        first_hash=$(echo "$hashes" | awk '{print $1}')
-        local parent
-        parent=$(git rev-parse "${first_hash}^" 2>/dev/null || echo "")
+    # Get all commits in order (oldest first) for the rebase range
+    local commit_list
+    commit_list=$(git rev-list --reverse "${base_commit}..HEAD" 2>/dev/null)
 
-        if [[ -z "$parent" ]]; then
-            continue
+    # Build the todo list: for each commit, if it's a duplicate (not the first occurrence), mark as fixup
+    declare -A seen_subjects
+    while IFS= read -r hash; do
+        [[ -z "$hash" ]] && continue
+        local subj
+        subj=$(git log -1 --format='%s' "$hash" 2>/dev/null)
+        if [[ -n "${seen_subjects[$subj]:-}" ]]; then
+            # This is a duplicate - mark as fixup
+            echo "fixup $hash" >> "$todo_script"
+        else
+            # First occurrence - keep as pick
+            echo "pick $hash" >> "$todo_script"
+            seen_subjects["$subj"]=1
         fi
+    done <<< "$commit_list"
 
-        # Reset to parent, keeping all changes from first commit
-        git_cmd "git reset --soft \"$parent\"" >/dev/null 2>&1
-        # Commit with the original message
-        local msg
-        msg=$(git log -1 --format='%s' "$first_hash" 2>/dev/null || echo "chore: squashed")
-        git_cmd "git commit -m \"$msg\"" >/dev/null 2>&1
-        log_debug "Squashed group: $msg"
-    done
+    # Execute the rebase with our todo list
+    if GIT_SEQUENCE_EDITOR="cat $todo_script >" git rebase -i "$base_commit" >/dev/null 2>&1; then
+        log_info "Auto-squash completed successfully"
+    else
+        log_warn "Rebase had conflicts - aborting and restoring from backup"
+        git rebase --abort >/dev/null 2>&1 || true
+        log_info "Restored from backup branch: $backup_branch"
+    fi
 
-    log_info "Auto-squash completed"
+    rm -f "$todo_script"
     return 0
 }
 
@@ -1119,27 +1126,39 @@ auto_cleanup_orphaned_branches() {
     local orphaned
     orphaned=$(git branch --merged "$current_branch" 2>/dev/null | grep -vE '^\*|^\s*(main|master|HEAD|remotes/.*)$' | sed 's/^[* ]*//' | tr -d ' ')
 
-    if [[ -z "$orphaned" ]]; then
+    # Also find backup branches (backup/pre-squash-*) that are old
+    local backup_branches
+    backup_branches=$(git branch --format='%(refname:short)' 2>/dev/null | grep '^backup/' | grep -vE "^backup/(pre-squash-$(date +%Y%m%d-%H%M%S))$" || true)
+
+    # Combine lists
+    local all_orphaned="$orphaned $backup_branches"
+    all_orphaned=$(echo "$all_orphaned" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+
+    if [[ -z "$all_orphaned" ]]; then
         log_info "No orphaned branches to cleanup"
         return 0
     fi
 
-    log_warn "Found orphaned branches: $orphaned"
+    log_warn "Found orphaned branches: $all_orphaned"
 
     if [[ "$DRY_RUN" == "true" ]]; then
-        for b in $orphaned; do
+        for b in $all_orphaned; do
             log_info "[DRY RUN] Would delete branch: $b"
         done
         return 0
     fi
 
     local cleaned=0
-    for b in $orphaned; do
+    for b in $all_orphaned; do
+        # Try safe delete first (-d), then force delete (-D) for backup branches
         if git_cmd "git branch -d \"$b\"" >/dev/null 2>&1; then
             log_info "Deleted merged branch: $b"
             cleaned=$((cleaned + 1))
+        elif git_cmd "git branch -D \"$b\"" >/dev/null 2>&1; then
+            log_info "Force deleted backup branch: $b"
+            cleaned=$((cleaned + 1))
         else
-            log_warn "Could not delete branch: $b (may have unmerged changes)"
+            log_warn "Could not delete branch: $b"
         fi
     done
 
