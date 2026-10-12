@@ -92,8 +92,21 @@ done
 # Initialize skill
 init_skill
 normalize_staged_files() {
+    log_debug "Normalizing line endings and whitespace in staged files..."
+
     git diff --cached --name-only -z | while IFS= read -r -d '' file; do
-        [[ -f "$file" ]] && sed -i 's/\r$//' "$file" && sed -i 's/[[:space:]]*$//' "$file"
+        if [[ -f "$file" ]]; then
+            # Remove carriage returns and trailing whitespace
+            if [[ "$DRY_RUN" == "true" ]]; then
+                log_debug "[DRY RUN] Would normalize: $file"
+            else
+                # Use tr for CRLF removal and sed for trailing whitespace
+                tr -d '\r' < "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+                sed -i 's/[[:space:]]*$//' "$file"
+                # Re-stage the normalized file
+                git_cmd "git add \"$file\"" >/dev/null 2>&1 || true
+            fi
+        fi
     done
 }
 
@@ -192,19 +205,26 @@ main() {
         log_info "Changes committed successfully"
     fi
 
-    # Push to origin
+    # Push to origin with safe retry logic
     local push_branch="${TARGET_BRANCH:-$(git_cmd "git rev-parse --abbrev-ref HEAD")}"
     log_info "Pushing to origin/$push_branch..."
 
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_info "[DRY RUN] Would run: git push origin HEAD:${push_branch}"
-    else
-        # Push with progress feedback
-        if ! git_cmd "git push --progress origin HEAD:${push_branch}"; then
-            log_error "Push failed"
-            return 3
+    local push_command="git push --progress origin HEAD:${push_branch}"
+
+    if ! safe_push "$push_command"; then
+        log_error "Push failed - attempting conflict recovery..."
+
+        # Try to recover from merge conflicts
+        if recover_merge_conflicts; then
+            log_info "Retrying push after conflict recovery..."
+            if ! safe_push "$push_command"; then
+                log_error "Push failed after recovery attempt"
+                return 3
+            fi
+        else
+            log_error "Unable to recover from conflicts - manual resolution required"
+            return 5
         fi
-        log_info "Push successful"
     fi
 
     # Post-push history analysis (optional)
