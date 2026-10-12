@@ -1011,3 +1011,185 @@ init_skill() {
     # Validate git configuration
     validate_git_config
 }
+
+# Auto-squash duplicate commits with the same subject
+# Uses git rebase --interactive with auto-squash to merge commits that have identical messages
+auto_squash_duplicates() {
+    local max_commits="${1:-$HISTORY_DEPTH}"
+    log_info "Checking for duplicate commits to squash (last $max_commits)..."
+
+    # Get commit subjects with their hashes
+    local commits
+    commits=$(git log -n "$max_commits" --format='%H %s' 2>/dev/null)
+
+    if [[ -z "$commits" ]]; then
+        log_debug "No commits to analyze"
+        return 0
+    fi
+
+    # Find duplicates by subject
+    declare -A subject_hashes
+    declare -A subject_count
+    local duplicates_found=0
+
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local hash="${line%% *}"
+        local subject="${line#* }"
+        subject_count["$subject"]=$((${subject_count["$subject"]:-0} + 1))
+        if [[ ${subject_count["$subject"]} -eq 2 ]]; then
+            # First duplicate found - record both hashes
+            subject_hashes["$subject"]="${subject_hashes["$subject"]:-} $hash"
+            duplicates_found=$((duplicates_found + 1))
+        elif [[ ${subject_count["$subject"]} -gt 2 ]]; then
+            subject_hashes["$subject"]="${subject_hashes["$subject"]:-} $hash"
+        fi
+    done <<< "$commits"
+
+    if [[ $duplicates_found -eq 0 ]]; then
+        log_info "No duplicate commits found"
+        return 0
+    fi
+
+    log_warn "Found $duplicates_found duplicate commit subject(s)"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        for subj in "${!subject_hashes[@]}"; do
+            log_info "[DRY RUN] Would squash duplicates for: $subj"
+        done
+        return 0
+    fi
+
+    # Perform the squash using git rebase --autosquash
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+    if [[ "$current_branch" == "HEAD" ]]; then
+        log_warn "Detached HEAD - skipping auto-squash"
+        return 0
+    fi
+
+    # Create a backup branch before rebase
+    local backup_branch="backup/pre-squash-$(date +%Y%m%d-%H%M%S)"
+    git_cmd "git branch \"$backup_branch\"" >/dev/null 2>&1
+    log_info "Created backup branch: $backup_branch"
+
+    # Collect all duplicate commit hashes (all but the first of each group)
+    local squash_hashes=""
+    for subj in "${!subject_hashes[@]}"; do
+        local hashes="${subject_hashes[$subj]}"
+        # Skip the first hash (to keep), collect the rest
+        local rest
+        rest=$(echo "$hashes" | cut -d' ' -f2-)
+        squash_hashes="$squash_hashes $rest"
+    done
+
+    if [[ -z "$squash_hashes" ]]; then
+        log_info "No commits to squash"
+        return 0
+    fi
+
+    log_info "Squashing duplicate commits using git reset --soft + recommit..."
+
+    # Get the first commit subject (to use for the squashed commit)
+    local first_subject
+    first_subject=$(echo "${!subject_hashes[@]}" | head -1)
+    first_subject="${subject_hashes[$first_subject]%% *}"
+    first_subject=$(git log -1 --format='%s' "$first_subject" 2>/dev/null || echo "chore: squashed commits")
+
+    # Strategy: reset to the parent of the first duplicate, then recommit with all changes
+    # Find the earliest commit among duplicates to determine reset point
+    local earliest_hash
+    earliest_hash=$(git rev-parse HEAD~$((max_commits - 1)) 2>/dev/null || git rev-parse HEAD)
+
+    # For each duplicate group, reset to before the first commit and recommit
+    for subj in "${!subject_hashes[@]}"; do
+        local hashes="${subject_hashes[$subj]}"
+        local first_hash
+        first_hash=$(echo "$hashes" | awk '{print $1}')
+        local parent
+        parent=$(git rev-parse "${first_hash}^" 2>/dev/null || echo "")
+
+        if [[ -z "$parent" ]]; then
+            continue
+        fi
+
+        # Reset to parent, keeping all changes from first commit
+        git_cmd "git reset --soft \"$parent\"" >/dev/null 2>&1
+        # Commit with the original message
+        local msg
+        msg=$(git log -1 --format='%s' "$first_hash" 2>/dev/null || echo "chore: squashed")
+        git_cmd "git commit -m \"$msg\"" >/dev/null 2>&1
+        log_debug "Squashed group: $msg"
+    done
+
+    log_info "Auto-squash completed"
+    return 0
+}
+
+# Auto-cleanup orphaned branches (merged but not deleted)
+auto_cleanup_orphaned_branches() {
+    log_info "Checking for orphaned branches to cleanup..."
+
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")
+
+    if [[ "$current_branch" == "HEAD" ]]; then
+        log_debug "Detached HEAD - skipping orphaned branch cleanup"
+        return 0
+    fi
+
+    # Find merged branches (excluding current, main, master, and remotes)
+    local orphaned
+    orphaned=$(git branch --merged "$current_branch" 2>/dev/null | grep -vE '^\*|^\s*(main|master|HEAD|remotes/.*)$' | sed 's/^[* ]*//' | tr -d ' ')
+
+    if [[ -z "$orphaned" ]]; then
+        log_info "No orphaned branches to cleanup"
+        return 0
+    fi
+
+    log_warn "Found orphaned branches: $orphaned"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        for b in $orphaned; do
+            log_info "[DRY RUN] Would delete branch: $b"
+        done
+        return 0
+    fi
+
+    local cleaned=0
+    for b in $orphaned; do
+        if git_cmd "git branch -d \"$b\"" >/dev/null 2>&1; then
+            log_info "Deleted merged branch: $b"
+            cleaned=$((cleaned + 1))
+        else
+            log_warn "Could not delete branch: $b (may have unmerged changes)"
+        fi
+    done
+
+    if [[ $cleaned -gt 0 ]]; then
+        log_info "Cleaned up $cleaned orphaned branch(es)"
+    fi
+
+    return 0
+}
+
+# Initialize skill
+init_skill() {
+    log_debug "Initializing git-auto-commit skill"
+
+    # Set up logging based on environment
+    if [[ "$LOG_LEVEL" == "DEBUG" ]]; then
+        log_debug "Debug logging enabled"
+    fi
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "Dry run mode enabled"
+    fi
+
+    if [[ "$AUTO_MESSAGE" == "false" ]]; then
+        log_info "Auto message generation disabled"
+    fi
+
+    # Validate git configuration
+    validate_git_config
+}

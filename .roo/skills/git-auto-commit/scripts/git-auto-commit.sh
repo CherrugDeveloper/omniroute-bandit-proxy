@@ -321,6 +321,13 @@ main() {
         fi
     fi
 
+    # Auto-fix issues found in history analysis
+    if [[ "${GIT_AUTO_COMMIT_AUTO_FIX:-true}" == "true" ]]; then
+        log_info "Running auto-fix for history issues..."
+        auto_squash_duplicates "$HISTORY_DEPTH"
+        auto_cleanup_orphaned_branches
+    fi
+
     log_info "git-auto-commit completed successfully"
 
     if [[ "$JSON_OUTPUT" == "true" ]]; then
