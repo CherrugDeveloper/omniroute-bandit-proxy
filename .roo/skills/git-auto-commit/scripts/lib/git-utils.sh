@@ -37,7 +37,7 @@ EOF
         LOG_ENTRIES+=("$json_entry")
     else
         local formatted_time="$(date '+%Y-%m-%d %H:%M:%S')"
-        echo "[$formatted_time] $level: $message"
+        echo "[$formatted_time] $level: $message" >&2
     fi
 }
 
@@ -635,26 +635,15 @@ generate_conventional_commit() {
     commit_type=$(determine_commit_type "$diff_stat" "$diff_names")
     scope=$(determine_scope "$diff_names")
 
-    # Generate subject from changed files
-    local files_list
-    files_list=$(echo "$diff_names" | sed 's/^/  - /')
+    # Create imperative subject (single line only for git commit -m)
+    subject="$commit_type"
+    if [[ -n "$scope" ]]; then
+        subject="$subject($scope)"
+    fi
+    subject="$subject: $(echo "$diff_names" | head -1 | sed -E 's/.*\///')"
 
-    # Create imperative subject
-    subject="$commit_type$( [[ "$scope" != "core" ]] && echo ":$scope" ): $(echo "$diff_names" | head -1 | sed -E 's/.*\///')"
-
-    # Add body with file list
-    local body
-    body=$(cat <<EOF
-Changes:
-$files_list
-
-Diff statistics:
-$diff_stat
-EOF
-)
-
-    # Print subject and body with real newlines (avoid polluting caller output with log messages)
-    printf '%s\n\n%s' "$subject" "$body"
+    # Print only the subject line (single line for git commit -m compatibility)
+    printf '%s' "$subject"
 }
 
 # Analyze recent commit history
