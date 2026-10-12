@@ -110,6 +110,49 @@ normalize_staged_files() {
     done
 }
 
+# Fix empty modifications (e.g., permission changes, line ending differences)
+fix_empty_modifications() {
+    log_info "Checking for empty modifications (permission/line-ending changes...)"
+
+    local changed_files
+    changed_files=$(git_cmd_capture "git diff --name-only" 2>/dev/null || true)
+
+    if [[ -z "$changed_files" ]]; then
+        log_debug "No files to check for empty modifications"
+        return 0
+    fi
+
+    local fixed_count=0
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+
+        # Check if the diff is empty (only whitespace/permission changes)
+        local diff_size
+        diff_size=$(git diff --ignore-all-space -- "$file" 2>/dev/null | wc -c || echo 0)
+
+        if [[ $diff_size -le 5 ]]; then
+            # Likely just line ending or permission changes
+            log_debug "Normalizing: $file (empty diff detected)"
+
+            if [[ "$DRY_RUN" != "true" ]]; then
+                # Normalize line endings
+                if [[ -f "$file" ]]; then
+                    tr -d '\r' < "$file" > "${file}.tmp" 2>/dev/null && mv "${file}.tmp" "$file"
+                    sed -i 's/[[:space:]]*$//' "$file" 2>/dev/null || true
+                    git add "$file" 2>/dev/null || true
+                    fixed_count=$((fixed_count + 1))
+                fi
+            else
+                log_info "[DRY RUN] Would normalize: $file"
+            fi
+        fi
+    done <<< "$changed_files"
+
+    if [[ $fixed_count -gt 0 ]]; then
+        log_info "Fixed $fixed_count file(s) with empty modifications"
+    fi
+}
+
 # Override config from command line
 if [[ "$SELF_TEST" == "true" ]]; then
     # Self-test mode will be handled separately
@@ -142,15 +185,46 @@ main() {
         sync_repository_state "$current_branch"
     fi
 
+    # Fix Git extension interference (GitKraken, fsmonitor, fileMode issues)
+    # This addresses false "modified" status in VSCode caused by GitKraken, fsmonitor, etc.
+    fix_git_extension_interference
+
+    # Fix empty modifications (permission/line-ending changes)
+    fix_empty_modifications
+
     # Check if there are changes to commit
     # Batch: git add and status check
     git_cmd "git add -A" >/dev/null
     normalize_staged_files
     git_cmd "git add -A" >/dev/null
+
+    # Check again after normalization
+    local unstaged_check
+    unstaged_check=$(git_cmd_capture "git diff --name-only" 2>/dev/null || true)
+    if [[ -n "$unstaged_check" ]]; then
+        log_info "Re-normalizing remaining unstaged changes..."
+        fix_empty_modifications
+        git_cmd "git add -A" >/dev/null
+    fi
+
     local staged_info
     staged_info=$(git_cmd_capture "git diff --cached --stat --name-only" 2>/dev/null || echo "0 files changed|")
 
-    # Parse staged info
+    # Check for files with only whitespace/permission changes
+    if [[ "$staged_info" == "0 files changed|"* ]]; then
+        # Verify there are truly no changes
+        local raw_diff
+        raw_diff=$(git_cmd_capture "git diff --cached" 2>/dev/null || true)
+        if [[ -z "$raw_diff" ]]; then
+            log_info "No changes to commit - idempotent exit"
+            if [[ "$JSON_OUTPUT" == "true" ]]; then
+                print_json_output
+            fi
+            return 0
+        fi
+    fi
+
+    # Parse staged info for count and names
     local staged_count staged_names
     if [[ "$staged_info" == "0 files changed|"* ]]; then
         staged_count=0
@@ -245,6 +319,13 @@ main() {
             python3 -c "import json, sys; data = json.load(open(sys.argv[1])); print('Commit count: ' + str(data['commit_count'])); print('Conventional compliance: ' + str(data['conventional_compliance'] * 100) + '%'); [print(x + ': ' + ', '.join(data[x])) if data.get(x) else None for x in ['duplicates', 'suggestions', 'orphaned_branches']]" "$temp_file"
             rm -f "$temp_file"
         fi
+    fi
+
+    # Auto-fix issues found in history analysis
+    if [[ "${GIT_AUTO_COMMIT_AUTO_FIX:-true}" == "true" ]]; then
+        log_info "Running auto-fix for history issues..."
+        auto_squash_duplicates "$HISTORY_DEPTH"
+        auto_cleanup_orphaned_branches
     fi
 
     log_info "git-auto-commit completed successfully"
