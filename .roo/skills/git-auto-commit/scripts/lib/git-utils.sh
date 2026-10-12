@@ -915,6 +915,82 @@ validate_git_config() {
     return 0
 }
 
+# Fix Git extension interference (GitKraken, fsmonitor, fileMode issues)
+# This addresses false "modified" status in VSCode caused by:
+# - GitKraken's gk.exe extension cache (.git/gk/)
+# - core.fsmonitor incompatibility with WSL
+# - core.fileMode tracking permission changes
+fix_git_extension_interference() {
+    log_info "Checking for Git extension interference..."
+
+    local fixed_any=false
+
+    # 1. Remove GitKraken cache directory if present
+    if [[ -d ".git/gk" ]]; then
+        log_warn "Found GitKraken cache directory (.git/gk/), removing..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would remove .git/gk/"
+        else
+            rm -rf .git/gk
+            log_info "Removed GitKraken cache directory"
+            fixed_any=true
+        fi
+    fi
+
+    # 2. Check and disable core.fsmonitor if enabled (incompatible with WSL)
+    local fsmonitor_enabled
+    fsmonitor_enabled=$(git_cmd_capture "git config core.fsmonitor" 2>/dev/null || true)
+    if [[ "$fsmonitor_enabled" == "true" ]]; then
+        log_warn "core.fsmonitor is enabled (incompatible with WSL), disabling..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would disable core.fsmonitor"
+        else
+            git_cmd "git config core.fsmonitor false"
+            log_info "Disabled core.fsmonitor"
+            fixed_any=true
+        fi
+    fi
+
+    # 3. Check and disable core.fileMode if it's causing false modifications
+    # This is common on Windows/WSL where file permissions don't map well
+    local filemode_enabled
+    filemode_enabled=$(git_cmd_capture "git config core.fileMode" 2>/dev/null || true)
+    if [[ "$filemode_enabled" == "true" ]]; then
+        # Check if there are files showing as modified but only permission changes
+        local perm_changes
+        perm_changes=$(git_cmd_capture "git diff --name-only" 2>/dev/null | while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            # Check if diff is only mode changes
+            local diff_output
+            diff_output=$(git diff -- "$file" 2>/dev/null || true)
+            if [[ -n "$diff_output" ]] && echo "$diff_output" | grep -q "^old mode\|^new mode" && ! echo "$diff_output" | grep -q "^@@"; then
+                echo "$file"
+            fi
+        done)
+
+        if [[ -n "$perm_changes" ]]; then
+            log_warn "core.fileMode is causing false modifications, disabling..."
+            if [[ "$DRY_RUN" == "true" ]]; then
+                log_info "[DRY RUN] Would disable core.fileMode"
+            else
+                git_cmd "git config core.fileMode false"
+                log_info "Disabled core.fileMode"
+                fixed_any=true
+            fi
+        fi
+    fi
+
+    # 4. If we made any fixes, rebuild the git index to clear stale state
+    if [[ "$fixed_any" == "true" ]] && [[ "$DRY_RUN" != "true" ]]; then
+        log_info "Rebuilding git index after configuration changes..."
+        rm -f .git/index
+        git_cmd "git reset --mixed HEAD" >/dev/null
+        log_info "Git index rebuilt"
+    fi
+
+    return 0
+}
+
 # Initialize skill
 init_skill() {
     log_debug "Initializing git-auto-commit skill"

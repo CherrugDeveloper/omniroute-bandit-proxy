@@ -185,6 +185,10 @@ main() {
         sync_repository_state "$current_branch"
     fi
 
+    # Fix Git extension interference (GitKraken, fsmonitor, fileMode issues)
+    # This addresses false "modified" status in VSCode caused by GitKraken, fsmonitor, etc.
+    fix_git_extension_interference
+
     # Fix empty modifications (permission/line-ending changes)
     fix_empty_modifications
 
