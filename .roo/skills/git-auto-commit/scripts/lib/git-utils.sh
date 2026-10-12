@@ -123,13 +123,23 @@ git_cmd_capture() {
     return $exit_code
 }
 
-# Check if we're in a git repository
+# Check if we're in a git repository and get root
 check_git_repo() {
-    if ! git_cmd "git rev-parse --git-dir" >/dev/null 2>&1; then
+    local root
+    root=$(git_cmd_capture "git rev-parse --show-toplevel" 2>/dev/null)
+    if [[ -z "$root" ]]; then
         log_error "Not in a git repository"
         return 2
     fi
-    log_info "Git repository verified"
+    
+    # Handle detached HEAD
+    local branch
+    branch=$(git_cmd_capture "git rev-parse --abbrev-ref HEAD" 2>/dev/null)
+    if [[ "$branch" == "HEAD" ]]; then
+        log_warn "Detached HEAD state detected. Commits may be lost if not on a branch."
+    fi
+    
+    log_info "Git repository verified at $root"
     return 0
 }
 
@@ -169,7 +179,77 @@ stage_all_changes() {
     fi
 }
 
-# Pull with rebase if behind
+# Sync repository state: stash changes, pull with rebase, then pop stash
+sync_repository_state() {
+    local branch="$1"
+    log_info "Syncing repository state for branch '$branch'..."
+    
+    # Check for uncommitted changes
+    local has_changes
+    if ! git_cmd_capture "git diff-index --quiet HEAD --"; then
+        has_changes=true
+        log_info "Uncommitted changes detected, stashing..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would run: git stash push -u -m \"auto-commit stash before sync\""
+        else
+            # Stash changes including untracked files
+            if ! git_cmd "git stash push -u -m \"auto-commit stash before sync\""; then
+                log_error "Failed to stash changes"
+                return 2
+            fi
+        fi
+    else
+        has_changes=false
+        log_info "No uncommitted changes found"
+    fi
+    
+    # Fetch latest
+    git_cmd "git fetch origin" >/dev/null
+    
+    # Check if behind
+    local local_hash
+    local remote_hash
+    local_hash=$(git_cmd "git rev-parse $branch")
+    remote_hash=$(git_cmd "git rev-parse origin/$branch")
+    
+    if [[ "$local_hash" != "$remote_hash" ]]; then
+        log_info "Branch is behind origin, performing pull --rebase..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would run: git pull --rebase origin $branch"
+        else
+            if ! git_cmd "git pull --rebase origin $branch"; then
+                log_error "Failed to pull --rebase"
+                # If we stashed changes, try to restore them before returning
+                if [[ "$has_changes" == "true" && "$DRY_RUN" != "true" ]]; then
+                    log_warn "Attempting to restore stashed changes after pull failure..."
+                    git_cmd "git stash pop" >/dev/null 2>&1 || true
+                fi
+                return 5
+            fi
+        fi
+    else
+        log_info "Branch is up to date with origin"
+    fi
+    
+    # Pop stash if we had changes
+    if [[ "$has_changes" == "true" ]]; then
+        log_info "Restoring stashed changes..."
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "[DRY RUN] Would run: git stash pop"
+        else
+            if ! git_cmd "git stash pop"; then
+                log_warn "Conflicts occurred when popping stash - manual resolution may be needed"
+                # Don't return error here as the pull succeeded, just warn about conflicts
+            else
+                log_info "Stashed changes restored successfully"
+            fi
+        fi
+    fi
+    
+    log_info "Repository state synchronized"
+}
+
+# Pull with rebase if behind (kept for backward compatibility)
 pull_rebase_if_behind() {
     local branch="$1"
     log_info "Checking if branch '$branch' is behind origin..."
@@ -239,33 +319,12 @@ validate_gitignore() {
     local gitignore_content
     gitignore_content=$(cat "$gitignore_file")
     
-    # Check each pattern against .gitignore content using git check-ignore directly
-    # This avoids creating temp directories and repos
+    # Check each pattern against .gitignore content directly
     for pattern in "${common_patterns[@]}"; do
-        # Create a test file in the actual repo (will be cleaned up immediately)
-        local test_file
-        case $pattern in
-            */)  # Directory pattern
-                test_file="${pattern}testfile_$$"
-                mkdir -p "$(dirname "$test_file")"
-                touch "$test_file"
-                ;;
-            *)     # File pattern or exact match
-                test_file="test_$$.${pattern#*.}"
-                touch "$test_file"
-                ;;
-        esac
-        
-        # Check if git would ignore this file using the actual repo's .gitignore
-        if git check-ignore --quiet "$test_file" 2>/dev/null; then
-            : # pattern is covered
-        else
+        if ! echo "$pattern" | grep -qFf <(echo "$gitignore_content") && ! grep -qF "$pattern" "$gitignore_file"; then
             log_warn "Pattern '$pattern' may not be covered by .gitignore"
             missing_patterns+=("$pattern")
         fi
-        
-        # Clean up test file immediately
-        rm -rf "$test_file"
     done
     
     if [[ ${#missing_patterns[@]} -gt 0 ]]; then
@@ -501,26 +560,29 @@ EOF
         done <<< "$(git branch --merged "$current_branch" 2>/dev/null)"
     fi
     
-    # Build analysis JSON - handle empty arrays properly
+    # Build analysis JSON - handle empty arrays properly with jq fallback
     local duplicates_json suggestions_json orphaned_branches_json
     
-    if [[ ${#duplicates[@]} -gt 0 ]]; then
-        duplicates_json=$(printf '%s\n' "${duplicates[@]}" | jq -R . | jq -s .)
-    else
-        duplicates_json='[]'
-    fi
+    json_array() {
+        if command -v jq >/dev/null 2>&1; then
+            printf '%s\n' "$@" | jq -R . | jq -s .
+        else
+            # Fallback: manual JSON array construction
+            local res="["
+            local first=true
+            for item in "$@"; do
+                [[ "$first" == "false" ]] && res+=", "
+                res+="\"$item\""
+                first=false
+            done
+            res+="]"
+            echo "$res"
+        fi
+    }
     
-    if [[ ${#suggestions[@]} -gt 0 ]]; then
-        suggestions_json=$(printf '%s\n' "${suggestions[@]}" | jq -R . | jq -s .)
-    else
-        suggestions_json='[]'
-    fi
-    
-    if [[ ${#orphaned_branches[@]} -gt 0 ]]; then
-        orphaned_branches_json=$(printf '%s\n' "${orphaned_branches[@]}" | jq -R . | jq -s .)
-    else
-        orphaned_branches_json='[]'
-    fi
+    duplicates_json=$(json_array "${duplicates[@]}")
+    suggestions_json=$(json_array "${suggestions[@]}")
+    orphaned_branches_json=$(json_array "${orphaned_branches[@]}")
     
     analysis_json=$(cat <<EOF
 {
