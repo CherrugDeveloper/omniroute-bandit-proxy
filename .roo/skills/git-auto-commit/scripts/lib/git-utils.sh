@@ -1090,17 +1090,6 @@ auto_squash_duplicates() {
 
     log_info "Squashing duplicate commits using git reset --soft + recommit..."
 
-    # Get the first commit subject (to use for the squashed commit)
-    local first_subject
-    first_subject=$(echo "${!subject_hashes[@]}" | head -1)
-    first_subject="${subject_hashes[$first_subject]%% *}"
-    first_subject=$(git log -1 --format='%s' "$first_subject" 2>/dev/null || echo "chore: squashed commits")
-
-    # Strategy: reset to the parent of the first duplicate, then recommit with all changes
-    # Find the earliest commit among duplicates to determine reset point
-    local earliest_hash
-    earliest_hash=$(git rev-parse HEAD~$((max_commits - 1)) 2>/dev/null || git rev-parse HEAD)
-
     # For each duplicate group, reset to before the first commit and recommit
     for subj in "${!subject_hashes[@]}"; do
         local hashes="${subject_hashes[$subj]}"
