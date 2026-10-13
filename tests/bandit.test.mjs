@@ -139,10 +139,10 @@ test("_parseResetAfter: reset_seconds:117 -> 117000", () => {
 // selectModel
 // ============================================================
 
-test("selectModel: sceglie un modello dal catalogo e registra il provider", () => {
+test("selectModel: sceglie un modello dal catalogo e registra il provider", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/model-a", "p1");
-  const chosen = b.selectModel();
+  const chosen = await b.selectModel();
   assert.equal(chosen, "p1/model-a");
   const model = b.db.prepare("SELECT * FROM models WHERE id = ?").get("p1/model-a");
   assert.ok(model, "modello registrato in models");
@@ -152,50 +152,50 @@ test("selectModel: sceglie un modello dal catalogo e registra il provider", () =
   b.close();
 });
 
-test("selectModel: rispetta excludeSet", () => {
+test("selectModel: rispetta excludeSet", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p1/b", "p1");
   // Escludi a → deve scegliere b
-  const chosen = b.selectModel(new Set(["p1/a"]));
+  const chosen = await b.selectModel(new Set(["p1/a"]));
   assert.equal(chosen, "p1/b");
   b.close();
 });
 
-test("selectModel: nessun provider disponibile -> null", () => {
+test("selectModel: nessun provider disponibile -> null", async () => {
   const b = makeBandit();
-  const chosen = b.selectModel();
+  const chosen = await b.selectModel();
   assert.equal(chosen, null);
   b.close();
 });
 
-test("selectModel: provider in cooldown non viene scelto", () => {
+test("selectModel: provider in cooldown non viene scelto", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p2/a", "p2");
   // Metti p1 in cooldown 1 ora
   b.db.prepare("INSERT INTO provider_history (provider, cooldown_until) VALUES (?, ?)").run("p1", Date.now() + 3600000);
-  const chosen = b.selectModel();
+  const chosen = await b.selectModel();
   assert.equal(chosen, "p2/a");
   b.close();
 });
 
-test("selectModel: provider needs_attention non viene scelto", () => {
+test("selectModel: provider needs_attention non viene scelto", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p2/a", "p2");
   b.db.prepare("INSERT INTO provider_history (provider, needs_attention) VALUES (?, 1)").run("p1");
-  const chosen = b.selectModel();
+  const chosen = await b.selectModel();
   assert.equal(chosen, "p2/a");
   b.close();
 });
 
-test("selectModel: provider permanent non viene scelto", () => {
+test("selectModel: provider permanent non viene scelto", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p2/a", "p2");
   b.db.prepare("INSERT INTO provider_history (provider, permanent) VALUES (?, 1)").run("p1");
-  const chosen = b.selectModel();
+  const chosen = await b.selectModel();
   assert.equal(chosen, "p2/a");
   b.close();
 });
@@ -204,10 +204,10 @@ test("selectModel: provider permanent non viene scelto", () => {
 // recordFeedback
 // ============================================================
 
-test("recordFeedback: successo incrementa N e sum_reward", () => {
+test("recordFeedback: successo incrementa N e sum_reward", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  b.selectModel(); // registra p1/a
+  await b.selectModel(); // registra p1/a
   const before = b.db.prepare("SELECT N, sum_reward FROM models WHERE id='p1/a'").get();
   b.recordFeedback("p1/a", true, 0.9, null);
   const after = b.db.prepare("SELECT N, sum_reward FROM models WHERE id='p1/a'").get();
@@ -218,10 +218,10 @@ test("recordFeedback: successo incrementa N e sum_reward", () => {
   b.close();
 });
 
-test("recordFeedback: successo resetta fails", () => {
+test("recordFeedback: successo resetta fails", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  b.selectModel();
+  await b.selectModel();
   b.db.prepare("UPDATE models SET fails = 3 WHERE id='p1/a'").run();
   b.recordFeedback("p1/a", true, 0.8, null);
   const m = b.db.prepare("SELECT fails FROM models WHERE id='p1/a'").get();
@@ -229,10 +229,10 @@ test("recordFeedback: successo resetta fails", () => {
   b.close();
 });
 
-test("recordFeedback: fallimento generico -> cooldown modello", () => {
+test("recordFeedback: fallimento generico -> cooldown modello", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  b.selectModel();
+  await b.selectModel();
   const now = Date.now();
   b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
   const m = b.db.prepare("SELECT cooldown_until, fails FROM models WHERE id='p1/a'").get();
@@ -241,20 +241,20 @@ test("recordFeedback: fallimento generico -> cooldown modello", () => {
   b.close();
 });
 
-test("recordFeedback: 404 model -> ban permanente", () => {
+test("recordFeedback: 404 model -> ban permanente", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  b.selectModel();
+  await b.selectModel();
   b.recordFeedback("p1/a", false, 0, { status: 404, message: "model does not exist" });
   const m = b.db.prepare("SELECT permanent FROM models WHERE id='p1/a'").get();
   assert.equal(m.permanent, 1);
   b.close();
 });
 
-test("recordFeedback: quota exhausted -> cooldown provider", () => {
+test("recordFeedback: quota exhausted -> cooldown provider", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  b.selectModel();
+  await b.selectModel();
   const now = Date.now();
   b.recordFeedback("p1/a", false, 0, {
     status: 429,
@@ -292,16 +292,16 @@ test("_getMeta: chiave inesistente -> 0", () => {
 // errori 5xx non uccidono il provider
 // ============================================================
 
-test("recordFeedback: 5xx su un modello non mette in cooldown il provider", () => {
+test("recordFeedback: 5xx su un modello non mette in cooldown il provider", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p1/b", "p1");
-  b.selectModel(); // registra un provider
+  await b.selectModel(); // registra un provider
   b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
   const p = b.db.prepare("SELECT cooldown_until FROM provider_history WHERE provider='p1'").get();
   assert.equal(p.cooldown_until, 0, "provider NON in cooldown");
   // il modello p1/b è ancora selezionabile
-  const chosen = b.selectModel(new Set(["p1/a"]));
+  const chosen = await b.selectModel(new Set(["p1/a"]));
   assert.equal(chosen, "p1/b");
   b.close();
 });

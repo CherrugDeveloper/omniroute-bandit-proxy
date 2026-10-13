@@ -70,7 +70,7 @@ function validateNonStreamResponse(data, opts = {}) {
       return "no-tool-call-but-required (model ignored tools)";
     }
   }
- 
+
   return null;  // valida
 }
 
@@ -914,24 +914,24 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
     if (!scriptPath) {
       return res.status(400).json({ error: "scriptPath richiesto" });
     }
-    
+
     // Validazione del percorso per prevenire path traversal
     const scriptsDir = path.join(__dirname, "../scripts");
     const normalizedPath = path.normalize(scriptPath);
     const absolutePath = path.join(scriptsDir, normalizedPath);
-    
+
     if (!absolutePath.startsWith(scriptsDir)) {
       return res.status(403).json({ error: "Percorso non autorizzato" });
     }
-    
+
     if (!fs.existsSync(absolutePath)) {
       return res.status(404).json({ error: "Script non trovato" });
     }
-    
+
     // Esecuzione dello script
     const spawn = require("child_process").spawn;
     const isShell = absolutePath.endsWith('.sh');
-    
+
     let command, options;
     if (isShell) {
       command = "bash";
@@ -940,31 +940,31 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
       command = "node";
       options = {};
     }
-    
+
     const child = spawn(command, [absolutePath, ...args], {
       cwd: scriptsDir,
       stdio: ["pipe", "pipe", "pipe"],
       ...options
     });
-    
+
     const output = {
       pid: child.pid,
       command: `${command} ${absolutePath} ${args.join(' ')}`,
       startTime: Date.now(),
       status: "running"
     };
-    
+
     let stdoutData = "";
     let stderrData = "";
-    
+
     child.stdout?.on("data", (data) => {
       stdoutData += data.toString();
     });
-    
+
     child.stderr?.on("data", (data) => {
       stderrData += data.toString();
     });
-    
+
     child.on("close", (code) => {
       output.status = "completed";
       output.exitCode = code;
@@ -972,12 +972,12 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
       output.stderr = stderrData;
       output.endTime = Date.now();
       output.duration = output.endTime - output.startTime;
-      
+
       // Salva l'output in un file per riferimento
       const outputFile = path.join(scriptsDir, `.script-output-${child.pid}.json`);
       fs.writeFileSync(outputFile, JSON.stringify(output, null, 2));
     });
-    
+
     res.json(output);
   } catch (e) {
     console.error("[API] Errore esecuzione script:", e.message);
@@ -990,11 +990,11 @@ app.get("/v1/scripts/output/:pid", requireAuth, (req, res) => {
     const { pid } = req.params;
     const scriptsDir = path.join(__dirname, "../scripts");
     const outputFile = path.join(scriptsDir, `.script-output-${pid}.json`);
-    
+
     if (!fs.existsSync(outputFile)) {
       return res.status(404).json({ error: "Output script non trovato" });
     }
-    
+
     const output = JSON.parse(fs.readFileSync(outputFile, "utf8"));
     res.json(output);
   } catch (e) {
@@ -1042,7 +1042,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
   const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
   if (debugVerbose) console.log(`[CONTEXT] autoCompress=${autoCompress} header="${req.get("x-auto-compress") || "<assente>"}" tokens=${estimatedTokens} maxCatalog=${bandit.maxCatalogInput()}`);
-  
+
     // === MAX_CONTEXT_TOKENS check (con compress d'emergenza se autoCompress) ===
     if (estimatedTokens > MAX_CONTEXT_TOKENS) {
       if (autoCompress) {
@@ -1215,6 +1215,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
   const cooledDownThisRequest = new Set();
   let controller = null;
+  let model;  // <-- FIX: declare model before while loop (used at line 1272)
   // Timer streaming — dichiarati fuori da if(stream) così il catch esterno può accedervi
   const STREAM_IDLE_MS = parseInt(process.env.STREAM_IDLE_MS || "60000", 10);
   const isSummarizer = (profile === 'summarizer');
@@ -1267,7 +1268,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       cleanup();
       return;
     }
-    
+
     // Trigger fallback if retries are exhausted for felo/* models
     if (retriesExhausted && model.startsWith('felo/')) {
       const fallbackModels = bandit.getFallbackModels();
@@ -1294,7 +1295,6 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       return res.status(504).json({ error: { message: "Gateway timeout: nessun modello disponibile in tempo utile", status: 504 } });
     }
 
-    let model;
     if (attempt === 1 && forceModel) {
       if (!bandit.isModelAvailable(forceModel)) {
         cleanup();
@@ -1355,7 +1355,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           }
         }
       }
-    model = bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest);
+    model = await bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
       console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
@@ -1368,19 +1368,49 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         estimatedTokens,
         attempt
       }).catch(() => {});
-       
+
       // Check if fallback models are available
       const fallbackModels = bandit.getFallbackModels();
       if (fallbackModels.length > 0) {
-        const fallbackModel = fallbackModels[0];
-          if (fallbackTried.has(fallbackModel) || !bandit.isModelAvailable(fallbackModel)) {
-            console.error(`[FALLBACK] ${fallbackModel} non disponibile o già tentato → 503`);
-            cleanup();
-            return res.status(503).json({ error: { message: "No models available", status: 503 } });
+        let selectedFallbackModel = null;
+
+        // Iterate through ALL fallback models to find one that meets requirements
+        for (const fallbackModel of fallbackModels) {
+          // Skip if already tried
+          if (fallbackTried.has(fallbackModel)) {
+            continue;
           }
-          fallbackTried.add(fallbackModel);
-        console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${fallbackModel} due to no available models`);
-        model = fallbackModel;
+
+          // Check if model is available
+          if (!bandit.isModelAvailable(fallbackModel)) {
+            continue;
+          }
+
+          // Check if model supports tools when required
+          if (requireTools) {
+            const modelInfo = bandit.db.prepare(
+              `SELECT supports_tools FROM catalog WHERE id = ?`
+            ).get(fallbackModel);
+
+            if (!modelInfo || modelInfo.supports_tools !== 1) {
+              continue;
+            }
+          }
+
+          // Model passes all checks
+          selectedFallbackModel = fallbackModel;
+          break;
+        }
+
+        if (selectedFallbackModel) {
+          fallbackTried.add(selectedFallbackModel);
+          console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${selectedFallbackModel} due to no available models`);
+          model = selectedFallbackModel;
+        } else {
+          console.error(`[FALLBACK] Attempt ${attempt}: No suitable fallback models found (requireTools=${requireTools})`);
+          cleanup();
+          return res.status(503).json({ error: { message: "No models available", status: 503 } });
+        }
       } else {
         console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
         cleanup();
@@ -1483,7 +1513,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             }
           }
         }
-        
+
         // 400 / Context window exceeded: il modello non può gestire il contesto.
         // Rimuovi il pin per evitare di riprovare lo stesso modello al prossimo turno.
         if (r.status === 400 && /context window|input tokens.*exceed|too large.*context/i.test(txt)) {

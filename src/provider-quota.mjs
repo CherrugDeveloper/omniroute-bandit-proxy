@@ -25,16 +25,16 @@ class ProviderQuota {
         const providerRow = this.db.prepare(
             `SELECT calls_last_minute, calls_minute_started, calls_today, calls_today_date FROM provider_history WHERE provider = ?`
         ).get(provider);
-        
+
         if (!providerRow) return;
-        
+
         // Reset calls for the last minute if it's a new minute
         if (providerRow.calls_minute_started && now - providerRow.calls_minute_started > 60000) {
             this.db.prepare(
                 `UPDATE provider_history SET calls_last_minute = 0, calls_minute_started = ? WHERE provider = ?`
             ).run(now, provider);
         }
-        
+
         // Reset calls for the day if it's a new day
         if (providerRow.calls_today_date) {
             const today = new Date(now).toISOString().split('T')[0];
@@ -48,55 +48,51 @@ class ProviderQuota {
 
     canCall(provider) {
         this._rollWindows(provider);
-        
+
         const now = Date.now();
         const providerRow = this.db.prepare(
             `SELECT calls_last_minute, calls_today, quota_resets_at, quota_reason FROM provider_history WHERE provider = ?`
         ).get(provider);
-        
+
         if (!providerRow) return true;
-        
+
         const providerLimit = this.providerLimits[provider];
         if (!providerLimit) return true;
-        
+
         // Check if provider is currently in a quota reset
         if (providerRow.quota_resets_at && providerRow.quota_resets_at > now) {
             return false;
         }
-        
+
         // Check RPM limit
         if (providerRow.calls_last_minute >= providerLimit.rpm) {
             return false;
         }
-        
+
         // Check RPD limit
         if (providerRow.calls_today >= providerLimit.rpd) {
             return false;
         }
-        
+
         return true;
     }
 
     recordCall(provider) {
         this._rollWindows(provider);
-        
+
         const now = Date.now();
         const providerRow = this.db.prepare(
             `SELECT calls_last_minute, calls_minute_started, calls_today, calls_today_date FROM provider_history WHERE provider = ?`
         ).get(provider);
-        
+
         if (!providerRow) {
             this.db.prepare(
                 `INSERT INTO provider_history (provider, calls_last_minute, calls_minute_started, calls_today, calls_today_date) VALUES (?, 1, ?, 1, ?)`
             ).run(provider, now, new Date(now).toISOString().split('T')[0]);
         } else {
-            const updateStmt = this.db.prepare(
-                `UPDATE provider_history SET`
-            );
-            
             let updates = [];
             let params = [];
-            
+
             // Increment calls_last_minute and set calls_minute_started if not set
             if (providerRow.calls_minute_started && now - providerRow.calls_minute_started > 60000) {
                 updates.push("calls_last_minute = 1, calls_minute_started = ?");
@@ -104,7 +100,7 @@ class ProviderQuota {
             } else {
                 updates.push("calls_last_minute = calls_last_minute + 1");
             }
-            
+
             // Increment calls_today and set calls_today_date if not set
             const today = new Date(now).toISOString().split('T')[0];
             if (today !== providerRow.calls_today_date) {
@@ -113,9 +109,9 @@ class ProviderQuota {
             } else {
                 updates.push("calls_today = calls_today + 1");
             }
-            
+
             params.push(provider);
-            updateStmt.run(updates.join(", "), ...params);
+            this.db.prepare(`UPDATE provider_history SET ${updates.join(", ")} WHERE provider = ?`).run(...params);
         }
     }
 
@@ -130,7 +126,7 @@ class ProviderQuota {
         const providers = this.db.prepare(
             `SELECT provider, rpm_limit, rpd_limit, calls_last_minute, calls_minute_started, calls_today, calls_today_date, quota_resets_at, quota_reason FROM provider_history`
         ).all();
-        
+
         const result = [];
         for (const provider of providers) {
             const providerLimit = this.providerLimits[provider.provider];

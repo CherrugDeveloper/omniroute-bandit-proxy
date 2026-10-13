@@ -6,10 +6,19 @@ console.log("[TEST] getFallbackModels() result:");
 const fallbacks = bandit.getFallbackModels();
 console.log(JSON.stringify(fallbacks, null, 2));
 
-if (fallbacks.length === 2 && fallbacks[0] === "mistral/ministral-8b-latest" && fallbacks[1] === "groq/allam-2-7b") {
+const expectedFallbacks = [
+  "mistral/ministral-8b-latest",
+  "groq/allam-2-7b",
+  "mistral/mistral-small-latest",
+  "mistral/mistral-large-latest",
+  "groq/llama-3.3-70b-versatile",
+  "openrouter/gpt-oss-20b"
+];
+
+if (fallbacks.length === expectedFallbacks.length && fallbacks.every((f, i) => f === expectedFallbacks[i])) {
   console.log("\n✅ TEST PASSED: Fallback models loaded correctly from config");
 } else {
-  console.error("\n❌ TEST FAILED: Expected 2 fallback models, got", fallbacks);
+  console.error("\n❌ TEST FAILED: Expected", expectedFallbacks, "got", fallbacks);
   process.exit(1);
 }
 

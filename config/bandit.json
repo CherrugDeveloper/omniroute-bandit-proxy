@@ -1,6 +1,10 @@
 {
   "fallbackModels": [
     "mistral/ministral-8b-latest",
-    "groq/allam-2-7b"
+    "groq/allam-2-7b",
+    "mistral/mistral-small-latest",
+    "mistral/mistral-large-latest",
+    "groq/llama-3.3-70b-versatile",
+    "openrouter/gpt-oss-20b"
   ]
 }
