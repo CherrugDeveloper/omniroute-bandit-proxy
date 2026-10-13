@@ -358,16 +358,14 @@ auto_squash_duplicates() {
         return 0
     fi
 
-    # Create a todo script that marks duplicate commits with 'fixup'
-    local todo_script
-    todo_script=$(mktemp)
-
     # Get all commits in order (oldest first) for the rebase range
     local commit_list
     commit_list=$(git rev-list --reverse "${base_commit}..HEAD" 2>/dev/null)
 
     # Build the todo list: for each commit, if it's a duplicate (not the first occurrence), mark as fixup
     declare -A seen_subjects
+    local todo_script
+    todo_script=$(mktemp)
     while IFS= read -r hash; do
         [[ -z "$hash" ]] && continue
         local subj
@@ -383,7 +381,7 @@ auto_squash_duplicates() {
     done <<< "$commit_list"
 
     # Execute the rebase
-    if git_cmd "git rebase --interactive --autosquash \"$base_commit\" --todo-script \"$todo_script\""; then
+    if git_cmd "git rebase --interactive --autosquash \"$base_commit\""; then
         log_info "Auto-squash completed successfully"
         rm -f "$todo_script"
         return 0
