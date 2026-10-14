@@ -6,6 +6,7 @@ node_modules/
 
 # SQLite runtime
 bandit.db
+omniroute.db
 bandit.db-journal
 bandit.db-shm
 bandit.db-wal

@@ -6,9 +6,8 @@
   "scripts": {
     "start": "node src/index.mjs",
     "dev": "node --watch src/index.mjs",
-    "check": "node --check src/index.mjs && node --check src/bandit.mjs && node --check scripts/auto-git.mjs",
-    "auto-git": "node scripts/auto-git.mjs",
-    "test": "node --check scripts/auto-git.mjs && node --test tests/*.test.mjs __tests__/*.test.mjs"
+    "check": "node --check src/index.mjs && node --check src/bandit.mjs",
+    "test": "node --test tests/*.test.mjs __tests__/*.test.mjs"
   },
   "type": "module",
   "dependencies": {

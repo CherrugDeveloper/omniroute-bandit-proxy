@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { profileMultiplier } from './modes-registry.mjs';
+import { sanitizeBaseUrl, buildEndpointUrl } from './health-check.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -101,7 +102,9 @@ export class DiscountedUCB1Bandit {
         CREATE TABLE IF NOT EXISTS request_logs (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           started_at REAL,
-          ended_at REAL
+          ended_at REAL,
+          status_code INTEGER,
+          error_message TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
@@ -175,6 +178,28 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_tools INTEGER DEFAULT 0`);
         } catch (err) {
           console.error("[BANDIT] Errore aggiunta colonna supports_tools:", err.message);
+          throw err;
+        }
+      }
+
+      const requestLogsColumns = this.db.pragma("table_info(request_logs)");
+      const hasStatusCode = requestLogsColumns.some(col => col.name === "status_code");
+      if (!hasStatusCode) {
+        console.log("[BANDIT] Migrazione: aggiungo status_code a request_logs");
+        try {
+          this.db.exec(`ALTER TABLE request_logs ADD COLUMN status_code INTEGER`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna status_code:", err.message);
+          throw err;
+        }
+      }
+      const hasErrorMessage = requestLogsColumns.some(col => col.name === "error_message");
+      if (!hasErrorMessage) {
+        console.log("[BANDIT] Migrazione: aggiungo error_message a request_logs");
+        try {
+          this.db.exec(`ALTER TABLE request_logs ADD COLUMN error_message TEXT`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna error_message:", err.message);
           throw err;
         }
       }
@@ -318,15 +343,22 @@ export class DiscountedUCB1Bandit {
     this.db.prepare("INSERT INTO request_logs (started_at) VALUES (?)").run(Date.now());
   }
 
+  recordRequestError(statusCode, errorMessage = null) {
+    this.db.prepare(
+      "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+    ).run(Date.now(), statusCode, errorMessage);
+  }
+
   async fetchAndSyncModels() {
     try {
       const apiKey = process.env.OMNIROUTE_API_KEY || "";
-      const baseUrl = process.env.OMNIROUTE_BASE_URL || "https://router.omniroute.ai/v1";
+      const baseUrl = sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "https://router.omniroute.ai/v1");
+      const modelsUrl = buildEndpointUrl(baseUrl, "/models");
 
       const headers = {};
       if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
-      const res = await fetch(`${baseUrl}/models`, { headers });
+      const res = await fetch(modelsUrl, { headers });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: Impossibile recuperare i modelli da OmniRoute`);
       }
@@ -693,13 +725,20 @@ export class DiscountedUCB1Bandit {
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0
            WHERE id = ?`
         ).run(reward, modelId);
-        this.db.prepare("UPDATE request_logs SET ended_at = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1").run(Date.now());
+        this.db.prepare(
+          "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+        ).run(Date.now(), 200, null);
         this._lastReward.set(modelId, reward);
       } else {
         this.db.prepare(
           `UPDATE models SET fails = fails + 1, last_used_index = last_used_index + 1
            WHERE id = ?`
         ).run(modelId);
+        const statusCode = errorDetails?.status || 500;
+        const errorMessage = errorDetails?.message || errorDetails?.error || String(errorDetails) || "Unknown error";
+        this.db.prepare(
+          "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+        ).run(Date.now(), statusCode, errorMessage);
       }
     });
     tx();

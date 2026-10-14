@@ -7,10 +7,44 @@
 // Silenzioso: log solo su avvio, riabilitazioni ed errori critici.
 // ============================================================
 
+export function sanitizeBaseUrl(urlStr, defaultUrl = "http://127.0.0.1:20128/v1") {
+  const fallback = (defaultUrl || "http://127.0.0.1:20128/v1").trim().replace(/\/+$/, "");
+  if (!urlStr || typeof urlStr !== "string") {
+    return fallback;
+  }
+  const trimmed = urlStr.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return fallback;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.toString().replace(/\/+$/, "");
+  } catch (err) {
+    console.error(`[CONFIG] Invalid base URL "${urlStr}": ${err.message}. Falling back to "${fallback}"`);
+    try {
+      return new URL(fallback).toString().replace(/\/+$/, "");
+    } catch {
+      return fallback;
+    }
+  }
+}
+
+export function buildEndpointUrl(baseUrl, endpointPath = "/chat/completions") {
+  const sanitizedBase = sanitizeBaseUrl(baseUrl);
+  const cleanPath = endpointPath.startsWith("/") ? endpointPath : `/${endpointPath}`;
+  const fullUrl = `${sanitizedBase}${cleanPath}`;
+  try {
+    const url = new URL(fullUrl);
+    return url.toString();
+  } catch (err) {
+    throw new Error(`[CONFIG] Failed to construct valid URL from base "${baseUrl}" and path "${endpointPath}": ${err.message}`);
+  }
+}
+
 export class HealthChecker {
   constructor(bandit, options = {}) {
     this.bandit = bandit;
-    this.baseUrl = options.baseUrl || "http://127.0.0.1:20128/v1";
+    this.baseUrl = sanitizeBaseUrl(options.baseUrl, "http://127.0.0.1:20128/v1");
     this.apiKey = options.apiKey || "";
     this.intervalMs = options.intervalMs || 600000;
     this.batchSize = options.batchSize || 20;
@@ -121,7 +155,7 @@ export class HealthChecker {
   async _probe(modelId) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    const url = `${this.baseUrl}/chat/completions`;
+    const url = buildEndpointUrl(this.baseUrl, "/chat/completions");
 
     try {
       const headers = { "Content-Type": "application/json" };

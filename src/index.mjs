@@ -8,7 +8,7 @@ import "dotenv/config";
 import path from "path";
 import { fileURLToPath } from "url";
 import { DiscountedUCB1Bandit } from "./bandit.mjs";
-import { HealthChecker } from "./health-check.mjs";
+import { HealthChecker, sanitizeBaseUrl, buildEndpointUrl } from "./health-check.mjs";
 import { Notifier } from "./notifier.mjs";
 import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered } from './modes-registry.mjs';
 import fs from "node:fs";
@@ -313,7 +313,7 @@ bandit.notifier = notifier;
 
 const PORT = process.env.PORT || 8080;
 const healthChecker = new HealthChecker(bandit, {
-  baseUrl: process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128/v1",
+  baseUrl: sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "http://127.0.0.1:20128/v1"),
   apiKey: process.env.OMNIROUTE_API_KEY || "",
   intervalMs: parseInt(process.env.HEALTH_CHECK_INTERVAL_MS || "300000", 10),
   batchSize: parseInt(process.env.HEALTH_CHECK_BATCH_SIZE || "20", 10),
@@ -1023,7 +1023,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // Cleanup a fine richiesta (success, error, disconnect)
   res.once("finish", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
   res.once("close", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
-  const baseUrl = process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128/v1";
+  const baseUrl = sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "http://127.0.0.1:20128/v1");
   const apiKey = process.env.OMNIROUTE_API_KEY;
 
   bandit.recordRequest(); // +1 per ogni richiesta ricevuta
@@ -1262,6 +1262,9 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
   let retriesExhausted = false;
   while (++attempt <= maxAttempts) {
+    if (attempt >= maxAttempts) {
+      retriesExhausted = true;
+    }
     if (clientDisconnected) {
       console.log(`[BANDIT] Client disconnesso, stop retry (dopo ${attempt - 1} tentativi)`);
       cleanup();
@@ -1269,7 +1272,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
 
     // Trigger fallback if retries are exhausted for felo/* models
-    if (retriesExhausted && model.startsWith('felo/')) {
+    if (retriesExhausted && model?.startsWith('felo/')) {
       const fallbackModels = bandit.getFallbackModels();
       if (fallbackModels.length > 0) {
         const fallbackModel = fallbackModels[0];
@@ -1380,7 +1383,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
 }
     if (!model) {
-      console.warn(`[BANDIT] Attempt ${attempt}: No available models (requireTools=${requireTools}, tokens=${estimatedTokens})`);
+      console.warn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, tokens=${estimatedTokens}, excluded=${excluded.size})`);
       notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
         estimatedTokens,
         attempt
@@ -1395,11 +1398,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         for (const fallbackModel of fallbackModels) {
           // Skip if already tried
           if (fallbackTried.has(fallbackModel)) {
+            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: already tried`);
             continue;
           }
 
           // Check if model is available
           if (!bandit.isModelAvailable(fallbackModel)) {
+            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: not available in catalog/status`);
             continue;
           }
 
@@ -1410,6 +1415,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             ).get(fallbackModel);
 
             if (!modelInfo || modelInfo.supports_tools !== 1) {
+              console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: does not support tools (required)`);
               continue;
             }
           }
@@ -1421,17 +1427,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
         if (selectedFallbackModel) {
           fallbackTried.add(selectedFallbackModel);
-          console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${selectedFallbackModel} due to no available models`);
+          console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${selectedFallbackModel} due to no available models (filtering exhausted all models)`);
           model = selectedFallbackModel;
         } else {
-          console.error(`[FALLBACK] Attempt ${attempt}: No suitable fallback models found (requireTools=${requireTools})`);
+          console.error(`[FALLBACK] Attempt ${attempt}: All fallback options are exhausted / no suitable fallback models found (requireTools=${requireTools}, tried=${Array.from(fallbackTried).join(', ')})`);
           cleanup();
-          return res.status(503).json({ error: { message: "No models available", status: 503 } });
+          return res.status(503).json({ error: { message: "No models available (filtering exhausted all models, fallback options exhausted)", status: 503 } });
         }
       } else {
-        console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
+        console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured (no models available, filtering exhausted all models)`);
         cleanup();
-        return res.status(503).json({ error: { message: "No models available", status: 503 } });
+        return res.status(503).json({ error: { message: "No models available (no fallback models configured)", status: 503 } });
       }
     }
 
@@ -1493,7 +1499,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const headers = { "Content-Type": "application/json" };
       if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-      const r = await fetch(`${baseUrl}/chat/completions`, {
+      const endpointUrl = buildEndpointUrl(baseUrl, "/chat/completions");
+      const r = await fetch(endpointUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({ ...requestBody, model, stream: !!stream }),
@@ -1545,7 +1552,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         }
 
         // Exponential backoff for 429 errors (only for felo/* models)
-            if (r.status === 429 && model.startsWith('felo/')) {
+            if (r.status === 429 && model?.startsWith('felo/')) {
               const baseDelay = Math.max(retryAfter, retryDelay);
               const exponentialFactor = Math.pow(2, attempt - 1);
               retryDelay = Math.min(baseDelay * exponentialFactor, 60000); // Cap at 60 seconds
