@@ -279,7 +279,9 @@ app.use((req, res, next) => {
       const suppressed = dashboardStatsLogState.suppressed;
       dashboardStatsLogState.lastLogAt = now;
       dashboardStatsLogState.suppressed = 0;
-      console.log(`[DASHBOARD_STATS_DEBUG] isApi=${isApi}, isPolling=${isPolling}, condition=${isApi && !isPolling}${suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""}`);
+      if (debugVerbose || process.env.DASHBOARD_STATS_DEBUG === 'true') {
+        console.log(`[DASHBOARD_STATS_DEBUG] isApi=${isApi}, isPolling=${isPolling}, condition=${isApi && !isPolling}${suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""}`);
+      }
     } else {
       dashboardStatsLogState.suppressed++;
     }
@@ -712,7 +714,7 @@ let modelsLogState = { lastLogAt: 0, suppressed: 0 };
 // Throttling per i log di /v1/dashboard/stats: la dashboard lo polla frequentemente.
 // Logga solo una riga di riepilogo ogni DASHBOARD_STATS_LOG_INTERVAL_MS (default 60s)
 // e porta il conteggio delle chiamate throttlellate.
-const DASHBOARD_STATS_LOG_INTERVAL_MS = parseInt(process.env.DASHBOARD_STATS_LOG_INTERVAL_MS || "60000", 10);
+const DASHBOARD_STATS_LOG_INTERVAL_MS = parseInt(process.env.DASHBOARD_STATS_LOG_INTERVAL_MS || "600000", 10);
 let dashboardStatsLogState = { lastLogAt: 0, suppressed: 0 };
 
 app.get("/v1/models", requireAuth, (req, res) => {
@@ -1117,16 +1119,19 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
     // Salta l'ultimo messaggio con environment_details
     if (/<environment_details>/i.test(c) && /Current Time/i.test(c)) continue;
-      if (/edit unsuccessful|no sufficiently similar|repetition limit|unable to apply all diff|apply_diff.{0,50}(fail|error|unsuccessful)/i.test(c)) {
+    if (/edit unsuccessful|no sufficiently similar|repetition limit|unable to apply all diff|apply_diff.{0,50}(fail|error|unsuccessful)/i.test(c)) {
       isStruggling = true; strugglingReason = 'apply_diff fail'; break;
     }
-    if (/tool (execution )?failed|tool.{0,20}(error|abort)/i.test(c)) {
-      isStruggling = true; strugglingReason = 'tool failed'; break;
+    const isToolMessage = m.role === 'tool' || m.role === 'function' || m.tool_call_id || m.name === 'tool';
+    if (isToolMessage) {
+      if (/tool (execution )?failed|tool.{0,20}(error|abort)|"status"\s*:\s*"(error|failed)"|"is_error"\s*:\s*true/i.test(c)) {
+        isStruggling = true; strugglingReason = 'tool failed'; break;
+      }
     }
-    if (/<error>[\s\S]{0,300}<\/(error|tool_result)>/i.test(c)) {
+    if (/<error>[\s\S]{0,300}<\/(error|tool_result)>/i.test(c) && (isToolMessage || /tool_result|tool_call/i.test(c))) {
       isStruggling = true; strugglingReason = 'tool error'; break;
     }
-    if (/"status"\s*:\s*"error"/i.test(c)) {
+    if (/"status"\s*:\s*"error"/i.test(c) && (isToolMessage || /tool_result/i.test(c))) {
       isStruggling = true; strugglingReason = 'status error'; break;
     }
   }

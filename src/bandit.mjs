@@ -821,9 +821,14 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs };
     }
 
-    // 429 with model_cooldown code -> cooldown-model
-    if (is429 && errorDetails.code === "model_cooldown") {
-      return { action: "cooldown-model", scope: "model", reason: "rate-limit", cooldownMs: 0 };
+    // 429 with model_cooldown code or cooling down -> cooldown-model
+    if ((is429 && errorDetails.code === "model_cooldown") || /cooling down|model_cooldown/i.test(message)) {
+      let cooldownMs = this._parseResetAfter(message, errorDetails);
+      if (!cooldownMs || cooldownMs <= 0) {
+        const retryAfter = errorDetails.retryAfter || errorDetails.retry_after || errorDetails.reset_seconds || 0;
+        cooldownMs = retryAfter > 0 ? retryAfter * 1000 : 30000;
+      }
+      return { action: "cooldown-model", scope: "model", reason: "rate-limit", cooldownMs };
     }
 
     // Check for permanent ban indicators (even if status is 403 or 429)

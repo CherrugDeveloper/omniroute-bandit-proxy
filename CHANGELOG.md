@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.3 — 2026-10-14
+- **Changelog & Script Cleanup**: Cleaned up temporary test scripts, artifacts, and unused auto-git helper scripts.
+- **Workflow Automation**: Refactored automation and utility scripts for robust git workflows.
+
 ## v1.0.12 — 2026-10-10
 - Dashboard: filtri tab Modelli (provider, stato, N≥, avg≥, search)
 - Dashboard: nuovo tab Train (mirror su models_train)
