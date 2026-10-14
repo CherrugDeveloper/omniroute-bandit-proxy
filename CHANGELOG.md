@@ -2,6 +2,9 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.4 — 2026-10-14
+- **Codebase Cleanup**: Removed temporary test files, leftover script output artifacts, and obsolete utility scripts to maintain a clean workspace.
+
 ## v1.1.3 — 2026-10-14
 - **Changelog & Script Cleanup**: Cleaned up temporary test scripts, artifacts, and unused auto-git helper scripts.
 - **Workflow Automation**: Refactored automation and utility scripts for robust git workflows.
@@ -21,7 +24,7 @@ Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 - **HTTP 429 Rate Limit Handling**:
   - **Summary**: Implemented robust retry logic with exponential backoff to handle HTTP 429 rate limit errors. Added fallback mechanisms to alternative models (e.g., `mistral/ministral-8b-latest`, `groq/allam-2-7b`) and updated the Bandit algorithm to penalize or ban models that repeatedly hit rate limits.
   - **Changes Made**:
-    - Retry logic with exponential backoff in `src/bandit.mjs` and `src/index.mjs`.
+    - Retry logic with exponential backoff in [`src/bandit.mjs`](src/bandit.mjs:1) and [`src/index.mjs`](src/index.mjs:1).
     - Fallback mechanism to switch to alternative models.
     - Bandit algorithm updates to penalize or ban models that repeatedly hit rate limits.
     - Parsing and using `Retry-After` headers for API compliance.
@@ -97,9 +100,3 @@ Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 - Training daemon con priorità Zoo
 - Esclusione FIM, audio, non-chat
 - Notifier webhook (Slack/Discord/Telegram)
-
-## v0.8.0 — 2026-10-02
-- Discriminated UCB1 con reward basato su latenza
-- Catalog sync automatico
-- Provider history con `needs_attention`
-- Badge stato (attivo, cooldown, degraded, bannato)

@@ -116,21 +116,20 @@
             display: flex;
             flex-direction: column;
         }
-        /* La tab Modalità scrolla internamente se il contenuto è troppo */
-        #tab-modes.active {
+        /* La tab Modalità e Script Manager scrollano internamente se il contenuto è troppo */
+        #tab-modes.active, #tab-scripts.active {
             overflow-y: auto;
             overflow-x: hidden;
             scrollbar-width: none;
             min-height: 0;
         }
-        #tab-modes.active::-webkit-scrollbar { display: none; }
-        /* La tab Modalità scrolla internamente se il contenuto è troppo */
-        #tab-modes {
+        #tab-modes.active::-webkit-scrollbar, #tab-scripts.active::-webkit-scrollbar { display: none; }
+        #tab-modes, #tab-scripts {
             overflow-y: auto;
             overflow-x: hidden;
             scrollbar-width: none;
         }
-        #tab-modes::-webkit-scrollbar { display: none; }
+        #tab-modes::-webkit-scrollbar, #tab-scripts::-webkit-scrollbar { display: none; }
         .filter-bar {
             margin-bottom: 10px;
             display: flex;
@@ -198,19 +197,30 @@
         .badge-degraded { background: #db6d28; color: white; }
 
         .btn {
-            padding: 4px 8px;
-            border-radius: 4px;
-            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 12px;
+            font-weight: 500;
             font-family: inherit;
-            color: white;
+            color: #c9d1d9;
+            background: #21262d;
+            transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
         }
-        .btn-reset { background: #da3633; }
-        .btn-copy { background: #238636; }
-        .btn-block { background: #6e40c9; }
-        .btn-block:hover { background: #8957e5; }
-        .btn-info { background: #a371f7; }
+        .btn:hover {
+            background: #30363d;
+            border-color: #8b949e;
+            color: #ffffff;
+        }
+        .btn-reset { background: #da3633; border-color: #f85149; color: white; }
+        .btn-reset:hover { background: #b62324; border-color: #ff7b72; color: white; }
+        .btn-copy { background: #238636; border-color: #2ea043; color: white; }
+        .btn-copy:hover { background: #2ea043; border-color: #56d364; color: white; }
+        .btn-block { background: #6e40c9; border-color: #8957e5; color: white; }
+        .btn-block:hover { background: #8957e5; border-color: #a371f7; color: white; }
+        .btn-info { background: #1f6feb; border-color: #388bfd; color: white; }
+        .btn-info:hover { background: #388bfd; border-color: #58a6ff; color: white; }
         /* ===== MODALI CUSTOM ===== */
         .modal-overlay {
             position: fixed;
@@ -738,23 +748,23 @@
                 <span id="free-active" class="attention">—</span> free attivi
             </div>
 
-            <div class="stats" title="Modelli attivi / monitorati / totale catalogo">
+            <div class="stats" title="Stato Modelli (Attivi / Cooldown / Degradati / Bannati / Da Config su Monitorati e Catalogo)">
                 <strong>Modelli:</strong>
-                <span id="active-models" class="ok">0</span> attivi /
-                <span id="cooldown-models" class="warn">0</span> cool /
-                <span id="banned-models" class="err">0</span> bannati /
-                <span id="degraded-models" class="degraded">0</span> degraded /
-                <span id="attention-models" class="attention">0</span> da config
-                <span class="muted">(su <span id="total-models">0</span> monitorati, <span id="catalog-models">0</span> in catalogo di cui <span id="catalog-free" class="attention">0</span> free, su <span id="catalog-models-raw">0</span> totali)</span>
-             </div>
+                <span id="active-models" class="ok">0</span> attivi |
+                <span id="cooldown-models" class="warn">0</span> cool |
+                <span id="banned-models" class="err">0</span> bannati |
+                <span id="degraded-models" class="degraded">0</span> degraded |
+                <span id="attention-models" class="attention">0</span> config
+                <span class="muted">(Monitorati: <span id="total-models">0</span> | Chat Catalogo: <span id="catalog-models">0</span>, Free: <span id="catalog-free" class="attention">0</span>, Totali Grezzi: <span id="catalog-models-raw">0</span>)</span>
+            </div>
 
-            <div class="stats" title="Provider attivi / monitorati / totale catalogo">
+            <div class="stats" title="Stato Provider (Attivi / Cooldown / Bannati / Da Config su Monitorati e Catalogo)">
                 <strong>Provider:</strong>
-                <span id="active-providers" class="ok">0</span> attivi /
-                <span id="cooldown-providers" class="warn">0</span> cool /
-                <span id="banned-providers" class="err">0</span> bannati /
-                <span id="attention-providers" class="attention">0</span> da config
-                <span class="muted">(su <span id="total-providers">0</span> monitorati, <span id="catalog-providers">0</span> in catalogo)</span>
+                <span id="active-providers" class="ok">0</span> attivi |
+                <span id="cooldown-providers" class="warn">0</span> cool |
+                <span id="banned-providers" class="err">0</span> bannati |
+                <span id="attention-providers" class="attention">0</span> config
+                <span class="muted">(Monitorati: <span id="total-providers">0</span> | Catalogo: <span id="catalog-providers">0</span>)</span>
             </div>
         </div>
 
@@ -826,13 +836,6 @@
             <input type="number" class="filter-input" id="models-filter-minAvg" min="0" step="0.05" placeholder="avg ≥" value="0" style="width:70px">
             <button id="models-reset-filters" class="btn">Reset filtri</button>
         </div>
-        <div class="counter-bar" id="models-counters">
-            <span>Totale: <b id="models-count-total">0</b></span>
-            <span>Attivi: <b id="models-count-active">0</b></span>
-            <span>Cooldown: <b id="models-count-cooldown">0</b></span>
-            <span>Degradati: <b id="models-count-degraded">0</b></span>
-            <span>Bannati: <b id="models-count-banned">0</b></span>
-        </div>
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -871,13 +874,6 @@
             <input type="number" class="filter-input" id="models-filter-minN-train" min="0" step="1" placeholder="N ≥" value="0" style="width:70px">
             <input type="number" class="filter-input" id="models-filter-minAvg-train" min="0" step="0.05" placeholder="avg ≥" value="0" style="width:70px">
             <button id="models-reset-filters-train" class="btn">Reset filtri</button>
-        </div>
-        <div class="counter-bar" id="train-counters">
-            <span>Totale: <b id="train-count-total">0</b></span>
-            <span>Attivi: <b id="train-count-active">0</b></span>
-            <span>Cooldown: <b id="train-count-cooldown">0</b></span>
-            <span>Degradati: <b id="train-count-degraded">0</b></span>
-            <span>Bannati: <b id="train-count-banned">0</b></span>
         </div>
         <div class="table-wrapper">
             <table>
@@ -1405,16 +1401,17 @@
             const minAvg = parseFloat(document.getElementById('models-filter-minAvg').value) || 0;
             
             // Fetch models and summary
-            fetch('/v1/models?source=prod&provider=' + encodeURIComponent(provider) +
+            apiFetch('/v1/models?source=prod&provider=' + encodeURIComponent(provider) +
                   '&status=' + encodeURIComponent(status) +
                   '&minN=' + minN +
                   '&minAvg=' + minAvg +
                   '&search=' + encodeURIComponent(search) +
                   '&limit=500')
                 .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
-                .then(models => {
+                .then(data => {
+                    const models = Array.isArray(data) ? data : (data.models || []);
                     // Fetch summary
-                    return fetch('/v1/models/summary?source=prod')
+                    return apiFetch('/v1/models/summary?source=prod')
                         .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
                         .then(summary => ({models, summary}));
                 })
@@ -1566,16 +1563,17 @@
             const minAvg = parseFloat(document.getElementById('models-filter-minAvg-train').value) || 0;
             
             // Fetch models and summary
-            fetch('/v1/models?source=train&provider=' + encodeURIComponent(provider) +
+            apiFetch('/v1/models?source=train&provider=' + encodeURIComponent(provider) +
                   '&status=' + encodeURIComponent(status) +
                   '&minN=' + minN +
                   '&minAvg=' + minAvg +
                   '&search=' + encodeURIComponent(search) +
                   '&limit=500')
                 .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
-                .then(models => {
+                .then(data => {
+                    const models = Array.isArray(data) ? data : (data.models || []);
                     // Fetch summary
-                    return fetch('/v1/models/summary?source=train')
+                    return apiFetch('/v1/models/summary?source=train')
                         .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
                         .then(summary => ({models, summary}));
                 })
@@ -1834,13 +1832,6 @@
         }
 
         async function resetCounters() {
-            const ok = await showConfirm('Vuoi resettare i contatori globali?\n\nVerranno azzerati Richieste e Osservazioni.\nNon tocca modelli né provider.', {
-                title: 'Reset contatori',
-                icon: '🔄',
-                confirmText: 'Resetta',
-                danger: true
-            });
-            if (!ok) return;
             await apiFetch('/v1/reset/counters', { method: 'POST' });
             refreshAll();
         }
@@ -2094,7 +2085,21 @@
 
                 document.getElementById('catalog-models').textContent = d.catalogTotal ?? '?';
                 document.getElementById('catalog-free').textContent = d.catalogFree ?? '?';
-                document.getElementById('catalog-models-raw').textContent = '?';
+                document.getElementById('catalog-models-raw').textContent = d.catalogTotal ?? '?';
+
+                document.getElementById('active-models').textContent = d.modelsActive ?? 0;
+                document.getElementById('cooldown-models').textContent = d.modelsCooldown ?? 0;
+                document.getElementById('banned-models').textContent = d.modelsBanned ?? 0;
+                document.getElementById('degraded-models').textContent = d.modelsDegraded ?? 0;
+                document.getElementById('attention-models').textContent = d.modelsAttention ?? 0;
+                document.getElementById('total-models').textContent = d.totalModels ?? 0;
+
+                document.getElementById('active-providers').textContent = d.providersActive ?? 0;
+                document.getElementById('cooldown-providers').textContent = d.providersCooldown ?? 0;
+                document.getElementById('banned-providers').textContent = d.providersBanned ?? 0;
+                document.getElementById('attention-providers').textContent = d.providersAttention ?? 0;
+                document.getElementById('total-providers').textContent = d.totalProviders ?? 0;
+                document.getElementById('catalog-providers').textContent = d.catalogProviders ?? 0;
 
                 renderAll();
             } catch (e) { console.error('Errore fetch:', e); }
@@ -2364,10 +2369,10 @@
         fetchLogs();
         fetchActive();
         fetchQuota();
-        setInterval(refreshAll, 5000);
-        setInterval(fetchLogs, 5000);
-        setInterval(fetchActive, 5000);
-        setInterval(fetchQuota, 60000);
+        setInterval(refreshAll, 2000);
+        setInterval(fetchLogs, 2000);
+        setInterval(fetchActive, 1000);
+        setInterval(fetchQuota, 30000);
         document.addEventListener('DOMContentLoaded', () => {
             const fab = document.getElementById('dev-fab');
             const menu = document.getElementById('dev-menu');

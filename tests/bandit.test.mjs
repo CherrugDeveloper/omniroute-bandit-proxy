@@ -352,3 +352,48 @@ test("_classifyError: distinguishes permanent bans from transient rate limits", 
   assert.equal(c2.reason, "quota-exhausted");
   b.close();
 });
+
+test("_classifyError: non-resetting key/quota limits -> ban-provider or 24h cooldown", () => {
+  const b = makeBandit();
+  // Non-resetting key/quota limit
+  const c1 = b._classifyError({ status: 403, message: "Key limit exceeded and does not reset" });
+  assert.equal(c1.action, "ban-provider");
+  assert.equal(c1.reason, "quota-exhausted");
+
+  // Key limit exceeded without reset time -> 24h cooldown
+  const c2 = b._classifyError({ status: 403, message: "Key limit exceeded (total limit reached)" });
+  assert.equal(c2.action, "cooldown-provider");
+  assert.equal(c2.reason, "key-limit-exceeded");
+  assert.equal(c2.cooldownMs, 24 * 3600 * 1000);
+
+  // Key limit exceeded with valid reset time
+  const c3 = b._classifyError({ status: 403, message: "Key limit exceeded (reset after 10m)" });
+  assert.equal(c3.action, "cooldown-provider");
+  assert.equal(c3.reason, "key-limit-exceeded");
+  assert.equal(c3.cooldownMs, 10 * 60 * 1000);
+  b.close();
+});
+
+test("_classifyError: sandbox, missing binary, and environment configuration errors", () => {
+  const b = makeBandit();
+  // CLI / binary not found (provider-level) -> ban-provider
+  const c1 = b._classifyError({ status: 502, message: "CLI not found or command not found: zcode" });
+  assert.equal(c1.action, "ban-provider");
+  assert.equal(c1.reason, "provider-misconfigured");
+
+  // Spawn ENOENT error -> ban-model or ban-provider
+  const c2 = b._classifyError({ status: 500, message: "spawn zcode ENOENT" });
+  assert.equal(c2.action, "ban-model");
+  assert.equal(c2.reason, "environment-error");
+
+  // Playwright / browser executable doesn't exist
+  const c3 = b._classifyError({ status: 500, message: "Executable doesn't exist at /path/to/chrome" });
+  assert.equal(c3.action, "ban-model");
+  assert.equal(c3.reason, "environment-error");
+
+  // Sandbox path / configuration errors
+  const c4 = b._classifyError({ status: 502, message: "bridge sandbox transport is not configured" });
+  assert.equal(c4.action, "ban-provider");
+  assert.equal(c4.reason, "provider-misconfigured");
+  b.close();
+});

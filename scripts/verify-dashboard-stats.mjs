@@ -31,7 +31,10 @@ async function main() {
   // Validate required fields exist and are of correct type
   const requiredDashboardFields = [
     'totalRequests', 'totalObservations', 'avgReward', 'avgLatencySec',
-    'freeActive', 'catalogTotal', 'catalogFree', 'totalModels', 'successRate'
+    'freeActive', 'catalogTotal', 'catalogFree', 'totalModels', 'successRate',
+    'modelsActive', 'modelsCooldown', 'modelsBanned', 'modelsDegraded', 'modelsAttention',
+    'providersActive', 'providersCooldown', 'providersBanned', 'providersAttention',
+    'totalProviders', 'catalogProviders'
   ];
 
   for (const field of requiredDashboardFields) {

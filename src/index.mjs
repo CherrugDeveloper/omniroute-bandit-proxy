@@ -365,6 +365,11 @@ class RingBuffer {
     }
     return [...this.buffer.slice(this.index), ...this.buffer.slice(0, this.index)];
   }
+
+  clear() {
+    this.buffer = [];
+    this.index = 0;
+  }
 }
 
 const logBuffer = new RingBuffer(200);
@@ -843,6 +848,7 @@ app.post("/v1/block/model/:id", requireAuth, (req, res) => {
 app.post("/v1/reset/counters", requireAuth, (req, res) => {
   try {
     bandit.resetGlobalCounters();
+    recentRequests.clear();
     res.json({ ok: true });
   } catch (e) {
     console.error("[API] Errore reset counters:", e.message);
@@ -930,7 +936,6 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
     }
 
     // Esecuzione dello script
-    const spawn = require("child_process").spawn;
     const isShell = absolutePath.endsWith('.sh');
 
     let command, options;

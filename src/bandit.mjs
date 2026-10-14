@@ -385,27 +385,40 @@ export class DiscountedUCB1Bandit {
       };
 
       const isChatModel = (m, id) => {
-        if (!m || typeof m !== "object") return true;
+        const lowerId = String(id).toLowerCase();
 
-        if (m.type && !["chat", "text"].includes(String(m.type).toLowerCase())) {
-          return false;
-        }
-
-        const outputs = m.output_modalities;
-        if (Array.isArray(outputs)) {
-          if (outputs.length !== 1 || String(outputs[0]).toLowerCase() !== "text") {
+        // Check explicit object properties / modalities / architecture
+        if (m && typeof m === "object") {
+          if (m.type && !["chat", "text"].includes(String(m.type).toLowerCase())) {
             return false;
+          }
+          if (Array.isArray(m.output_modalities)) {
+            const hasTextOut = m.output_modalities.some(mod => String(mod).toLowerCase() === "text");
+            if (!hasTextOut) return false;
+          }
+          if (Array.isArray(m.input_modalities)) {
+            // If input modalities are explicitly given and don't include text/image/audio appropriately, or if it's strictly audio/image without text support
+            const hasTextIn = m.input_modalities.some(mod => ["text", "image", "vision"].includes(String(mod).toLowerCase()));
+            const isAudioOnly = m.input_modalities.length === 1 && String(m.input_modalities[0]).toLowerCase() === "audio";
+            if (isAudioOnly && !lowerId.includes("multimodal") && !lowerId.includes("omni")) {
+              return false;
+            }
+          }
+          // Architecture check if present
+          if (m.architecture && typeof m.architecture === "object") {
+            const archModality = String(m.architecture.modality || "").toLowerCase();
+            if (archModality && archModality !== "text->text" && archModality !== "multimodal" && archModality !== "text" && !archModality.includes("text")) {
+              return false;
+            }
           }
         }
 
-        const lower = String(id).toLowerCase();
-        if (/:batch\b/.test(lower)) return false;
-        if (/(^|[-_/])tts([-_/]|$)|text-to-speech/.test(lower)) return false;
-        if (/(^|[-_/])audio([-_/]|$)|speech/.test(lower)) return false;
-        if (/(^|[-_/])image([-_/]|$)|dall-e|midjourney|stable-diffusion/.test(lower)) return false;
-        if (/(^|[-_/])embed([-_/]|$)/.test(lower)) return false;
-        if (/(^|[-_/])whisper([-_/]|$)/.test(lower)) return false;
-        if (/(^|[-_/])music([-_/]|$)|lyria|suno|udio/.test(lower)) return false;
+        // Strict name/id pattern exclusions for non-text models (audio-only, vision-only, speech, tts, embeddings, images, transcription, etc.)
+        if (/:batch\b/.test(lowerId)) return false;
+        if (/(^|[-_/])(tts|text-to-speech|speech-to-text|stt|whisper|transcribe|asr)([-_/]|$)/.test(lowerId)) return false;
+        if (/(^|[-_/])(audio|voice|sound|music|lyria|suno|udio)([-_/]|$)/.test(lowerId) && !lowerId.includes("omni") && !lowerId.includes("multimodal")) return false;
+        if (/(^|[-_/])(image|img|vision|photo|picture|dall-e|midjourney|stable-diffusion|flux)([-_/]|$)/.test(lowerId) && !lowerId.includes("multimodal") && !lowerId.includes("omni") && !lowerId.includes("vision") && !lowerId.includes("gpt-4o") && !lowerId.includes("claude-3")) return false;
+        if (/(^|[-_/])(embed|embedding|embeddings|rerank|moderation)([-_/]|$)/.test(lowerId)) return false;
 
         return true;
       };
@@ -794,31 +807,38 @@ export class DiscountedUCB1Bandit {
     if (status === 502 && /No auth provided|Please log in/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured" };
     }
+    // Sandbox, Missing Binary, and Environment Configuration Errors across status codes
+    if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured/i.test(message)) {
+      const isProviderLevel = /CLI not found|command not found|bridge sandbox|transport is not configured/i.test(message);
+      if (isProviderLevel) {
+        return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+      } else {
+        return { action: "ban-model", scope: "model", reason: "environment-error" };
+      }
+    }
     // Playwright not available -> flag-provider
     if (status === 502 && /Playwright is not available/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured" };
     }
     // CLI / binario mancante o non configurato -> flag-provider
-    if (status === 502 && /CLI not found|is not configured|missing url or token|transport is not configured|command not found/i.test(message)) {
+    if (status === 502 && /is not configured|missing url or token/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured" };
     }
     // 403 banned -> ban-provider
     if (status === 403 && /account disabled|banned/i.test(message)) {
       return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
     }
-    // 403 Key limit exceeded (OpenRouter) -> cooldown-provider breve
-    if (status === 403 && /Key limit exceeded|total limit/i.test(message)) {
-      const m = message.match(/reset after (\d+)(s|m|h)/i);
-      let cooldownMs = 60000;
-      if (m) {
-        const v = parseInt(m[1], 10);
-        const u = m[2].toLowerCase();
-        if (u === 's') cooldownMs = v * 1000;
-        else if (u === 'm') cooldownMs = v * 60000;
-        else if (u === 'h') cooldownMs = v * 3600000;
+    // Non-Resetting Key/Quota Limits (403, Key limit exceeded, total limit, hard limit, lifetime limit, does not reset)
+    if (status === 403 || /Key limit exceeded|total limit|hard limit|lifetime limit/i.test(message)) {
+      const isNonResetting = /does not reset|never resets|no reset|lifetime|permanent/i.test(message);
+      let cooldownMs = this._parseResetAfter(message, errorDetails);
+      if (isNonResetting) {
+        return { action: "ban-provider", scope: "provider", reason: "quota-exhausted" };
+      } else if (!cooldownMs || cooldownMs <= 0) {
+        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs: 24 * 3600 * 1000 };
+      } else {
+        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs };
       }
-      cooldownMs = Math.max(cooldownMs, 30000);
-      return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs };
     }
 
     // 429 with model_cooldown code or cooling down -> cooldown-model
@@ -1137,6 +1157,19 @@ export class DiscountedUCB1Bandit {
       FROM models
     `).get();
 
+    const modelsSummary = this.getModelsSummary("prod");
+    const providersList = this.getProviders();
+    const providersActive = providersList.filter(p => !p.permanent && !p.needs_attention && p.cooldownRemaining === 0).length;
+    const providersCooldown = providersList.filter(p => p.cooldownRemaining > 0).length;
+    const providersBanned = providersList.filter(p => p.permanent).length;
+    const providersAttention = providersList.filter(p => p.needs_attention).length;
+    const totalProviders = providersList.length;
+
+    const catalogProvidersResult = this.db.prepare(`
+      SELECT COUNT(DISTINCT provider) as count FROM catalog
+    `).get();
+    const catalogProviders = catalogProvidersResult ? catalogProvidersResult.count : 0;
+
     // Compute success rate from models table
     const successRateStats = this.db.prepare(`
       SELECT
@@ -1154,7 +1187,18 @@ export class DiscountedUCB1Bandit {
       topModel: topModel ? topModel.id : null,
       catalogTotal: catalogCounts.total,
       catalogFree: catalogCounts.free,
+      catalogProviders,
       totalModels: totalModels.count,
+      modelsActive: modelsSummary.active,
+      modelsCooldown: modelsSummary.cooldown,
+      modelsBanned: modelsSummary.banned,
+      modelsDegraded: modelsSummary.degraded,
+      modelsAttention: 0,
+      providersActive,
+      providersCooldown,
+      providersBanned,
+      providersAttention,
+      totalProviders,
       successRate: (successRateStats && successRateStats.modelsWithObservations > 0)
         ? (successRateStats.modelsAboveThreshold / successRateStats.modelsWithObservations)
         : 0
@@ -1609,11 +1653,20 @@ export class DiscountedUCB1Bandit {
       LEFT JOIN catalog c ON m.id = c.id
     `;
 
+    let activeCondition = "(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND m.permanent = 0 AND m.degraded = 0";
+    let cooldownCondition = "m.cooldown_until > ?";
+    let degradedCondition = "m.degraded = 1";
+    let bannedCondition = "m.permanent = 1";
+
     if (source === "train") {
       baseQuery = `
         FROM models_train m
         LEFT JOIN catalog c ON m.id = c.id
       `;
+      activeCondition = "1 = 1";
+      cooldownCondition = "0 = 1";
+      degradedCondition = "0 = 1";
+      bannedCondition = "0 = 1";
     }
 
     // Build WHERE conditions
@@ -1646,27 +1699,25 @@ export class DiscountedUCB1Bandit {
     // Get active count
     const activeStmt = this.db.prepare(`
       SELECT COUNT(*) AS count ${baseQuery}
-      WHERE (m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0)
-        AND m.permanent = 0
-        AND m.degraded = 0${whereClause ? " AND " + whereClause.slice(6) : ""}
+      WHERE ${activeCondition}${whereClause ? " AND " + whereClause.slice(6) : ""}
     `);
-    const activeParams = [now, ...params];
+    const activeParams = source === "train" ? [...params] : [now, ...params];
     const activeResult = activeStmt.all(activeParams);
     const active = activeResult[0].count;
 
     // Get cooldown count
     const cooldownStmt = this.db.prepare(`
       SELECT COUNT(*) AS count ${baseQuery}
-      WHERE m.cooldown_until > ?${whereClause ? " AND " + whereClause.slice(6) : ""}
+      WHERE ${cooldownCondition}${whereClause ? " AND " + whereClause.slice(6) : ""}
     `);
-    const cooldownParams = [now, ...params];
+    const cooldownParams = source === "train" ? [...params] : [now, ...params];
     const cooldownResult = cooldownStmt.all(cooldownParams);
     const cooldown = cooldownResult[0].count;
 
     // Get degraded count
     const degradedStmt = this.db.prepare(`
       SELECT COUNT(*) AS count ${baseQuery}
-      WHERE m.degraded = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+      WHERE ${degradedCondition}${whereClause ? " AND " + whereClause.slice(6) : ""}
     `);
     const degradedResult = degradedStmt.all(...params);
     const degraded = degradedResult[0].count;
@@ -1674,7 +1725,7 @@ export class DiscountedUCB1Bandit {
     // Get banned count
     const bannedStmt = this.db.prepare(`
       SELECT COUNT(*) AS count ${baseQuery}
-      WHERE m.permanent = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+      WHERE ${bannedCondition}${whereClause ? " AND " + whereClause.slice(6) : ""}
     `);
     const bannedResult = bannedStmt.all(...params);
     const banned = bannedResult[0].count;
