@@ -1,5 +1,6 @@
 import express from "express";
 import { createHash } from "node:crypto";
+import * as tracker from "./request-tracker.mjs";
 console.log("[STARTUP] Server loading index.mjs");
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
@@ -314,7 +315,7 @@ const PORT = process.env.PORT || 8080;
 const healthChecker = new HealthChecker(bandit, {
   baseUrl: process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128/v1",
   apiKey: process.env.OMNIROUTE_API_KEY || "",
-  intervalMs: parseInt(process.env.HEALTH_CHECK_INTERVAL_MS || "600000", 10),
+  intervalMs: parseInt(process.env.HEALTH_CHECK_INTERVAL_MS || "300000", 10),
   batchSize: parseInt(process.env.HEALTH_CHECK_BATCH_SIZE || "20", 10),
   timeoutMs: parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS || "15000", 10),
   verbose: String(process.env.HEALTH_CHECK_VERBOSE || "false").toLowerCase() === "true"
@@ -370,7 +371,6 @@ const logBuffer = new RingBuffer(200);
 // ACTIVE REQUESTS TRACKER
 // ========================================
 // Traccia le richieste in corso con: modello scelto, tentativo, tempo, tier
-const activeRequests = new Map(); // id -> { id, model, attempt, startTime, clientIp, stream, tier, compressed }
 // Toggle debug verbose (in memoria, si resetta al restart)
 let debugVerbose = false;
 // === SESSION AFFINITY ===
@@ -493,26 +493,20 @@ function sessionHasWritten(messages) {
   return false;
 }
 function trackRequestStart(id, meta) {
-  activeRequests.set(id, {
-    source: meta.source || 'zoo',
-    id,
-    startTime: Date.now(),
-    ...meta
-  });
+  tracker.trackRequestStart(id, meta);
 }
 
 function trackRequestUpdate(id, patch) {
-  const r = activeRequests.get(id);
-  if (r) Object.assign(r, patch);
+  tracker.trackRequestUpdate(id, patch);
 }
 
 function trackRequestEnd(id) {
-  activeRequests.delete(id);
+  tracker.trackRequestEnd(id);
 }
 
 function getActiveRequestsSnapshot() {
   const now = Date.now();
-  return Array.from(activeRequests.values()).map(r => {
+  return tracker.getActiveRequestsValues().map(r => {
     const info = r.model ? bandit.getModelInfo(r.model) : null;
     const rank = r.model ? bandit.getModelRank(r.model) : null;
     return {
@@ -531,7 +525,7 @@ function getActiveRequestsSnapshot() {
 const recentRequests = new RingBuffer(5);
 
 function trackRequestComplete(id, meta) {
-  const r = activeRequests.get(id);
+  const r = tracker.getRequest(id);
   if (r) {
     const info = r.model ? bandit.getModelInfo(r.model) : null;
     const rank = r.model ? bandit.getModelRank(r.model) : null;
@@ -633,6 +627,11 @@ app.use((req, res, next) => {
 // ========================================
 // ROUTES
 // ========================================
+
+app.get("/", (req, res) => {
+  const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect("/dashboard" + query);
+});
 
 app.get("/dashboard", (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
@@ -803,13 +802,13 @@ app.get("/v1/logs", requireAuth, (req, res) => {
 // Endpoint per il training daemon: quante richieste Zoo sono in-flight adesso?
 // Non protetto da auth: il daemon gira in locale su 127.0.0.1.
 app.get("/v1/inflight", (req, res) => {
-  res.json({ count: activeRequests.size, ts: Date.now() });
+  res.json({ count: tracker.getActiveRequestsCount(), ts: Date.now() });
 });
 
 app.get("/v1/active", requireAuth, (req, res) => {
   try {
     res.json({
-      count: activeRequests.size,
+      count: tracker.getActiveRequestsCount(),
       requests: getActiveRequestsSnapshot(),
       recent: recentRequests.getAll().slice(-3)  // ultime 3
     });
@@ -1310,20 +1309,32 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   if ((isStruggling || isAskLoop) && sessionKey) {
     const entry = sessionModels.get(sessionKey);
     if (entry) {
-      // Accumula fail nella blacklist di sessione
+      // Accumula fail nella blacklist di sessione (Nuanced approach: persistent or severe errors only)
       let bl = sessionBlacklist.get(sessionKey);
       if (!bl) { bl = new Map(); sessionBlacklist.set(sessionKey, bl); }
-      const fails = (bl.get(entry.model) || 0) + 1;
-      bl.set(entry.model, fails);
+      let record = bl.get(entry.model);
+      if (!record || typeof record === 'number') {
+        const prevFails = typeof record === 'number' ? record : 0;
+        record = { fails: prevFails, severe: false, lastReason: '' };
+        bl.set(entry.model, record);
+      }
+      record.fails += 1;
+      const reason = isAskLoop ? `loop ${loopModelHint}` : (strugglingReason || 'struggling');
+      record.lastReason = reason;
 
-      const reason = isAskLoop ? `loop ${loopModelHint}` : 'struggling';
-      console.log(`[AFFINITY] Attempt ${attempt}: Unpin ${entry.model} (${reason}, ${fails}ª volta) → exclude and select another`);
+      // Mark severe if status 400/404/422 or severe error
+      if (isAskLoop || /status 400|status 404|status 422|context window|validation/i.test(reason)) {
+        record.severe = true;
+      }
+
+      console.log(`[AFFINITY] Attempt ${attempt}: Unpin ${entry.model} (${reason}, fails=${record.fails}) → exclude and select another`);
       excluded.add(entry.model);       // Force UCB1 to choose another
       sessionModels.delete(sessionKey);
 
-      // Ban only if the model has failed multiple times or caused a loop
-      if (fails >= 2 || isAskLoop) {
-        console.log(`[AFFINITY] Attempt ${attempt}: 🚫 ${entry.model} BANNED in session ${sessionKey.slice(0,8)} (${reason})`);
+      // Ban only if persistent (fails >= 3) or severe (status 400, 422, loop, etc.)
+      const isBanned = isAskLoop || record.severe || record.fails >= 3;
+      if (isBanned) {
+        console.log(`[AFFINITY] Attempt ${attempt}: 🚫 ${entry.model} BANNED in session ${sessionKey.slice(0,8)} (reason: ${reason}, fails: ${record.fails}, severe: ${record.severe})`);
       }
     }
   }
@@ -1346,18 +1357,24 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
     console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
   } else {
-      // Aggiungi al set di esclusione i modelli bannati in questa sessione
+      // Aggiungi al set di esclusione i modelli bannati in questa sessione (fails >= 3 or severe)
       if (sessionKey) {
         const bl = sessionBlacklist.get(sessionKey);
         if (bl) {
-          for (const [modelId, fails] of bl) {
-            if (fails >= 2) excluded.add(modelId);
+          for (const [modelId, record] of bl) {
+            const isBanned = typeof record === 'number' ? record >= 3 : (record.severe || record.fails >= 3);
+            if (isBanned) excluded.add(modelId);
           }
         }
       }
     model = await bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
+      if (sessionModels.size > 10000) {
+        const firstKey = sessionModels.keys().next().value;
+        sessionModels.delete(firstKey);
+        sessionBlacklist.delete(firstKey);
+      }
       console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
     }
   }
@@ -1489,6 +1506,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
       if (!r.ok || r.status === 499) {
         const txt = await r.text().catch(() => "");
+        console.error(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource });
 
@@ -1733,6 +1751,9 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   res.status(502).json({ error: { message: `${attempt - 1} tentativi esauriti su ${maxAttempts}`, status: 502 } });
 });
 
+// Serve static files from public directory (manifest, icons, etc.)
+app.use(express.static(path.join(__dirname, "../public")));
+
 // ========================================
 // ERROR HANDLERS GLOBALI
 // ========================================
@@ -1826,8 +1847,12 @@ async function startServer(attempt = 1) {
   });
 }
 
-startServer().catch(err => {
-  console.error("[FATAL] Impossibile avviare server:", err);
-  bandit.close();
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  startServer().catch(err => {
+    console.error("[FATAL] Impossibile avviare server:", err);
+    bandit.close();
+    process.exit(1);
+  });
+}
+
+export { sessionModels, sessionBlacklist, SESSION_TTL_MS, computeSessionKey, compressBody, truncateBiggestMessage };

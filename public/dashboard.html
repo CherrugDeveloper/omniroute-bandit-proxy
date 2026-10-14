@@ -2364,10 +2364,10 @@
         fetchLogs();
         fetchActive();
         fetchQuota();
-        setInterval(refreshAll, 250);
-        setInterval(fetchLogs, 250);
-        setInterval(fetchActive, 250);
-        setInterval(fetchQuota, 15000);
+        setInterval(refreshAll, 5000);
+        setInterval(fetchLogs, 5000);
+        setInterval(fetchActive, 5000);
+        setInterval(fetchQuota, 60000);
         document.addEventListener('DOMContentLoaded', () => {
             const fab = document.getElementById('dev-fab');
             const menu = document.getElementById('dev-menu');

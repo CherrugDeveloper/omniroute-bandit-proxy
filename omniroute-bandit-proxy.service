@@ -1,0 +1,17 @@
+[Unit]
+Description=OmniRoute Bandit Proxy - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
+After=network.target
+
+[Service]
+Type=simple
+User=marco
+WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy
+ExecStart=/usr/bin/node src/index.mjs
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=-/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/.env
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -305,3 +305,50 @@ test("recordFeedback: 5xx su un modello non mette in cooldown il provider", asyn
   assert.equal(chosen, "p1/b");
   b.close();
 });
+
+test("recordFeedback: 3 consecutive 5xx errors set degraded = 1 and degraded_since", async () => {
+  const b = makeBandit();
+  seedCatalog(b, "p1/a", "p1");
+  await b.selectModel();
+  
+  // 3 transient errors (502)
+  b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
+  b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
+  b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
+
+  const m = b.db.prepare("SELECT degraded, degraded_since, consecutive_5xx FROM models WHERE id='p1/a'").get();
+  assert.equal(m.consecutive_5xx, 3);
+  assert.equal(m.degraded, 1);
+  assert.ok(m.degraded_since > 0);
+  b.close();
+});
+
+test("_parseResetAfter: handles HTTP-date and header formats", () => {
+  const b = makeBandit();
+  // Header as numeric string seconds
+  assert.equal(b._parseResetAfter("", { retryAfter: "45" }), 45000);
+  // Header as number seconds
+  assert.equal(b._parseResetAfter("", { retry_after: 120 }), 120000);
+  // Header object with get()
+  const mockHeaders = { get: (name) => name === 'retry-after' ? '30' : null };
+  assert.equal(b._parseResetAfter("", { headers: mockHeaders }), 30000);
+  // HTTP-date future date
+  const futureDate = new Date(Date.now() + 60000).toUTCString();
+  const parsed = b._parseResetAfter("", { retryAfter: futureDate });
+  assert.ok(parsed > 0 && parsed <= 61000);
+  b.close();
+});
+
+test("_classifyError: distinguishes permanent bans from transient rate limits", () => {
+  const b = makeBandit();
+  // Permanent ban even if 429 or 403
+  const c1 = b._classifyError({ status: 429, message: "Your organization has been suspended" });
+  assert.equal(c1.action, "ban-provider");
+  assert.equal(c1.reason, "provider-banned");
+
+  // Transient rate limit / quota exceeded
+  const c2 = b._classifyError({ status: 429, message: "Rate limit exceeded, please retry later" });
+  assert.equal(c2.action, "cooldown-provider");
+  assert.equal(c2.reason, "quota-exhausted");
+  b.close();
+});

@@ -1,160 +1,114 @@
 # Architect Mode - OmniRoute Bandit Proxy AGENTS.md
 
-## Architect Mode Specific Instructions
+## System Architecture Overview
 
-### System Architecture Overview
+The OmniRoute Bandit Proxy is a Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution. It intelligently routes requests to different LLM providers based on performance metrics and feedback using Discounted UCB1.
 
-The OmniRoute Bandit Proxy is a Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution. It intelligently routes requests to different LLM providers based on performance metrics and feedback.
+## Core Components - Non-Obvious Details
 
-### Core Components
+### 1. Bandit Algorithm (`src/bandit.mjs`)
+- **DiscountedUCB1Bandit** class: `discountFactor=0.99` applied per feedback event (not per timestep)
+- **Rank Cache**: `_rankCache` with 30s TTL stores precomputed rankings to avoid recalculation on every request
+- **Catalog vs Database Merge**: `selectModel()` prefers database models over catalog when same provider+id conflict; DB models carry learned `N`, `sum_reward`, `fails`, `cooldown_until`, `permanent`, `degraded`, `consecutive_5xx`
+- **Soft Bias via Modes**: `profileMultiplier(profile, modelName)` from `modes-registry.mjs` applies runtime multipliers based on regex detection: `isCode`, `isThinking`, `isFast`, `isBig`, `isSmall`, `isFIM`, `isLowTPM` - multiplies UCB1 score, not reward
+- **Training Isolation**: Separate `models_train` table; daemon writes there; `selectModel()` uses `models_train × 0.3` as prior when production `N < 1`
+- **Fallback Chain**: 6-model chain in `config/bandit.json` used when no models available after filtering; returns first passing token limit check
 
-#### 1. Bandit Algorithm (`src/bandit.mjs`)
-- **Class**: `DiscountedUCB1Bandit`
-- **Algorithm**: Discounted UCB1 for model selection
-- **Key Methods**:
-  - `getModelRank()`: Ranks models with 30-second cache
-  - `selectModel()`: Combines catalog and database models, preferring database models
-  - `_classifyError()`: Comprehensive error classification with specific actions
-  - `recordFeedback()`: Records success/failure feedback for models
+### 2. Main Server (`src/index.mjs`)
+- **Express.js** on 127.0.0.1:8080 with ES modules
+- **Retry Loop**: `maxAttempts = Math.min(providerCount * 4 + 100, 500)`; per-request `excludedModels` Set tracks failed (model, provider) pairs; falls through to fallbackModels
+- **Session Affinity**: Key = MD5(systemPrompt + firstUserMessage); `sessionModelMap` with 30-min TTL (not 24h); invalidated on model failure; max 10k entries with LRU eviction
+- **Three-Level Streaming Timeouts**: `UPSTREAM_TIMEOUT_MS`=20s (connection+first byte), `STREAM_IDLE_MS`=60s (content-based idle, resets on ANY chunk), `STREAM_MAX_MS`=180s (60s for summarizer profile)
+- **Context Compression**: Auto-triggers at >80% of `max_input_tokens`; strategies: sliding window, message truncation (largest first), drop tools; preserves system prompt + last user message
+- **Ring Buffer**: 200 log entries with deduplication (consecutive identical lines collapsed with count suffix)
 
-#### 2. Main Server (`src/index.mjs`)
-- **Framework**: Express.js
-- **Endpoints**:
-  - `POST /v1/chat/completions` - Main proxy endpoint
-  - `GET /v1/metrics` - Metrics endpoint (auth required)
-  - `POST /v1/reset/provider/:p` - Reset provider
-  - `POST /v1/provider/retry/:p` - Clear provider attention
-- **Features**:
-  - Session affinity (24h TTL)
-  - Health checks every 5 minutes
-  - Request validation and compression
-  - Fallback model support
+### 3. Health Checker (`src/health-check.mjs`)
+- **Interval**: Default 5 min (configurable via `HEALTH_CHECK_INTERVAL_MS`)
+- **Candidates**: `permanent=1` OR `cooldown_until > 1 hour` OR `degraded=1`
+- **Batch Size**: 20 models, 15s timeout per probe
+- **Probe Request**: Minimal `"ok"` message with `max_tokens: 1`
+- **Revival**: Via `bandit.reviveModel()`
 
-#### 3. Health Checker (`src/health-check.mjs`)
-- **Interval**: Every 5 minutes (configurable)
-- **Batch Size**: 20 models per check
-- **Timeout**: 15 seconds per check
-- **Function**: Revives models that become available again
+### 4. Mode Detection (`src/modes-registry.mjs`)
+- **3-Tier Detection**: 1) MD5 signature cache (`modes.signatures.json`) → 2) Regex patterns from `config/modes.json` (14 Zoo Code modes) → 3) Unknown → auto-discovered, persisted to `modes.discovered.json`
+- **Profiles**: Returns `summarizer`, `code`, `reasoning`, `general`
+- **Soft Bias**: Regex patterns for `isCode`, `isThinking`, `isFast`, `isBig`, `isSmall`, `isFIM`, `isLowTPM` stack multiplicatively
 
-#### 4. Modes Registry (`src/modes-registry.mjs`)
-- **Purpose**: Manages different operational modes
-- **Features**: Profile detection, mode switching
+### 5. Provider Quota (`src/provider-quota.mjs`)
+- **Rolling Windows**: Minute + day per provider
+- **Limits**: From `config/provider-limits.json` (RPM/RPD per provider)
+- **Exhaustion**: `recordQuotaExhausted()` → provider ban with `quota_exhausted` reason
 
-#### 5. Notifier (`src/notifier.mjs`)
-- **Purpose**: Sends notifications for events
-- **Supports**: Webhooks, Telegram
-- **Throttling**: 5 minutes between same event notifications
+### 6. Notifier (`src/notifier.mjs`)
+- **Webhooks**: Slack, Discord, Telegram, generic
+- **Throttling**: Same `event+subject` max 1 per 5 min (configurable)
+- **Emoji Mapping**: Per event type
 
-### Data Flow
+## Data Flow - Critical Non-Obvious Patterns
 
-1. **Request Incoming** → `POST /v1/chat/completions`
-2. **Model Selection** → `bandit.selectModel()` with session affinity
-3. **Upstream Request** → Forward to selected provider
-4. **Response Validation** → Validate response quality
-5. **Feedback Recording** → `bandit.recordFeedback()` with success/failure
-6. **Error Classification** → `_classifyError()` determines action
-7. **Provider Management** → Ban, cooldown, or flag providers
+1. **Request** → `POST /v1/chat/completions`
+2. **Model Selection** → `bandit.selectModel()` with session affinity + soft bias multipliers
+3. **Token Check** → `estimateTokens()` (4 chars/token heuristic) vs `max_input_tokens`
+4. **Upstream Request** → Forward to provider with 3-level timeout handling
+5. **Validation** → `validateNonStreamResponse()` / `validateStreamAccumulated()` 
+6. **Feedback** → `bandit.recordFeedback()` with reward (1=success, 0=fail)
+7. **Error Classification** → `_classifyError()` determines: ban-provider, ban-model, cooldown-provider, cooldown-model, flag-provider
+8. **Provider Management** → Updates `provider_history` and `models` tables
 
-### Database Schema
+## Database Schema - 6 Tables (Auto-Migrated in `_migrateDB`)
 
-#### Tables
-1. **models**: Individual model performance tracking
-   - `id`, `provider`, `N`, `sum_reward`, `fails`, `cooldown_until`, `permanent`, `last_used_index`, `consecutive_5xx`, `degraded`, `degraded_since`, `is_paid`
+| Table | Key Columns |
+|-------|-------------|
+| `models` | id, provider, N, sum_reward, fails, cooldown_until, permanent, last_used_index, consecutive_5xx, degraded, degraded_since, is_paid |
+| `models_train` | id, provider, N, sum_reward, last_used_index |
+| `provider_history` | provider, fails, cooldown_until, pointer, permanent, needs_attention, attention_reason, attention_message |
+| `catalog` | id, provider, max_input_tokens, is_free, supports_tools |
+| `meta` | key, value (counters: total_requests, total_errors, etc.) |
+| `request_logs` | timestamp, model, provider, status, latency_ms, tokens_in, tokens_out, error_type |
 
-2. **provider_history**: Provider status and attention flags
-   - `provider`, `fails`, `cooldown_until`, `pointer`, `permanent`, `needs_attention`, `attention_reason`, `attention_message`
+## Configuration - Critical Environment Variables
 
-3. **catalog**: Model metadata from OmniRoute API
-   - `id`, `provider`, `max_input_tokens`, `is_free`, `supports_tools`
+Critical: `OMNIROUTE_API_KEY`, `OMNIROUTE_BASE_URL`, `DASHBOARD_TOKEN` (for `/v1/metrics`, `/v1/scripts/*`), `EXCLUDE_PAID`, `ONLY_FREE`, `EXCLUDE_THINKING`, `EXPLOIT_ONLY`, `HEALTH_CHECK_INTERVAL_MS`, `SESSION_TTL_MS` (default 1800000 = **30min**), `UPSTREAM_TIMEOUT_MS` (20000), `STREAM_IDLE_MS` (60000), `STREAM_MAX_MS` (180000).
 
-4. **meta**: Global counters
-   - `key`, `value`
+## API Endpoints
 
-5. **models_train**: Training-specific model data
-   - `id`, `provider`, `N`, `sum_reward`, `last_used_index`
+- `POST /v1/chat/completions` - Main proxy
+- `GET /v1/metrics` - Auth required (x-api-token header or ?token=)
+- `POST /v1/reset/provider/:provider` - Clear provider bans/cooldowns
+- `POST /v1/provider/retry/:provider` - Clear `needs_attention` flag
+- `GET /v1/models` - All models with status
+- `GET /v1/providers` - Provider status
+- `GET /v1/sessions` - Active sessions
+- `GET /v1/health-check/status` - Health checker status
+- `GET /v1/logs` - Ring buffer (200 entries)
+- `GET /v1/inflight` - In-flight requests
+- `GET /v1/active` - Active request count
+- `GET /v1/scripts/*` - Script manager (list/run/status/kill/logs)
+- `GET /v1/quota` - Provider quota snapshot
 
-### Key Design Patterns
+## Common Pitfalls (Non-Obvious)
 
-#### 1. Discounted UCB1 Bandit
-- Uses exponential discounting for recent rewards
-- 30-second cache for model rankings
-- Combines exploration and exploitation
+1. **Provider attention flags persist**: Must call `POST /v1/provider/retry/:p` or `clearProviderAttention()` to clear `needs_attention` - health checks don't auto-clear
+2. **Migrations are additive only**: `_migrateDB()` only ADD COLUMN, never DROP/ALTER TYPE
+3. **Session TTL is 30 min, not 24h**: `SESSION_TTL_MS` default 1800000
+4. **Token estimation is approximate**: `estimateTokens()` uses 4 chars/token heuristic
+5. **Fallback models bypass bandit**: Fallback chain used without UCB1 scoring
+6. **Training mode isolates writes**: Daemon writes to `models_train`; production blends `models_train × 0.3` as prior only when `N < 1`
+7. **Quota limits are per-provider, not per-model**
+8. **Soft bias multipliers stack**: Multiple pattern matches = product of multipliers
+9. **Stream idle timeout resets on ANY chunk**: SSE comments/heartbeats reset 60s timer
+10. **Ring buffer deduplication**: Consecutive identical lines collapsed with count suffix
 
-#### 2. Error Classification System
-- Classifies errors by HTTP status and message content
-- Actions: ban-provider, ban-model, cooldown-provider, cooldown-model, flag-provider
-- Different cooldown strategies for different error types
+## Performance Considerations
 
-#### 3. Provider Management
-- Provider-level and model-level error handling
-- Attention flags for non-blocking warnings
-- Automatic recovery via health checks
+- 30-second rank cache (`_rankCache`)
+- Health checks every 5 min (batch 20)
+- Session cleanup every 5 min
+- Single SQLite connection (better-sqlite3)
+- Proper indexing on frequently queried columns
 
-#### 4. Session Affinity
-- Maintains model selection per session
-- 24-hour TTL for sessions
-- Automatic cleanup of expired sessions
+## Scalability Constraints
 
-### Configuration Management
-
-#### Environment Variables
-- `OMNIROUTE_API_KEY`: API key for OmniRoute
-- `OMNIROUTE_BASE_URL`: Base URL for OmniRoute API
-- `PORT`: Server port (default: 8080)
-- `UPSTREAM_TIMEOUT_MS`: Upstream timeout (default: 60000)
-- `DATABASE_PATH`: Database path (default: bandit.db)
-- `DASHBOARD_TOKEN`: Auth token for control APIs
-- `HEALTH_CHECK_ENABLED`: Enable health checks (default: true)
-- `EXCLUDE_PAID`: Exclude paid models
-- `ONLY_FREE`: Only use free models
-- `EXCLUDE_THINKING`: Exclude thinking models
-- `EXPLOIT_ONLY`: Only exploit known good models
-
-#### Database Migrations
-- Handled in `_migrateDB()` method
-- New columns added via ALTER TABLE
-- Automatic on startup
-
-### Performance Considerations
-
-1. **Caching**: 30-second cache for model rankings
-2. **Database Indexes**: Proper indexing on frequently queried columns
-3. **Health Checks**: Every 5 minutes, batch size 20
-4. **Session Cleanup**: Every 5 minutes
-5. **Connection Pooling**: Single SQLite connection
-
-### Scalability Considerations
-
-1. **Single Instance**: Currently designed for single instance
-2. **Database**: SQLite (file-based, not distributed)
-3. **State**: In-memory session state
-4. **Horizontal Scaling**: Would require shared database and session store
-
-### Security Considerations
-
-1. **Authentication**: Optional dashboard token for control APIs
-2. **Input Validation**: Request validation for chat completions
-3. **Rate Limiting**: Not implemented (relies on upstream)
-4. **Data Privacy**: Logs may contain request/response data
-
-### Monitoring & Observability
-
-1. **Metrics Endpoint**: `/v1/metrics` with auth
-2. **Health Checks**: Automatic model revival
-3. **Logging**: Console logs with structured format
-4. **Training Log**: Separate `training.log` for training events
-
-### Deployment Considerations
-
-1. **Process Management**: Use systemd or PM2
-2. **Environment**: Node.js 22+
-3. **Dependencies**: better-sqlite3 requires native compilation
-4. **Configuration**: Environment variables or .env file
-
-### Future Architecture Improvements
-
-1. **Distributed Deployment**: Shared database, Redis for sessions
-2. **Advanced Bandit Algorithms**: Thompson Sampling, LinUCB
-3. **Real-time Metrics**: WebSocket for live dashboard
-4. **A/B Testing**: Built-in A/B testing framework
-5. **Multi-region**: Geographic routing
+- **Single instance design**: SQLite file-based, in-memory session state
+- **Horizontal scaling**: Would require shared database + Redis for sessions
+- **Connection pooling**: Not applicable (single SQLite connection)

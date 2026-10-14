@@ -1,76 +1,26 @@
 # Debug Mode - OmniRoute Bandit Proxy AGENTS.md
 
-## Debug Mode Specific Instructions
+## Debugging Workflow & Specialized Diagnostics
 
-### Debugging Techniques
+### 1. Server Health & Status Diagnostics
+- **Health Check Status**: Inspect [`GET /v1/health-check/status`](src/health-check.mjs:1) via curl or dashboard to monitor automated model probes (runs every 5 min, batch size 20, 15s timeout).
+- **In-flight & Active Requests**: Check [`GET /v1/inflight`](src/index.mjs:1) and [`GET /v1/active`](src/index.mjs:1) to diagnose hung connections or concurrency bottlenecks.
+- **Ring Buffer Logs**: Query [`GET /v1/logs`](src/index.mjs:1) for the last 200 log entries (automatically deduplicated with count suffix).
 
-#### Server Health Checks
-- The server runs on `127.0.0.1:8080`
-- Health check endpoint is available via the `healthChecker` module
-- Check `training.log` for training-related events
-- Use `console.log()` statements in production code (already present)
+### 2. Database Diagnostics (`better-sqlite3`)
+- **Querying State**: Use [`scripts/check-db.mjs`](scripts/check-db.mjs:1) or [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs:1) to inspect table states (`models`, `models_train`, `provider_history`, `catalog`, `meta`, `request_logs`).
+- **Connection Issues**: SQLite uses single-connection synchronous execution (`better-sqlite3`). Ensure no file lock issues during concurrent training daemon writes (`models_train`) and proxy reads (`models`).
 
-#### Database Debugging
-- Database contains all interaction logs
-- Use `better-sqlite3` for database operations
-- Check `provider_history` table for provider status and attention flags
-- Use `bandit.getMetrics()` to get system metrics
+### 3. Error Classification Troubleshooting (`_classifyError` in [`src/bandit.mjs`](src/bandit.mjs:100))
+Diagnose error routing behavior by inspecting classification outputs:
+- `ban-provider`: Triggered by 401/403 auth, 404 deleted, 418 teapot, 429 org-quota, 5xx repeated.
+- `ban-model`: Triggered by 400 context-length, 404 model-not-found, 410 gone.
+- `cooldown-provider`: Triggered by 429 rate-limit (respects `retry-after` header in seconds or HTTP-date), 5xx transient.
+- `cooldown-model`: Triggered by 429 model-specific, 503 overloaded.
+- `flag-provider`: Triggered by 400 validation, 408 timeout, 422 unprocessable, 502/504 gateway.
 
-#### Error Classification
-- Errors are classified in `_classifyError()` method
-- Actions include: ban-provider, ban-model, cooldown-provider, cooldown-model, flag-provider
-- Check `training.log` for error classification details
-
-### Common Debugging Issues
-
-1. **Provider Attention Flags**: Check `needs_attention` flag in `provider_history` table
-2. **Database Migrations**: Ensure new columns are added via migration
-3. **Session Management**: Sessions expire after `SESSION_TTL_MS` (default 24h)
-4. **Token Estimation**: Use `estimateTokens()` for accurate context window validation
-
-### Debugging Commands
-
-#### Check Server Status
-```bash
-# Check if server is running
-ps aux | grep "node src/index.mjs"
-
-# Check server logs
-# Server logs are written to console
-```
-
-#### Database Queries
-```bash
-# Use Node.js to query database
-node -e "const Database = require('better-sqlite3'); const db = new Database('bandit.db'); console.log(db.prepare('SELECT * FROM provider_history').all());"
-```
-
-#### Health Check
-```bash
-# Check health endpoint
-curl http://127.0.0.1:8080/health
-```
-
-### Debugging Tips
-
-1. **Check `training.log`**: Contains training-related events
-2. **Use `console.log()`**: Already present in production code
-3. **Database Logs**: All interactions are logged in the database
-4. **Health Check**: Available for monitoring
-
-### Common Debugging Scenarios
-
-#### Provider Not Responding
-1. Check `provider_history` table for `needs_attention` flag
-2. Check `cooldown_until` field
-3. Check `permanent` flag
-
-#### Model Selection Issues
-1. Check `models` table for model status
-2. Check `catalog` table for model metadata
-3. Check `getModelRank()` method
-
-#### Token Limit Issues
-1. Use `estimateTokens()` for accurate token estimation
-2. Check `max_input_tokens` in `catalog` table
-3. Check `max_input_tokens` in `models` table
+### 4. Common Debug Scenarios & Resolution
+- **Provider Quota Lockout**: Check [`src/provider-quota.mjs`](src/provider-quota.mjs:1) rolling minute/day limits from [`config/provider-limits.json`](config/provider-limits.json:1). Quota exhaustion triggers permanent ban with reason `quota_exhausted`. Reset via [`POST /v1/reset/provider/:provider`](src/index.mjs:1).
+- **Persistent Attention Flags**: Health checks do *not* auto-clear `needs_attention` on [`provider_history`](src/bandit.mjs:1). Must explicitly invoke [`POST /v1/provider/retry/:provider`](src/index.mjs:1) or `clearProviderAttention()`.
+- **Session Affinity Failures**: MD5 signature mismatch [`src/index.mjs`](src/index.mjs:1) (systemPrompt + firstUserMessage). Stored in `sessionModelMap` with 30-min TTL. Invalidated automatically on non-2xx response or validation failure.
+- **Token Limit Exceeded**: Verify [`src/bandit.mjs`](src/bandit.mjs:1) `estimateTokens()` (4 chars/token heuristic). Context compression auto-triggers when estimated tokens > 80% of `max_input_tokens`.

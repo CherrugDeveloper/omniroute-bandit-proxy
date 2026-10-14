@@ -1,24 +1,12 @@
-const fs = require('node:fs');
-const path = require('node:path');
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
 
-// Mock the require function to simulate reading bandit.json
-const mockConfig = {
-  fallbackModels: ['felo/fallback1', 'felo/fallback2']
-};
-
-// Mock the require function
-const originalRequire = require;
-require = (modulePath) => {
-  if (modulePath === '../config/bandit.json') {
-    return mockConfig;
-  }
-  return originalRequire(modulePath);
-};
-
-// Test the getFallbackModels function
+// Test reading fallback config
 const getFallbackModels = () => {
   try {
-    const config = require('../config/bandit.json');
+    const configPath = path.resolve('config/bandit.json');
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     return config.fallbackModels || [];
   } catch (err) {
     console.error('[TEST] Error reading fallback config:', err.message);
@@ -29,9 +17,7 @@ const getFallbackModels = () => {
 // Run the test
 const fallbackModels = getFallbackModels();
 console.log('Fallback Models:', fallbackModels);
+assert.ok(Array.isArray(fallbackModels), 'fallbackModels should be an array');
+console.log('✅ MINIMAL FALLBACK TEST PASSED');
 
-// Restore the original require function
-require = originalRequire;
-
-// Use CommonJS syntax for Node.js
-module.exports = { fallbackModels };
+export { fallbackModels };

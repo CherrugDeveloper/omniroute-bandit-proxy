@@ -6,9 +6,8 @@ const DB_PATH = "bandit.test-fallback-tools.db";
 
 test("FALLBACK FIX: fallback model selection checks supports_tools when requireTools=true", async () => {
   // Clean up any previous test database
-  import("node:fs").then(({ existsSync, rmSync }) => {
-    if (existsSync(DB_PATH)) rmSync(DB_PATH);
-  });
+  const { existsSync, rmSync } = await import("node:fs");
+  if (existsSync(DB_PATH)) rmSync(DB_PATH);
 
   const db = new Database(DB_PATH);
 
@@ -65,8 +64,8 @@ test("FALLBACK FIX: fallback model selection checks supports_tools when requireT
 
   // Make ALL models unavailable so the fallback path is triggered
   for (const modelId of fallbackModels) {
-    const [id, provider] = modelId.split("/");
-    insertModel.run(id, provider, 0, 0, Date.now() + 1000 * 60 * 60); // 1h cooldown
+    const [provider, modelName] = modelId.split("/");
+    insertModel.run(modelId, provider, 0, 0, Date.now() + 1000 * 60 * 60); // 1h cooldown
   }
 
   // Insert catalog entries:
@@ -138,9 +137,7 @@ test("FALLBACK FIX: fallback model selection checks supports_tools when requireT
 
   // Cleanup
   db.close();
-  import("node:fs").then(({ rmSync }) => {
-    if (rmSync && require("node:fs").existsSync(DB_PATH)) rmSync(DB_PATH);
-  });
+  if (existsSync(DB_PATH)) rmSync(DB_PATH);
 });
 
 test("FALLBACK FIX: fallback skips models without supports_tools for requireTools requests", () => {
@@ -148,7 +145,10 @@ test("FALLBACK FIX: fallback skips models without supports_tools for requireTool
   db.exec(`
     CREATE TABLE IF NOT EXISTS models (
       id TEXT PRIMARY KEY,
-      provider TEXT
+      provider TEXT,
+      permanent INTEGER DEFAULT 0,
+      degraded INTEGER DEFAULT 0,
+      cooldown_until INTEGER DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS catalog (
       id TEXT PRIMARY KEY,
@@ -157,7 +157,7 @@ test("FALLBACK FIX: fallback skips models without supports_tools for requireTool
     );
   `);
 
-  db.prepare("INSERT INTO models (id, provider) VALUES (?, ?)").run("groq/allam-2-7b", "groq");
+  db.prepare("INSERT INTO models (id, provider, permanent, degraded, cooldown_until) VALUES (?, ?, ?, ?, ?)").run("groq/allam-2-7b", "groq", 0, 0, 0);
   db.prepare("INSERT INTO catalog (id, provider, supports_tools) VALUES (?, ?, ?)").run("groq/allam-2-7b", "groq", 0);
 
   const fallbackTried = new Set();
