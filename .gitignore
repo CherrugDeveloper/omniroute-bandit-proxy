@@ -50,6 +50,8 @@ build/
 *.tmp
 *.swp
 *~
+.script-output-*.json
+scripts/.script-output-*.json
 
 # Local agent / runtime dirs
 .roo-logs/

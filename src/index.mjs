@@ -963,12 +963,30 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
     let stdoutData = "";
     let stderrData = "";
 
+    const writeOutputFile = () => {
+      const outputFile = path.join(scriptsDir, `.script-output-${child.pid}.json`);
+      const currentOutput = {
+        ...output,
+        stdout: stdoutData,
+        stderr: stderrData,
+        endTime: output.endTime || Date.now(),
+        duration: (output.endTime || Date.now()) - output.startTime
+      };
+      try {
+        fs.writeFileSync(outputFile, JSON.stringify(currentOutput, null, 2));
+      } catch (err) {
+        console.error("[API] Errore scrittura output script in tempo reale:", err.message);
+      }
+    };
+
     child.stdout?.on("data", (data) => {
       stdoutData += data.toString();
+      writeOutputFile();
     });
 
     child.stderr?.on("data", (data) => {
       stderrData += data.toString();
+      writeOutputFile();
     });
 
     child.on("close", (code) => {

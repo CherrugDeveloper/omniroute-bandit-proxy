@@ -387,38 +387,15 @@ export class DiscountedUCB1Bandit {
       const isChatModel = (m, id) => {
         const lowerId = String(id).toLowerCase();
 
-        // Check explicit object properties / modalities / architecture
+        // Only exclude explicitly non-chat or batch / embedding / rerank / moderation models
+        if (/:batch\b/.test(lowerId)) return false;
+        if (/(^|[-_/])(embed|embedding|embeddings|rerank|moderation)([-_/]|$)/.test(lowerId)) return false;
+
         if (m && typeof m === "object") {
-          if (m.type && !["chat", "text"].includes(String(m.type).toLowerCase())) {
+          if (m.type && ["embedding", "embeddings", "moderation", "rerank", "tts", "stt", "image", "audio"].includes(String(m.type).toLowerCase())) {
             return false;
           }
-          if (Array.isArray(m.output_modalities)) {
-            const hasTextOut = m.output_modalities.some(mod => String(mod).toLowerCase() === "text");
-            if (!hasTextOut) return false;
-          }
-          if (Array.isArray(m.input_modalities)) {
-            // If input modalities are explicitly given and don't include text/image/audio appropriately, or if it's strictly audio/image without text support
-            const hasTextIn = m.input_modalities.some(mod => ["text", "image", "vision"].includes(String(mod).toLowerCase()));
-            const isAudioOnly = m.input_modalities.length === 1 && String(m.input_modalities[0]).toLowerCase() === "audio";
-            if (isAudioOnly && !lowerId.includes("multimodal") && !lowerId.includes("omni")) {
-              return false;
-            }
-          }
-          // Architecture check if present
-          if (m.architecture && typeof m.architecture === "object") {
-            const archModality = String(m.architecture.modality || "").toLowerCase();
-            if (archModality && archModality !== "text->text" && archModality !== "multimodal" && archModality !== "text" && !archModality.includes("text")) {
-              return false;
-            }
-          }
         }
-
-        // Strict name/id pattern exclusions for non-text models (audio-only, vision-only, speech, tts, embeddings, images, transcription, etc.)
-        if (/:batch\b/.test(lowerId)) return false;
-        if (/(^|[-_/])(tts|text-to-speech|speech-to-text|stt|whisper|transcribe|asr)([-_/]|$)/.test(lowerId)) return false;
-        if (/(^|[-_/])(audio|voice|sound|music|lyria|suno|udio)([-_/]|$)/.test(lowerId) && !lowerId.includes("omni") && !lowerId.includes("multimodal")) return false;
-        if (/(^|[-_/])(image|img|vision|photo|picture|dall-e|midjourney|stable-diffusion|flux)([-_/]|$)/.test(lowerId) && !lowerId.includes("multimodal") && !lowerId.includes("omni") && !lowerId.includes("vision") && !lowerId.includes("gpt-4o") && !lowerId.includes("claude-3")) return false;
-        if (/(^|[-_/])(embed|embedding|embeddings|rerank|moderation)([-_/]|$)/.test(lowerId)) return false;
 
         return true;
       };
@@ -434,7 +411,7 @@ export class DiscountedUCB1Bandit {
           if (!modelId) continue;
           raw++;
 
-          if (modelId.startsWith("auto/") || modelId.includes("combo") || modelId.startsWith("gh/")) {
+          if (modelId.startsWith("auto/") || modelId.startsWith("gh/")) {
             continue;
           }
 

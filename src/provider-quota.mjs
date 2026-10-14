@@ -130,15 +130,33 @@ class ProviderQuota {
         const result = [];
         for (const provider of providers) {
             const providerLimit = this.providerLimits[provider.provider];
+            const rpmLimit = providerLimit ? providerLimit.rpm : null;
+            const rpdLimit = providerLimit ? providerLimit.rpd : null;
+            const callsLastMinute = provider.calls_last_minute;
+            const callsToday = provider.calls_today;
+            const quotaResetsAt = provider.quota_resets_at;
+            const quotaReason = provider.quota_reason;
+            const quotaExhausted = quotaResetsAt && quotaResetsAt > now;
+
             const quotaStatus = {
                 provider: provider.provider,
-                rpmLimit: providerLimit ? providerLimit.rpm : null,
-                rpdLimit: providerLimit ? providerLimit.rpd : null,
-                callsLastMinute: provider.calls_last_minute,
-                callsToday: provider.calls_today,
-                quotaResetAt: provider.quota_resets_at,
-                quotaReason: provider.quota_reason,
-                quotaExhausted: provider.quota_resets_at && provider.quota_resets_at > now,
+                // camelCase
+                rpmLimit,
+                rpdLimit,
+                callsLastMinute,
+                callsToday,
+                quotaResetAt: quotaResetsAt,
+                quotaReason,
+                quotaExhausted,
+                // snake_case (for legacy/dashboard support)
+                rpm_limit: rpmLimit,
+                rpd_limit: rpdLimit,
+                rpm_used: callsLastMinute,
+                rpd_used: callsToday,
+                calls_last_minute: callsLastMinute,
+                calls_today: callsToday,
+                quota_resets_at: quotaResetsAt,
+                quota_reason: quotaReason
             };
             result.push(quotaStatus);
         }

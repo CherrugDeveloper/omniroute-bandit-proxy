@@ -1,15 +1,19 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const dbPath = "bandit.db";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const dbPath = process.env.DB_PATH || path.join(__dirname, "../bandit.db");
+
 if (!fs.existsSync(dbPath)) {
-  console.log("Database not found");
+  console.log(`Database not found at ${dbPath}`);
   process.exit(0);
 }
 
 const db = new Database(dbPath, { readonly: true });
 
-console.log("=== Provider History ===");
+console.log(`=== Provider History (${dbPath}) ===`);
 const providers = db.prepare("SELECT * FROM provider_history").all();
 console.log(JSON.stringify(providers, null, 2));
 

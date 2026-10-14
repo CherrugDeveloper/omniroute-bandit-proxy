@@ -2,6 +2,14 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.5 — 2026-10-14
+- **Proxy & Bandit Enhancements**:
+  - Improved dashboard interface and analytics views in [`public/dashboard.html`](public/dashboard.html:1).
+  - Refined provider quota tracking and atomic checks in [`src/provider-quota.mjs`](src/provider-quota.mjs:1).
+  - Optimized bandit ranking and model selection stability in [`src/bandit.mjs`](src/bandit.mjs:1).
+  - Enhanced proxy routing and error handling in [`src/index.mjs`](src/index.mjs:1).
+  - Updated operational helper scripts and `.gitignore` to exclude temporary script outputs (`.script-output-*.json`).
+
 ## v1.1.4 — 2026-10-14
 - **Codebase Cleanup**: Removed temporary test files, leftover script output artifacts, and obsolete utility scripts to maintain a clean workspace.
 

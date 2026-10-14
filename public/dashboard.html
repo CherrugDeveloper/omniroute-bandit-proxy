@@ -164,7 +164,7 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        /* Larghezze colonne */
+        /* Larghezze colonne tabelle generiche / modelli */
         .table-wrapper th:nth-child(1), .table-wrapper td:nth-child(1) { width: 32%; }
         .table-wrapper th:nth-child(2), .table-wrapper td:nth-child(2) { width: 12%; }
         .table-wrapper th:nth-child(3), .table-wrapper td:nth-child(3) { width: 7%; }
@@ -173,6 +173,13 @@
         .table-wrapper th:nth-child(6), .table-wrapper td:nth-child(6) { width: 6%; }
         .table-wrapper th:nth-child(7), .table-wrapper td:nth-child(7) { width: 12%; }
         .table-wrapper th:nth-child(8), .table-wrapper td:nth-child(8) { width: 13%; }
+
+        /* Larghezze colonne specifiche per la tab Scripts Manager (#tab-scripts) */
+        #tab-scripts .table-wrapper th:nth-child(1), #tab-scripts .table-wrapper td:nth-child(1) { width: 40%; }
+        #tab-scripts .table-wrapper th:nth-child(2), #tab-scripts .table-wrapper td:nth-child(2) { width: 10%; }
+        #tab-scripts .table-wrapper th:nth-child(3), #tab-scripts .table-wrapper td:nth-child(3) { width: 10%; }
+        #tab-scripts .table-wrapper th:nth-child(4), #tab-scripts .table-wrapper td:nth-child(4) { width: 24%; }
+        #tab-scripts .table-wrapper th:nth-child(5), #tab-scripts .table-wrapper td:nth-child(5) { width: 16%; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #30363d; font-size: 13px; }
         th {
@@ -774,7 +781,7 @@
         <button class="tab-btn" data-tab="train">🏋️ Train</button>
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
         <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
-        <button class="tab-btn" data-tab="scripts">🛠️ Script Manager</button>
+        <button class="tab-btn" data-tab="scripts">🛠️ Scripts Manager</button>
     </div>
 
     <div id="tab-logs" class="tab-content active">
@@ -941,9 +948,9 @@
 
     <div id="tab-scripts" class="tab-content">
         <div class="card" style="margin-bottom:15px;">
-            <h3>🛠️ Script Manager</h3>
+            <h3>🛠️ Scripts Manager</h3>
             <p style="color:#8b949e; font-size:13px; margin-top:4px;">
-                Esegui gli script di amministrazione del sistema. Gli script vengono eseguiti in sandbox e l'output viene salvato.
+                Esegui gli script di amministrazione del sistema. Gli script vengono eseguiti in sandbox e l'output viene salvato. Ciascuno script dispone di una descrizione e di opzioni di aiuto per guidare l'operatore.
             </p>
         </div>
 
@@ -956,13 +963,13 @@
 
         <div id="scripts-list">
             <div class="counter-bar">
-                <span id="scripts-count">0 scripti</span>
+                <span id="scripts-count">0 script</span>
             </div>
             <div class="table-wrapper" style="margin-top:10px;">
                 <table>
                     <thead>
                         <tr>
-                            <th>Nome</th>
+                            <th>Script e Descrizione</th>
                             <th>Tipo</th>
                             <th>Dimensione</th>
                             <th>Ultima modifica</th>
@@ -978,9 +985,22 @@
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <h3 id="script-output-title">Output Script</h3>
-                    <button class="btn btn-danger" id="script-output-close">✕ Chiudi</button>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-copy" id="script-output-copy" style="font-size:12px; padding:4px 10px;">📋 Copia Log</button>
+                        <button class="btn btn-danger" id="script-output-close" style="font-size:12px; padding:4px 10px;">✕ Chiudi</button>
+                    </div>
                 </div>
                 <div id="script-output-status" style="margin-bottom:10px;"></div>
+                <!-- Progress Bar & Percentage Container -->
+                <div id="script-progress-container" style="margin-bottom:12px; display:none;">
+                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#8b949e; margin-bottom:4px;">
+                        <span id="script-progress-label">Avanzamento esecuzione</span>
+                        <span id="script-progress-pct">0%</span>
+                    </div>
+                    <div style="width:100%; background:#21262d; border-radius:4px; height:8px; overflow:hidden; border:1px solid #30363d;">
+                        <div id="script-progress-bar" style="width:0%; height:100%; background:#58a6ff; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
                 <pre id="script-output" style="background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:400px; font-size:12px; white-space:pre-wrap; word-wrap:break-word;"></pre>
             </div>
         </div>
@@ -1166,15 +1186,13 @@
         }
 
         // === TAB MODALITÀ ===
-        const MODES_TOKEN = localStorage.getItem('dashboardToken') || 'Cadrega';
-
         async function loadModes() {
             try {
-                const r1 = await fetch('/v1/modes', { headers: { 'x-api-token': MODES_TOKEN } });
+                const r1 = await apiFetch('/v1/modes');
                 const stats = await r1.json();
-                const r2 = await fetch('/v1/modes/signatures', { headers: { 'x-api-token': MODES_TOKEN } });
+                const r2 = await apiFetch('/v1/modes/signatures');
                 const sigs = await r2.json();
-                const r3 = await fetch('/v1/modes', { headers: { 'x-api-token': MODES_TOKEN } });
+                const r3 = await apiFetch('/v1/modes');
                 const disc = await r3.json();
 
                 const s = stats.stats || {};
@@ -1221,9 +1239,9 @@
             if (!mode) return;
             const profile = prompt('Profile (code / reasoning / general):', 'code');
             if (!profile) return;
-            const r = await fetch('/v1/modes/label', {
+            const r = await apiFetch('/v1/modes/label', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-api-token': MODES_TOKEN },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sig, name: mode, profile })
             });
             if (r.ok) { alert('Etichettata!'); loadModes(); }
@@ -1231,9 +1249,8 @@
         }
 
         async function dismissDisc(sig) {
-            const r = await fetch('/v1/modes/discovered/' + sig, {
-                method: 'DELETE',
-                headers: { 'x-api-token': MODES_TOKEN }
+            const r = await apiFetch('/v1/modes/discovered/' + sig, {
+                method: 'DELETE'
             });
             if (r.ok) loadModes();
         }
@@ -1416,12 +1433,17 @@
                         .then(summary => ({models, summary}));
                 })
                 .then(({models, summary}) => {
-                    // Update counters
-                    document.getElementById('models-count-total').textContent = summary.total || 0;
-                    document.getElementById('models-count-active').textContent = summary.active || 0;
-                    document.getElementById('models-count-cooldown').textContent = summary.cooldown || 0;
-                    document.getElementById('models-count-degraded').textContent = summary.degraded || 0;
-                    document.getElementById('models-count-banned').textContent = summary.banned || 0;
+                    // Update counters safely if elements exist
+                    const totalEl = document.getElementById('models-count-total');
+                    if (totalEl) totalEl.textContent = summary.total || 0;
+                    const activeEl = document.getElementById('models-count-active');
+                    if (activeEl) activeEl.textContent = summary.active || 0;
+                    const cooldownEl = document.getElementById('models-count-cooldown');
+                    if (cooldownEl) cooldownEl.textContent = summary.cooldown || 0;
+                    const degradedEl = document.getElementById('models-count-degraded');
+                    if (degradedEl) degradedEl.textContent = summary.degraded || 0;
+                    const bannedEl = document.getElementById('models-count-banned');
+                    if (bannedEl) bannedEl.textContent = summary.banned || 0;
                     
                     // Store data for sorting
                     allData.models = models;
@@ -1578,12 +1600,17 @@
                         .then(summary => ({models, summary}));
                 })
                 .then(({models, summary}) => {
-                    // Update counters
-                    document.getElementById('train-count-total').textContent = summary.total || 0;
-                    document.getElementById('train-count-active').textContent = summary.active || 0;
-                    document.getElementById('train-count-cooldown').textContent = summary.cooldown || 0;
-                    document.getElementById('train-count-degraded').textContent = summary.degraded || 0;
-                    document.getElementById('train-count-banned').textContent = summary.banned || 0;
+                    // Update counters safely if elements exist
+                    const trainTotalEl = document.getElementById('train-count-total');
+                    if (trainTotalEl) trainTotalEl.textContent = summary.total || 0;
+                    const trainActiveEl = document.getElementById('train-count-active');
+                    if (trainActiveEl) trainActiveEl.textContent = summary.active || 0;
+                    const trainCooldownEl = document.getElementById('train-count-cooldown');
+                    if (trainCooldownEl) trainCooldownEl.textContent = summary.cooldown || 0;
+                    const trainDegradedEl = document.getElementById('train-count-degraded');
+                    if (trainDegradedEl) trainDegradedEl.textContent = summary.degraded || 0;
+                    const trainBannedEl = document.getElementById('train-count-banned');
+                    if (trainBannedEl) trainBannedEl.textContent = summary.banned || 0;
                     
                     // Store data for sorting
                     trainData.models = models;
@@ -1862,7 +1889,19 @@
         async function copyLogs() {
             try {
                 await navigator.clipboard.writeText(document.getElementById('logs').textContent);
-                const btn = document.querySelector('.btn-copy');
+                const btn = document.querySelector('.tab-content.active .btn-copy');
+                if (!btn) return;
+                const orig = btn.textContent;
+                btn.textContent = '✅ Copiato!';
+                setTimeout(() => btn.textContent = orig, 1500);
+            } catch (e) { showAlert('Copia fallita: ' + e.message, 'Errore', '⚠️'); }
+        }
+
+        async function copyScriptOutput() {
+            try {
+                await navigator.clipboard.writeText(document.getElementById('script-output').textContent);
+                const btn = document.getElementById('script-output-copy');
+                if (!btn) return;
                 const orig = btn.textContent;
                 btn.textContent = '✅ Copiato!';
                 setTimeout(() => btn.textContent = orig, 1500);
@@ -2143,10 +2182,10 @@
 
             let html = '';
             providers.forEach(p => {
-                const rpmUsed = p.rpm_used || 0;
-                const rpmLimit = p.rpm_limit || 0;
-                const rpdUsed = p.rpd_used || 0;
-                const rpdLimit = p.rpd_limit || 0;
+                const rpmUsed = p.rpm_used !== undefined ? p.rpm_used : (p.callsLastMinute || p.calls_last_minute || 0);
+                const rpmLimit = p.rpm_limit !== undefined ? p.rpm_limit : (p.rpmLimit || 0);
+                const rpdUsed = p.rpd_used !== undefined ? p.rpd_used : (p.callsToday || p.calls_today || 0);
+                const rpdLimit = p.rpd_limit !== undefined ? p.rpd_limit : (p.rpdLimit || 0);
                 const quotaReset = p.quota_resets_at ? fmtMs(p.quota_resets_at - Date.now()) : '—';
                 let state = 'attivo';
                 if (p.quota_resets_at && p.quota_resets_at > Date.now()) {
@@ -2636,42 +2675,74 @@
         async function loadScripts() {
             try {
                 const res = await fetch('/v1/scripts', { headers: authHeaders() });
-                if (!res.ok) throw new Error('Failed to load scripts');
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = text ? JSON.parse(text) : {};
+                } catch (jsonErr) {
+                    throw new Error(`Risposta non valida dal server (${res.status}): ${text.substring(0, 100)}`);
+                }
+
+                if (!res.ok) {
+                    throw new Error(data.error || `Errore HTTP ${res.status}`);
+                }
+
                 scriptsData = data.scripts || [];
                 renderScripts();
             } catch (e) {
                 console.error('Error loading scripts:', e);
                 document.getElementById('scripts-tbody').innerHTML =
-                    '<tr><td colspan="5" style="text-align:center; color:#f85149;">Errore caricamento script</td></tr>';
+                    `<tr><td colspan="5" style="text-align:center; color:#f85149;">Errore caricamento script: ${escapeHtml(e.message)}</td></tr>`;
             }
         }
         
+        const scriptDescriptions = {
+            'check-db.mjs': 'Verifica l’integrità del database SQLite, conteggi tabelle e stato generale.',
+            'clean-cjs-tests.mjs': 'Pulisce file di test CommonJS obsoleti o residui dalla directory.',
+            'inspect-db.mjs': 'Ispeziona lo schema e i dati contenuti nelle tabelle del database principale.',
+            'restart.sh': 'Riavvia il servizio del proxy in modo pulito preservando le sessioni attive.',
+            'switch-mode.sh': 'Gestisce i passaggi tra modalità (prod, train-gentle, train, stop).',
+            'test-final.mjs': 'Esegue i test finali di verifica del sistema e della suite di proxy.',
+            'test-target.sh': 'Esegue test mirati su componenti specifici o moduli isolati.',
+            'train-ctl.sh': 'Controlla il daemon di training e lo stato dell’apprendimento UCB1.',
+            'train-daemon.mjs': 'Daemon in background per l’addestramento asincrono e isolato dei modelli.',
+            'verify-dashboard-stats.mjs': 'Verifica la correttezza e la sincronizzazione delle metriche della dashboard.',
+            'verify-server.mjs': 'Esegue un health check approfondito sull’endpoint e sullo stato di avvio.',
+            'wrapper-test.sh': 'Script wrapper per l’esecuzione dei test in ambiente controllato.'
+        };
+
         function renderScripts() {
             const tbody = document.getElementById('scripts-tbody');
             const filter = document.getElementById('script-filter')?.value.toLowerCase() || '';
             
             const filtered = scriptsData.filter(s =>
                 s.name.toLowerCase().includes(filter) ||
-                s.type.toLowerCase().includes(filter)
+                s.type.toLowerCase().includes(filter) ||
+                (scriptDescriptions[s.name] && scriptDescriptions[s.name].toLowerCase().includes(filter))
             );
             
             document.getElementById('scripts-count').textContent =
                 `${filtered.length} script${filtered.length !== 1 ? 'i' : ''}`;
             
-            tbody.innerHTML = filtered.map(s => `
-                <tr>
-                    <td><code>${escapeHtml(s.name)}</code></td>
-                    <td><span class="badge badge-${s.type === 'shell' ? 'warning' : 'info'}">${s.type}</span></td>
-                    <td>${formatBytes(s.size)}</td>
-                    <td>${new Date(s.modified).toLocaleString()}</td>
-                    <td>
-                        <button class="btn btn-sm" onclick="executeScript('${escapeHtml(s.name)}')" title="Esegui script">
-                            ▶ Esegui
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = filtered.map(s => {
+                const desc = scriptDescriptions[s.name] || 'Script di utilità e gestione di sistema.';
+                return `
+                    <tr>
+                        <td>
+                            <div style="font-weight:600; color:#58a6ff; margin-bottom:4px; font-family:monospace; font-size:13px;">${escapeHtml(s.name)}</div>
+                            <div style="font-size:12px; color:#c9d1d9; line-height:1.4; white-space:normal; word-break:break-word;">${escapeHtml(desc)}</div>
+                        </td>
+                        <td><span class="badge badge-${s.type === 'shell' ? 'warning' : 'info'}">${s.type}</span></td>
+                        <td>${formatBytes(s.size)}</td>
+                        <td>${new Date(s.modified).toLocaleString()}</td>
+                        <td>
+                            <button class="btn btn-sm" onclick="executeScript('${escapeHtml(s.name)}')" title="Esegui script">
+                                ▶ Esegui
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
         
         async function executeScript(scriptName) {
@@ -2683,11 +2754,18 @@
             const title = document.getElementById('script-output-title');
             const status = document.getElementById('script-output-status');
             const output = document.getElementById('script-output');
+            const progressContainer = document.getElementById('script-progress-container');
+            const progressBar = document.getElementById('script-progress-bar');
+            const progressPct = document.getElementById('script-progress-pct');
             
             container.style.display = 'block';
             title.textContent = `Output: ${scriptName}`;
             status.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
             output.textContent = '';
+            
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (progressBar) progressBar.style.width = '10%';
+            if (progressPct) progressPct.textContent = '10%';
             
             // Scroll to output
             container.scrollIntoView({ behavior: 'smooth' });
@@ -2699,12 +2777,17 @@
                     body: JSON.stringify({ scriptPath: script.name, args: [] })
                 });
                 
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.error || 'Execution failed');
+                const text = await res.text();
+                let result;
+                try {
+                    result = text ? JSON.parse(text) : {};
+                } catch (jsonErr) {
+                    throw new Error(`Risposta non valida dal server (${res.status}): ${text.substring(0, 100)}`);
                 }
-                
-                const result = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(result.error || `Errore HTTP ${res.status}`);
+                }
                 
                 // Poll for completion
                 await pollScriptOutput(result.pid);
@@ -2718,17 +2801,44 @@
         async function pollScriptOutput(pid) {
             const status = document.getElementById('script-output-status');
             const output = document.getElementById('script-output');
+            const progressContainer = document.getElementById('script-progress-container');
+            const progressBar = document.getElementById('script-progress-bar');
+            const progressPct = document.getElementById('script-progress-pct');
             
-            for (let i = 0; i < 60; i++) { // Max 60 seconds
+            const maxSeconds = 180;
+            for (let i = 1; i <= maxSeconds; i++) {
                 await new Promise(r => setTimeout(r, 1000));
+                
+                // Estimate progress percentage smoothly up to 95% while running
+                const pct = Math.min(95, Math.floor((i / maxSeconds) * 95) + 5);
+                if (progressBar) progressBar.style.width = `${pct}%`;
+                if (progressPct) progressPct.textContent = `${pct}%`;
                 
                 try {
                     const res = await fetch(`/v1/scripts/output/${pid}`, { headers: authHeaders() });
                     if (!res.ok) continue;
                     
-                    const data = await res.json();
+                    const text = await res.text();
+                    let data;
+                    try {
+                        data = text ? JSON.parse(text) : {};
+                    } catch (err) {
+                        continue;
+                    }
+                    
+                    // Real-time output streaming feedback during execution
+                    let liveText = '';
+                    if (data.stdout) liveText += `=== STDOUT ===\n${data.stdout}\n`;
+                    if (data.stderr) liveText += `=== STDERR ===\n${data.stderr}\n`;
+                    if (liveText) {
+                        output.textContent = liveText;
+                        output.scrollTop = output.scrollHeight;
+                    }
                     
                     if (data.status === 'completed') {
+                        if (progressBar) progressBar.style.width = '100%';
+                        if (progressPct) progressPct.textContent = '100%';
+                        
                         const exitCode = data.exitCode;
                         const color = exitCode === 0 ? '#3fb950' : '#f85149';
                         const icon = exitCode === 0 ? '✓' : '✗';
@@ -2741,15 +2851,20 @@
                         if (!outText) outText = '(nessun output)';
                         
                         output.textContent = outText;
+                        output.scrollTop = output.scrollHeight;
                         return;
                     } else if (data.status === 'running') {
-                        status.innerHTML = `<span style="color:#58a6ff;">⏳ In esecuzione... (${Math.floor((Date.now() - data.startTime) / 1000)}s)</span>`;
+                        const elapsed = data.startTime ? Math.floor((Date.now() - data.startTime) / 1000) : i;
+                        status.innerHTML = `<span style="color:#58a6ff;">⏳ In esecuzione... (${elapsed}s)</span>`;
                     }
                 } catch (e) {
                     // Ignore polling errors
                 }
             }
-            
+
+            if (progressBar) progressBar.style.width = '100%';
+            if (progressBar) progressBar.style.background = '#f85149';
+            if (progressPct) progressPct.textContent = 'Timeout';
             status.innerHTML = '<span style="color:#f85149;">⚠ Timeout: lo script sta ancora eseguendo in background</span>';
         }
         
@@ -2765,6 +2880,9 @@
             document.getElementById('script-output-close')?.addEventListener('click', () => {
                 document.getElementById('script-output-container').style.display = 'none';
             });
+
+            // Copy script output log
+            document.getElementById('script-output-copy')?.addEventListener('click', copyScriptOutput);
             
             // Load scripts when tab is activated
             const scriptsTab = document.querySelector('[data-tab="scripts"]');
