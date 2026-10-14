@@ -24,7 +24,8 @@ function log(msg) {
 
 function run(cmd, options = {}) {
   try {
-    return execSync(cmd, { encoding: "utf8", stdio: options.stdio || "pipe", ...options }).trim();
+    const res = execSync(cmd, { encoding: "utf8", stdio: options.stdio || "pipe", ...options });
+    return res ? res.trim() : "";
   } catch (err) {
     if (options.ignoreError) return null;
     throw err;
@@ -258,7 +259,7 @@ function main() {
   const recentCommits = run("git log -n 5 --oneline", { ignoreError: true }) || "";
   
   // Potential duplicate or recent similar commit analysis
-  const recentSubjects = run("git log -n 5 --pretty=%s", { ignoreError: true }).split("\n") || [];
+  const recentSubjects = (run("git log -n 5 --pretty=%s", { ignoreError: true }) || "").split("\n");
   const similarCount = recentSubjects.filter(s => s.toLowerCase().includes(subject.toLowerCase().slice(0, 15))).length;
   const duplicateWarning = similarCount > 1 ? "⚠️ Note: Multiple recent commits share similar subject keywords." : "None detected.";
 
