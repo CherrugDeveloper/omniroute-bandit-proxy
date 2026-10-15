@@ -4,14 +4,13 @@ After=network.target
 
 [Service]
 Type=simple
-User=%USER%
-WorkingDirectory=%INSTALL_DIR%
-ExecStart=/usr/bin/node src/index.mjs
+WorkingDirectory=/home/marco/Data/Files/Workspace_vscode/omniroute-bandit-proxy
+ExecStart=/usr/bin/node /home/marco/Data/Files/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
 Restart=on-failure
 RestartSec=5
-EnvironmentFile=-%INSTALL_DIR%/.env
+EnvironmentFile=-/home/marco/Data/Files/Workspace_vscode/omniroute-bandit-proxy/.env
 StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
