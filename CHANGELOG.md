@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.9 — 2026-10-15
+- **Error Classification & Session Affinity**:
+  - Enhanced [`_classifyError()`](src/bandit.mjs:100) in [`src/bandit.mjs`](src/bandit.mjs:1) to correctly detect 413 and TPM / tokens per minute limit errors and classify them as model cooldown/ban.
+  - Updated upstream request handling in [`src/index.mjs`](src/index.mjs:1) to automatically invalidate session pins and add models to `sessionBlacklist` (with `severe: true`) on 413, 429, and TPM errors, preventing infinite retry loops on pinned models.
+
 ## v1.1.8 — 2026-10-15
 - **Scripts & Deployment Refactoring**:
   - Generalised installation paths in systemd service template [`omniroute-bandit-proxy.service`](omniroute-bandit-proxy.service:1) and [`README.md`](README.md:1) using generic placeholders (`%USER%`, `%INSTALL_DIR%`).

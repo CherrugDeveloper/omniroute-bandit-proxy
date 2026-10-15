@@ -767,8 +767,8 @@ export class DiscountedUCB1Bandit {
     if (status === 401 && /authentication expired/i.test(message)) {
       return { action: "flag-provider", reason: "auth-expired" };
     }
-    // NEW: 413 with ITPM/TPM/Request too large -> cooldown-provider with reset time
-    if (status === 413 && /ITPM|token-per-minute|Request too large/i.test(message)) {
+    // TPM / ITPM / tokens per minute / Request too large / Limit ... Requested ... -> cooldown-model (not provider, since TPM is model-specific)
+    if (/ITPM|tokens?\s*per\s*minute|TPM|Request too large|Requested \d+.*Limit \d+|Limit \d+.*Requested \d+/i.test(message)) {
       const m = message.match(/reset after (\d+)(s|m|h)/i);
       let cooldownMs = 30000; // default 30s
       if (m) {
@@ -778,7 +778,7 @@ export class DiscountedUCB1Bandit {
         else if (u === 'm') cooldownMs = v * 60 * 1000;
         else if (u === 'h') cooldownMs = v * 3600 * 1000;
       }
-      return { action: "cooldown-provider", reason: "itpm-exceeded", cooldownMs };
+      return { action: "cooldown-model", scope: "model", reason: "tpm-exceeded", cooldownMs };
     }
     // No auth provided -> flag-provider
     if (status === 502 && /No auth provided|Please log in/i.test(message)) {
