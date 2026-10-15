@@ -164,10 +164,10 @@ Crea `/etc/systemd/system/omniroute-bandit-proxy.service`:
 
     [Service]
     Type=simple
-    User=marco
-    WorkingDirectory=/home/marco/omniroute-bandit-proxy
-    EnvironmentFile=/home/marco/omniroute-bandit-proxy/.env
-    ExecStart=/usr/bin/node /home/marco/omniroute-bandit-proxy/src/index.mjs
+    User=%USER%
+    WorkingDirectory=/path/to/omniroute-bandit-proxy
+    EnvironmentFile=/path/to/omniroute-bandit-proxy/.env
+    ExecStart=/usr/bin/node /path/to/omniroute-bandit-proxy/src/index.mjs
     Restart=always
     RestartSec=5
     StandardOutput=journal

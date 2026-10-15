@@ -11,7 +11,9 @@
 # ============================================================
 
 set -u
-DIR="$HOME/omniroute-bandit-proxy"
+# Determina la directory di installazione in modo dinamico basata sulla posizione dello script o sulla directory corrente
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIR="$(dirname "$SCRIPT_DIR")"
 PIDFILE="$DIR/.train-daemon.pid"
 LOGFILE="$DIR/training.log"
 DAEMON="$DIR/scripts/train-daemon.mjs"

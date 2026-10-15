@@ -11,7 +11,9 @@
 
 set -euo pipefail
 
-DIR="$HOME/omniroute-bandit-proxy"
+# Determina la directory di installazione in modo dinamico basata sulla posizione dello script o sulla directory corrente
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIR="$(dirname "$SCRIPT_DIR")"
 ENV_FILE="$DIR/.env"
 SERVICE="omniroute-bandit-proxy.service"
 

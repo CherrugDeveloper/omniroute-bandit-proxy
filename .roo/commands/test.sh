@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # Path to the target script
-TARGET_SCRIPT="${WORKSPACE_ROOT}//home/marco/omniroute-bandit-proxy/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh"
+TARGET_SCRIPT="${WORKSPACE_ROOT}/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh"
 
 # Verify target script exists
 if [[ ! -f "${TARGET_SCRIPT}" ]]; then
