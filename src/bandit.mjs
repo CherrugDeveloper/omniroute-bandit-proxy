@@ -767,10 +767,10 @@ export class DiscountedUCB1Bandit {
     if (status === 401 && /authentication expired/i.test(message)) {
       return { action: "flag-provider", reason: "auth-expired" };
     }
-    // TPM / ITPM / tokens per minute / Request too large / Limit ... Requested ... -> cooldown-model (not provider, since TPM is model-specific)
-    if (/ITPM|tokens?\s*per\s*minute|TPM|Request too large|Requested \d+.*Limit \d+|Limit \d+.*Requested \d+/i.test(message)) {
+    // 413 / TPM / ITPM / tokens per minute / Request too large / context length / token limit -> cooldown-model (not provider, since TPM/context is model-specific)
+    if (status === 413 || /413|ITPM|tokens?\s*per\s*minute|TPM|Request too large|Requested \d+.*Limit \d+|Limit \d+.*Requested \d+|context\s*(?:window|length|exceeded)|token\s*limit|payload\s*too\s*large/i.test(message)) {
       const m = message.match(/reset after (\d+)(s|m|h)/i);
-      let cooldownMs = 30000; // default 30s
+      let cooldownMs = status === 413 ? 300000 : 30000; // default 5m for 413, 30s for TPM
       if (m) {
         const v = parseInt(m[1], 10);
         const u = m[2].toLowerCase();

@@ -1392,6 +1392,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
   }
 
+  // Aggiungi al set di esclusione i modelli bannati in questa sessione (fails >= 3 or severe) PRIMA di validare il pin
+  if (sessionKey) {
+    const bl = sessionBlacklist.get(sessionKey);
+    if (bl) {
+      for (const [modelId, record] of bl) {
+        const isBanned = typeof record === 'number' ? record >= 3 : (record.severe || record.fails >= 3);
+        if (isBanned) excluded.add(modelId);
+      }
+    }
+  }
+
   const pinnedValid = pinnedEntry
     && !excluded.has(pinnedEntry.model)
     && bandit.isModelAvailable(pinnedEntry.model);
@@ -1401,16 +1412,6 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
     console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
   } else {
-      // Aggiungi al set di esclusione i modelli bannati in questa sessione (fails >= 3 or severe)
-      if (sessionKey) {
-        const bl = sessionBlacklist.get(sessionKey);
-        if (bl) {
-          for (const [modelId, record] of bl) {
-            const isBanned = typeof record === 'number' ? record >= 3 : (record.severe || record.fails >= 3);
-            if (isBanned) excluded.add(modelId);
-          }
-        }
-      }
     model = await bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
