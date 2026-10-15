@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.11 — 2026-10-15
+- **Bandit & Error Classification**:
+  - Enhanced error classification in [`src/bandit.mjs`](src/bandit.mjs:1) for tool-calling requirement failures (`no-tool-call-but-required`), catalog mismatches, and environment configuration errors.
+  - Updated model selection in [`src/bandit.mjs`](src/bandit.mjs:1) to correctly skip degraded models (`degraded === 1`) alongside permanently banned models.
+
 ## v1.1.10 — 2026-10-15
 - **Dashboard UI**:
   - Added modern color-coded badges in [`public/dashboard.html`](public/dashboard.html:82) for model statistics (monitorati, attivi, cooldown, bannati, degraded, config, catalog, free, raw) to improve readability and visual hierarchy.

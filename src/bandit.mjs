@@ -739,8 +739,24 @@ export class DiscountedUCB1Bandit {
     const message = errorDetails.message || "";
     const reason = errorDetails.reason || "unknown";
     const is429 = status === 429;
-    // 404 model not found (varianti: "does not exist", "not found", "no longer available")
-    if (status === 404 && /does not exist|not found|no longer available/i.test(message)) {
+
+    // Tool-calling requirement failure -> ban-model
+    if (/no-tool-call-but-required/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "no-tool-call-but-required" };
+    }
+
+    // Sandbox, Missing Binary, and Environment Configuration Errors across status codes
+    if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured/i.test(message)) {
+      const isProviderLevel = /CLI not found|command not found|bridge sandbox|transport is not configured/i.test(message);
+      if (isProviderLevel) {
+        return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+      } else {
+        return { action: "ban-model", scope: "model", reason: "environment-error" };
+      }
+    }
+
+    // Catalog mismatch / unknown model / 404 / 400 model not found
+    if (/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available/i.test(message) || status === 404) {
       return { action: "ban-model", scope: "model", reason: "model-not-found" };
     }
     // 400 model non utilizzabile (non supportato, provider sconosciuto, code=model_not_found)
@@ -783,15 +799,6 @@ export class DiscountedUCB1Bandit {
     // No auth provided -> flag-provider
     if (status === 502 && /No auth provided|Please log in/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured" };
-    }
-    // Sandbox, Missing Binary, and Environment Configuration Errors across status codes
-    if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured/i.test(message)) {
-      const isProviderLevel = /CLI not found|command not found|bridge sandbox|transport is not configured/i.test(message);
-      if (isProviderLevel) {
-        return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
-      } else {
-        return { action: "ban-model", scope: "model", reason: "environment-error" };
-      }
     }
     // Playwright not available -> flag-provider
     if (status === 502 && /Playwright is not available/i.test(message)) {
@@ -1281,8 +1288,8 @@ export class DiscountedUCB1Bandit {
         if (resolvedExcluded.has(model.id)) {
           return false;
         }
-        // Skip if permanently banned at model level
-        if (model.permanent === 1) {
+        // Skip if permanently banned at model level or degraded
+        if (model.permanent === 1 || model.degraded === 1) {
           return false;
         }
         // Skip if provider is permanently banned
