@@ -1226,14 +1226,50 @@ export class DiscountedUCB1Bandit {
     };
   }
 
-  isModelAvailable(modelId) {
+  isModelAvailable(modelId, estimatedTokens = 0) {
+    const now = Date.now();
     const model = this.db.prepare(
-      `SELECT cooldown_until, permanent, degraded FROM models WHERE id = ?`
+      `SELECT cooldown_until, permanent, degraded, provider FROM models WHERE id = ?`
     ).get(modelId);
-    if (!model) return true; // mai visto → disponibile (il bandit deciderà)
-    if (model.permanent === 1) return false;
-    if (model.degraded === 1) return false;
-    return !model.cooldown_until || model.cooldown_until <= Date.now();
+    
+    const catModel = this.db.prepare(
+      `SELECT provider, max_input_tokens FROM catalog WHERE id = ?`
+    ).get(modelId);
+
+    const provider = model?.provider || catModel?.provider;
+
+    if (model) {
+      if (model.permanent === 1 || model.degraded === 1) return false;
+      if (model.cooldown_until && model.cooldown_until > now) return false;
+    }
+
+    if (provider) {
+      const prov = this.db.prepare(
+        `SELECT cooldown_until, permanent, needs_attention, quota_resets_at FROM provider_history WHERE provider = ?`
+      ).get(provider);
+
+      if (prov) {
+        if (prov.permanent === 1) return false;
+        if (prov.cooldown_until && prov.cooldown_until > now) return false;
+        if (prov.quota_resets_at && prov.quota_resets_at > now) return false;
+        if (prov.needs_attention === 1 && (!(prov.cooldown_until > 0 && prov.cooldown_until <= now))) {
+          return false;
+        }
+      }
+
+      if (!this.quota.canCall(provider)) {
+        return false;
+      }
+    }
+
+    if (estimatedTokens > 0) {
+      const maxInput = this.getModelMaxInput(modelId) || catModel?.max_input_tokens || 0;
+      if (maxInput > 0 && estimatedTokens > maxInput) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   estimateTokens(body) {
@@ -1331,7 +1367,7 @@ export class DiscountedUCB1Bandit {
         }
         // Skip if provider is permanently banned
         const prov = this.db.prepare(
-          `SELECT cooldown_until, permanent, needs_attention FROM provider_history WHERE provider = ?`
+          `SELECT cooldown_until, permanent, needs_attention, quota_resets_at FROM provider_history WHERE provider = ?`
         ).get(model.provider);
         if (prov && prov.permanent === 1) {
           return false;
@@ -1342,8 +1378,15 @@ export class DiscountedUCB1Bandit {
           if (model.cooldown_until && model.cooldown_until > now) {
             return false;
           }
+          // Skip if provider quota or rate limit is exhausted
+          if (!this.quota.canCall(model.provider)) {
+            return false;
+          }
           if (prov) {
             if (prov.cooldown_until > now) {
+              return false;
+            }
+            if (prov.quota_resets_at && prov.quota_resets_at > now) {
               return false;
             }
             if (prov.needs_attention === 1) {
@@ -1374,8 +1417,8 @@ export class DiscountedUCB1Bandit {
 
         if (!ignoreTokenLimit && estimatedTokens > 0) {
           const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
-          // Allow 10% margin for estimation error
-          if (maxInput > 0 && estimatedTokens > maxInput * 1.1) {
+          // Strict check: exclude model if estimated tokens exceed max input tokens
+          if (maxInput > 0 && estimatedTokens > maxInput) {
             return false;
           }
         }
