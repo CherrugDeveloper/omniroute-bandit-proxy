@@ -397,3 +397,20 @@ test("_classifyError: sandbox, missing binary, and environment configuration err
   assert.equal(c4.reason, "provider-misconfigured");
   b.close();
 });
+
+test("selectModel: explores unobserved catalog models with N=0 via optimistic UCB1 scoring", async () => {
+  const b = makeBandit();
+  seedCatalog(b, "p1/tested-model", "p1");
+  b.db.prepare("INSERT INTO models (id, provider, N, sum_reward) VALUES (?, ?, ?, ?)").run("p1/tested-model", "p1", 10, 5.0);
+
+  seedCatalog(b, "p2/unobserved-catalog-model", "p2");
+
+  const selected = new Set();
+  for (let i = 0; i < 20; i++) {
+    const chosen = await b.selectModel();
+    if (chosen) selected.add(chosen);
+  }
+
+  assert.ok(selected.has("p2/unobserved-catalog-model"), "unobserved catalog model should be explored");
+  b.close();
+});

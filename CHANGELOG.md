@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.7 — 2026-10-15
+- **Bandit Algorithm**:
+  - Implemented robust Discounted UCB1 scoring with optimistic exploration for unobserved and low-sample catalog models (`N = 0`, `N < 3`) in [`selectModel()`](src/bandit.mjs:1) within [`src/bandit.mjs`](src/bandit.mjs:1), preventing unobserved catalog models from being locked out.
+  - Added unit test in [`tests/bandit.test.mjs`](tests/bandit.test.mjs:1) to verify unobserved catalog model exploration.
+
 ## v1.1.6 — 2026-10-15
 - **Proxy Robustness**:
   - Fixed iterative reduction in [`compressBody()`](src/index.mjs:247) within [`src/index.mjs`](src/index.mjs:1) to prevent `Maximum call stack size exceeded` errors.

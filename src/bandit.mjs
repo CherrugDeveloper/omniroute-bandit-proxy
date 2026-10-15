@@ -1386,15 +1386,32 @@ export class DiscountedUCB1Bandit {
       return null;
     }
 
-    // Select model using UCB1-like ranking (simplified: pick highest rank)
-    // First, filter out cooldown models and rank the rest
+    // Select model using robust Discounted UCB1 scoring with optimistic exploration for unobserved/low-sample models (N=0, N<3) and profileMultiplier soft bias
+    const totalObservations = this._getMeta("totalObservations") || models.reduce((acc, m) => acc + (m.N || 0), 0) || 1;
+
     let bestModel = availableModels[0];
     let bestScore = -Infinity;
 
     for (const model of availableModels) {
-      const rank = this.getModelRank(model.id) ?? 0;
-      if (rank > bestScore) {
-        bestScore = rank;
+      const N = model.N || 0;
+      const sum_reward = model.sum_reward || 0;
+
+      let ucbScore;
+      if (N === 0) {
+        // Optimistic initialization / exploration bonus for unobserved or catalog models (N = 0)
+        ucbScore = 1.0 + 0.5 * Math.sqrt(Math.log(totalObservations + 1) / 1);
+      } else {
+        const avg = sum_reward / N;
+        const explorationBonus = 0.5 * Math.sqrt(Math.log(totalObservations + 1) / N);
+        ucbScore = avg + explorationBonus;
+      }
+
+      // Apply soft bias multiplier from profile if specified, plus small random tie-breaker for rotation
+      const mult = profileMultiplier(profile, model.id);
+      const finalScore = (ucbScore * mult) + (Math.random() * 0.0001);
+
+      if (finalScore > bestScore) {
+        bestScore = finalScore;
         bestModel = model;
       }
     }
