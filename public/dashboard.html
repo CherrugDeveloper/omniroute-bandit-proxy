@@ -759,12 +759,12 @@
         </div>
         </div>
         <div class="stats-container">
-            <div class="stats"><strong>Richieste:</strong> <span id="total-req">0</span></div>
+            <div class="stats"><strong>Richieste:</strong> <span id="total-req" class="ok">0</span></div>
             <div class="stats" title="Modello con lo score UCB1 più alto">
                 <strong>Top model:</strong> <span id="top-model" class="mono">—</span>
             </div>
             <div class="stats">
-                <strong>Osservazioni:</strong> <span id="total-obs">0</span> <span class="muted" id="success-rate">(successo: —)</span>
+                <strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span> <span class="muted" id="success-rate">(successo: —)</span>
                 <button class="btn btn-reset" style="margin-left:8px;padding:2px 6px;font-size:11px" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
             </div>
 
@@ -1833,9 +1833,9 @@
                 '<td class="mono" style="text-align:center">' + rank + '</td>' +
                 '<td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td>' +
                 '<td>' + escapeHtml(m.provider) + '</td>' +
-                '<td class="mono">' + n.toFixed(1) + '</td>' +
-                '<td class="mono">' + avg.toFixed(3) + '</td>' +
-                '<td>' + fails + '</td>' +
+                '<td class="mono ok">' + n.toFixed(1) + '</td>' +
+                '<td class="mono ok">' + avg.toFixed(3) + '</td>' +
+                '<td>' + (fails > 0 ? '<span class="err">' + fails + '</span>' : '<span class="muted">0</span>') + '</td>' +
                 '<td>' + badge(m) + '</td>' +
                 '<td style="text-align:center">' + freeBadge + '</td>' +
                 '<td style="text-align:center">' + paidBadge + '</td>' +
@@ -2196,11 +2196,11 @@
             };
 
             const rpmColor = (used, limit) => {
-                if (limit === 0) return 'gray';
+                if (limit === 0) return 'muted';
                 const pct = (used / limit) * 100;
-                if (pct >= 80) return 'red';
-                if (pct >= 50) return 'yellow';
-                return 'green';
+                if (pct >= 80) return 'err';
+                if (pct >= 50) return 'warn';
+                return 'ok';
             };
 
             let html = '';
@@ -2220,12 +2220,18 @@
                 const rpmClass = rpmColor(rpmUsed, rpmLimit);
                 const rpdClass = rpmColor(rpdUsed, rpdLimit);
 
+                const stateHtml = state === 'quota-exhausted'
+                    ? '<span class="badge badge-bannati">quota-exhausted</span>'
+                    : state === 'cooldown'
+                    ? '<span class="badge badge-cooldown">cooldown</span>'
+                    : '<span class="badge badge-active">attivo</span>';
+
                 html += '<tr>' +
                     '<td>' + escapeHtml(p.provider) + '</td>' +
-                    '<td><span class="stats" style="color:' + rpmClass + '">' + rpmUsed + ' / ' + rpmLimit + '</span></td>' +
-                    '<td><span class="stats" style="color:' + rpdClass + '">' + rpdUsed + ' / ' + rpdLimit + '</span></td>' +
-                    '<td>' + quotaReset + '</td>' +
-                    '<td>' + (state === 'quota-exhausted' ? 'quota-exhausted' : state === 'cooldown' ? 'cooldown' : 'attivo') + '</td>' +
+                    '<td><span class="' + rpmClass + '">' + rpmUsed + ' / ' + rpmLimit + '</span></td>' +
+                    '<td><span class="' + rpdClass + '">' + rpdUsed + ' / ' + rpdLimit + '</span></td>' +
+                    '<td><span class="muted">' + quotaReset + '</span></td>' +
+                    '<td>' + stateHtml + '</td>' +
                 '</tr>';
             });
 

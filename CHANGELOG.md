@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.15 — 2026-10-15
+- **Token Limit & TPM Exceeded Handling**:
+  - Enhanced [`recordFeedback()`](src/bandit.mjs:681) in [`src/bandit.mjs`](src/bandit.mjs:1) and upstream error handling in [`src/index.mjs`](src/index.mjs:1557) to pass estimated tokens (`estimatedTokens`) and dynamically track/adjust `dynamic_max_tokens` on TPM/token limit errors.
+- **Dashboard Metrics & Quota Styling**:
+  - Refined [`public/dashboard.html`](public/dashboard.html:759) with color-coded CSS classes (`ok`, `err`, `warn`, `muted`, status badges) for request stats, model performance metrics, fail counters, and provider RPM/RPD quota visualization.
+
 ## v1.1.14 — 2026-10-15
 - **Error Handling & Model Filtering**:
   - Added robust error classification in [`_classifyError()`](src/bandit.mjs:100) within [`src/bandit.mjs`](src/bandit.mjs:1) for CFP browser environment execution errors (`browserType.launch: Executable doesn't exist`) and Antigravity catalog availability errors (`not available in the active live catalog`), classifying them as `ban-model` (`environment-error` and `model-not-found`).

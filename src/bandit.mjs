@@ -681,6 +681,19 @@ export class DiscountedUCB1Bandit {
                 break;
               case "cooldown-model": {
                 const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
+                if (c.reason === "tpm-exceeded" || opts.estimatedTokens > 0) {
+                  const estTokens = opts.estimatedTokens || errorDetails?.estimatedTokens || 0;
+                  if (estTokens > 0) {
+                    this.db.prepare(
+                      `INSERT INTO models (id, provider, dynamic_max_tokens, N, sum_reward, fails, cooldown_until, last_used_index)
+                       VALUES (?, ?, ?, 0, 0, 0, 0, 0)
+                       ON CONFLICT(id) DO UPDATE SET dynamic_max_tokens = CASE
+                         WHEN dynamic_max_tokens = 0 OR dynamic_max_tokens > ? THEN ?
+                         ELSE MIN(dynamic_max_tokens, ?)
+                       END`
+                    ).run(modelId, provider, estTokens, estTokens, estTokens);
+                  }
+                }
                 if (isTransient) {
                   this.db.prepare(`UPDATE models SET consecutive_5xx = consecutive_5xx + 1 WHERE id = ?`).run(modelId);
                   const modelRow = this.db.prepare(`SELECT consecutive_5xx FROM models WHERE id = ?`).get(modelId);

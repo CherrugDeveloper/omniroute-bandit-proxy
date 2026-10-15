@@ -1557,7 +1557,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         const txt = await r.text().catch(() => "");
         console.error(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
-        bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource });
+        bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
 
         // Parse Retry-After header for 429 errors
         let retryAfter = 0;
