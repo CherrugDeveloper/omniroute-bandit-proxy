@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.14 — 2026-10-15
+- **Error Handling & Model Filtering**:
+  - Added robust error classification in [`_classifyError()`](src/bandit.mjs:100) within [`src/bandit.mjs`](src/bandit.mjs:1) for CFP browser environment execution errors (`browserType.launch: Executable doesn't exist`) and Antigravity catalog availability errors (`not available in the active live catalog`), classifying them as `ban-model` (`environment-error` and `model-not-found`).
+  - Refined relaxation tiers in [`selectModel()`](src/bandit.mjs:1339) within [`src/bandit.mjs`](src/bandit.mjs:1) to keep token limit strictness during tool and policy relaxation tiers.
+  - Added dedicated test suite in [`__tests__/error-handling-and-filtering.test.mjs`](__tests__/error-handling-and-filtering.test.mjs:1) covering CFP, Antigravity, and Groq TPM / token limit checks.
+
 ## v1.1.13 — 2026-10-15
 - **Error Classification & Model Input Token Limits**:
   - Enhanced [`_classifyError()`](src/bandit.mjs:100) in [`src/bandit.mjs`](src/bandit.mjs:1) to classify spawn/ENOENT errors for the [`zc`](src/bandit.mjs:750) provider as `ban-provider` (`provider-misconfigured`).

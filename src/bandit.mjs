@@ -745,8 +745,18 @@ export class DiscountedUCB1Bandit {
       return { action: "ban-model", scope: "model", reason: "no-tool-call-but-required" };
     }
 
+    // Status 502 misconfiguration / gateway errors -> flag-provider
+    if (status === 502 && /No auth provided|Please log in|Playwright is not available|missing url or token/i.test(message)) {
+      return { action: "flag-provider", reason: "provider-misconfigured" };
+    }
+
+    // CFP / Cloudflare Playground environment errors -> flag-provider (temporary, non-permanent)
+    if (provider === 'cfp' && /browserType\.launch|Executable doesn't exist|Playwright is not available|ENOENT/i.test(message)) {
+      return { action: "flag-provider", reason: "provider-misconfigured" };
+    }
+
     // Sandbox, Missing Binary, and Environment Configuration Errors across status codes
-    if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured/i.test(message)) {
+    if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured|Playwright is not available/i.test(message)) {
       const isProviderLevel = provider === 'zc' || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
       if (isProviderLevel) {
         return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
@@ -755,8 +765,8 @@ export class DiscountedUCB1Bandit {
       }
     }
 
-    // Catalog mismatch / unknown model / 404 / 400 model not found
-    if (/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available/i.test(message) || status === 404) {
+    // Catalog mismatch / unknown model / 404 / 400 model not found / live catalog errors
+    if (/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message) || status === 404 || status === 400) {
       return { action: "ban-model", scope: "model", reason: "model-not-found" };
     }
     // 400 model non utilizzabile (non supportato, provider sconosciuto, code=model_not_found)
@@ -1371,16 +1381,16 @@ export class DiscountedUCB1Bandit {
       availableModels = filterModels();
     }
 
-    // 3. Relaxation Tier 1: Relax token limits and tool requirements
+    // 3. Relaxation Tier 1: Relax tool requirements (keep token limits strict!)
     if (availableModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT] Relaxation tier 1: relaxing token limits and tool requirements`);
-      availableModels = filterModels({ ignoreTokenLimit: true, ignoreTools: true });
+      if (DEBUG) console.log(`[BANDIT] Relaxation tier 1: relaxing tool requirements`);
+      availableModels = filterModels({ ignoreTools: true });
     }
 
-    // 4. Relaxation Tier 2: Relax policies (excludePaid, onlyFree, excludeThinking)
+    // 4. Relaxation Tier 2: Relax policies (excludePaid, onlyFree, excludeThinking) (keep token limits strict!)
     if (availableModels.length === 0) {
       if (DEBUG) console.log(`[BANDIT] Relaxation tier 2: relaxing policies (excludePaid, onlyFree, excludeThinking)`);
-      availableModels = filterModels({ ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
+      availableModels = filterModels({ ignoreTools: true, ignorePolicies: true });
     }
 
     // 5. Emergency Last Resort: Relax cooldowns as well
