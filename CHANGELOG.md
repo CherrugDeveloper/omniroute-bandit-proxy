@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.10 — 2026-10-15
+- **Dashboard UI**:
+  - Added modern color-coded badges in [`public/dashboard.html`](public/dashboard.html:82) for model statistics (monitorati, attivi, cooldown, bannati, degraded, config, catalog, free, raw) to improve readability and visual hierarchy.
+
 ## v1.1.9 — 2026-10-15
 - **Error Classification & Session Affinity**:
   - Enhanced [`_classifyError()`](src/bandit.mjs:100) in [`src/bandit.mjs`](src/bandit.mjs:1) to correctly detect 413 and TPM / tokens per minute limit errors and classify them as model cooldown/ban.

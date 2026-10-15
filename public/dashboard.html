@@ -82,6 +82,26 @@
         .degraded { color: #db6d28; font-weight: bold; }
         .muted { color: #8b949e; font-size: 12px; }
 
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.2;
+            margin: 0 2px;
+        }
+        .badge-monitorati { background: rgba(88, 166, 255, 0.15); color: #58a6ff; border: 1px solid rgba(88, 166, 255, 0.3); }
+        .badge-attivi { background: rgba(63, 185, 80, 0.15); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.3); }
+        .badge-cooldown { background: rgba(210, 153, 34, 0.15); color: #d29922; border: 1px solid rgba(210, 153, 34, 0.3); }
+        .badge-bannati { background: rgba(248, 81, 73, 0.15); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.3); }
+        .badge-degraded { background: rgba(219, 109, 40, 0.15); color: #db6d28; border: 1px solid rgba(219, 109, 40, 0.3); }
+        .badge-config { background: rgba(163, 113, 247, 0.15); color: #a371f7; border: 1px solid rgba(163, 113, 247, 0.3); }
+        .badge-catalog { background: rgba(57, 210, 219, 0.15); color: #39d2db; border: 1px solid rgba(57, 210, 219, 0.3); }
+        .badge-free { background: rgba(45, 164, 138, 0.15); color: #2da48a; border: 1px solid rgba(45, 164, 138, 0.3); }
+        .badge-raw { background: rgba(139, 148, 158, 0.15); color: #8b949e; border: 1px solid rgba(139, 148, 158, 0.3); }
+
         .tabs {
             display: flex;
             gap: 5px;
@@ -757,15 +777,15 @@
 
             <div class="stats" title="Stato Modelli (Monitorati / Attivi / Cooldown / Bannati / Degradati / Da Config / Catalogo)">
                 <strong>Modelli:</strong>
-                Monitorati: <span id="total-models">0</span> |
-                <span id="active-models" class="ok">0</span> attivi |
-                <span id="cooldown-models" class="warn">0</span> cool |
-                <span id="banned-models" class="err">0</span> bannati |
-                <span id="degraded-models" class="degraded">0</span> degraded |
-                <span id="attention-models" class="attention">0</span> config |
-                Chat Catalogo: <span id="catalog-models">0</span> |
-                Free: <span id="catalog-free" class="attention">0</span> |
-                Totali Grezzi: <span id="catalog-models-raw">0</span>
+                Monitorati: <span id="total-models" class="badge badge-monitorati">0</span> |
+                <span id="active-models" class="badge badge-attivi">0</span> attivi |
+                <span id="cooldown-models" class="badge badge-cooldown">0</span> cool |
+                <span id="banned-models" class="badge badge-bannati">0</span> bannati |
+                <span id="degraded-models" class="badge badge-degraded">0</span> degraded |
+                <span id="attention-models" class="badge badge-config">0</span> config |
+                Chat Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span> |
+                Free: <span id="catalog-free" class="badge badge-free">0</span> |
+                Totali Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span>
             </div>
 
             <div class="stats" title="Stato Provider (Attivi / Cooldown / Bannati / Da Config su Monitorati e Catalogo)">
