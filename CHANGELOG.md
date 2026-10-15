@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.8 — 2026-10-15
+- **Scripts & Deployment Refactoring**:
+  - Generalised installation paths in systemd service template [`omniroute-bandit-proxy.service`](omniroute-bandit-proxy.service:1) and [`README.md`](README.md:1) using generic placeholders (`%USER%`, `%INSTALL_DIR%`).
+  - Improved dynamic installation directory resolution in operational scripts [`scripts/switch-mode.sh`](scripts/switch-mode.sh:1) and [`scripts/train-ctl.sh`](scripts/train-ctl.sh:1).
+  - Cleaned up obsolete helper wrapper script [`.roo/commands/git-auto-commit.sh`](.roo/commands/git-auto-commit.sh:1).
+
 ## v1.1.7 — 2026-10-15
 - **Bandit Algorithm**:
   - Implemented robust Discounted UCB1 scoring with optimistic exploration for unobserved and low-sample catalog models (`N = 0`, `N < 3`) in [`selectModel()`](src/bandit.mjs:1) within [`src/bandit.mjs`](src/bandit.mjs:1), preventing unobserved catalog models from being locked out.
