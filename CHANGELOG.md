@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.12 — 2026-10-15
+- **Bandit Error Classification & Testing**:
+  - Added robust classification and permanent banning rules in [`src/bandit.mjs`](src/bandit.mjs:1) for environment and sandbox errors (`ENOENT`, missing browser executables like playwright chromium, 404, 410).
+  - Added comprehensive unit tests in [`tests/bandit.test.mjs`](tests/bandit.test.mjs:1) covering environment error classification.
+
 ## v1.1.11 — 2026-10-15
 - **Bandit & Error Classification**:
   - Enhanced error classification in [`src/bandit.mjs`](src/bandit.mjs:1) for tool-calling requirement failures (`no-tool-call-but-required`), catalog mismatches, and environment configuration errors.

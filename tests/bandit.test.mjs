@@ -39,6 +39,22 @@ test("_classifyError: upstream bug (Assignment to constant) -> ban-model", () =>
   b.close();
 });
 
+test("_classifyError: environment error / browserType.launch -> ban-model", () => {
+  const b = makeBandit();
+  const c = b._classifyError({ message: "browserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/chromium" });
+  assert.equal(c.action, "ban-model");
+  assert.equal(c.reason, "environment-error");
+  b.close();
+});
+
+test("_classifyError: missing binary / spawn zcode ENOENT -> ban-model", () => {
+  const b = makeBandit();
+  const c = b._classifyError({ message: "spawn zcode ENOENT" });
+  assert.equal(c.action, "ban-model");
+  assert.equal(c.reason, "environment-error");
+  b.close();
+});
+
 test("_classifyError: no auth provided -> flag-provider", () => {
   const b = makeBandit();
   const c = b._classifyError({ status: 502, message: "No auth provided. Please log in with `auggie login`" });
