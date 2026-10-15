@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.18 — 2026-10-15
+- **Dynamic Model Token Limits & Persistence**:
+  - Enhanced [`src/bandit.mjs`](src/bandit.mjs:1) to dynamically extract and persist model token limits from 413 errors and error responses.
+
 ## v1.1.17 — 2026-10-15
 - **Feedback Recording & Session Affinity Testing**:
   - Ensured automatic model registration in the [`models`](CHANGELOG.md:1) table within [`recordFeedback()`](src/bandit.mjs:644) in [`src/bandit.mjs`](src/bandit.mjs:1) for catalog-only models or any model receiving feedback.

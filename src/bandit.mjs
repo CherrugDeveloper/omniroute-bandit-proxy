@@ -692,17 +692,20 @@ export class DiscountedUCB1Bandit {
                 break;
               case "cooldown-model": {
                 const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
-                if (c.reason === "tpm-exceeded" || opts.estimatedTokens > 0) {
+                if (c.reason === "tpm-exceeded" || errorDetails?.status === 413 || opts.estimatedTokens > 0) {
+                  const errorMessage = String(errorDetails?.message || errorDetails?.error || errorDetails || "");
+                  const parsedLimit = this._parseTokenLimit(errorMessage);
                   const estTokens = opts.estimatedTokens || errorDetails?.estimatedTokens || 0;
-                  if (estTokens > 0) {
+                  const targetLimit = parsedLimit !== null ? parsedLimit : estTokens;
+                  if (targetLimit > 0) {
                     this.db.prepare(
                       `INSERT INTO models (id, provider, dynamic_max_tokens, N, sum_reward, fails, cooldown_until, last_used_index)
                        VALUES (?, ?, ?, 0, 0, 0, 0, 0)
                        ON CONFLICT(id) DO UPDATE SET dynamic_max_tokens = CASE
-                         WHEN dynamic_max_tokens = 0 OR dynamic_max_tokens > ? THEN ?
-                         ELSE MIN(dynamic_max_tokens, ?)
+                         WHEN dynamic_max_tokens = 0 OR dynamic_max_tokens > excluded.dynamic_max_tokens THEN excluded.dynamic_max_tokens
+                         ELSE MIN(dynamic_max_tokens, excluded.dynamic_max_tokens)
                        END`
-                    ).run(modelId, provider, estTokens, estTokens, estTokens);
+                    ).run(modelId, provider, targetLimit);
                   }
                 }
                 if (isTransient) {
@@ -1476,24 +1479,43 @@ export class DiscountedUCB1Bandit {
     `).all(now, now, batchSize);
   }
 
+  _parseTokenLimit(message) {
+    if (!message || typeof message !== 'string') return null;
+    const limitPatterns = [
+      /(?:limit|maximum|max|capacity|tpm|token\s+limit|rate\s+limit)[^\d]*(\d+)/i,
+      /(\d+)\s*(?:tokens\s+per\s+minute|tpm)/i
+    ];
+    for (const pat of limitPatterns) {
+      const m = message.match(pat);
+      if (m && m[1]) {
+        const val = parseInt(m[1], 10);
+        if (val > 0) return val;
+      }
+    }
+    return null;
+  }
+
   getModelMaxInput(modelId) {
-    // Catalog: max_input_tokens (dal provider)
+    let catMax = 0;
     try {
       const catRow = this.db.prepare(
         `SELECT max_input_tokens FROM catalog WHERE id = ?`
       ).get(modelId);
-      if (catRow && catRow.max_input_tokens > 0) return catRow.max_input_tokens;
+      if (catRow && catRow.max_input_tokens > 0) catMax = catRow.max_input_tokens;
     } catch (_) {}
 
-    // models: dynamic_max_tokens (appreso dai 413 ITPM)
+    let dynMax = 0;
     try {
       const modelRow = this.db.prepare(
         `SELECT dynamic_max_tokens FROM models WHERE id = ?`
       ).get(modelId);
-      if (modelRow && modelRow.dynamic_max_tokens > 0) return modelRow.dynamic_max_tokens;
+      if (modelRow && modelRow.dynamic_max_tokens > 0) dynMax = modelRow.dynamic_max_tokens;
     } catch (_) {}
 
-    return 0;
+    if (dynMax > 0 && catMax > 0) {
+      return Math.min(dynMax, catMax);
+    }
+    return dynMax > 0 ? dynMax : catMax;
   }
 
   reviveModel(modelId) {
