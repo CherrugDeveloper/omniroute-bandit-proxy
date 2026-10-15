@@ -69,11 +69,23 @@
             flex-shrink: 0;
         }
         .stats-container {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+            margin-bottom: 4px;
         }
-        .stats { background: #21262d; padding: 6px 12px; border-radius: 6px; font-size: 13px; }
+        .stats {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         .stats strong { color: #58a6ff; }
         .ok { color: #3fb950; font-weight: bold; }
         .warn { color: #d29922; font-weight: bold; }
@@ -2437,10 +2449,10 @@
         fetchLogs();
         fetchActive();
         fetchQuota();
-        setInterval(refreshAll, 2000);
-        setInterval(fetchLogs, 2000);
-        setInterval(fetchActive, 1000);
-        setInterval(fetchQuota, 30000);
+        setInterval(refreshAll, 1000);
+        setInterval(fetchLogs, 1000);
+        setInterval(fetchActive, 500);
+        setInterval(fetchQuota, 10000);
         document.addEventListener('DOMContentLoaded', () => {
             const fab = document.getElementById('dev-fab');
             const menu = document.getElementById('dev-menu');

@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.16 — 2026-10-15
+- **Dashboard Log Frequency, Top Panel Metrics & UI Unification**:
+  - Increased `RingBuffer` capacity in [`src/index.mjs`](src/index.mjs:385) from 200 to 1000 log entries for expanded log history.
+  - Optimized polling intervals in [`public/dashboard.html`](public/dashboard.html:2437) (`refreshAll` to 1s, `fetchLogs` to 1s, `fetchActive` to 0.5s, `fetchQuota` to 10s) for high-frequency dashboard updates.
+  - Unified stats container styling and top panel metrics in [`public/dashboard.html`](public/dashboard.html:69) with a responsive CSS grid layout (`minmax(280px, 1fr)`).
+
 ## v1.1.15 — 2026-10-15
 - **Token Limit & TPM Exceeded Handling**:
   - Enhanced [`recordFeedback()`](src/bandit.mjs:681) in [`src/bandit.mjs`](src/bandit.mjs:1) and upstream error handling in [`src/index.mjs`](src/index.mjs:1557) to pass estimated tokens (`estimatedTokens`) and dynamically track/adjust `dynamic_max_tokens` on TPM/token limit errors.

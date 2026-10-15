@@ -385,7 +385,7 @@ class RingBuffer {
   }
 }
 
-const logBuffer = new RingBuffer(200);
+const logBuffer = new RingBuffer(1000);
 
 // ========================================
 // ACTIVE REQUESTS TRACKER
