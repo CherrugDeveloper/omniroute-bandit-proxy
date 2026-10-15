@@ -644,6 +644,17 @@ export class DiscountedUCB1Bandit {
       const now = Date.now();
       const source = opts.source === 'training' ? 'training' : 'prod';
 
+      // Ensure model exists in models table (for catalog-only models or any model receiving feedback)
+      const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
+      const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(modelId);
+      const provider = cat?.provider || existingModel?.provider || opts.provider || 'unknown';
+      if (provider) {
+        this.db.prepare(
+          `INSERT OR IGNORE INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, permanent, degraded)
+           VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`
+        ).run(modelId, provider);
+      }
+
       if (source === 'training' || source === 'prod') {
         if (!success && errorDetails && typeof errorDetails === "object") {
           const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);

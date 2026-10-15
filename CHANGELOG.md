@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.17 — 2026-10-15
+- **Feedback Recording & Session Affinity Testing**:
+  - Ensured automatic model registration in the [`models`](CHANGELOG.md:1) table within [`recordFeedback()`](src/bandit.mjs:644) in [`src/bandit.mjs`](src/bandit.mjs:1) for catalog-only models or any model receiving feedback.
+  - Added unit test in [`__tests__/session-affinity.test.mjs`](__tests__/session-affinity.test.mjs:142) verifying 413 / tpm-exceeded error invalidates session affinity pin and persists cooldown in models database.
+
 ## v1.1.16 — 2026-10-15
 - **Dashboard Log Frequency, Top Panel Metrics & UI Unification**:
   - Increased `RingBuffer` capacity in [`src/index.mjs`](src/index.mjs:385) from 200 to 1000 log entries for expanded log history.

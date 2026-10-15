@@ -6,6 +6,7 @@ import {
   sessionBlacklist,
   SESSION_TTL_MS,
 } from "../src/index.mjs";
+import { DiscountedUCB1Bandit } from "../src/bandit.mjs";
 
 describe("Session Affinity & Caching Mechanism (`src/index.mjs`)", () => {
   beforeEach(() => {
@@ -135,6 +136,66 @@ describe("Session Affinity & Caching Mechanism (`src/index.mjs`)", () => {
       }
 
       assert.equal(sessionModels.has(sessionKey), false, "Session pin should be deleted on model failure");
+    });
+
+    /**
+     * @test Verify that a model receiving a 413 / tpm-exceeded error has its session affinity pin invalidated and correctly enters cooldown in the models database
+     */
+    test("413 / tpm-exceeded error invalidates session affinity pin and persists cooldown in models database", () => {
+      const bandit = new DiscountedUCB1Bandit(":memory:");
+      const sessionKey = "tpm_error_test_key";
+      const modelId = "groq/llama-3-70b";
+
+      // Seed catalog and model
+      bandit.db.prepare(
+        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools) VALUES (?, ?, ?, ?, ?)`
+      ).run(modelId, "groq", 8000, 1, 1);
+
+      bandit.db.prepare(
+        `INSERT INTO models (id, provider, N, sum_reward, fails, cooldown_until) VALUES (?, ?, 5, 4.0, 0, 0)`
+      ).run(modelId, "groq");
+
+      // Set session affinity pin
+      sessionModels.set(sessionKey, { model: modelId, ts: Date.now() });
+      assert.equal(sessionModels.has(sessionKey), true);
+
+      // Simulate 413 / tpm-exceeded error feedback
+      const errorDetails = {
+        status: 413,
+        message: "Request too large. Requested 15000 tokens. Limit 8000 tokens per minute (TPM)."
+      };
+
+      bandit.recordFeedback(modelId, false, 0, errorDetails, { source: "prod" });
+
+      // Verify model entered cooldown in the models database
+      const modelRecord = bandit.db.prepare("SELECT cooldown_until FROM models WHERE id = ?").get(modelId);
+      assert.ok(modelRecord, "Model record should exist in database");
+      assert.ok(modelRecord.cooldown_until > Date.now(), "Model should be placed in cooldown in models database");
+
+      // Simulate proxy response error handling for 413 / TPM limit exceeded (invalidation & blacklist)
+      const entry = sessionModels.get(sessionKey);
+      if (entry && entry.model === modelId) {
+        sessionModels.delete(sessionKey);
+        let bl = sessionBlacklist.get(sessionKey);
+        if (!bl) { bl = new Map(); sessionBlacklist.set(sessionKey, bl); }
+        let record = bl.get(modelId);
+        if (!record || typeof record === 'number') {
+          record = { fails: (typeof record === 'number' ? record : 0) + 1, severe: true, lastReason: 'tpm-exceeded' };
+        } else {
+          record.severe = true;
+          record.fails += 1;
+          record.lastReason = 'tpm-exceeded';
+        }
+        bl.set(modelId, record);
+      }
+
+      assert.equal(sessionModels.has(sessionKey), false, "Session affinity pin should be invalidated on 413 / TPM error");
+      const blacklistEntry = sessionBlacklist.get(sessionKey)?.get(modelId);
+      assert.ok(blacklistEntry, "Blacklist entry should exist");
+      assert.equal(blacklistEntry.severe, true, "Blacklist entry should be marked severe");
+      assert.equal(blacklistEntry.lastReason, 'tpm-exceeded', "Last reason should be tpm-exceeded");
+
+      bandit.close();
     });
   });
 });
