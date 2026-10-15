@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.6 — 2026-10-15
+- **Proxy Robustness**:
+  - Fixed iterative reduction in [`compressBody()`](src/index.mjs:247) within [`src/index.mjs`](src/index.mjs:1) to prevent `Maximum call stack size exceeded` errors.
+
 ## v1.1.5 — 2026-10-14
 - **Proxy & Bandit Enhancements**:
   - Improved dashboard interface and analytics views in [`public/dashboard.html`](public/dashboard.html:1).

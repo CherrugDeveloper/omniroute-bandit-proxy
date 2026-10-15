@@ -247,11 +247,24 @@ function compressBody(body, targetTokens) {
 
   const newBody = { ...body, messages: compressed };
   // Verifica dimensione risultante
-  const s = JSON.stringify(newBody);
-  const newTokens = Math.ceil(s.length / 3);
-  if (newTokens > targetTokens) return null;
+  // Iterative reduction instead of recursive calls to prevent Maximum call stack size exceeded
+  let currentBody = newBody;
+  let totalOmitted = omitted;
+  let iterations = 0;
+  
+  while (iterations < 10) {
+    const s = JSON.stringify(currentBody);
+    const newTokens = Math.ceil(s.length / 3);
+    if (newTokens <= targetTokens) break;
 
-  return { body: newBody, omitted };
+    const nextRes = truncateBiggestMessage(currentBody, targetTokens);
+    if (!nextRes || !nextRes.body) break;
+    currentBody = nextRes.body;
+    totalOmitted += (nextRes.omitted || 0);
+    iterations++;
+  }
+
+  return { body: currentBody, omitted: totalOmitted };
 }
 // Access log: solo le route API (v1), escludendo metriche e log (che vengono
 // pollate ogni secondo dalla dashboard). Esclude anche gli asset statici.
