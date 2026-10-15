@@ -47,11 +47,11 @@ test("_classifyError: environment error / browserType.launch -> ban-model", () =
   b.close();
 });
 
-test("_classifyError: missing binary / spawn zcode ENOENT -> ban-model", () => {
+test("_classifyError: missing binary / spawn zcode ENOENT -> ban-provider", () => {
   const b = makeBandit();
-  const c = b._classifyError({ message: "spawn zcode ENOENT" });
-  assert.equal(c.action, "ban-model");
-  assert.equal(c.reason, "environment-error");
+  const c = b._classifyError({ message: "spawn zcode ENOENT", provider: "zc" });
+  assert.equal(c.action, "ban-provider");
+  assert.equal(c.reason, "provider-misconfigured");
   b.close();
 });
 
@@ -113,11 +113,11 @@ test("_classifyError: 5xx -> cooldown-model (non provider)", () => {
   b.close();
 });
 
-test("_classifyError: 402 insufficient funds -> cooldown-provider 6h", () => {
+test("_classifyError: 402 insufficient funds -> ban-provider", () => {
   const b = makeBandit();
   const c = b._classifyError({ status: 402, message: "Insufficient account funds" });
-  assert.equal(c.action, "cooldown-provider");
-  assert.equal(c.reason, "no-credit");
+  assert.equal(c.action, "ban-provider");
+  assert.equal(c.reason, "quota-exhausted");
   b.close();
 });
 
@@ -397,10 +397,10 @@ test("_classifyError: sandbox, missing binary, and environment configuration err
   assert.equal(c1.action, "ban-provider");
   assert.equal(c1.reason, "provider-misconfigured");
 
-  // Spawn ENOENT error -> ban-model or ban-provider
-  const c2 = b._classifyError({ status: 500, message: "spawn zcode ENOENT" });
-  assert.equal(c2.action, "ban-model");
-  assert.equal(c2.reason, "environment-error");
+  // Spawn ENOENT error -> ban-provider for zc / binary missing
+  const c2 = b._classifyError({ status: 500, message: "spawn zcode ENOENT", provider: "zc" });
+  assert.equal(c2.action, "ban-provider");
+  assert.equal(c2.reason, "provider-misconfigured");
 
   // Playwright / browser executable doesn't exist
   const c3 = b._classifyError({ status: 500, message: "Executable doesn't exist at /path/to/chrome" });

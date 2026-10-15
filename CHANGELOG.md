@@ -2,6 +2,13 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.13 — 2026-10-15
+- **Error Classification & Model Input Token Limits**:
+  - Enhanced [`_classifyError()`](src/bandit.mjs:100) in [`src/bandit.mjs`](src/bandit.mjs:1) to classify spawn/ENOENT errors for the [`zc`](src/bandit.mjs:750) provider as `ban-provider` (`provider-misconfigured`).
+  - Updated HTTP 402 billing / insufficient funds errors in [`src/bandit.mjs`](src/bandit.mjs:881) to trigger `ban-provider` (`quota-exhausted`) instead of model/provider cooldowns.
+  - Refined token limit evaluation in [`selectModel()`](src/bandit.mjs:1339) within [`src/bandit.mjs`](src/bandit.mjs:1) using `getModelMaxInput()`.
+  - Updated unit tests in [`tests/bandit.test.mjs`](tests/bandit.test.mjs:47) to assert correct provider-level ban actions.
+
 ## v1.1.12 — 2026-10-15
 - **Bandit Error Classification & Testing**:
   - Added robust classification and permanent banning rules in [`src/bandit.mjs`](src/bandit.mjs:1) for environment and sandbox errors (`ENOENT`, missing browser executables like playwright chromium, 404, 410).

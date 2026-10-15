@@ -747,7 +747,7 @@ export class DiscountedUCB1Bandit {
 
     // Sandbox, Missing Binary, and Environment Configuration Errors across status codes
     if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured/i.test(message)) {
-      const isProviderLevel = /CLI not found|command not found|bridge sandbox|transport is not configured/i.test(message);
+      const isProviderLevel = provider === 'zc' || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
       if (isProviderLevel) {
         return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
       } else {
@@ -878,9 +878,9 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 0 };
     }
 
-    // 402 insufficient funds -> cooldown-provider 6h
-    if (status === 402 && /insufficient|funds|credit/i.test(message)) {
-      return { action: "cooldown-provider", reason: "no-credit", cooldownMs: 6 * 3600 * 1000 };
+    // 402 insufficient funds / billing error -> ban-provider (quota-exhausted)
+    if (status === 402 && /insufficient|funds|credit|payment/i.test(message)) {
+      return { action: "ban-provider", scope: "provider", reason: "quota-exhausted" };
     }
 
     // 418 anti-abuse -> cooldown-provider 6h
@@ -1336,7 +1336,7 @@ export class DiscountedUCB1Bandit {
         }
 
         if (!ignoreTokenLimit && estimatedTokens > 0) {
-          const maxInput = model.max_input_tokens || 0;
+          const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
           // Allow 10% margin for estimation error
           if (maxInput > 0 && estimatedTokens > maxInput * 1.1) {
             return false;

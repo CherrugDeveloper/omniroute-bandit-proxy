@@ -59,9 +59,9 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | 5xx generico su modello | Cooldown 10 min | Modello |
 | **10× 5xx consecutivi** | **Cooldown 1h + degraded** | **Modello** (non più ban permanente) |
 | 429 quota exhausted (account) | Cooldown (durata dal messaggio) | Provider |
-| 402 insufficient funds | Cooldown 6h | Provider |
+| 402 insufficient funds / billing error | Ban permanente (quota-exhausted) | Provider |
 | Anti-abuse / 418 / captcha | Cooldown 6h | Provider |
-| Auth mancante, Playwright, transport, CLI obsoleto | Needs attention | Provider |
+| Auth mancante, Playwright, transport, CLI obsoleto, spawn ENOENT (provider [`zc`](src/bandit.mjs:750)) | Ban-provider (provider-misconfigured) | Provider |
 | 403 account banned/suspended | Ban permanente | Provider |
 | input-too-long / stream_early_eof | skip-feedback (nessuna penalità) | — |
 
