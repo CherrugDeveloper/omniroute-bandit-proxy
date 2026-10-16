@@ -1370,11 +1370,11 @@ export class DiscountedUCB1Bandit {
 
     // Get all models from catalog that are available
     const catalogModels = this.db.prepare(`
-      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools, c.is_free, 0 AS is_paid
+      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools, c.is_free, 0 AS is_paid, 0 AS dynamic_max_tokens
       FROM catalog c
     `).all();
     const dbModels = this.db.prepare(`
-      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent, m.is_paid, c.is_free, c.supports_tools, c.max_input_tokens
+      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent, m.is_paid, m.dynamic_max_tokens, c.is_free, c.supports_tools, c.max_input_tokens
       FROM models m
       LEFT JOIN catalog c ON m.id = c.id
     `).all();

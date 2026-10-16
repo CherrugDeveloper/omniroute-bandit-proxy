@@ -98,8 +98,9 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
     // Verify selectModel skips prov-a because quota.canCall("prov-a") is false
     const selected2 = await bandit.selectModel();
     assert.ok(selected2, "Should select another available model");
-    assert.notEqual(selected2.provider, "prov-a", "Should skip provider prov-a when quota is exhausted");
-    assert.equal(selected2.provider, "prov-b", "Should fall back to prov-b");
+    const prov2 = selected2.split("/")[0];
+    assert.notEqual(prov2, "prov-a", "Should skip provider prov-a when quota is exhausted");
+    assert.equal(prov2, "prov-b", "Should fall back to prov-b");
 
     // Simulate reset time passing for prov-a
     const pastReset = Date.now() - 1000;
@@ -118,7 +119,7 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
     
     // Select model initially with low tokens
     const sel1 = await bandit.selectModel(new Set(), 1000);
-    assert.equal(sel1.id, "groq/gpt-oss-120b");
+    assert.equal(sel1, "groq/gpt-oss-120b");
 
     // Simulate 413 error with TPM limit 8000 and estimatedTokens 17667
     bandit.recordFeedback("groq/gpt-oss-120b", false, 0, {
@@ -132,6 +133,6 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
 
     // Try selecting model with 17667 tokens -> should be filtered out
     const sel2 = await bandit.selectModel(new Set(), 17667);
-    assert.notEqual(sel2?.id, "groq/gpt-oss-120b", "Model with dynamic max tokens 8000 should be excluded for 17667 tokens request");
+    assert.notEqual(sel2, "groq/gpt-oss-120b", "Model with dynamic max tokens 8000 should be excluded for 17667 tokens request");
   });
 });

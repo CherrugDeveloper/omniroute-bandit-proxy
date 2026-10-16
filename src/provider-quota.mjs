@@ -56,13 +56,13 @@ class ProviderQuota {
 
         if (!providerRow) return true;
 
-        const providerLimit = this.providerLimits[provider];
-        if (!providerLimit) return true;
-
         // Check if provider is currently in a quota reset
         if (providerRow.quota_resets_at && providerRow.quota_resets_at > now) {
             return false;
         }
+
+        const providerLimit = this.providerLimits[provider];
+        if (!providerLimit) return true;
 
         // Check RPM limit
         if (providerRow.calls_last_minute >= providerLimit.rpm) {
@@ -116,6 +116,9 @@ class ProviderQuota {
     }
 
     recordQuotaExhausted(provider, resetAtMs, reason) {
+        this.db.prepare(
+            `INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent) VALUES (?, 0, 0, 0, 0)`
+        ).run(provider);
         this.db.prepare(
             `UPDATE provider_history SET quota_resets_at = ?, quota_reason = ? WHERE provider = ?`
         ).run(resetAtMs, reason, provider);

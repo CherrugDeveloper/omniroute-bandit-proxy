@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.29 — 2026-10-16
+- **Improve Robust Handling and Cooldown for 413 ITPM / TPM Exceeded Errors**:
+  - Ensured dynamic model token limits (`dynamic_max_tokens`) are correctly queried and enforced in [`src/bandit.mjs`](src/bandit.mjs:1370).
+  - Improved provider quota and quota exhaustion handling in [`src/provider-quota.mjs`](src/provider-quota.mjs:56) with robust `provider_history` record insertion.
+  - Updated test assertions in [`__tests__/itpm-quota.test.js`](__tests__/itpm-quota.test.js:98) for model selection and filtering.
+
 ## v1.1.28 — 2026-10-16
 - **Enhanced Error Recognition & Live Request Inspection for Tried Models and Rejection Reasons**:
   - Improved error recognition in [`_classifyError()`](src/bandit.mjs:908) within [`src/bandit.mjs`](src/bandit.mjs:1) for 429 quota exhaustion and 503 queue timeout errors (`RATE_LIMIT_QUEUE_TIMEOUT`, `Request exceeded queue budget`).
