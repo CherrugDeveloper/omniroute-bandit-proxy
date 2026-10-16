@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.30 — 2026-10-16
+- **Enhance Request Token Size Estimation**:
+  - Improved [`estimateTokens()`](src/bandit.mjs:1319) in [`src/bandit.mjs`](src/bandit.mjs:1) to accurately account for system prompts, tools, functions, and assistant `tool_calls` alongside message contents.
+
 ## v1.1.29 — 2026-10-16
 - **Improve Robust Handling and Cooldown for 413 ITPM / TPM Exceeded Errors**:
   - Ensured dynamic model token limits (`dynamic_max_tokens`) are correctly queried and enforced in [`src/bandit.mjs`](src/bandit.mjs:1370).

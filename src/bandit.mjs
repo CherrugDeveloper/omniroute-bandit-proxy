@@ -1320,10 +1320,10 @@ export class DiscountedUCB1Bandit {
     // Implementazione realistica: stima approssimativa del numero di token
     if (!body || typeof body !== "object") return 0;
 
-    // Conta i messaggi
-    const messages = body.messages || [];
     let totalChars = 0;
 
+    // Conta i messaggi
+    const messages = body.messages || [];
     for (const msg of messages) {
       if (typeof msg.content === "string") {
         totalChars += msg.content.length;
@@ -1333,10 +1333,39 @@ export class DiscountedUCB1Bandit {
           if (part.text) totalChars += part.text.length;
           if (part.type === "image_url") totalChars += 1000; // Stima approssimativa per immagine
         }
-      } else {
-        // Fallback: converti in JSON
+      } else if (msg.content) {
         totalChars += JSON.stringify(msg.content).length;
       }
+      // Conta eventuali tool_calls nei messaggi assistente
+      if (Array.isArray(msg.tool_calls)) {
+        for (const tc of msg.tool_calls) {
+          totalChars += JSON.stringify(tc).length;
+        }
+      }
+    }
+
+    // Includi prompt di sistema o system field separati se presenti
+    if (body.system) {
+      if (typeof body.system === "string") {
+        totalChars += body.system.length;
+      } else {
+        totalChars += JSON.stringify(body.system).length;
+      }
+    }
+    if (body.prompt) {
+      if (typeof body.prompt === "string") {
+        totalChars += body.prompt.length;
+      } else {
+        totalChars += JSON.stringify(body.prompt).length;
+      }
+    }
+
+    // Includi tools / functions / tool_choice definiti nella richiesta
+    if (body.tools && Array.isArray(body.tools)) {
+      totalChars += JSON.stringify(body.tools).length;
+    }
+    if (body.functions && Array.isArray(body.functions)) {
+      totalChars += JSON.stringify(body.functions).length;
     }
 
     // Conversione approssimativa da caratteri a token (media ~4 caratteri per token)
