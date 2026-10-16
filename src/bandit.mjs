@@ -905,6 +905,24 @@ export class DiscountedUCB1Bandit {
       }
     }
 
+    // RATE_LIMIT_QUEUE_TIMEOUT / 503 queue timeout -> cooldown-model queue-timeout
+    if (errorDetails.code === "RATE_LIMIT_QUEUE_TIMEOUT" || /RATE_LIMIT_QUEUE_TIMEOUT|503 queue timeout|queue timeout/i.test(message) || (status === 503 && /queue.*timeout|timeout.*queue/i.test(message))) {
+      let cooldownMs = this._parseResetAfter(message, errorDetails);
+      if (!cooldownMs || cooldownMs <= 0) {
+        cooldownMs = 45000; // 45s (appropriate cooldown between 30s-60s)
+      }
+      return { action: "cooldown-model", scope: "model", reason: "queue-timeout", cooldownMs };
+    }
+
+    // High demand / service unavailable messages -> cooldown-model high-demand
+    if (/currently experiencing high demand|service_unavailable|service unavailable|high demand/i.test(message) || errorDetails.code === "service_unavailable") {
+      let cooldownMs = this._parseResetAfter(message, errorDetails);
+      if (!cooldownMs || cooldownMs <= 0) {
+        cooldownMs = 30000; // 30s (appropriate cooldown)
+      }
+      return { action: "cooldown-model", scope: "model", reason: "high-demand", cooldownMs };
+    }
+
     // Timeout -> cooldown-model 10m
     if (/fetch timeout|timeout/i.test(message)) {
       return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000 };

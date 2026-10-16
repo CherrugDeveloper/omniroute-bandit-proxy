@@ -69,4 +69,25 @@ describe("Error Handling and Model Filtering Test Suite", () => {
     const classification = bandit._classifyError(errObj);
     assert.ok(classification, "Classification should be returned for 413 / TPM error");
   });
+
+  test("4. RATE_LIMIT_QUEUE_TIMEOUT and high demand error classification", () => {
+    const queueErr = {
+      status: 503,
+      code: "RATE_LIMIT_QUEUE_TIMEOUT",
+      message: "Request timed out waiting in queue"
+    };
+    const c1 = bandit._classifyError(queueErr);
+    assert.equal(c1.action, "cooldown-model");
+    assert.equal(c1.reason, "queue-timeout");
+    assert.equal(c1.scope, "model");
+
+    const highDemandErr = {
+      status: 503,
+      message: "Server is currently experiencing high demand. Please try again later."
+    };
+    const c2 = bandit._classifyError(highDemandErr);
+    assert.equal(c2.action, "cooldown-model");
+    assert.equal(c2.reason, "high-demand");
+    assert.equal(c2.scope, "model");
+  });
 });
