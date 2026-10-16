@@ -1590,22 +1590,19 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         // Rimuovi il pin e mark severe in sessionBlacklist per evitare di riprovare lo stesso modello.
         if (r.status === 413 || r.status === 429 || /ITPM|tokens?\s*per\s*minute|TPM|input tokens per minute|Request too large|Requested \d+.*Limit \d+|Limit \d+.*Requested \d+/i.test(txt)) {
           if (sessionKey) {
-            const entry = sessionModels.get(sessionKey);
-            if (entry && entry.model === model) {
-              sessionModels.delete(sessionKey);
-              let bl = sessionBlacklist.get(sessionKey);
-              if (!bl) { bl = new Map(); sessionBlacklist.set(sessionKey, bl); }
-              let record = bl.get(model);
-              if (!record || typeof record === 'number') {
-                record = { fails: (typeof record === 'number' ? record : 0) + 1, severe: true, lastReason: 'tpm-exceeded' };
-              } else {
-                record.severe = true;
-                record.fails += 1;
-                record.lastReason = 'tpm-exceeded';
-              }
-              bl.set(model, record);
-              console.log(`[AFFINITY] 🚫 pin ${model} rimosso e bannato in sessione (TPM/413 limit exceeded)`);
+            sessionModels.delete(sessionKey);
+            let bl = sessionBlacklist.get(sessionKey);
+            if (!bl) { bl = new Map(); sessionBlacklist.set(sessionKey, bl); }
+            let record = bl.get(model);
+            if (!record || typeof record === 'number') {
+              record = { fails: (typeof record === 'number' ? record : 0) + 1, severe: true, lastReason: 'tpm-exceeded' };
+            } else {
+              record.severe = true;
+              record.fails += 1;
+              record.lastReason = 'tpm-exceeded';
             }
+            bl.set(model, record);
+            console.log(`[AFFINITY] 🚫 model ${model} bannato in sessione ${sessionKey.slice(0, 8)} (TPM/413 limit exceeded, status=${r.status})`);
           }
         }
 

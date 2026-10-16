@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.24 — 2026-10-16
+- **Dynamic Token Limit Enforcement & Session Affinity Refinement**:
+  - Enforced `dynamic_max_tokens` (runtime 413/TPM limits) in [`src/bandit.mjs`](src/bandit.mjs:1) even when `ignoreTokenLimit` is true.
+  - Refined session blacklisting and pinning removal in [`src/index.mjs`](src/index.mjs:1) upon 413 / TPM quota errors.
+
 ## v1.1.23 — 2026-10-16
 - **Input Tokens Per Minute (ITPM) Tracking & Quota Enforcement & Testing**:
   - Pre-filtered models exceeding provider ITPM quota before UCB1 selection in [`src/bandit.mjs`](src/bandit.mjs:1).

@@ -1415,10 +1415,16 @@ export class DiscountedUCB1Bandit {
           }
         }
 
-        if (!ignoreTokenLimit && estimatedTokens > 0) {
+        if (estimatedTokens > 0) {
           const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
-          // Strict check: exclude model if estimated tokens exceed max input tokens
-          if (maxInput > 0 && estimatedTokens > maxInput) {
+          const dynamicMax = model.dynamic_max_tokens || 0;
+          // Always respect dynamic_max_tokens (runtime 413/TPM limit) even if ignoreTokenLimit is true
+          if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
+            if (DEBUG) console.log(`[BANDIT][TOKEN-LIMIT] Model ${model.id} excluded by dynamicMax (413/TPM limit): estimatedTokens=${estimatedTokens} > dynamicMax=${dynamicMax}`);
+            return false;
+          }
+          if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
+            if (DEBUG) console.log(`[BANDIT][TOKEN-LIMIT] Model ${model.id} excluded: estimatedTokens=${estimatedTokens} > maxInput=${maxInput}`);
             return false;
           }
         }
