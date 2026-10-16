@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.28 — 2026-10-16
+- **Enhanced Error Recognition & Live Request Inspection for Tried Models and Rejection Reasons**:
+  - Improved error recognition in [`_classifyError()`](src/bandit.mjs:908) within [`src/bandit.mjs`](src/bandit.mjs:1) for 429 quota exhaustion and 503 queue timeout errors (`RATE_LIMIT_QUEUE_TIMEOUT`, `Request exceeded queue budget`).
+  - Implemented backend tracking for tried models, selection history with rejection reasons for analyzed models, and current model in execution via [`src/request-tracker.mjs`](src/request-tracker.mjs:1) and [`src/index.mjs`](src/index.mjs:1).
+  - Enhanced dashboard UI in [`public/dashboard.html`](public/dashboard.html:1) to display previously tried models, model selection history with rejection reasons, and current execution models.
+
 ## v1.1.27 — 2026-10-16
 - **Exclude TTS, Audio, and Image Models During Sync & Enhance Logging Transparency**:
   - Excluded TTS, speech, audio-only, and image generation models (e.g. DALL-E, Whisper, Flux) during model synchronization and filtering in [`src/bandit.mjs`](src/bandit.mjs:387) unless marked as chat/omni/multimodal.

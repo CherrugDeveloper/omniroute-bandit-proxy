@@ -1433,6 +1433,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
   }
 }
+
+trackRequestUpdate(requestId, {
+  model,
+  attempt,
+  triedModels: Array.from(excluded),
+  selectionHistory: bandit.getLastSelectionHistory()
+});
     if (!model) {
       console.warn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, tokens=${estimatedTokens}, excluded=${excluded.size})`);
       notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {

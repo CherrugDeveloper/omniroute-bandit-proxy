@@ -2365,6 +2365,23 @@
                     const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
                     const arrowCls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
 
+                    const tried = r.triedModels && r.triedModels.length > 0 ? r.triedModels.join(', ') : 'nessuno';
+                    const history = r.selectionHistory && r.selectionHistory.length > 0
+                        ? r.selectionHistory.map(sh => `${sh.id} (${sh.provider}): ${sh.reason}`).join(' | ')
+                        : 'nessuno';
+                    const tooltip = `Modello in corso: ${model}\nVecchi modelli tentati: ${tried}\nScarti analisi modelli: ${history}`;
+
+                    let extraBadges = '';
+                    if (r.triedModels && r.triedModels.length > 0) {
+                        extraBadges += ` <span style="font-size:10px; color:#d29922; background:rgba(210,153,34,0.1); padding:1px 4px; border-radius:3px;" title="Tentati: ${escapeHtml(tried)}">tried: ${r.triedModels.length}</span>`;
+                    }
+                    if (r.selectionHistory && r.selectionHistory.length > 0) {
+                        const rejectedCount = r.selectionHistory.filter(sh => sh.status === 'rejected').length;
+                        if (rejectedCount > 0) {
+                            extraBadges += ` <span style="font-size:10px; color:#f85149; background:rgba(248,81,73,0.1); padding:1px 4px; border-radius:3px;" title="${escapeHtml(history)}">scarti: ${rejectedCount}</span>`;
+                        }
+                    }
+
                     let timeTxt, durTxt;
                     if (kind === 'active') {
                         timeTxt = 'try ' + (r.attempt || 1);
@@ -2375,9 +2392,9 @@
                         durTxt = Number(r.durationSec).toFixed(1) + 's';
                     }
 
-                    return '<div class="active-request ' + (kind === 'recent' ? 'recent' : '') + '">' +
+                    return '<div class="active-request ' + (kind === 'recent' ? 'recent' : '') + '" title="' + escapeHtml(tooltip) + '">' +
                         '<span class="src-status"><span class="src-icon ' + srcCls + '">' + srcIcon + '</span><span>' + status + '</span></span>' +
-                        '<span class="model">' + escapeHtml(model) + '</span>' +
+                        '<span class="model">' + escapeHtml(model) + extraBadges + '</span>' +
                         '<span class="mi-rank">' + rankTxt + '</span>' +
                         '<span class="mi-n">' + nTxt + '</span>' +
                         '<span class="mi-avg">' + avgTxt + '</span>' +

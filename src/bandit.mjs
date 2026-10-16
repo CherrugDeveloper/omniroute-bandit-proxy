@@ -1396,84 +1396,93 @@ export class DiscountedUCB1Bandit {
       }); // db models overwrite catalog models
     }
     const models = Array.from(modelMap.values());
+    const selectionHistory = [];
 
     // Helper filtering function with multi-tier relaxation options
     const filterModels = (opts = {}) => {
       const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false } = opts;
       return models.filter(model => {
+        let rejectionReason = null;
+
         // Skip if excluded
         if (resolvedExcluded.has(model.id)) {
-          return false;
-        }
-        // Skip if permanently banned at model level or degraded
-        if (model.permanent === 1 || model.degraded === 1) {
-          return false;
-        }
-        // Skip if provider is permanently banned
-        const prov = this.db.prepare(
-          `SELECT cooldown_until, permanent, needs_attention, quota_resets_at FROM provider_history WHERE provider = ?`
-        ).get(model.provider);
-        if (prov && prov.permanent === 1) {
-          return false;
-        }
-
-        if (!ignoreCooldown) {
-          // Skip if model is in cooldown
-          if (model.cooldown_until && model.cooldown_until > now) {
-            return false;
-          }
-          // Skip if provider quota or rate limit is exhausted
-          if (!this.quota.canCall(model.provider)) {
-            return false;
-          }
-          if (prov) {
-            if (prov.cooldown_until > now) {
-              return false;
+          rejectionReason = 'already_tried';
+        } else if (model.permanent === 1) {
+          rejectionReason = 'model_permanent_ban';
+        } else if (model.degraded === 1) {
+          rejectionReason = 'model_degraded';
+        } else {
+          // Skip if provider is permanently banned
+          const prov = this.db.prepare(
+            `SELECT cooldown_until, permanent, needs_attention, quota_resets_at FROM provider_history WHERE provider = ?`
+          ).get(model.provider);
+          if (prov && prov.permanent === 1) {
+            rejectionReason = 'provider_permanent_ban';
+          } else if (!ignoreCooldown) {
+            // Skip if model is in cooldown
+            if (model.cooldown_until && model.cooldown_until > now) {
+              rejectionReason = 'model_cooldown';
             }
-            if (prov.quota_resets_at && prov.quota_resets_at > now) {
-              return false;
-            }
-            if (prov.needs_attention === 1) {
-              // Auto-reset if cooldown expired
-              if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
-                this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(model.provider);
-              } else {
-                return false;
+            // Skip if provider quota or rate limit is exhausted
+            else if (!this.quota.canCall(model.provider)) {
+              rejectionReason = 'provider_quota_exhausted';
+            } else if (prov) {
+              if (prov.cooldown_until > now) {
+                rejectionReason = 'provider_cooldown';
+              } else if (prov.quota_resets_at && prov.quota_resets_at > now) {
+                rejectionReason = 'provider_quota_resets_at';
+              } else if (prov.needs_attention === 1) {
+                // Auto-reset if cooldown expired
+                if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
+                  this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(model.provider);
+                } else {
+                  rejectionReason = 'provider_needs_attention';
+                }
               }
             }
           }
+
+          if (!rejectionReason && !ignorePolicies) {
+            // Skip if thinking model and excludeThinking is true
+            if (this.excludeThinking && /thinking|reasoning|[-_]r1[-_]|[-_]r1$|^r1[-_]|o1[-_]|o3[-_]|o4[-_]|qwq/i.test(model.id)) {
+              rejectionReason = 'exclude_thinking';
+            }
+            // Skip if paid model and excludePaid is true
+            else if (this.excludePaid && (model.is_paid === 1 || model.is_paid === true)) {
+              rejectionReason = 'exclude_paid';
+            }
+            // Skip if onlyFree is true and model is not free
+            else if (this.onlyFree && model.is_free === 0) {
+              rejectionReason = 'only_free';
+            }
+          }
+
+          if (!rejectionReason && estimatedTokens > 0) {
+            const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
+            const dynamicMax = model.dynamic_max_tokens || 0;
+            // Always respect dynamic_max_tokens (runtime 413/TPM limit) even if ignoreTokenLimit is true
+            if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
+              if (DEBUG) console.log(`[BANDIT][TOKEN-LIMIT] Model ${model.id} excluded by dynamicMax (413/TPM limit): estimatedTokens=${estimatedTokens} > dynamicMax=${dynamicMax}`);
+              rejectionReason = 'dynamic_max_tokens_exceeded';
+            } else if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
+              if (DEBUG) console.log(`[BANDIT][TOKEN-LIMIT] Model ${model.id} excluded: estimatedTokens=${estimatedTokens} > maxInput=${maxInput}`);
+              rejectionReason = 'max_input_tokens_exceeded';
+            }
+          }
+
+          if (!rejectionReason && requireTools && !(model.supports_tools || 0)) {
+            rejectionReason = 'no_tools_support';
+          }
         }
 
-        if (!ignorePolicies) {
-          // Skip if thinking model and excludeThinking is true
-          if (this.excludeThinking && /thinking|reasoning|[-_]r1[-_]|[-_]r1$|^r1[-_]|o1[-_]|o3[-_]|o4[-_]|qwq/i.test(model.id)) {
-            return false;
-          }
-          // Skip if paid model and excludePaid is true
-          if (this.excludePaid && (model.is_paid === 1 || model.is_paid === true)) {
-            return false;
-          }
-          // Skip if onlyFree is true and model is not free
-          if (this.onlyFree && model.is_free === 0) {
-            return false;
-          }
-        }
-
-        if (estimatedTokens > 0) {
-          const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
-          const dynamicMax = model.dynamic_max_tokens || 0;
-          // Always respect dynamic_max_tokens (runtime 413/TPM limit) even if ignoreTokenLimit is true
-          if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
-            if (DEBUG) console.log(`[BANDIT][TOKEN-LIMIT] Model ${model.id} excluded by dynamicMax (413/TPM limit): estimatedTokens=${estimatedTokens} > dynamicMax=${dynamicMax}`);
-            return false;
-          }
-          if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
-            if (DEBUG) console.log(`[BANDIT][TOKEN-LIMIT] Model ${model.id} excluded: estimatedTokens=${estimatedTokens} > maxInput=${maxInput}`);
-            return false;
-          }
-        }
-
-        if (requireTools && !(model.supports_tools || 0)) {
+        if (rejectionReason) {
+          selectionHistory.push({
+            id: model.id,
+            provider: model.provider,
+            status: 'rejected',
+            reason: rejectionReason,
+            tier: ignoreCooldown ? 'emergency' : (ignorePolicies ? 'tier2' : (ignoreTools ? 'tier1' : 'strict'))
+          });
           return false;
         }
 
@@ -1555,12 +1564,17 @@ export class DiscountedUCB1Bandit {
 
     // Register the selected model use
     this._registerModelUse(bestModel.id, bestModel.provider);
+    this.lastSelectionHistory = selectionHistory;
 
     if (DEBUG) {
       console.log(`[BANDIT][SELECT] Selected model: ${bestModel.id} (provider: ${bestModel.provider}, score: ${bestScore.toFixed(4)}, available: ${availableModels.length}/${models.length})`);
     }
 
     return bestModel.id;
+  }
+
+  getLastSelectionHistory() {
+    return this.lastSelectionHistory || [];
   }
 
   getUnhealthyModels(batchSize = 5) {
