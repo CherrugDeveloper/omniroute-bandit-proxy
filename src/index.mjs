@@ -1568,6 +1568,14 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
 
+        if (sessionKey) {
+          const entry = sessionModels.get(sessionKey);
+          if (entry && entry.model === model) {
+            sessionModels.delete(sessionKey);
+            console.log(`[AFFINITY] ✗ pin ${model} rimosso (upstream error status ${r.status})`);
+          }
+        }
+
         // Parse Retry-After header for 429 errors
         let retryAfter = 0;
         if (r.status === 429) {
@@ -1760,6 +1768,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           return;
         } catch (e) {
           console.error(`[STREAM ABORT] ${model}: ${e.message}`);
+          if (sessionKey) {
+            const entry = sessionModels.get(sessionKey);
+            if (entry && entry.model === model) {
+              sessionModels.delete(sessionKey);
+              console.log(`[AFFINITY] ✗ pin ${model} rimosso (stream abort/error)`);
+            }
+          }
           bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
           noteProviderFail(model);
           excluded.add(model);
@@ -1783,6 +1798,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         }
         if (invalidReason) {
           console.error(`[APP ERR] ${model}: ${invalidReason}`);
+          if (sessionKey) {
+            const entry = sessionModels.get(sessionKey);
+            if (entry && entry.model === model) {
+              sessionModels.delete(sessionKey);
+              console.log(`[AFFINITY] ✗ pin ${model} rimosso (response invalidation)`);
+            }
+          }
           bandit.recordFeedback(model, false, 0, { message: invalidReason }, { source: feedbackSource });
           noteProviderFail(model);
           excluded.add(model);
@@ -1802,6 +1824,14 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       }
     } catch (e) {
       if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
+
+      if (sessionKey) {
+        const entry = sessionModels.get(sessionKey);
+        if (entry && entry.model === model) {
+          sessionModels.delete(sessionKey);
+          console.log(`[AFFINITY] ✗ pin ${model} rimosso (fetch error / timeout)`);
+        }
+      }
 
       if (e.name === "AbortError") {
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }

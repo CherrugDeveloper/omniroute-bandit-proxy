@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.21 — 2026-10-16
+- **Session Affinity & Error Handling**:
+  - Invalidate session affinity and blacklist model on model errors and failures in [`src/index.mjs`](src/index.mjs:1).
+
 ## v1.1.20 — 2026-10-16
 - **Codebase Cleanup & Test Suite Consolidation**:
   - Cleaned up unuseful scripts, obsolete test files, and obsolete markdown plan files from [`plans/`](plans/) and workspace root, leaving a streamlined, production-ready codebase.
