@@ -109,4 +109,29 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
     const selected3 = await bandit.selectModel();
     assert.ok(selected3, "Should be able to select model from prov-a after quota reset");
   });
+
+  /**
+   * @test Model failing with 413 / TPM exceeded updates dynamic_max_tokens and filters out model on future high-token requests.
+   */
+  test("model failing with 413 / TPM exceeded updates dynamic_max_tokens and filters out model on future high-token requests", async () => {
+    bandit.db.prepare("INSERT INTO catalog (id, provider, max_input_tokens, is_free) VALUES (?, ?, ?, ?)").run("groq/gpt-oss-120b", "groq", 128000, 1);
+    
+    // Select model initially with low tokens
+    const sel1 = await bandit.selectModel(new Set(), 1000);
+    assert.equal(sel1.id, "groq/gpt-oss-120b");
+
+    // Simulate 413 error with TPM limit 8000 and estimatedTokens 17667
+    bandit.recordFeedback("groq/gpt-oss-120b", false, 0, {
+      status: 413,
+      message: "Request too large for model groq/gpt-oss-120b on tokens per minute (TPM): Limit 8000, Requested 17667"
+    }, { estimatedTokens: 17667 });
+
+    // Verify getModelMaxInput returns 8000
+    const maxInput = bandit.getModelMaxInput("groq/gpt-oss-120b");
+    assert.equal(maxInput, 8000);
+
+    // Try selecting model with 17667 tokens -> should be filtered out
+    const sel2 = await bandit.selectModel(new Set(), 17667);
+    assert.notEqual(sel2?.id, "groq/gpt-oss-120b", "Model with dynamic max tokens 8000 should be excluded for 17667 tokens request");
+  });
 });
