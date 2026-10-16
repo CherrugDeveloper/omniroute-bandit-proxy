@@ -1403,15 +1403,24 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
   }
 
+  const pinnedMaxInput = pinnedEntry ? bandit.getModelMaxInput(pinnedEntry.model) : 0;
+  const pinnedTokenCapacityValid = !pinnedEntry || pinnedMaxInput <= 0 || estimatedTokens <= pinnedMaxInput;
+
   const pinnedValid = pinnedEntry
     && !excluded.has(pinnedEntry.model)
-    && bandit.isModelAvailable(pinnedEntry.model);
+    && bandit.isModelAvailable(pinnedEntry.model)
+    && pinnedTokenCapacityValid;
 
   if (pinnedValid) {
     model = pinnedEntry.model;
     pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
     console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
   } else {
+    if (pinnedEntry && !pinnedTokenCapacityValid) {
+      console.log(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (token capacity insufficient: tokens=${estimatedTokens} > max=${pinnedMaxInput})`);
+      sessionModels.delete(sessionKey);
+      excluded.add(pinnedEntry.model);
+    }
     model = await bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });

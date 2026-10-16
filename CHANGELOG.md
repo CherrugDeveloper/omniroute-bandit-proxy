@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.20 — 2026-10-16
+- **Codebase Cleanup & Test Suite Consolidation**:
+  - Cleaned up unuseful scripts, obsolete test files, and obsolete markdown plan files from [`plans/`](plans/) and workspace root, leaving a streamlined, production-ready codebase.
+  - Consolidated test suites across [`tests/`](tests/) and [`__tests__/`](__tests__/) with unified execution via [`package.json`](package.json:10).
+
 ## v1.1.19 — 2026-10-15
 - **Model Selection & Filtering Bug Fixes**:
   - Refined model filtering and selection in [`selectModel()`](src/bandit.mjs:1339) within [`src/bandit.mjs`](src/bandit.mjs:1) to ensure cooling down, token-exceeded, and excluded models are correctly prevented from selection.
