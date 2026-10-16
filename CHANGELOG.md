@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.22 — 2026-10-16
+- **Bandit & Error Classification Fixes**:
+  - Prevented zero-cooldown loops on 500 / SSE streaming errors in [`src/bandit.mjs`](src/bandit.mjs:1).
+  - Enforced strict tool support filtering in model selection in [`src/bandit.mjs`](src/bandit.mjs:1).
+  - Ensured persistence of 404 / deprecated model bans in [`src/bandit.mjs`](src/bandit.mjs:1).
+
 ## v1.1.21 — 2026-10-16
 - **Session Affinity & Error Handling**:
   - Invalidate session affinity and blacklist model on model errors and failures in [`src/index.mjs`](src/index.mjs:1).

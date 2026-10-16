@@ -912,7 +912,7 @@ export class DiscountedUCB1Bandit {
 
     // 5xx -> cooldown-model (non provider)
     if (status >= 500 && status < 600) {
-      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 0 };
+      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 30000 };
     }
 
     // 402 insufficient funds / billing error -> ban-provider (quota-exhausted)
@@ -928,7 +928,7 @@ export class DiscountedUCB1Bandit {
     return {
       action: "cooldown-model",
       reason: reason,
-      cooldownMs: 0
+      cooldownMs: 30000
     };
   }
 
@@ -1423,7 +1423,7 @@ export class DiscountedUCB1Bandit {
           }
         }
 
-        if (!ignoreTools && requireTools && !(model.supports_tools || 0)) {
+        if (requireTools && !(model.supports_tools || 0)) {
           return false;
         }
 
