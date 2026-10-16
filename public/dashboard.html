@@ -2794,9 +2794,12 @@
                         <td>${formatBytes(s.size)}</td>
                         <td>${new Date(s.modified).toLocaleString()}</td>
                         <td>
-                            <button class="btn btn-sm" onclick="executeScript('${escapeHtml(s.name)}')" title="Esegui script">
-                                ▶ Esegui
-                            </button>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <input type="text" id="script-args-${escapeHtml(s.name)}" placeholder="args (es. status)" title="Argomenti riga di comando opzionali" style="width:110px; padding:4px 6px; font-size:11px; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:4px;">
+                                <button class="btn btn-sm" onclick="executeScript('${escapeHtml(s.name)}')" title="Esegui script">
+                                    ▶ Esegui
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -2806,6 +2809,12 @@
         async function executeScript(scriptName) {
             const script = scriptsData.find(s => s.name === scriptName);
             if (!script) return;
+            
+            const argsInput = document.getElementById(`script-args-${scriptName}`);
+            let args = [];
+            if (argsInput && argsInput.value.trim()) {
+                args = argsInput.value.trim().split(/\s+/);
+            }
             
             // Mostra il container di output
             const container = document.getElementById('script-output-container');
@@ -2817,7 +2826,7 @@
             const progressPct = document.getElementById('script-progress-pct');
             
             container.style.display = 'block';
-            title.textContent = `Output: ${scriptName}`;
+            title.textContent = `Output: ${scriptName}${args.length ? ' ' + args.join(' ') : ''}`;
             status.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
             output.textContent = '';
             
@@ -2832,7 +2841,7 @@
                 const res = await fetch('/v1/scripts/execute', {
                     method: 'POST',
                     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ scriptPath: script.name, args: [] })
+                    body: JSON.stringify({ scriptPath: script.name, args })
                 });
                 
                 const text = await res.text();

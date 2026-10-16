@@ -18,7 +18,7 @@ PIDFILE="$DIR/.train-daemon.pid"
 LOGFILE="$DIR/training.log"
 DAEMON="$DIR/scripts/train-daemon.mjs"
 
-case "${1:-}" in
+case "${1:-status}" in
   start)
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
       echo "Già in esecuzione (PID $(cat "$PIDFILE"))"

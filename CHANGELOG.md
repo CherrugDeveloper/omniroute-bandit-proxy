@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.31 — 2026-10-16
+- **Add Script Arguments Input & Default Status in train-ctl**:
+  - Added script arguments input field in [`public/dashboard.html`](public/dashboard.html:2794) for executing custom script arguments via the UI script manager.
+  - Set default case to `status` in [`scripts/train-ctl.sh`](scripts/train-ctl.sh:18) for convenient status checks when run without arguments.
+
 ## v1.1.30 — 2026-10-16
 - **Enhance Request Token Size Estimation**:
   - Improved [`estimateTokens()`](src/bandit.mjs:1319) in [`src/bandit.mjs`](src/bandit.mjs:1) to accurately account for system prompts, tools, functions, and assistant `tool_calls` alongside message contents.
