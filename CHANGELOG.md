@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.23 — 2026-10-16
+- **Input Tokens Per Minute (ITPM) Tracking & Quota Enforcement**:
+  - Pre-filtered models exceeding provider ITPM quota before UCB1 selection in [`src/bandit.mjs`](src/bandit.mjs:1).
+  - Added architectural design in [`plans/itpm-tracking-design.md`](plans/itpm-tracking-design.md:1) for rolling ITPM window tracking and proactive enforcement.
+  - Added comprehensive unit tests in [`__tests__/itpm-quota.test.js`](__tests__/itpm-quota.test.js:1) validating 413 error parsing, limit extraction, rolling token/call windows, and provider skipping.
+
 ## v1.1.22 — 2026-10-16
 - **Bandit & Error Classification Fixes**:
   - Prevented zero-cooldown loops on 500 / SSE streaming errors in [`src/bandit.mjs`](src/bandit.mjs:1).
