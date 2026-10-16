@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.27 — 2026-10-16
+- **Exclude TTS, Audio, and Image Models During Sync & Enhance Logging Transparency**:
+  - Excluded TTS, speech, audio-only, and image generation models (e.g. DALL-E, Whisper, Flux) during model synchronization and filtering in [`src/bandit.mjs`](src/bandit.mjs:387) unless marked as chat/omni/multimodal.
+  - Guarded error classification console logs in [`src/bandit.mjs`](src/bandit.mjs:683) to run only under `training` source or `DEBUG_BANDIT=true`, reducing production log noise.
+  - Added enhanced model selection logging in [`selectModel()`](src/bandit.mjs:1530) within [`src/bandit.mjs`](src/bandit.mjs:1) for better banner transparency when `DEBUG=true`.
+
 ## v1.1.26 — 2026-10-16
 - **Fix Qwen Model Selection Loop on 413 / ITPM Errors**:
   - Prevented infinite selection loops on failing models exceeding ITPM/413 token limits in [`src/bandit.mjs`](src/bandit.mjs:696) by setting `dynamic_max_tokens` to `estimatedTokens - 1` when no explicit token limit is parsed from the error.

@@ -387,12 +387,30 @@ export class DiscountedUCB1Bandit {
       const isChatModel = (m, id) => {
         const lowerId = String(id).toLowerCase();
 
-        // Only exclude explicitly non-chat or batch / embedding / rerank / moderation models
+        // Only exclude explicitly non-chat or batch / embedding / rerank / moderation / tts / audio / image models
         if (/:batch\b/.test(lowerId)) return false;
         if (/(^|[-_/])(embed|embedding|embeddings|rerank|moderation)([-_/]|$)/.test(lowerId)) return false;
 
+        // Exclude TTS, speech, audio-only, STT, whisper, voice models (unless omni/chat)
+        if (/(^|[-_/])(tts|text-to-speech|speech|stt|speech-to-text|whisper|voice|audio)([-_/]|$)/.test(lowerId)) {
+          if (!lowerId.includes("omni") && !lowerId.includes("chat") && !lowerId.includes("multimodal")) {
+            return false;
+          }
+        }
+
+        // Exclude image-only / generation models (dall-e, stable-diffusion, imagen, sdxl)
+        if (/(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux-schnell|flux-dev|midjourney)([-_/]|$)/.test(lowerId)) {
+          if (!lowerId.includes("chat") && !lowerId.includes("vision-chat")) {
+            return false;
+          }
+        }
+
         if (m && typeof m === "object") {
-          if (m.type && ["embedding", "embeddings", "moderation", "rerank", "tts", "stt", "image", "audio"].includes(String(m.type).toLowerCase())) {
+          const typeStr = m.type ? String(m.type).toLowerCase() : "";
+          if (["embedding", "embeddings", "moderation", "rerank", "tts", "stt", "image", "audio", "speech"].includes(typeStr)) {
+            return false;
+          }
+          if (m.capabilities && (m.capabilities.audio === true || m.capabilities.tts === true || m.capabilities.image_generation === true) && !m.capabilities.chat && !m.capabilities.text) {
             return false;
           }
         }
@@ -665,11 +683,15 @@ export class DiscountedUCB1Bandit {
             console.log(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
             switch (c.action) {
               case "ban-provider":
-                console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
+                if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
+                  console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
+                }
                 this._banProvider(provider);
                 break;
               case "ban-model":
-                console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
+                if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
+                  console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
+                }
                 this.db.prepare(
                   `INSERT INTO models (id, provider, permanent, N, sum_reward, fails, cooldown_until, last_used_index)
                    VALUES (?, ?, 1, 0, 0, 0, 0, 0)
@@ -677,7 +699,9 @@ export class DiscountedUCB1Bandit {
                 ).run(modelId, provider);
                 break;
               case "cooldown-provider":
-                console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
+                if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
+                  console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
+                }
                 if (c.reason === "no-credit" || /402|payment|credit|funds/i.test(String(errorDetails?.status || "") + " " + String(errorDetails?.message || ""))) {
                   this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(modelId);
                 }
@@ -687,7 +711,9 @@ export class DiscountedUCB1Bandit {
                 this._cooldownPaidOnly(provider, c.cooldownMs);
                 break;
               case "flag-provider":
-                console.log(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
+                if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
+                  console.log(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
+                }
                 this._flagProviderAttention(provider, c.reason, errorDetails.message || errorDetails.error || "");
                 break;
               case "cooldown-model": {
@@ -1529,6 +1555,10 @@ export class DiscountedUCB1Bandit {
 
     // Register the selected model use
     this._registerModelUse(bestModel.id, bestModel.provider);
+
+    if (DEBUG) {
+      console.log(`[BANDIT][SELECT] Selected model: ${bestModel.id} (provider: ${bestModel.provider}, score: ${bestScore.toFixed(4)}, available: ${availableModels.length}/${models.length})`);
+    }
 
     return bestModel.id;
   }
