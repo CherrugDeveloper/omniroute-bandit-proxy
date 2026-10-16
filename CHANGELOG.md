@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.26 — 2026-10-16
+- **Fix Qwen Model Selection Loop on 413 / ITPM Errors**:
+  - Prevented infinite selection loops on failing models exceeding ITPM/413 token limits in [`src/bandit.mjs`](src/bandit.mjs:696) by setting `dynamic_max_tokens` to `estimatedTokens - 1` when no explicit token limit is parsed from the error.
+
 ## v1.1.25 — 2026-10-16
 - **Robust Error Classification for Queue Timeouts & High Demand 503 Errors**:
   - Added robust classification in [`_classifyError()`](src/bandit.mjs:908) within [`src/bandit.mjs`](src/bandit.mjs:1) for `RATE_LIMIT_QUEUE_TIMEOUT` and high-demand 503 errors, classifying them as `cooldown-model` (`queue-timeout` / `high-demand`).

@@ -696,7 +696,7 @@ export class DiscountedUCB1Bandit {
                   const errorMessage = String(errorDetails?.message || errorDetails?.error || errorDetails || "");
                   const parsedLimit = this._parseTokenLimit(errorMessage);
                   const estTokens = opts.estimatedTokens || errorDetails?.estimatedTokens || 0;
-                  const targetLimit = parsedLimit !== null ? parsedLimit : estTokens;
+                  const targetLimit = parsedLimit !== null ? parsedLimit : (estTokens > 0 ? estTokens - 1 : 0);
                   if (targetLimit > 0) {
                     this.db.prepare(
                       `INSERT INTO models (id, provider, dynamic_max_tokens, N, sum_reward, fails, cooldown_until, last_used_index)
