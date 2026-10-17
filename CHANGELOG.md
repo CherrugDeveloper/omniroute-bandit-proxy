@@ -2,6 +2,13 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.38 — 2026-10-17
+- **Model Selection Refinements, Quality-to-Speed Metrics, Dashboard Vertical Consideration Panel & 100ms Polling Frequency**:
+  - Removed $N \ge 3$ restriction in [`getModelRank()`](src/bandit.mjs:646) and prioritized untested models ($N = 0$) with optimistic UCB1 exploration bonus in [`selectModel()`](src/bandit.mjs:1610).
+  - Incorporated composite Quality-to-Speed ratio metrics combining average reward and latency efficiency into UCB1 scoring.
+  - Added vertical consideration panel in [`public/dashboard.html`](public/dashboard.html:817) with discard reasons and model selection history (`GET /v1/consideration`).
+  - Accelerated dashboard polling frequency to 100ms (0.1s) for ultra-responsive real-time updates.
+
 ## v1.1.37 — 2026-10-17
 - **Fix Image-Generation Model Exclusion in Emergency Last-Resort Fallback Selection**:
   - Updated absolute last-resort model selection in [`src/bandit.mjs`](src/bandit.mjs:1597) to correctly filter out image generation models (`isImageGenerationModel`) when `requireImageGeneration` is false, preventing accidental selection of image models for text chat completions.

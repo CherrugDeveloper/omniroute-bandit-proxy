@@ -646,15 +646,19 @@ export class DiscountedUCB1Bandit {
     const now = Date.now();
     if (now - this._rankCache.at > 30000) {
       const rows = this.db.prepare(
-        `SELECT id, sum_reward / N AS avg
+        `SELECT id, CASE WHEN N > 0 THEN sum_reward / N ELSE 1.0 END AS avg
          FROM models
-         WHERE permanent = 0 AND degraded = 0 AND N >= 3 AND N > 0
-         ORDER BY avg DESC`
+         WHERE permanent = 0 AND degraded = 0
+         ORDER BY avg DESC, N DESC`
       ).all();
       this._rankCache.map = new Map(rows.map((r, i) => [r.id, i + 1]));
       this._rankCache.at = now;
     }
     return this._rankCache.map.get(modelId) ?? null;
+  }
+
+  getLastSelectionHistory() {
+    return this.lastSelectionHistory || [];
   }
 
   _getProviderCooldownMs(fails) {
@@ -1606,7 +1610,7 @@ export class DiscountedUCB1Bandit {
       return null;
     }
 
-    // Select model using robust Discounted UCB1 scoring with optimistic exploration for unobserved/low-sample models (N=0, N<3) and profileMultiplier soft bias
+    // Select model using robust Discounted UCB1 scoring with N=0 prioritization, Quality-to-Speed ratio metrics, and profileMultiplier soft bias
     const totalObservations = this._getMeta("totalObservations") || models.reduce((acc, m) => acc + (m.N || 0), 0) || 1;
 
     let bestModel = availableModels[0];
@@ -1616,14 +1620,20 @@ export class DiscountedUCB1Bandit {
       const N = model.N || 0;
       const sum_reward = model.sum_reward || 0;
 
+      // Quality-to-Speed ratio calculation
+      const avgReward = N > 0 ? sum_reward / N : 1.0;
+      const avgLatency = model.avg_latency || 250;
+      const baselineLatency = 500;
+      const latencyFactor = baselineLatency / Math.max(avgLatency, 100);
+      const qualitySpeedScore = avgReward * latencyFactor;
+
       let ucbScore;
       if (N === 0) {
-        // Optimistic initialization / exploration bonus for unobserved or catalog models (N = 0)
-        ucbScore = 1.0 + 0.5 * Math.sqrt(Math.log(totalObservations + 1) / 1);
+        // Prioritize untested models (N = 0) with high optimistic bonus
+        ucbScore = 2.0 * qualitySpeedScore + 0.8 * Math.sqrt(Math.log(totalObservations + 1) / 1);
       } else {
-        const avg = sum_reward / N;
         const explorationBonus = 0.5 * Math.sqrt(Math.log(totalObservations + 1) / N);
-        ucbScore = avg + explorationBonus;
+        ucbScore = (avgReward + explorationBonus) * qualitySpeedScore;
       }
 
       // Apply soft bias multiplier from profile if specified, plus small random tie-breaker for rotation
@@ -1635,6 +1645,14 @@ export class DiscountedUCB1Bandit {
         bestModel = model;
       }
     }
+
+    selectionHistory.push({
+      id: bestModel.id,
+      provider: bestModel.provider,
+      status: 'selected',
+      reason: bestModel.N === 0 ? 'untested_model_prioritized' : 'selected_by_ucb_quality_speed',
+      tier: 'strict'
+    });
 
     // Register the selected model use
     this._registerModelUse(bestModel.id, bestModel.provider);

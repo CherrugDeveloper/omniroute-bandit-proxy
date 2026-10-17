@@ -817,6 +817,30 @@
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
         <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
         <button class="tab-btn" data-tab="scripts">🛠️ Scripts Manager</button>
+        <button class="tab-btn" data-tab="consideration">🔍 Considerazioni</button>
+    </div>
+
+    <div id="tab-consideration" class="tab-content">
+        <div class="card" style="margin-top:10px;">
+            <h3>Ultima Valutazione Modelli & Considerazioni</h3>
+            <p style="font-size:12px; color:#8b949e; margin-bottom:10px;">Mostra tutti i modelli valutati nell'ultima richiesta di chat, con stato (selezionato o scartato) e motivo dello scarto.</p>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Modello</th>
+                            <th>Provider</th>
+                            <th>Stato</th>
+                            <th>Motivo Scarto / Selezione</th>
+                            <th>Tier Filtro</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consideration-table-body">
+                        <tr><td colspan="5" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div id="tab-logs" class="tab-content active">
@@ -2466,10 +2490,38 @@
         fetchLogs();
         fetchActive();
         fetchQuota();
-        setInterval(refreshAll, 1000);
-        setInterval(fetchLogs, 1000);
-        setInterval(fetchActive, 500);
+        fetchConsideration();
+        setInterval(refreshAll, 100);
+        setInterval(fetchLogs, 100);
+        setInterval(fetchActive, 100);
         setInterval(fetchQuota, 10000);
+        setInterval(fetchConsideration, 100);
+
+        async function fetchConsideration() {
+            try {
+                const res = await fetch('/v1/consideration');
+                if (!res.ok) return;
+                const data = await res.json();
+                const list = data.consideration || [];
+                const tbody = document.getElementById('consideration-table-body');
+                if (!tbody) return;
+                if (list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = list.map(item => `
+                    <tr>
+                        <td><code>${item.id}</code></td>
+                        <td><code>${item.provider}</code></td>
+                        <td><span style="padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; background:${item.status === 'selected' ? '#238636' : '#da3633'}; color:#fff;">${item.status}</span></td>
+                        <td><code>${item.reason || '-'}</code></td>
+                        <td><code>${item.tier || '-'}</code></td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                // ignore
+            }
+        }
         document.addEventListener('DOMContentLoaded', () => {
             const fab = document.getElementById('dev-fab');
             const menu = document.getElementById('dev-menu');

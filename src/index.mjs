@@ -846,6 +846,24 @@ app.get("/v1/dashboard/stats", requireAuth, (req, res) => {
   }
 });
 
+app.get("/v1/consideration", requireAuth, (req, res) => {
+  try {
+    res.json({ consideration: bandit.getLastSelectionHistory() });
+  } catch (e) {
+    console.error("[API] Errore /v1/consideration:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/v1/consideration-logs", requireAuth, (req, res) => {
+  try {
+    res.json({ consideration: bandit.getLastSelectionHistory() });
+  } catch (e) {
+    console.error("[API] Errore /v1/consideration-logs:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Throttling per i log di /v1/models: la dashboard lo polla frequentemente.
 // Logga solo una riga di riepilogo ogni MODELS_LOG_THROTTLE_MS (default 60s)
 // e porta il conteggio delle chiamate throttlellate. Gli errori sono sempre loggati.
