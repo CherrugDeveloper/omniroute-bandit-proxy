@@ -51,9 +51,9 @@ export function isImageGenerationRequest(body) {
      const modelId = String(body.model).toLowerCase();
      const imageModelPatterns = [
        'dall-e', 'stable-diffusion', 'midjourney', 'flux',
-       'imagen', 'sdxl', 'sd-xl', 'playground'
+       'imagen', 'sdxl', 'sd-xl', 'playground', 'aihorde'
      ];
-     if (imageModelPatterns.some(pattern => modelId.includes(pattern))) {
+     if (imageModelPatterns.some(pattern => modelId.includes(pattern)) || modelId.startsWith('aihorde/')) {
        return true;
      }
    }
@@ -1605,8 +1605,9 @@ trackRequestUpdate(requestId, {
           const modelInfoImg = bandit.db.prepare(
             `SELECT supports_image_generation FROM catalog WHERE id = ?`
           ).get(fallbackModel);
-          const isFallbackImageGen = (modelInfoImg && modelInfoImg.supports_image_generation === 1) ||
-            /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground)([-_/]|$)/i.test(fallbackModel) ||
+          const isAihordeFallback = fallbackModel.toLowerCase().startsWith('aihorde/') || fallbackModel.toLowerCase().includes('aihorde');
+          const isFallbackImageGen = isAihordeFallback || (modelInfoImg && modelInfoImg.supports_image_generation === 1) ||
+            /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(fallbackModel) ||
             /image/i.test(fallbackModel);
           if (isFallbackImageGen) {
             console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: is an image-generation model`);

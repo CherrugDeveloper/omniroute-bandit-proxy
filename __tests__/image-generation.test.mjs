@@ -507,4 +507,25 @@ describe("Integration Scenarios", () => {
 
     bandit.close();
   });
+
+  test("aihorde/* models are strictly excluded from chat completions and included for image generation", async () => {
+    const bandit = makeBandit();
+
+    seedCatalog(bandit, "gpt-4-text", "openai", false);
+    seedCatalog(bandit, "aihorde/Uhmami", "aihorde", true);
+    seedCatalog(bandit, "aihorde/NeverEnding Dream", "aihorde", true);
+    seedCatalog(bandit, "aihorde/AMPonyXL", "aihorde", true);
+
+    // 1. Regular chat completion (requireImageGeneration = false): should NEVER pick aihorde/* models
+    for (let i = 0; i < 10; i++) {
+      const chosenChat = await bandit.selectModel(new Set(), 0, false, false, null, true);
+      assert.equal(chosenChat, "gpt-4-text");
+    }
+
+    // 2. Image generation request (requireImageGeneration = true): should successfully pick one of the aihorde models
+    const chosenImage = await bandit.selectModel(new Set(), 0, false, true, "general", true);
+    assert.ok(["aihorde/Uhmami", "aihorde/NeverEnding Dream", "aihorde/AMPonyXL"].includes(chosenImage));
+
+    bandit.close();
+  });
 });

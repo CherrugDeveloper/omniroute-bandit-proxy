@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.36 — 2026-10-17
+- **Exclude aihorde Image Models and Add Filtering/Relaxation Tests**:
+  - Excluded `aihorde/*` image models from chat completions and tool usage in [`src/bandit.mjs`](src/bandit.mjs:1) and [`src/index.mjs`](src/index.mjs:1).
+  - Added unit tests in [`__tests__/image-generation.test.mjs`](__tests__/image-generation.test.mjs:1) verifying `aihorde` model filtering.
+
 ## v1.1.35 — 2026-10-17
 - **Relax Tool and Token Filtering Constraints During Model Selection Recovery**:
   - Allowed tool requirement constraint (`requireTools`) to be relaxed during relaxation / emergency fallback tiers in [`src/bandit.mjs`](src/bandit.mjs:1512).

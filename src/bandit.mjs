@@ -443,9 +443,10 @@ export class DiscountedUCB1Bandit {
           const supportsTools = (!isFim && m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
 
           // Detect image generation capability:
-          // Check model id or name for image generation patterns (dall-e, stable-diffusion, imagen, sdxl, flux, midjourney, image-generation)
+          // Check model id or name for image generation patterns (dall-e, stable-diffusion, imagen, sdxl, flux, midjourney, image-generation, aihorde)
           // or model object capabilities / type
-          const isImageGenId = /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux-schnell|flux-dev|midjourney|image-generation)([-_/]|$)/i.test(modelId);
+          const isAihordeId = modelId.toLowerCase().startsWith("aihorde/") || modelId.toLowerCase().includes("aihorde");
+          const isImageGenId = isAihordeId || /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux-schnell|flux-dev|midjourney|image-generation|aihorde)([-_/]|$)/i.test(modelId);
           const isImageGenType = m && typeof m === "object" && (
             String(m.type || "").toLowerCase() === "image" ||
             m.capabilities?.image_generation === true ||
@@ -1518,8 +1519,9 @@ export class DiscountedUCB1Bandit {
           }
 
           if (!rejectionReason && !requireImageGeneration) {
-            const isImageGen = (model.supports_image_generation || 0) === 1 ||
-              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground)([-_/]|$)/i.test(model.id) ||
+            const isAihordeModel = model.provider === 'aihorde' || model.id.toLowerCase().startsWith("aihorde/") || model.id.toLowerCase().includes("aihorde");
+            const isImageGen = isAihordeModel || (model.supports_image_generation || 0) === 1 ||
+              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(model.id) ||
               /image/i.test(model.id);
             if (isImageGen) {
               rejectionReason = 'image_model_excluded_from_chat';
