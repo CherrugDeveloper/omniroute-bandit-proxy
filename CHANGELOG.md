@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.40 — 2026-10-17
+- **Fix Image-Generation Model Filtering for Chat Completions & Make Active Requests Panel Scrollable with Attempt Rows**:
+  - Ensured correct filtering of image-generation models for chat completions in [`src/bandit.mjs`](src/bandit.mjs:1516) and [`src/index.mjs`](src/index.mjs:1601).
+  - Enhanced active requests tracking with attempt keys (`trackRequestStart()`, [`trackRequestUpdate()`](src/request-tracker.mjs:15), and [`getRequest()`](src/request-tracker.mjs:57)) in [`src/request-tracker.mjs`](src/request-tracker.mjs:1).
+  - Updated active requests panel in [`public/dashboard.html`](public/dashboard.html:492) with proper vertical scrolling and scrollbar styling (`max-height: 220px`, `overflow-y: auto`).
+
 ## v1.1.39 — 2026-10-17
 - **Add Model Metrics (N, Reward, Latency, Score) to Selection History and Dashboard Consideration Panel**:
   - Included `N`, `sum_reward`, `avg_reward`, `avg_latency`, and `score` in model selection history and rejection logs within [`src/bandit.mjs`](src/bandit.mjs:1539).

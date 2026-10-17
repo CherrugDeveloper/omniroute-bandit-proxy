@@ -492,14 +492,13 @@
         #active-list {
             display: flex;
             flex-direction: column;
-            height: 7.5em;
-            min-height: 7.5em;
-            max-height: 7.5em;
+            max-height: 220px;
             overflow-y: auto;
-            scrollbar-width: none;
+            scrollbar-width: thin;
             padding-bottom: 2px;
         }
-        #active-list::-webkit-scrollbar { display: none; }
+        #active-list::-webkit-scrollbar { width: 6px; }
+        #active-list::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
         .active-request {
             min-height: 1.5em;
             line-height: 1.5em;
