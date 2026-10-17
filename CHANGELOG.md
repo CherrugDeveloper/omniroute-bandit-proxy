@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.39 — 2026-10-17
+- **Add Model Metrics (N, Reward, Latency, Score) to Selection History and Dashboard Consideration Panel**:
+  - Included `N`, `sum_reward`, `avg_reward`, `avg_latency`, and `score` in model selection history and rejection logs within [`src/bandit.mjs`](src/bandit.mjs:1539).
+  - Updated dashboard consideration table in [`public/dashboard.html`](public/dashboard.html:832) to display comprehensive model metrics instead of filter tier.
+
 ## v1.1.38 — 2026-10-17
 - **Model Selection Refinements, Quality-to-Speed Metrics, Dashboard Vertical Consideration Panel & 100ms Polling Frequency**:
   - Removed $N \ge 3$ restriction in [`getModelRank()`](src/bandit.mjs:646) and prioritized untested models ($N = 0$) with optimistic UCB1 exploration bonus in [`selectModel()`](src/bandit.mjs:1610).

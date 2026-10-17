@@ -832,11 +832,12 @@
                             <th>Provider</th>
                             <th>Stato</th>
                             <th>Motivo Scarto / Selezione</th>
-                            <th>Tier Filtro</th>
+                            <th>Metriche (N / Reward / Lat)</th>
+                            <th>Tier</th>
                         </tr>
                     </thead>
                     <tbody id="consideration-table-body">
-                        <tr><td colspan="5" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>
+                        <tr><td colspan="6" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -2506,18 +2507,26 @@
                 const tbody = document.getElementById('consideration-table-body');
                 if (!tbody) return;
                 if (list.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>';
                     return;
                 }
-                tbody.innerHTML = list.map(item => `
-                    <tr>
-                        <td><code>${item.id}</code></td>
-                        <td><code>${item.provider}</code></td>
-                        <td><span style="padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; background:${item.status === 'selected' ? '#238636' : '#da3633'}; color:#fff;">${item.status}</span></td>
-                        <td><code>${item.reason || '-'}</code></td>
-                        <td><code>${item.tier || '-'}</code></td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = list.map(item => {
+                    const nVal = item.N !== undefined ? item.N : '-';
+                    const rewardVal = item.avg_reward !== undefined ? Number(item.avg_reward).toFixed(2) : '-';
+                    const latencyVal = item.avg_latency !== undefined ? Math.round(item.avg_latency) + 'ms' : '-';
+                    const metricsHtml = `<span style="font-size:11px; color:#8b949e;">N: <strong>${nVal}</strong> | Rew: <strong>${rewardVal}</strong> | Lat: <strong>${latencyVal}</strong>${item.score !== undefined ? ' | Score: <strong>' + Number(item.score).toFixed(3) + '</strong>' : ''}</span>`;
+                    const statusBg = item.status === 'selected' ? '#238636' : '#da3633';
+                    return `
+                        <tr>
+                            <td><code>${escapeHtml(item.id)}</code></td>
+                            <td><code>${escapeHtml(item.provider)}</code></td>
+                            <td><span style="padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; background:${statusBg}; color:#fff;">${escapeHtml(item.status)}</span></td>
+                            <td><code>${escapeHtml(item.reason || '-')}</code></td>
+                            <td>${metricsHtml}</td>
+                            <td><code>${escapeHtml(item.tier || '-')}</code></td>
+                        </tr>
+                    `;
+                }).join('');
             } catch (e) {
                 // ignore
             }

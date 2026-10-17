@@ -1539,7 +1539,11 @@ export class DiscountedUCB1Bandit {
             provider: model.provider,
             status: 'rejected',
             reason: rejectionReason,
-            tier: ignoreCooldown ? 'emergency' : (ignorePolicies ? 'tier2' : (ignoreTools ? 'tier1' : 'strict'))
+            tier: ignoreCooldown ? 'emergency' : (ignorePolicies ? 'tier2' : (ignoreTools ? 'tier1' : 'strict')),
+            N: model.N || 0,
+            sum_reward: model.sum_reward || 0,
+            avg_reward: (model.N || 0) > 0 ? (model.sum_reward || 0) / (model.N || 0) : 1.0,
+            avg_latency: model.avg_latency || 250
           });
           return false;
         }
@@ -1646,12 +1650,20 @@ export class DiscountedUCB1Bandit {
       }
     }
 
+    const bestN = bestModel.N || 0;
+    const bestSumReward = bestModel.sum_reward || 0;
+    const bestAvgReward = bestN > 0 ? bestSumReward / bestN : 1.0;
     selectionHistory.push({
       id: bestModel.id,
       provider: bestModel.provider,
       status: 'selected',
       reason: bestModel.N === 0 ? 'untested_model_prioritized' : 'selected_by_ucb_quality_speed',
-      tier: 'strict'
+      tier: 'strict',
+      N: bestN,
+      sum_reward: bestSumReward,
+      avg_reward: bestAvgReward,
+      avg_latency: bestModel.avg_latency || 250,
+      score: bestScore
     });
 
     // Register the selected model use
