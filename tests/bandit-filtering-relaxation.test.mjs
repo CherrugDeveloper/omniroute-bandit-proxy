@@ -38,3 +38,17 @@ test("selectModel: relaxation strategy recovers when policy (onlyFree / excludeP
   // Without relaxation, this would return null. With relaxation tier 2, it recovers.
   assert.equal(chosen, "p1/paid-model");
 });
+
+test("selectModel: requireTools=true with high token count recovers via relaxation tiers", async () => {
+  const b = makeBandit();
+  // Seed model that supports tools but has smaller maxInput than estimatedTokens (8046)
+  seedCatalog(b, "p1/tool-model", "p1", 4096, 1, 1);
+  // Seed model that has large maxInput but doesn't support tools
+  seedCatalog(b, "p1/large-model", "p1", 16384, 1, 0);
+
+  // Request requireTools = true, estimatedTokens = 8046
+  const chosen = await b.selectModel(new Set(), 8046, true, false, null, true);
+
+  // Should successfully select a model via relaxation/emergency tier rather than returning null
+  assert.notEqual(chosen, null);
+});

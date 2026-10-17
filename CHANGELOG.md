@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.35 — 2026-10-17
+- **Relax Tool and Token Filtering Constraints During Model Selection Recovery**:
+  - Allowed tool requirement constraint (`requireTools`) to be relaxed during relaxation / emergency fallback tiers in [`src/bandit.mjs`](src/bandit.mjs:1512).
+  - Added unit test in [`tests/bandit-filtering-relaxation.test.mjs`](tests/bandit-filtering-relaxation.test.mjs:42) validating recovery when `requireTools=true` under tight token limits.
+
 ## v1.1.34 — 2026-10-17
 - **Exclude Image-Generation Models from Chat Completions and Tool Usage**:
   - Prevented image-generation models (e.g. DALL-E, Imagen, Flux, Stable Diffusion) from being selected during chat completions and tool usage requests in [`src/bandit.mjs`](src/bandit.mjs:1516) and [`src/index.mjs`](src/index.mjs:1601).

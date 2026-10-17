@@ -1509,7 +1509,7 @@ export class DiscountedUCB1Bandit {
             }
           }
 
-          if (!rejectionReason && requireTools && !(model.supports_tools || 0)) {
+          if (!rejectionReason && requireTools && !ignoreTools && !(model.supports_tools || 0)) {
             rejectionReason = 'no_tools_support';
           }
 
