@@ -1516,6 +1516,15 @@ export class DiscountedUCB1Bandit {
           if (!rejectionReason && requireImageGeneration && !ignoreImageGeneration && !(model.supports_image_generation || 0)) {
             rejectionReason = 'no_image_generation_support';
           }
+
+          if (!rejectionReason && !requireImageGeneration) {
+            const isImageGen = (model.supports_image_generation || 0) === 1 ||
+              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground)([-_/]|$)/i.test(model.id) ||
+              /image/i.test(model.id);
+            if (isImageGen) {
+              rejectionReason = 'image_model_excluded_from_chat';
+            }
+          }
         }
 
         if (rejectionReason) {

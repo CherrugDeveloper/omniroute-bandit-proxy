@@ -1601,6 +1601,18 @@ trackRequestUpdate(requestId, {
             }
           }
 
+          // Check if model is an image-generation model (exclude from chat/tool completions)
+          const modelInfoImg = bandit.db.prepare(
+            `SELECT supports_image_generation FROM catalog WHERE id = ?`
+          ).get(fallbackModel);
+          const isFallbackImageGen = (modelInfoImg && modelInfoImg.supports_image_generation === 1) ||
+            /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground)([-_/]|$)/i.test(fallbackModel) ||
+            /image/i.test(fallbackModel);
+          if (isFallbackImageGen) {
+            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: is an image-generation model`);
+            continue;
+          }
+
           // Model passes all checks
           selectedFallbackModel = fallbackModel;
           break;

@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.34 — 2026-10-17
+- **Exclude Image-Generation Models from Chat Completions and Tool Usage**:
+  - Prevented image-generation models (e.g. DALL-E, Imagen, Flux, Stable Diffusion) from being selected during chat completions and tool usage requests in [`src/bandit.mjs`](src/bandit.mjs:1516) and [`src/index.mjs`](src/index.mjs:1601).
+
 ## v1.1.33 — 2026-10-17
 - **Add Image Generation Detection, Routing, and Support for `/v1/images/generations`**:
   - Implemented automatic image generation request detection (`isImageGenerationRequest`) and conversion (`convertImageGenerationToChatCompletion`) in [`src/index.mjs`](src/index.mjs:1).
