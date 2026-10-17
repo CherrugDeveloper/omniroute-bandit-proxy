@@ -21,16 +21,16 @@ describe("Error Handling and Model Filtering Test Suite", () => {
     }
   });
 
-  test("1. CFP environment error classification: browserType.launch Executable doesn't exist -> ban-model (environment-error)", () => {
+  test("1. CFP environment error classification: browserType.launch Executable doesn't exist -> ban-provider (provider-misconfigured)", () => {
     const errObj = {
       status: 502,
       message: "browserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/chromium-1123/chrome-linux/chrome",
       provider: "cfp"
     };
     const classification = bandit._classifyError(errObj);
-    assert.equal(classification.action, "ban-model");
-    assert.equal(classification.reason, "environment-error");
-    assert.equal(classification.scope, "model");
+    assert.equal(classification.action, "ban-provider");
+    assert.equal(classification.reason, "provider-misconfigured");
+    assert.equal(classification.scope, "provider");
   });
 
   test("2. Antigravity catalog availability error classification: not available in active live catalog -> ban-model (model-not-found)", () => {

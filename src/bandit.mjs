@@ -792,25 +792,24 @@ export class DiscountedUCB1Bandit {
     const message = errorDetails.message || "";
     const reason = errorDetails.reason || "unknown";
     const is429 = status === 429;
+    const resolvedProvider = provider || errorDetails.provider || (errorDetails.modelId ? errorDetails.modelId.split('/')[0] : '');
 
     // Tool-calling requirement failure -> ban-model
     if (/no-tool-call-but-required/i.test(message)) {
       return { action: "ban-model", scope: "model", reason: "no-tool-call-but-required" };
     }
 
-    // Status 502 misconfiguration / gateway errors -> flag-provider
-    if (status === 502 && /No auth provided|Please log in|Playwright is not available|missing url or token/i.test(message)) {
+    // Status 502 misconfiguration / gateway errors -> ban-provider if provider-level, else flag-provider
+    if (status === 502 && /No auth provided|Please log in|Playwright is not available|missing url or token|browserType\.launch|Executable doesn't exist|ENOENT/i.test(message)) {
+      if (resolvedProvider === 'cfp' || resolvedProvider === 'zc' || resolvedProvider) {
+        return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+      }
       return { action: "flag-provider", reason: "provider-misconfigured" };
     }
 
-    // CFP / Cloudflare Playground environment errors -> flag-provider (temporary, non-permanent)
-    if (provider === 'cfp' && /browserType\.launch|Executable doesn't exist|Playwright is not available|ENOENT/i.test(message)) {
-      return { action: "flag-provider", reason: "provider-misconfigured" };
-    }
-
-    // Sandbox, Missing Binary, and Environment Configuration Errors across status codes
+    // Sandbox, Missing Binary, and Environment Configuration Errors across status codes -> ban-provider for provider-level / cfp / zc
     if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured|Playwright is not available/i.test(message)) {
-      const isProviderLevel = provider === 'zc' || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
+      const isProviderLevel = resolvedProvider === 'zc' || resolvedProvider === 'cfp' || !!resolvedProvider || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
       if (isProviderLevel) {
         return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
       } else {

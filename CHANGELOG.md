@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.32 — 2026-10-17
+- **Classify Playwright Browser Launch 502 Errors as Ban-Provider**:
+  - Updated error classification in [`_classifyError()`](src/bandit.mjs:908) within [`src/bandit.mjs`](src/bandit.mjs:1) to classify 502 browser launch / executable missing errors as `ban-provider` (`provider-misconfigured`).
+  - Updated test assertions in [`__tests__/error-handling-and-filtering.test.mjs`](__tests__/error-handling-and-filtering.test.mjs:24) accordingly.
+
 ## v1.1.31 — 2026-10-16
 - **Add Script Arguments Input & Default Status in train-ctl**:
   - Added script arguments input field in [`public/dashboard.html`](public/dashboard.html:2794) for executing custom script arguments via the UI script manager.
