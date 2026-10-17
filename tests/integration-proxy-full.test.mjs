@@ -28,7 +28,7 @@ describe("Integration Proxy Full Test Suite", () => {
   test("records successful and failing requests and updates request_logs, metrics, and dashboard stats correctly", async () => {
     // Seed catalog and model
     bandit.db.prepare("INSERT INTO catalog (id, provider, is_free) VALUES (?, ?, ?)").run("test-provider/model-a", "test-provider", 1);
-    await bandit.selectModel();
+    await bandit.selectModel(new Set(), 0, false, false, null, true);
 
     // 2a. Make a successful request
     bandit.recordRequest();

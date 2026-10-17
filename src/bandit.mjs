@@ -96,7 +96,8 @@ export class DiscountedUCB1Bandit {
           provider TEXT NOT NULL,
           max_input_tokens INTEGER DEFAULT 0,
           is_free INTEGER DEFAULT 0,
-          supports_tools INTEGER DEFAULT 0
+          supports_tools INTEGER DEFAULT 0,
+          supports_image_generation INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS request_logs (
@@ -178,6 +179,17 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_tools INTEGER DEFAULT 0`);
         } catch (err) {
           console.error("[BANDIT] Errore aggiunta colonna supports_tools:", err.message);
+          throw err;
+        }
+      }
+
+      const hasSupportsImageGeneration = catalogColumns.some(col => col.name === "supports_image_generation");
+      if (!hasSupportsImageGeneration) {
+        console.log("[BANDIT] Migrazione: aggiungo supports_image_generation a catalog");
+        try {
+          this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_image_generation INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna supports_image_generation:", err.message);
           throw err;
         }
       }
@@ -371,12 +383,13 @@ export class DiscountedUCB1Bandit {
       }
 
       const insertStmt = this.db.prepare(
-        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools) VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools, supports_image_generation) VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            provider = excluded.provider,
            max_input_tokens = excluded.max_input_tokens,
            is_free = excluded.is_free,
-           supports_tools = excluded.supports_tools`
+           supports_tools = excluded.supports_tools,
+           supports_image_generation = excluded.supports_image_generation`
       );
 
       const isFreeModel = (id) => {
@@ -398,23 +411,8 @@ export class DiscountedUCB1Bandit {
           }
         }
 
-        // Exclude image-only / generation models (dall-e, stable-diffusion, imagen, sdxl)
-        if (/(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux-schnell|flux-dev|midjourney)([-_/]|$)/.test(lowerId)) {
-          if (!lowerId.includes("chat") && !lowerId.includes("vision-chat")) {
-            return false;
-          }
-        }
-
-        if (m && typeof m === "object") {
-          const typeStr = m.type ? String(m.type).toLowerCase() : "";
-          if (["embedding", "embeddings", "moderation", "rerank", "tts", "stt", "image", "audio", "speech"].includes(typeStr)) {
-            return false;
-          }
-          if (m.capabilities && (m.capabilities.audio === true || m.capabilities.tts === true || m.capabilities.image_generation === true) && !m.capabilities.chat && !m.capabilities.text) {
-            return false;
-          }
-        }
-
+        // Image generation models are now allowed in the catalog so they can be routed to for image generation requests
+        // But let's verify what should be considered a chat model vs image generation model
         return true;
       };
 
@@ -443,7 +441,19 @@ export class DiscountedUCB1Bandit {
           const isFree = isFreeModel(modelId) ? 1 : 0;
           const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
           const supportsTools = (!isFim && m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
-          insertStmt.run(modelId, provider, maxInput, isFree, supportsTools);
+
+          // Detect image generation capability:
+          // Check model id or name for image generation patterns (dall-e, stable-diffusion, imagen, sdxl, flux, midjourney, image-generation)
+          // or model object capabilities / type
+          const isImageGenId = /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux-schnell|flux-dev|midjourney|image-generation)([-_/]|$)/i.test(modelId);
+          const isImageGenType = m && typeof m === "object" && (
+            String(m.type || "").toLowerCase() === "image" ||
+            m.capabilities?.image_generation === true ||
+            isImageGenId
+          );
+          const supportsImageGeneration = isImageGenType ? 1 : 0;
+
+          insertStmt.run(modelId, provider, maxInput, isFree, supportsTools, supportsImageGeneration);
           inserted++;
         }
         return { inserted, skipped, raw };
@@ -1274,7 +1284,7 @@ export class DiscountedUCB1Bandit {
     const model = this.db.prepare(
       `SELECT cooldown_until, permanent, degraded, provider FROM models WHERE id = ?`
     ).get(modelId);
-    
+
     const catModel = this.db.prepare(
       `SELECT provider, max_input_tokens FROM catalog WHERE id = ?`
     ).get(modelId);
@@ -1380,7 +1390,7 @@ export class DiscountedUCB1Bandit {
     return this.db.prepare("SELECT COUNT(DISTINCT provider) FROM catalog").get()['COUNT(DISTINCT provider)'] || 0;
   }
 
-  async selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, profile = null, cooledDownThisRequest = true) {
+  async selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, requireImageGeneration = false, profile = null, cooledDownThisRequest = true) {
     const DEBUG = String(process.env.DEBUG || "false").toLowerCase() === "true";
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excluded);
@@ -1398,11 +1408,11 @@ export class DiscountedUCB1Bandit {
 
     // Get all models from catalog that are available
     const catalogModels = this.db.prepare(`
-      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools, c.is_free, 0 AS is_paid, 0 AS dynamic_max_tokens
+      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools, c.supports_image_generation, c.is_free, 0 AS is_paid, 0 AS dynamic_max_tokens
       FROM catalog c
     `).all();
     const dbModels = this.db.prepare(`
-      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent, m.is_paid, m.dynamic_max_tokens, c.is_free, c.supports_tools, c.max_input_tokens
+      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent, m.is_paid, m.dynamic_max_tokens, c.is_free, c.supports_tools, c.supports_image_generation, c.max_input_tokens
       FROM models m
       LEFT JOIN catalog c ON m.id = c.id
     `).all();
@@ -1421,6 +1431,7 @@ export class DiscountedUCB1Bandit {
         is_paid: model.is_paid !== undefined ? model.is_paid : existing.is_paid,
         max_input_tokens: model.max_input_tokens !== undefined ? model.max_input_tokens : existing.max_input_tokens,
         supports_tools: model.supports_tools !== undefined ? model.supports_tools : existing.supports_tools,
+        supports_image_generation: model.supports_image_generation !== undefined ? model.supports_image_generation : existing.supports_image_generation,
       }); // db models overwrite catalog models
     }
     const models = Array.from(modelMap.values());
@@ -1428,7 +1439,7 @@ export class DiscountedUCB1Bandit {
 
     // Helper filtering function with multi-tier relaxation options
     const filterModels = (opts = {}) => {
-      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false } = opts;
+      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false } = opts;
       return models.filter(model => {
         let rejectionReason = null;
 
@@ -1500,6 +1511,10 @@ export class DiscountedUCB1Bandit {
 
           if (!rejectionReason && requireTools && !(model.supports_tools || 0)) {
             rejectionReason = 'no_tools_support';
+          }
+
+          if (!rejectionReason && requireImageGeneration && !ignoreImageGeneration && !(model.supports_image_generation || 0)) {
+            rejectionReason = 'no_image_generation_support';
           }
         }
 

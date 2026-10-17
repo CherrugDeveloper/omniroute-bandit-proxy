@@ -76,7 +76,7 @@ describe("Step 7: Feedback Recording, Reward Calculation, Error Classification &
      */
     test("recordFeedback with success updates N and sum_reward correctly", async () => {
       bandit.db.prepare("INSERT INTO catalog (id, provider) VALUES (?, ?)").run("test-provider/model-a", "test-provider");
-      await bandit.selectModel();
+      await bandit.selectModel(new Set(), 0, false, false, null, true);
 
       const before = bandit.db.prepare("SELECT N, sum_reward, fails FROM models WHERE id = ?").get("test-provider/model-a");
       assert.equal(before.N, 0);
@@ -94,7 +94,7 @@ describe("Step 7: Feedback Recording, Reward Calculation, Error Classification &
      */
     test("recordFeedback with failure increments model fails count", async () => {
       bandit.db.prepare("INSERT INTO catalog (id, provider) VALUES (?, ?)").run("test-provider/model-a", "test-provider");
-      await bandit.selectModel();
+      await bandit.selectModel(new Set(), 0, false, false, null, true);
 
       bandit.recordFeedback("test-provider/model-a", false, 0, { status: 502, message: "Bad gateway" });
 
@@ -109,7 +109,7 @@ describe("Step 7: Feedback Recording, Reward Calculation, Error Classification &
      */
     test("request_logs records started_at and ended_at timestamps on request lifecycle", async () => {
       bandit.db.prepare("INSERT INTO catalog (id, provider) VALUES (?, ?)").run("test-provider/model-a", "test-provider");
-      await bandit.selectModel();
+      await bandit.selectModel(new Set(), 0, false, false, null, true);
 
       // Simulate starting a request log (as done in index.mjs / bandit methods)
       bandit.db.prepare("INSERT INTO request_logs (started_at) VALUES (?)").run(Date.now());

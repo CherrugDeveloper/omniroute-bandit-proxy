@@ -13,15 +13,16 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 - **Classificazione errori**: 404, timeout, 5xx, rate limit, ban permanente, ecc.
 
 ### 2. Gestione dei Modelli
-- **Catalogo**: Pool completo dei modelli disponibili (ricostruito ad ogni avvio)
+- **Catalogo**: Pool completo dei modelli disponibili (ricostruito ad ogni avvio, include flag `supports_tools` e `supports_image_generation`)
 - **Modelli**: Modelli provati almeno una volta (N, sum_reward, fails, cooldown, permanent, degraded)
 - **Modelli training**: Statistiche training (isolate da modelli - non inquinano UCB1 prod)
 - **Provider history**: Stato per provider (fails, cooldown, permanent, needs_attention, pointer)
 
-### 3. Session Affinity
+### 3. Session Affinity & Image Generation
 - **Pin session**: Calcola `sessionKey = md5(system_prompt + primo_user_message)`
 - **TTL 30 min**: Pin valido per 30 minuti
 - **Invalidazione pin**: Se il modello pinnato fallisce (5xx, timeout), il pin viene rimosso
+- **Image Generation Support**: Rilevamento automatico delle richieste di generazione immagini e routing dedicato tramite [`POST /v1/images/generations`](src/index.mjs:1) o conversione trasparente su chat completions.
 
 ### 4. Sistema di Modalità
 - **14 modalità Zoo Code**: Riconosce le modalità di Zoo Code analizzando il system prompt

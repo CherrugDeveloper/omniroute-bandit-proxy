@@ -200,7 +200,7 @@ async function main() {
   log(`  Timeout:      ${TIMEOUT_MS}ms`);
   log(`  Skip tested:  ${SKIP_TESTED}`);
   log(`  Max input:    ${MAX_INPUT}`);
-  log(`  Exclude:      ${EXCLUDE_PROVIDERS.length > 0 ? EXCLUDE_PROVIDERS.join(", ") : "<nessuno>"}`);  
+  log(`  Exclude:      ${EXCLUDE_PROVIDERS.length > 0 ? EXCLUDE_PROVIDERS.join(", ") : "<nessuno>"}`);
   log(`  PID:          ${process.pid}`);
   log("  (gli esiti per-model sono visibili sulla dashboard)");
   log("=================================================");
@@ -222,7 +222,7 @@ async function main() {
 
     let ok = 0, fail = 0;
     const failCountByProvider = {};
-    const timeoutCountByProvider = {};   
+    const timeoutCountByProvider = {};
     skippedProviders.clear();
 
     for (const model of models) {

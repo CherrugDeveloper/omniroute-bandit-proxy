@@ -88,7 +88,7 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
     bandit.db.prepare("INSERT INTO catalog (id, provider, max_input_tokens, is_free) VALUES (?, ?, ?, ?)").run("prov-b/model-2", "prov-b", 100000, 1);
 
     // Select initial model
-    const selected1 = await bandit.selectModel();
+    const selected1 = await bandit.selectModel(new Set(), 0, false, false, null, true);
     assert.ok(selected1, "Should select a model initially");
 
     // Simulate ITPM / quota exhaustion on prov-a via recordQuotaExhausted
@@ -96,7 +96,7 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
     bandit.quota.recordQuotaExhausted("prov-a", futureReset, "itpm_exceeded");
 
     // Verify selectModel skips prov-a because quota.canCall("prov-a") is false
-    const selected2 = await bandit.selectModel();
+    const selected2 = await bandit.selectModel(new Set(), 0, false, false, null, true);
     assert.ok(selected2, "Should select another available model");
     const prov2 = selected2.split("/")[0];
     assert.notEqual(prov2, "prov-a", "Should skip provider prov-a when quota is exhausted");
@@ -107,7 +107,7 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
     bandit.quota.recordQuotaExhausted("prov-a", pastReset, "itpm_exceeded");
 
     // Now prov-a should be eligible again
-    const selected3 = await bandit.selectModel();
+    const selected3 = await bandit.selectModel(new Set(), 0, false, false, null, true);
     assert.ok(selected3, "Should be able to select model from prov-a after quota reset");
   });
 
@@ -132,7 +132,7 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
     assert.equal(maxInput, 8000);
 
     // Try selecting model with 17667 tokens -> should be filtered out
-    const sel2 = await bandit.selectModel(new Set(), 17667);
+    const sel2 = await bandit.selectModel(new Set(), 17667, false, false, null, true);
     assert.notEqual(sel2, "groq/gpt-oss-120b", "Model with dynamic max tokens 8000 should be excluded for 17667 tokens request");
   });
 });

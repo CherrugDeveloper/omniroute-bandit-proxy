@@ -2,6 +2,13 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.33 — 2026-10-17
+- **Add Image Generation Detection, Routing, and Support for `/v1/images/generations`**:
+  - Implemented automatic image generation request detection (`isImageGenerationRequest`) and conversion (`convertImageGenerationToChatCompletion`) in [`src/index.mjs`](src/index.mjs:1).
+  - Added support for `supports_image_generation` flag in catalog schema and model selection in [`src/bandit.mjs`](src/bandit.mjs:1).
+  - Added comprehensive test suite in [`__tests__/image-generation.test.mjs`](__tests__/image-generation.test.mjs:1).
+  - Added documentation in [`docs/image-generation.md`](docs/image-generation.md:1) and workflow plans in [`plans/`](plans/).
+
 ## v1.1.32 — 2026-10-17
 - **Classify Playwright Browser Launch 502 Errors as Ban-Provider**:
   - Updated error classification in [`_classifyError()`](src/bandit.mjs:908) within [`src/bandit.mjs`](src/bandit.mjs:1) to classify 502 browser launch / executable missing errors as `ban-provider` (`provider-misconfigured`).

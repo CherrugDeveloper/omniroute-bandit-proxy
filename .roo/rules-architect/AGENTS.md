@@ -50,7 +50,7 @@ The OmniRoute Bandit Proxy is a Multi-Armed Bandit reverse proxy router for dyna
 2. **Model Selection** → `bandit.selectModel()` with session affinity + soft bias multipliers
 3. **Token Check** → `estimateTokens()` (4 chars/token heuristic) vs `max_input_tokens`
 4. **Upstream Request** → Forward to provider with 3-level timeout handling
-5. **Validation** → `validateNonStreamResponse()` / `validateStreamAccumulated()` 
+5. **Validation** → `validateNonStreamResponse()` / `validateStreamAccumulated()`
 6. **Feedback** → `bandit.recordFeedback()` with reward (1=success, 0=fail)
 7. **Error Classification** → `_classifyError()` determines: ban-provider, ban-model, cooldown-provider, cooldown-model, flag-provider
 8. **Provider Management** → Updates `provider_history` and `models` tables

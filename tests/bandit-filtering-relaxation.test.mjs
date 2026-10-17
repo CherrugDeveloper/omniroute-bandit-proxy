@@ -19,8 +19,8 @@ test("selectModel: relaxation strategy recovers when token limits exceed all mod
   seedCatalog(b, "p1/small-model", "p1", 8000, 1, 1);
 
   // Request estimatedTokens = 100000 (exceeds 8000 * 1.1)
-  const chosen = await b.selectModel(new Set(), 100000, false);
-  
+  const chosen = await b.selectModel(new Set(), 100000, false, false, null, true);
+
   // Without relaxation, this would return null. With relaxation tier 1, it should recover and select p1/small-model.
   assert.equal(chosen, "p1/small-model");
 });
@@ -34,7 +34,7 @@ test("selectModel: relaxation strategy recovers when policy (onlyFree / excludeP
   b.onlyFree = true;
 
   const chosen = await b.selectModel();
-  
+
   // Without relaxation, this would return null. With relaxation tier 2, it recovers.
   assert.equal(chosen, "p1/paid-model");
 });

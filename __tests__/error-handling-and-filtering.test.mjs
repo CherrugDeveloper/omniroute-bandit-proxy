@@ -57,7 +57,7 @@ describe("Error Handling and Model Filtering Test Suite", () => {
     ).run("groq/llama-3-70b", "groq", 16000, 1, 1);
 
     // Request with estimatedTokens = 5000 (exceeds 4000 * 1.1 = 4400, but less than 16000 * 1.1 = 17600)
-    const selected = await bandit.selectModel(new Set(), 5000);
+    const selected = await bandit.selectModel(new Set(), 5000, false, false, null, true);
     assert.equal(selected, "groq/llama-3-70b", "Model with insufficient max_input_tokens should be filtered out pre-selection");
 
     // Test dynamic max tokens update or handling 413 / TPM error

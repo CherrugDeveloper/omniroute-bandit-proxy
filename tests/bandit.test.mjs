@@ -158,7 +158,7 @@ test("_parseResetAfter: reset_seconds:117 -> 117000", () => {
 test("selectModel: sceglie un modello dal catalogo e registra il provider", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/model-a", "p1");
-  const chosen = await b.selectModel();
+  const chosen = await b.selectModel(false);
   assert.equal(chosen, "p1/model-a");
   const model = b.db.prepare("SELECT * FROM models WHERE id = ?").get("p1/model-a");
   assert.ok(model, "modello registrato in models");
@@ -173,14 +173,14 @@ test("selectModel: rispetta excludeSet", async () => {
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p1/b", "p1");
   // Escludi a → deve scegliere b
-  const chosen = await b.selectModel(new Set(["p1/a"]));
+  const chosen = await b.selectModel(new Set(["p1/a"], false));
   assert.equal(chosen, "p1/b");
   b.close();
 });
 
 test("selectModel: nessun provider disponibile -> null", async () => {
   const b = makeBandit();
-  const chosen = await b.selectModel();
+  const chosen = await b.selectModel(false);
   assert.equal(chosen, null);
   b.close();
 });
@@ -191,7 +191,7 @@ test("selectModel: provider in cooldown non viene scelto", async () => {
   seedCatalog(b, "p2/a", "p2");
   // Metti p1 in cooldown 1 ora
   b.db.prepare("INSERT INTO provider_history (provider, cooldown_until) VALUES (?, ?)").run("p1", Date.now() + 3600000);
-  const chosen = await b.selectModel();
+  const chosen = await b.selectModel(false);
   assert.equal(chosen, "p2/a");
   b.close();
 });
@@ -201,7 +201,7 @@ test("selectModel: provider needs_attention non viene scelto", async () => {
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p2/a", "p2");
   b.db.prepare("INSERT INTO provider_history (provider, needs_attention) VALUES (?, 1)").run("p1");
-  const chosen = await b.selectModel();
+  const chosen = await b.selectModel(false);
   assert.equal(chosen, "p2/a");
   b.close();
 });
@@ -211,7 +211,7 @@ test("selectModel: provider permanent non viene scelto", async () => {
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p2/a", "p2");
   b.db.prepare("INSERT INTO provider_history (provider, permanent) VALUES (?, 1)").run("p1");
-  const chosen = await b.selectModel();
+  const chosen = await b.selectModel(false);
   assert.equal(chosen, "p2/a");
   b.close();
 });
@@ -223,7 +223,7 @@ test("selectModel: provider permanent non viene scelto", async () => {
 test("recordFeedback: successo incrementa N e sum_reward", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  await b.selectModel(); // registra p1/a
+  await b.selectModel(false); // registra p1/a
   const before = b.db.prepare("SELECT N, sum_reward FROM models WHERE id='p1/a'").get();
   b.recordFeedback("p1/a", true, 0.9, null);
   const after = b.db.prepare("SELECT N, sum_reward FROM models WHERE id='p1/a'").get();
@@ -237,7 +237,7 @@ test("recordFeedback: successo incrementa N e sum_reward", async () => {
 test("recordFeedback: successo resetta fails", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  await b.selectModel();
+  await b.selectModel(false);
   b.db.prepare("UPDATE models SET fails = 3 WHERE id='p1/a'").run();
   b.recordFeedback("p1/a", true, 0.8, null);
   const m = b.db.prepare("SELECT fails FROM models WHERE id='p1/a'").get();
@@ -248,7 +248,7 @@ test("recordFeedback: successo resetta fails", async () => {
 test("recordFeedback: fallimento generico -> cooldown modello", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  await b.selectModel();
+  await b.selectModel(false);
   const now = Date.now();
   b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
   const m = b.db.prepare("SELECT cooldown_until, fails FROM models WHERE id='p1/a'").get();
@@ -260,7 +260,7 @@ test("recordFeedback: fallimento generico -> cooldown modello", async () => {
 test("recordFeedback: 404 model -> ban permanente", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  await b.selectModel();
+  await b.selectModel(false);
   b.recordFeedback("p1/a", false, 0, { status: 404, message: "model does not exist" });
   const m = b.db.prepare("SELECT permanent FROM models WHERE id='p1/a'").get();
   assert.equal(m.permanent, 1);
@@ -270,7 +270,7 @@ test("recordFeedback: 404 model -> ban permanente", async () => {
 test("recordFeedback: quota exhausted -> cooldown provider", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  await b.selectModel();
+  await b.selectModel(false);
   const now = Date.now();
   b.recordFeedback("p1/a", false, 0, {
     status: 429,
@@ -312,12 +312,12 @@ test("recordFeedback: 5xx su un modello non mette in cooldown il provider", asyn
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
   seedCatalog(b, "p1/b", "p1");
-  await b.selectModel(); // registra un provider
+  await b.selectModel(false); // registra un provider
   b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
   const p = b.db.prepare("SELECT cooldown_until FROM provider_history WHERE provider='p1'").get();
   assert.equal(p.cooldown_until, 0, "provider NON in cooldown");
   // il modello p1/b è ancora selezionabile
-  const chosen = await b.selectModel(new Set(["p1/a"]));
+  const chosen = await b.selectModel(new Set(["p1/a"], false));
   assert.equal(chosen, "p1/b");
   b.close();
 });
@@ -325,8 +325,8 @@ test("recordFeedback: 5xx su un modello non mette in cooldown il provider", asyn
 test("recordFeedback: 3 consecutive 5xx errors set degraded = 1 and degraded_since", async () => {
   const b = makeBandit();
   seedCatalog(b, "p1/a", "p1");
-  await b.selectModel();
-  
+  await b.selectModel(false);
+
   // 3 transient errors (502)
   b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
   b.recordFeedback("p1/a", false, 0, { status: 502, message: "Bad gateway" });
@@ -423,7 +423,7 @@ test("selectModel: explores unobserved catalog models with N=0 via optimistic UC
 
   const selected = new Set();
   for (let i = 0; i < 20; i++) {
-    const chosen = await b.selectModel();
+    const chosen = await b.selectModel(false);
     if (chosen) selected.add(chosen);
   }
 
