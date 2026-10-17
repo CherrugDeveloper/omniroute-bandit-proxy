@@ -528,4 +528,27 @@ describe("Integration Scenarios", () => {
 
     bandit.close();
   });
+
+  test("error handling bans image models on 400 error when mistakenly selected for chat", async () => {
+    const bandit = makeBandit();
+
+    seedCatalog(bandit, "image-model-x", "nvidia", true);
+    seedCatalog(bandit, "gpt-fallback", "openai", false);
+
+    // Record feedback with 400 error indicating image generation model / unsupported chat
+    bandit.recordFeedback("image-model-x", false, 0.0, {
+      status: 400,
+      message: "Image generation model cannot be used for chat completions"
+    });
+
+    // Verify model is permanently banned
+    const modelRow = bandit.db.prepare("SELECT permanent FROM models WHERE id = ?").get("image-model-x");
+    assert.equal(modelRow.permanent, 1);
+
+    // Subsequent chat selection should not select image-model-x
+    const chosen = await bandit.selectModel(new Set(), 0, false, false, null, true);
+    assert.equal(chosen, "gpt-fallback");
+
+    bandit.close();
+  });
 });

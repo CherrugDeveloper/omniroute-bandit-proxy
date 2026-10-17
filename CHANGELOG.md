@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.42 — 2026-10-17
+- **Add Test Coverage for Image-Generation Model Selection Loop & 400 Ban Handling**:
+  - Added unit test in [`__tests__/image-generation.test.mjs`](__tests__/image-generation.test.mjs:532) ensuring image-generation models banned on 400 error are properly excluded from future chat completions.
+
 ## v1.1.41 — 2026-10-17
 - **Add SPA Fallback for Non-API Routes**:
   - Added wildcard SPA fallback route in [`src/index.mjs`](src/index.mjs:2054) returning [`public/dashboard.html`](public/dashboard.html:1) with `no-store` cache headers for non `/v1/` routes to support direct navigation and tab refreshing.
