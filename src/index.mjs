@@ -1575,7 +1575,7 @@ trackRequestUpdate(requestId, {
       if (fallbackModels.length > 0) {
         let selectedFallbackModel = null;
 
-        // Iterate through ALL fallback models to find one that meets requirements
+        // Pass 1: standard check (available with tokens, tools if required, not image gen, not tried)
         for (const fallbackModel of fallbackModels) {
           // Skip if already tried
           if (fallbackTried.has(fallbackModel)) {
@@ -1583,9 +1583,9 @@ trackRequestUpdate(requestId, {
             continue;
           }
 
-          // Check if model is available
-          if (!bandit.isModelAvailable(fallbackModel)) {
-            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: not available in catalog/status`);
+          // Check if model is available (passing estimatedTokens for token capacity check)
+          if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) {
+            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: not available in catalog/status or exceeds token limit`);
             continue;
           }
 
@@ -1617,6 +1617,46 @@ trackRequestUpdate(requestId, {
           // Model passes all checks
           selectedFallbackModel = fallbackModel;
           break;
+        }
+
+        // Pass 2: if requireTools=true and Pass 1 found nothing, relax tool requirement for fallback models
+        if (!selectedFallbackModel && requireTools) {
+          console.log(`[FALLBACK] Pass 2: Relaxing tool requirement for fallback models (requireTools=true)`);
+          for (const fallbackModel of fallbackModels) {
+            if (fallbackTried.has(fallbackModel)) continue;
+            if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) continue;
+
+            const modelInfoImg = bandit.db.prepare(
+              `SELECT supports_image_generation FROM catalog WHERE id = ?`
+            ).get(fallbackModel);
+            const isAihordeFallback = fallbackModel.toLowerCase().startsWith('aihorde/') || fallbackModel.toLowerCase().includes('aihorde');
+            const isFallbackImageGen = isAihordeFallback || (modelInfoImg && modelInfoImg.supports_image_generation === 1) ||
+              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(fallbackModel) ||
+              /image/i.test(fallbackModel);
+            if (isFallbackImageGen) continue;
+
+            console.warn(`[FALLBACK] Emergency relaxation: bypassing tool requirement for fallback model ${fallbackModel}`);
+            selectedFallbackModel = fallbackModel;
+            break;
+          }
+        }
+
+        // Pass 3: Final emergency fallback tier across all fallback models (ignoring token limits and tool requirements)
+        if (!selectedFallbackModel) {
+          console.warn(`[FALLBACK] Pass 3: Final emergency fallback tier across all fallback models`);
+          for (const fallbackModel of fallbackModels) {
+            if (fallbackTried.has(fallbackModel)) continue;
+            console.warn(`[FALLBACK] Final emergency fallback tier: picking fallback model ${fallbackModel}`);
+            selectedFallbackModel = fallbackModel;
+            break;
+          }
+        }
+
+        // Pass 4: Absolute last resort fallback (reset fallbackTried if all fallback models tried)
+        if (!selectedFallbackModel && fallbackModels.length > 0) {
+          console.warn(`[FALLBACK] Pass 4: Resetting fallbackTried and picking fallback model ${fallbackModels[0]}`);
+          fallbackTried.clear();
+          selectedFallbackModel = fallbackModels[0];
         }
 
         if (selectedFallbackModel) {

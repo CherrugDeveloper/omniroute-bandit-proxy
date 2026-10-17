@@ -1576,10 +1576,22 @@ export class DiscountedUCB1Bandit {
       availableModels = filterModels({ ignoreTools: true, ignorePolicies: true });
     }
 
-    // 5. Emergency Last Resort: Relax cooldowns as well
+    // 5. Relaxation Tier 3: Relax token limits (keep tool/policy relaxation)
+    if (availableModels.length === 0) {
+      if (DEBUG) console.log(`[BANDIT] Relaxation tier 3: relaxing token limits`);
+      availableModels = filterModels({ ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
+    }
+
+    // 6. Emergency Last Resort: Relax cooldowns as well
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered out by constraints. Applying emergency last-resort selection.`);
-      availableModels = filterModels({ ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
+      availableModels = filterModels({ ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreImageGeneration: !requireImageGeneration });
+    }
+
+    // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
+    if (availableModels.length === 0) {
+      console.warn(`[BANDIT] Warning: All models excluded or unavailable. Picking from all catalog/db models as absolute last resort.`);
+      availableModels = requireImageGeneration ? models.filter(m => m.supports_image_generation || 0) : models;
     }
 
     if (availableModels.length === 0) {
