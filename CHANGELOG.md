@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.37 — 2026-10-17
+- **Fix Image-Generation Model Exclusion in Emergency Last-Resort Fallback Selection**:
+  - Updated absolute last-resort model selection in [`src/bandit.mjs`](src/bandit.mjs:1597) to correctly filter out image generation models (`isImageGenerationModel`) when `requireImageGeneration` is false, preventing accidental selection of image models for text chat completions.
+
 ## v1.1.36 — 2026-10-17
 - **Exclude aihorde Image Models and Add Filtering/Relaxation Tests**:
   - Excluded `aihorde/*` image models from chat completions and tool usage in [`src/bandit.mjs`](src/bandit.mjs:1) and [`src/index.mjs`](src/index.mjs:1).

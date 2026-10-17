@@ -1585,13 +1585,21 @@ export class DiscountedUCB1Bandit {
     // 6. Emergency Last Resort: Relax cooldowns as well
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered out by constraints. Applying emergency last-resort selection.`);
-      availableModels = filterModels({ ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreImageGeneration: !requireImageGeneration });
+      availableModels = filterModels({ ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models excluded or unavailable. Picking from all catalog/db models as absolute last resort.`);
-      availableModels = requireImageGeneration ? models.filter(m => m.supports_image_generation || 0) : models;
+      const isImageGenModel = (model) => {
+        const isAihordeModel = model.provider === 'aihorde' || model.id.toLowerCase().startsWith("aihorde/") || model.id.toLowerCase().includes("aihorde");
+        return isAihordeModel || (model.supports_image_generation || 0) === 1 ||
+          /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(model.id) ||
+          /image/i.test(model.id);
+      };
+      availableModels = requireImageGeneration
+        ? models.filter(m => m.supports_image_generation || 0)
+        : models.filter(m => !isImageGenModel(m));
     }
 
     if (availableModels.length === 0) {
