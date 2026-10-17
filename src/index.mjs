@@ -2051,6 +2051,15 @@ trackRequestUpdate(requestId, {
 // Serve static files from public directory (manifest, icons, etc.)
 app.use(express.static(path.join(__dirname, "../public")));
 
+// SPA fallback for non-API routes (e.g. dashboard tab refresh)
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/v1/")) {
+    return next();
+  }
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.sendFile(path.join(__dirname, "../public/dashboard.html"));
+});
+
 // ========================================
 // ERROR HANDLERS GLOBALI
 // ========================================

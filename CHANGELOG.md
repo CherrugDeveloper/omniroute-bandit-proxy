@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.41 — 2026-10-17
+- **Add SPA Fallback for Non-API Routes**:
+  - Added wildcard SPA fallback route in [`src/index.mjs`](src/index.mjs:2054) returning [`public/dashboard.html`](public/dashboard.html:1) with `no-store` cache headers for non `/v1/` routes to support direct navigation and tab refreshing.
+
 ## v1.1.40 — 2026-10-17
 - **Fix Image-Generation Model Filtering for Chat Completions & Make Active Requests Panel Scrollable with Attempt Rows**:
   - Ensured correct filtering of image-generation models for chat completions in [`src/bandit.mjs`](src/bandit.mjs:1516) and [`src/index.mjs`](src/index.mjs:1601).
