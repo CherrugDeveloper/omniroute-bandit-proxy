@@ -1579,7 +1579,7 @@ export class DiscountedUCB1Bandit {
 
           if (!rejectionReason && !requireImageGeneration) {
             const lowerModelId = model.id.toLowerCase();
-            const isNonChat = model.supports_chat === 0 || model.capability !== 'chat_completion' || model.supports_image_generation === 1 || model.supports_audio_generation === 1 ||
+            const isNonChat = model.supports_chat === 0 || (model.capability || 'chat_completion') !== 'chat_completion' || model.supports_image_generation === 1 || model.supports_audio_generation === 1 ||
               model.provider === 'aihorde' || lowerModelId.startsWith("aihorde/") || lowerModelId.includes("aihorde") ||
               /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerModelId) ||
               /image/i.test(lowerModelId);

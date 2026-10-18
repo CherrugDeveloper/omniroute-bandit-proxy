@@ -1206,6 +1206,16 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const apiKey = process.env.OMNIROUTE_API_KEY;
 
   bandit.recordRequest(); // +1 per ogni richiesta ricevuta
+  // === Image generation requests are not allowed via chat completions ===
+  if (isImageGenerationRequest(req.body)) {
+    return res.status(400).json({
+      error: {
+        message: "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.",
+        type: "unsupported_request",
+        status: 400
+      }
+    });
+  }
   // === Stima token e (eventuale) auto-compress del contesto ===
   let estimatedTokens = bandit.estimateTokens(req.body);
   // Hard cap: se il contesto stimato supera 150k token, rifiuta
@@ -1562,7 +1572,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       sessionModels.delete(sessionKey);
       excluded.add(pinnedEntry.model);
     }
-    model = await bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest);
+    model = await bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest, false);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
       if (sessionModels.size > 10000) {
