@@ -111,4 +111,42 @@ describe("Model Capability Categorization and Strict Filtering Test Suite", () =
 
     assert.equal(isNonChatFallback, true, "Fallback validation must correctly identify image/non-chat model as invalid for chat fallback");
   });
+
+  test("Round-robin exploration visits all unvisited models (N=0) sequentially", async () => {
+    const insert = bandit.db.prepare(
+      `INSERT INTO catalog (id, provider, capability, supports_chat, supports_image_generation, supports_audio_generation, max_input_tokens, is_free) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    insert.run("provider1/model-a", "provider1", "chat_completion", 1, 0, 0, 8000, 1);
+    insert.run("provider1/model-b", "provider1", "chat_completion", 1, 0, 0, 8000, 1);
+    insert.run("provider2/model-c", "provider2", "chat_completion", 1, 0, 0, 8000, 1);
+
+    const pickedModels = new Set();
+    const excluded = new Set();
+
+    for (let i = 0; i < 3; i++) {
+      const chosen = await bandit.selectModel(excluded, 0, false, false, null, true);
+      assert.ok(chosen, `Iteration ${i} should pick a model`);
+      pickedModels.add(chosen);
+      excluded.add(chosen);
+    }
+
+    assert.equal(pickedModels.size, 3, "All three N=0 models should be explored via round-robin");
+    assert.ok(pickedModels.has("provider1/model-a"));
+    assert.ok(pickedModels.has("provider1/model-b"));
+    assert.ok(pickedModels.has("provider2/model-c"));
+  });
+
+  test("Strict capability filtering rejects image-generation models during standard chat completions even with N=0 or optimistic scoring", async () => {
+    const insert = bandit.db.prepare(
+      `INSERT INTO catalog (id, provider, capability, supports_chat, supports_image_generation, supports_audio_generation, max_input_tokens, is_free) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    // Image models with N=0
+    insert.run("openai/dall-e-3", "openai", "image", 0, 1, 0, 4000, 0);
+    insert.run("aihorde/flux", "aihorde", "image", 0, 1, 0, 4000, 1);
+    // Valid chat model
+    insert.run("openai/gpt-4o", "openai", "chat_completion", 1, 0, 0, 128000, 1);
+
+    const chosen = await bandit.selectModel(new Set(), 0, false, false, null, true);
+    assert.equal(chosen, "openai/gpt-4o", "selectModel must never pick image generation models during standard chat completion");
+  });
 });

@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.45 — 2026-10-18
+- **Implement Round-Robin Exploration for Unvisited Models and Fix Capability/Image Filtering**:
+  - Added unit tests in [`__tests__/capability-filtering.test.mjs`](__tests__/capability-filtering.test.mjs:114) for round-robin exploration of unvisited models ($N=0$).
+  - Added test validation ensuring strict capability filtering excludes image-generation models during standard chat completions.
+
 ## v1.1.44 — 2026-10-18
 - **Strict Image-Generation Model Filtering and 400 Capability Mismatch Banning**:
   - Added classification rule in [`_classifyError()`](src/bandit.mjs:879) for 400 errors with image generation / chat incompatibility messages to trigger `ban-model` with reason `model-incompatible`.
