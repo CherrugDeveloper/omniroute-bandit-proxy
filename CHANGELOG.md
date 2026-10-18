@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.44 — 2026-10-18
+- **Strict Image-Generation Model Filtering and 400 Capability Mismatch Banning**:
+  - Added classification rule in [`_classifyError()`](src/bandit.mjs:879) for 400 errors with image generation / chat incompatibility messages to trigger `ban-model` with reason `model-incompatible`.
+  - Updated [`CHANGELOG.md`](CHANGELOG.md:1).
+
 ## v1.1.43 — 2026-10-18
 - **Add Model Capability Categorization and Strict Filtering**:
   - Added catalog schema support for `capability`, `supports_chat`, and `supports_audio_generation` in [`src/bandit.mjs`](src/bandit.mjs:97).

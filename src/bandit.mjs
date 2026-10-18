@@ -879,6 +879,11 @@ export class DiscountedUCB1Bandit {
       }
     }
 
+    // Image generation mismatch / chat incompatibility on 400 -> ban-model
+    if (status === 400 && /image generation model|cannot be used for chat|not a chat model|image-only|incompatible/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "model-incompatible" };
+    }
+
     // Catalog mismatch / unknown model / 404 / 400 model not found / live catalog errors
     if (/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message) || status === 404 || status === 400) {
       return { action: "ban-model", scope: "model", reason: "model-not-found" };
