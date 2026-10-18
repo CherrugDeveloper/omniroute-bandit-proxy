@@ -1336,15 +1336,28 @@ export class DiscountedUCB1Bandit {
     };
   }
 
-  isModelAvailable(modelId, estimatedTokens = 0) {
+  isModelAvailable(modelId, estimatedTokens = 0, requireImageGeneration = false) {
     const now = Date.now();
     const model = this.db.prepare(
       `SELECT cooldown_until, permanent, degraded, provider FROM models WHERE id = ?`
     ).get(modelId);
 
     const catModel = this.db.prepare(
-      `SELECT provider, max_input_tokens FROM catalog WHERE id = ?`
+      `SELECT provider, max_input_tokens, supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
     ).get(modelId);
+
+    if (!requireImageGeneration && catModel) {
+      const lowerId = modelId.toLowerCase();
+      const isImageGen = (catModel.supports_image_generation || 0) === 1 ||
+        catModel.provider === 'aihorde' || lowerId.startsWith('aihorde/') || lowerId.includes('aihorde') ||
+        /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(lowerId) ||
+        /image/i.test(lowerId);
+      const isNonChat = (catModel.supports_chat || 1) === 0 || (catModel.capability || 'chat_completion') !== 'chat_completion' || (catModel.supports_audio_generation || 0) === 1 ||
+        /(^|[-_/])(tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerId);
+      if (isImageGen || isNonChat) {
+        return false;
+      }
+    }
 
     const provider = model?.provider || catModel?.provider;
 
