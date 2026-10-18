@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.47 — 2026-10-18
+- **Add SPA Server-Side Fallback Configurations & Client-Side Routing**:
+  - Added hosting configurations for SPA fallbacks in [`vercel.json`](vercel.json:1), [`netlify.toml`](netlify.toml:1), [`firebase.json`](firebase.json:1), [`nginx.conf`](nginx.conf:1), and [`.htaccess`](.htaccess:1).
+  - Enhanced client-side tab routing and synchronization in [`public/dashboard.html`](public/dashboard.html:1334) to support direct navigation and hard-reloading of non-root routes.
+
 ## v1.1.46 — 2026-10-18
 - **Fix Image-Generation Model Fallback Loop in Chat Completions**:
   - Fixed infinite fallback loop in chat completions when image-generation models are encountered or excluded in [`src/index.mjs`](src/index.mjs:1).

@@ -1,0 +1,20 @@
+{
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/v1/**",
+        "destination": "https://your-backend-url/v1/**"
+      },
+      {
+        "source": "**",
+        "destination": "/dashboard.html"
+      }
+    ]
+  }
+}

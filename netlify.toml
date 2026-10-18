@@ -1,0 +1,13 @@
+[build]
+  publish = "public"
+
+[[redirects]]
+  from = "/v1/*"
+  to = "http://127.0.0.1:8080/v1/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/dashboard.html"
+  status = 200
