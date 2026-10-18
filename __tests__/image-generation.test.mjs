@@ -348,6 +348,35 @@ describe("Image Generation Endpoint Functionality", () => {
 
     bandit.close();
   });
+
+  test("selectModel parameter order regression test - profile not passed to requireImageGeneration", async () => {
+    const bandit = makeBandit();
+
+    // Seed catalog with text-only and image-capable models
+    seedCatalog(bandit, "text-model-1", "provider-a", false); // text only
+    seedCatalog(bandit, "image-model-1", "provider-b", true);  // image capable
+
+    // Test 1: Text completion request (profile="general", requireImageGeneration=false)
+    // This should select a text model, not an image model
+    let chosen = await bandit.selectModel(new Set(), 0, false, false, "general", true);
+    // Should NOT select the image model for text request
+    assert.notEqual(chosen, "image-model-1", "Text completion should not select image-generation model");
+
+    // Test 2: Image generation request (profile="general", requireImageGeneration=true)
+    // This should select the image model
+    chosen = await bandit.selectModel(new Set(), 0, false, true, "general", true);
+    // Should select the image model
+    assert.equal(chosen, "image-model-1", "Image generation should select image-capable model");
+
+    // Test 3: Verify profile parameter is correctly passed (not as requireImageGeneration)
+    // If profile was incorrectly passed as requireImageGeneration, this test would fail
+    // because requireImageGeneration=true would filter out text models
+    chosen = await bandit.selectModel(new Set(), 0, false, false, "code", true);
+    // Should still be able to select text model (profile="code" doesn't affect text selection)
+    assert.notEqual(chosen, "image-model-1", "Profile parameter should not be interpreted as requireImageGeneration");
+
+    bandit.close();
+  });
 });
 
 describe("Chat Completion Routing Prevention", () => {

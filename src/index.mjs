@@ -1572,7 +1572,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       sessionModels.delete(sessionKey);
       excluded.add(pinnedEntry.model);
     }
-    model = await bandit.selectModel(excluded, estimatedTokens, requireTools, profile, cooledDownThisRequest, false);
+    model = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, profile, cooledDownThisRequest);
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
       if (sessionModels.size > 10000) {
