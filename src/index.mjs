@@ -1877,6 +1877,40 @@ trackRequestUpdate(requestId, {
       }
 
       if (stream) {
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+
+        let firstChunkResult;
+        try {
+          firstChunkResult = await reader.read();
+        } catch (e) {
+          console.error(`[STREAM READ ERR] ${model}: ${e.message}`);
+          bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
+          noteProviderFail(model);
+          excluded.add(model);
+          try { reader.cancel().catch(() => {}); } catch (_) {}
+          continue;
+        }
+
+        if (firstChunkResult.done) {
+          console.error(`[STREAM EMPTY] ${model}: empty stream received`);
+          bandit.recordFeedback(model, false, 0, { message: "empty stream" }, { source: feedbackSource });
+          noteProviderFail(model);
+          excluded.add(model);
+          try { reader.cancel().catch(() => {}); } catch (_) {}
+          continue;
+        }
+
+        const firstChunkText = dec.decode(firstChunkResult.value, { stream: true });
+        if (firstChunkText.includes('"error"') || firstChunkText.includes('"code"') || firstChunkText.includes('rate_limit') || firstChunkText.includes('exceeded')) {
+          console.error(`[STREAM ERR] ${model}: ${firstChunkText.substring(0, 200)}`);
+          bandit.recordFeedback(model, false, 0, { message: firstChunkText }, { source: feedbackSource });
+          noteProviderFail(model);
+          excluded.add(model);
+          try { reader.cancel().catch(() => {}); } catch (_) {}
+          continue;
+        }
+
         // Se gli header sono già stati inviati (stream già aperto), non possiamo ritentare
         if (res.headersSent) {
           console.error(`[RETRY BLOCKED] headers già inviati per ${model}, stream chiuso`);
@@ -1886,17 +1920,15 @@ trackRequestUpdate(requestId, {
           return;
         }
 
-        const reader = r.body.getReader();
-        const dec = new TextDecoder();
-
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
 
         let streamFailed = false;
-        let streamStarted = false;
-        let firstChunk = true;
-        let accumulated = "";
+        let streamStarted = true;
+        let firstChunk = false;
+        let accumulated = firstChunkText;
+        res.write(firstChunkText);
         hardCapTimer = setTimeout(() => {
           console.error(`[TIMEOUT] ${model}: stream superato hard cap ${STREAM_MAX_MS/1000}s → abort`);
           console.error(`[HARDCAP] timer fired, controller.signal.aborted=${controller?.signal?.aborted}, STREAM_MAX_MS=${STREAM_MAX_MS}`);

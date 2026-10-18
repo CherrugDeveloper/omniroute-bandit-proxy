@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.49 — 2026-10-18
+- **Fix Streaming Retry Block and Upstream Error Handling**:
+  - Eagerly read and inspect the first chunk of upstream response before sending response headers (`res.setHeader` / committing headers) in [`src/index.mjs`](src/index.mjs:1877).
+  - Prevents `[RETRY BLOCKED] headers già inviati` and enables seamless model failover and retries when upstream providers return errors or rate limits right as streaming starts.
+
 ## v1.1.48 — 2026-10-18
 - **Optimize Dashboard PWA RAM and CPU Performance**:
   - Reduced excessive 100ms polling intervals to efficient rates (1.5s - 5s) in [`public/dashboard.html`](public/dashboard.html:2536).
