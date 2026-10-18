@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.50 — 2026-10-18
+- **Fix Dashboard Tab Refresh 404 Errors via Hash-Based Routing**:
+  - Switched dashboard tab routing in [`public/dashboard.html`](public/dashboard.html:1336) from pathname history state (`/tabName`) to URL hash-based routing (`#tabName`).
+  - Added `hashchange` and `popstate` event listeners in [`public/dashboard.html`](public/dashboard.html:1371) to synchronize active tabs instantly, ensuring tab refreshes never produce 404 errors across any static hosting or backend server setup.
+
 ## v1.1.49 — 2026-10-18
 - **Fix Streaming Retry Block and Upstream Error Handling**:
   - Eagerly read and inspect the first chunk of upstream response before sending response headers (`res.setHeader` / committing headers) in [`src/index.mjs`](src/index.mjs:1877).

@@ -1344,9 +1344,8 @@
             if (content) content.classList.add('active');
 
             if (updateHistory) {
-                const newPath = '/' + tabName;
-                if (location.pathname !== newPath && location.pathname !== '/dashboard/' + tabName && location.pathname !== '/dashboard') {
-                    history.pushState({ tab: tabName }, '', newPath);
+                if (location.hash !== '#' + tabName) {
+                    history.pushState({ tab: tabName }, '', '#' + tabName);
                 }
             }
         }
@@ -1370,6 +1369,10 @@
         });
 
         window.addEventListener('popstate', () => {
+            switchTab(getInitialTab(), false);
+        });
+
+        window.addEventListener('hashchange', () => {
             switchTab(getInitialTab(), false);
         });
 
