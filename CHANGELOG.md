@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.48 — 2026-10-18
+- **Optimize Dashboard PWA RAM and CPU Performance**:
+  - Reduced excessive 100ms polling intervals to efficient rates (1.5s - 5s) in [`public/dashboard.html`](public/dashboard.html:2536).
+  - Added Page Visibility checks (`document.hidden`) to pause all background polling when the tab/PWA is inactive.
+  - Capped raw log accumulation in [`public/dashboard.html`](public/dashboard.html:2326) to 500 entries (`d.slice(-500)`) to prevent unbounded RAM growth.
+
 ## v1.1.47 — 2026-10-18
 - **Add SPA Server-Side Fallback Configurations & Client-Side Routing**:
   - Added hosting configurations for SPA fallbacks in [`vercel.json`](vercel.json:1), [`netlify.toml`](netlify.toml:1), [`firebase.json`](firebase.json:1), [`nginx.conf`](nginx.conf:1), and [`.htaccess`](.htaccess:1).

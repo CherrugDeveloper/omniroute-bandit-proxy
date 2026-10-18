@@ -2189,7 +2189,7 @@
         // ============= REFRESH =============
         let refreshing = false;
         async function refreshAll() {
-            if (refreshing) return;
+            if (document.hidden || refreshing) return;
             refreshing = true;
             try {
                 const r = await apiFetch('/v1/dashboard/stats');
@@ -2247,6 +2247,7 @@
         }
 
         async function fetchQuota() {
+            if (document.hidden) return;
             try {
                 const r = await apiFetch('/v1/quota');
                 if (r.status === 401) { show401Banner(); return; }
@@ -2317,13 +2318,15 @@
         }
 
         async function fetchLogs() {
+            if (document.hidden) return; // Skip polling when tab is hidden to save RAM/CPU
             try {
                 const r = await apiFetch('/v1/logs');
                 if (r.status === 401) { show401Banner(); return; }
                 if (!r.ok) return;
                 const d = await r.json();
                 if (!Array.isArray(d)) return;
-                window.__rawLogs = d;
+                // Cap logs to prevent unbounded memory growth
+                window.__rawLogs = d.slice(-500);
                 renderFilteredLogs();
             } catch (e) {}
         }
@@ -2405,6 +2408,7 @@
             });
         });
         async function fetchActive() {
+            if (document.hidden) return;
             try {
                 const r = await apiFetch('/v1/active');
                 if (!r.ok) return;
@@ -2533,13 +2537,14 @@
         fetchActive();
         fetchQuota();
         fetchConsideration();
-        setInterval(refreshAll, 100);
-        setInterval(fetchLogs, 100);
-        setInterval(fetchActive, 100);
-        setInterval(fetchQuota, 10000);
-        setInterval(fetchConsideration, 100);
+        setInterval(refreshAll, 5000);
+        setInterval(fetchLogs, 2500);
+        setInterval(fetchActive, 1500);
+        setInterval(fetchQuota, 15000);
+        setInterval(fetchConsideration, 3000);
 
         async function fetchConsideration() {
+            if (document.hidden) return;
             try {
                 const res = await fetch('/v1/consideration');
                 if (!res.ok) return;
