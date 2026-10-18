@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.46 — 2026-10-18
+- **Fix Image-Generation Model Fallback Loop in Chat Completions**:
+  - Fixed infinite fallback loop in chat completions when image-generation models are encountered or excluded in [`src/index.mjs`](src/index.mjs:1).
+  - Updated [`CHANGELOG.md`](CHANGELOG.md:1).
+
 ## v1.1.45 — 2026-10-18
 - **Implement Round-Robin Exploration for Unvisited Models and Fix Capability/Image Filtering**:
   - Added unit tests in [`__tests__/capability-filtering.test.mjs`](__tests__/capability-filtering.test.mjs:114) for round-robin exploration of unvisited models ($N=0$).

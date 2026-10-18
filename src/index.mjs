@@ -1661,22 +1661,51 @@ trackRequestUpdate(requestId, {
           }
         }
 
-        // Pass 3: Final emergency fallback tier across all fallback models (ignoring token limits and tool requirements)
+        // Pass 3: Final emergency fallback tier across all fallback models (ignoring token limits and tool requirements, but strictly excluding image/non-chat models)
         if (!selectedFallbackModel) {
           console.warn(`[FALLBACK] Pass 3: Final emergency fallback tier across all fallback models`);
           for (const fallbackModel of fallbackModels) {
             if (fallbackTried.has(fallbackModel)) continue;
+
+            const modelInfoCap = bandit.db.prepare(
+              `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
+            ).get(fallbackModel);
+            const lowerFallbackId = fallbackModel.toLowerCase();
+            const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
+              lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
+              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
+              /image/i.test(lowerFallbackId);
+            if (isNonChatFallback) {
+              console.log(`[FALLBACK] Pass 3: Skipping non-chat/image fallback model ${fallbackModel}`);
+              continue;
+            }
+
             console.warn(`[FALLBACK] Final emergency fallback tier: picking fallback model ${fallbackModel}`);
             selectedFallbackModel = fallbackModel;
             break;
           }
         }
 
-        // Pass 4: Absolute last resort fallback (reset fallbackTried if all fallback models tried)
+        // Pass 4: Absolute last resort fallback (reset fallbackTried and pick first non-chat fallback model)
         if (!selectedFallbackModel && fallbackModels.length > 0) {
-          console.warn(`[FALLBACK] Pass 4: Resetting fallbackTried and picking fallback model ${fallbackModels[0]}`);
+          console.warn(`[FALLBACK] Pass 4: Resetting fallbackTried and picking suitable non-chat fallback model`);
           fallbackTried.clear();
-          selectedFallbackModel = fallbackModels[0];
+          for (const fallbackModel of fallbackModels) {
+            const modelInfoCap = bandit.db.prepare(
+              `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
+            ).get(fallbackModel);
+            const lowerFallbackId = fallbackModel.toLowerCase();
+            const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
+              lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
+              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
+              /image/i.test(lowerFallbackId);
+            if (isNonChatFallback) {
+              console.log(`[FALLBACK] Pass 4: Skipping non-chat/image fallback model ${fallbackModel}`);
+              continue;
+            }
+            selectedFallbackModel = fallbackModel;
+            break;
+          }
         }
 
         if (selectedFallbackModel) {
