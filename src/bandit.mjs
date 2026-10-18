@@ -97,7 +97,10 @@ export class DiscountedUCB1Bandit {
           max_input_tokens INTEGER DEFAULT 0,
           is_free INTEGER DEFAULT 0,
           supports_tools INTEGER DEFAULT 0,
-          supports_image_generation INTEGER DEFAULT 0
+          supports_image_generation INTEGER DEFAULT 0,
+          capability TEXT DEFAULT 'chat_completion',
+          supports_chat INTEGER DEFAULT 1,
+          supports_audio_generation INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS request_logs (
@@ -190,6 +193,39 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_image_generation INTEGER DEFAULT 0`);
         } catch (err) {
           console.error("[BANDIT] Errore aggiunta colonna supports_image_generation:", err.message);
+          throw err;
+        }
+      }
+
+      const hasCapability = catalogColumns.some(col => col.name === "capability");
+      if (!hasCapability) {
+        console.log("[BANDIT] Migrazione: aggiungo capability a catalog");
+        try {
+          this.db.exec(`ALTER TABLE catalog ADD COLUMN capability TEXT DEFAULT 'chat_completion'`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna capability:", err.message);
+          throw err;
+        }
+      }
+
+      const hasSupportsChat = catalogColumns.some(col => col.name === "supports_chat");
+      if (!hasSupportsChat) {
+        console.log("[BANDIT] Migrazione: aggiungo supports_chat a catalog");
+        try {
+          this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_chat INTEGER DEFAULT 1`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna supports_chat:", err.message);
+          throw err;
+        }
+      }
+
+      const hasSupportsAudioGeneration = catalogColumns.some(col => col.name === "supports_audio_generation");
+      if (!hasSupportsAudioGeneration) {
+        console.log("[BANDIT] Migrazione: aggiungo supports_audio_generation a catalog");
+        try {
+          this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_audio_generation INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna supports_audio_generation:", err.message);
           throw err;
         }
       }
@@ -383,13 +419,16 @@ export class DiscountedUCB1Bandit {
       }
 
       const insertStmt = this.db.prepare(
-        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools, supports_image_generation) VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools, supports_image_generation, capability, supports_chat, supports_audio_generation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            provider = excluded.provider,
            max_input_tokens = excluded.max_input_tokens,
            is_free = excluded.is_free,
            supports_tools = excluded.supports_tools,
-           supports_image_generation = excluded.supports_image_generation`
+           supports_image_generation = excluded.supports_image_generation,
+           capability = excluded.capability,
+           supports_chat = excluded.supports_chat,
+           supports_audio_generation = excluded.supports_audio_generation`
       );
 
       const isFreeModel = (id) => {
@@ -400,19 +439,10 @@ export class DiscountedUCB1Bandit {
       const isChatModel = (m, id) => {
         const lowerId = String(id).toLowerCase();
 
-        // Only exclude explicitly non-chat or batch / embedding / rerank / moderation / tts / audio / image models
+        // Only exclude batch, rerank, moderation
         if (/:batch\b/.test(lowerId)) return false;
-        if (/(^|[-_/])(embed|embedding|embeddings|rerank|moderation)([-_/]|$)/.test(lowerId)) return false;
+        if (/(^|[-_/])(rerank|moderation)([-_/]|$)/.test(lowerId)) return false;
 
-        // Exclude TTS, speech, audio-only, STT, whisper, voice models (unless omni/chat)
-        if (/(^|[-_/])(tts|text-to-speech|speech|stt|speech-to-text|whisper|voice|audio)([-_/]|$)/.test(lowerId)) {
-          if (!lowerId.includes("omni") && !lowerId.includes("chat") && !lowerId.includes("multimodal")) {
-            return false;
-          }
-        }
-
-        // Image generation models are now allowed in the catalog so they can be routed to for image generation requests
-        // But let's verify what should be considered a chat model vs image generation model
         return true;
       };
 
@@ -442,19 +472,36 @@ export class DiscountedUCB1Bandit {
           const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
           const supportsTools = (!isFim && m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
 
-          // Detect image generation capability:
-          // Check model id or name for image generation patterns (dall-e, stable-diffusion, imagen, sdxl, flux, midjourney, image-generation, aihorde)
-          // or model object capabilities / type
-          const isAihordeId = modelId.toLowerCase().startsWith("aihorde/") || modelId.toLowerCase().includes("aihorde");
-          const isImageGenId = isAihordeId || /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux-schnell|flux-dev|midjourney|image-generation|aihorde)([-_/]|$)/i.test(modelId);
+          const lowerId = modelId.toLowerCase();
+          let capability = 'chat_completion';
+          let supportsChat = 1;
+          let supportsImageGeneration = 0;
+          let supportsAudioGeneration = 0;
+
+          const isEmbed = /(^|[-_/])(embed|embedding|embeddings|rerank|moderation|batch)([-_/]|$)/i.test(lowerId);
+          const isAudio = /(^|[-_/])(tts|text-to-speech|speech|stt|speech-to-text|whisper|voice|audio)([-_/]|$)/i.test(lowerId) && !lowerId.includes("omni") && !lowerId.includes("chat");
+          const isAihordeId = lowerId.startsWith("aihorde/") || lowerId.includes("aihorde");
+          const isImageGenId = isAihordeId || /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|aihorde)([-_/]|$)/i.test(lowerId);
           const isImageGenType = m && typeof m === "object" && (
             String(m.type || "").toLowerCase() === "image" ||
             m.capabilities?.image_generation === true ||
             isImageGenId
           );
-          const supportsImageGeneration = isImageGenType ? 1 : 0;
 
-          insertStmt.run(modelId, provider, maxInput, isFree, supportsTools, supportsImageGeneration);
+          if (isEmbed) {
+            capability = 'embedding';
+            supportsChat = 0;
+          } else if (isAudio) {
+            capability = 'audio';
+            supportsChat = 0;
+            supportsAudioGeneration = 1;
+          } else if (isImageGenType) {
+            capability = 'image';
+            supportsChat = 0;
+            supportsImageGeneration = 1;
+          }
+
+          insertStmt.run(modelId, provider, maxInput, isFree, supportsTools, supportsImageGeneration, capability, supportsChat, supportsAudioGeneration);
           inserted++;
         }
         return { inserted, skipped, raw };
@@ -1413,11 +1460,11 @@ export class DiscountedUCB1Bandit {
 
     // Get all models from catalog that are available
     const catalogModels = this.db.prepare(`
-      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools, c.supports_image_generation, c.is_free, 0 AS is_paid, 0 AS dynamic_max_tokens
+      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools, c.supports_image_generation, c.capability, c.supports_chat, c.supports_audio_generation, c.is_free, 0 AS is_paid, 0 AS dynamic_max_tokens
       FROM catalog c
     `).all();
     const dbModels = this.db.prepare(`
-      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent, m.is_paid, m.dynamic_max_tokens, c.is_free, c.supports_tools, c.supports_image_generation, c.max_input_tokens
+      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent, m.is_paid, m.dynamic_max_tokens, c.is_free, c.supports_tools, c.supports_image_generation, c.capability, c.supports_chat, c.supports_audio_generation, c.max_input_tokens
       FROM models m
       LEFT JOIN catalog c ON m.id = c.id
     `).all();
@@ -1437,6 +1484,9 @@ export class DiscountedUCB1Bandit {
         max_input_tokens: model.max_input_tokens !== undefined ? model.max_input_tokens : existing.max_input_tokens,
         supports_tools: model.supports_tools !== undefined ? model.supports_tools : existing.supports_tools,
         supports_image_generation: model.supports_image_generation !== undefined ? model.supports_image_generation : existing.supports_image_generation,
+        supports_chat: model.supports_chat !== undefined ? model.supports_chat : existing.supports_chat,
+        supports_audio_generation: model.supports_audio_generation !== undefined ? model.supports_audio_generation : existing.supports_audio_generation,
+        capability: model.capability !== undefined ? model.capability : existing.capability,
       }); // db models overwrite catalog models
     }
     const models = Array.from(modelMap.values());
@@ -1523,12 +1573,13 @@ export class DiscountedUCB1Bandit {
           }
 
           if (!rejectionReason && !requireImageGeneration) {
-            const isAihordeModel = model.provider === 'aihorde' || model.id.toLowerCase().startsWith("aihorde/") || model.id.toLowerCase().includes("aihorde");
-            const isImageGen = isAihordeModel || (model.supports_image_generation || 0) === 1 ||
-              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(model.id) ||
-              /image/i.test(model.id);
-            if (isImageGen) {
-              rejectionReason = 'image_model_excluded_from_chat';
+            const lowerModelId = model.id.toLowerCase();
+            const isNonChat = model.supports_chat === 0 || model.capability !== 'chat_completion' || model.supports_image_generation === 1 || model.supports_audio_generation === 1 ||
+              model.provider === 'aihorde' || lowerModelId.startsWith("aihorde/") || lowerModelId.includes("aihorde") ||
+              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerModelId) ||
+              /image/i.test(lowerModelId);
+            if (isNonChat) {
+              rejectionReason = 'non_chat_model_excluded';
             }
           }
         }
@@ -1607,7 +1658,13 @@ export class DiscountedUCB1Bandit {
       };
       availableModels = requireImageGeneration
         ? models.filter(m => m.supports_image_generation || 0)
-        : models.filter(m => !isImageGenModel(m));
+        : models.filter(m => {
+            const lowerId = m.id.toLowerCase();
+            const isNonChat = m.supports_chat === 0 || m.capability !== 'chat_completion' || m.supports_image_generation === 1 || m.supports_audio_generation === 1 ||
+              isImageGenModel(m) ||
+              /(^|[-_/])(tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerId);
+            return !isNonChat;
+          });
     }
 
     if (availableModels.length === 0) {

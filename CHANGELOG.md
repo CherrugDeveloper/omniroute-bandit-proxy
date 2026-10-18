@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.43 — 2026-10-18
+- **Add Model Capability Categorization and Strict Filtering**:
+  - Added catalog schema support for `capability`, `supports_chat`, and `supports_audio_generation` in [`src/bandit.mjs`](src/bandit.mjs:97).
+  - Implemented strict capability filtering in [`selectModel()`](src/bandit.mjs:1516) and fallback chains in [`src/index.mjs`](src/index.mjs:1619) to prevent non-chat models from being selected for text chat completions.
+  - Added comprehensive test suite in [`__tests__/capability-filtering.test.mjs`](__tests__/capability-filtering.test.mjs:1).
+
 ## v1.1.42 — 2026-10-17
 - **Add Test Coverage for Image-Generation Model Selection Loop & 400 Ban Handling**:
   - Added unit test in [`__tests__/image-generation.test.mjs`](__tests__/image-generation.test.mjs:532) ensuring image-generation models banned on 400 error are properly excluded from future chat completions.

@@ -1619,16 +1619,17 @@ trackRequestUpdate(requestId, {
             }
           }
 
-          // Check if model is an image-generation model (exclude from chat/tool completions)
-          const modelInfoImg = bandit.db.prepare(
-            `SELECT supports_image_generation FROM catalog WHERE id = ?`
+          // Check if model supports chat and is not an image/audio/embedding/non-chat model
+          const modelInfoCap = bandit.db.prepare(
+            `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
           ).get(fallbackModel);
-          const isAihordeFallback = fallbackModel.toLowerCase().startsWith('aihorde/') || fallbackModel.toLowerCase().includes('aihorde');
-          const isFallbackImageGen = isAihordeFallback || (modelInfoImg && modelInfoImg.supports_image_generation === 1) ||
-            /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(fallbackModel) ||
-            /image/i.test(fallbackModel);
-          if (isFallbackImageGen) {
-            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: is an image-generation model`);
+          const lowerFallbackId = fallbackModel.toLowerCase();
+          const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
+            lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
+            /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
+            /image/i.test(lowerFallbackId);
+          if (isNonChatFallback) {
+            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: non-chat / image / audio / embedding model`);
             continue;
           }
 
@@ -1644,14 +1645,15 @@ trackRequestUpdate(requestId, {
             if (fallbackTried.has(fallbackModel)) continue;
             if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) continue;
 
-            const modelInfoImg = bandit.db.prepare(
-              `SELECT supports_image_generation FROM catalog WHERE id = ?`
+            const modelInfoCap = bandit.db.prepare(
+              `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
             ).get(fallbackModel);
-            const isAihordeFallback = fallbackModel.toLowerCase().startsWith('aihorde/') || fallbackModel.toLowerCase().includes('aihorde');
-            const isFallbackImageGen = isAihordeFallback || (modelInfoImg && modelInfoImg.supports_image_generation === 1) ||
-              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(fallbackModel) ||
-              /image/i.test(fallbackModel);
-            if (isFallbackImageGen) continue;
+            const lowerFallbackId = fallbackModel.toLowerCase();
+            const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
+              lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
+              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
+              /image/i.test(lowerFallbackId);
+            if (isNonChatFallback) continue;
 
             console.warn(`[FALLBACK] Emergency relaxation: bypassing tool requirement for fallback model ${fallbackModel}`);
             selectedFallbackModel = fallbackModel;
