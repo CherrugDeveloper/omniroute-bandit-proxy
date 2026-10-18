@@ -149,4 +149,43 @@ describe("Model Capability Categorization and Strict Filtering Test Suite", () =
     const chosen = await bandit.selectModel(new Set(), 0, false, false, null, true);
     assert.equal(chosen, "openai/gpt-4o", "selectModel must never pick image generation models during standard chat completion");
   });
+
+  test("Strict and permanent exclusion of image-generation models and non-tool-capable models when requiresTools = true", async () => {
+    const insert = bandit.db.prepare(
+      `INSERT INTO catalog (id, provider, capability, supports_chat, supports_image_generation, supports_audio_generation, supports_tools, max_input_tokens, is_free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    // 1. Image generation model with tool support = 0 (or 1)
+    insert.run("openai/dall-e-3", "openai", "image", 0, 1, 0, 0, 4000, 0);
+    // 2. Aihorde image model
+    insert.run("aihorde/flux", "aihorde", "image", 0, 1, 0, 0, 4000, 1);
+    // 3. Text chat model WITHOUT tool support (supports_tools = 0)
+    insert.run("openai/gpt-3.5-turbo", "openai", "chat_completion", 1, 0, 0, 0, 16000, 1);
+    // 4. Valid chat model WITH tool support (supports_tools = 1)
+    insert.run("openai/gpt-4o", "openai", "chat_completion", 1, 0, 0, 1, 128000, 1);
+
+    // When requireTools = true, selectModel must strictly exclude image generation models AND non-tool models
+    const chosen = await bandit.selectModel(new Set(), 0, true, false, null, true);
+    assert.equal(chosen, "openai/gpt-4o", "selectModel with requireTools=true must select the model supporting tools and reject image-generation or non-tool chat models");
+  });
+
+  test("Image generation models and non-tool models are permanently banned and excluded upon 400 model incompatibility feedback", async () => {
+    const insert = bandit.db.prepare(
+      `INSERT INTO catalog (id, provider, capability, supports_chat, supports_image_generation, supports_audio_generation, supports_tools, max_input_tokens, is_free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    insert.run("openai/dall-e-3", "openai", "image", 0, 1, 0, 0, 4000, 0);
+    insert.run("openai/gpt-4o", "openai", "chat_completion", 1, 0, 0, 1, 128000, 1);
+
+    // Record feedback indicating image model used for chat / incompatible
+    bandit.recordFeedback("openai/dall-e-3", false, 0.0, {
+      status: 400,
+      message: "image generation model cannot be used for chat completions"
+    });
+
+    const modelRow = bandit.db.prepare("SELECT permanent FROM models WHERE id = ?").get("openai/dall-e-3");
+    assert.equal(modelRow.permanent, 1, "Incompatible image model must be permanently banned");
+
+    // Subsequent selection with requireTools=true must never pick it
+    const chosen = await bandit.selectModel(new Set(), 0, true, false, null, true);
+    assert.equal(chosen, "openai/gpt-4o");
+  });
 });
