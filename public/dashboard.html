@@ -821,8 +821,15 @@
     </div>
 
     <div id="tab-consideration" class="tab-content">
+        <div class="card" style="margin-top:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:15px; margin-bottom:15px;">
+            <h3 style="margin-top:0; color:#58a6ff; font-size:15px; margin-bottom:6px;">📋 Specchietto Cronologico Scarti & Selezione (Ultima Richiesta)</h3>
+            <p style="font-size:12px; color:#8b949e; margin-bottom:10px;">Elenco cronologico dei modelli valutati, scartati (con relativo motivo) o selezionati per la richiesta.</p>
+            <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:200px; overflow-y:auto; background:#0d1117; padding:10px; border-radius:4px; border:1px solid #21262d;">
+                Nessuna richiesta recente
+            </div>
+        </div>
         <div class="card" style="margin-top:10px;">
-            <h3>Ultima Valutazione Modelli & Considerazioni</h3>
+            <h3>Tabella Dettaglio Valutazione Modelli</h3>
             <p style="font-size:12px; color:#8b949e; margin-bottom:10px;">Mostra tutti i modelli valutati nell'ultima richiesta di chat, con stato (selezionato o scartato) e motivo dello scarto.</p>
             <div class="table-wrapper">
                 <table>
@@ -886,6 +893,14 @@
     </div>
 
     <div id="tab-models" class="tab-content">
+        <div class="stats" style="margin-bottom:10px;">
+            <strong>Modelli (Prod):</strong>
+            Totali: <span id="models-count-total" class="badge badge-monitorati">0</span> |
+            <span id="models-count-active" class="badge badge-attivi">0</span> attivi |
+            <span id="models-count-cooldown" class="badge badge-cooldown">0</span> cool |
+            <span id="models-count-degraded" class="badge badge-degraded">0</span> degraded |
+            <span id="models-count-banned" class="badge badge-bannati">0</span> bannati
+        </div>
         <div class="filter-bar" id="models-filter-form">
             <input type="text" class="filter-input" id="models-filter-search" placeholder="🔍 Cerca per ID modello (es. llama3...)">
             <select class="filter-input" id="models-filter-provider">
@@ -1416,6 +1431,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             switchTab(getInitialTab(), false);
+            refreshAll();
         });
         
         // Also run immediately in case DOM is already loaded
@@ -2587,7 +2603,7 @@
             if (el) el.checked = true;
         });
 
-        refreshAll();
+        // refreshAll(); // Moved to DOMContentLoaded
         fetchLogs();
         fetchActive();
         fetchQuota();
@@ -2609,9 +2625,11 @@
                 const data = await res.json();
                 const list = data.consideration || [];
                 const tbody = document.getElementById('consideration-table-body');
+                const specSheet = document.getElementById('chronological-spec-sheet');
                 if (!tbody) return;
                 if (list.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>';
+                    if (specSheet) specSheet.innerHTML = '<span style="color:#8b949e;">Nessuna richiesta recente</span>';
                     return;
                 }
                 tbody.innerHTML = list.map(item => {
@@ -2631,6 +2649,18 @@
                         </tr>
                     `;
                 }).join('');
+
+                if (specSheet) {
+                    specSheet.innerHTML = list.map((item, idx) => {
+                        const num = idx + 1;
+                        const isSelected = item.status === 'selected';
+                        const badgeColor = isSelected ? '#3fb950' : '#f85149';
+                        const statusText = isSelected ? 'IN USO ATTUALMENTE (Selezionato)' : `scartato: ${item.reason || 'unknown'}`;
+                        return `<div style="margin-bottom:4px; padding:4px 6px; border-radius:3px; background:${isSelected ? '#1f382b' : '#311b1b'}; border-left:3px solid ${badgeColor};">
+                            <strong>#${num}</strong> <code>${escapeHtml(item.id)}</code> [${escapeHtml(item.provider)}] → <span style="color:${badgeColor}; font-weight:600;">${escapeHtml(statusText)}</span>
+                        </div>`;
+                    }).join('');
+                }
             } catch (e) {
                 // ignore
             }
