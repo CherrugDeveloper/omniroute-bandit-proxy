@@ -49,42 +49,42 @@
             background: #0d1117;
             color: #c9d1d9;
             /* Padding di base */
-            padding: 12px;
+            padding: 8px;
             /* Quando la PWA è in modalità window-controls-overlay,
                sposta il contenuto sotto la barra dei controlli finestra */
-            padding-top: env(titlebar-area-height, 12px);
+            padding-top: env(titlebar-area-height, 8px);
             /* Layout */
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 6px;
         }
-        h1 { color: #58a6ff; margin: 0 0 8px 0; font-size: 20px; }
-        h3 { color: #58a6ff; margin: 0; font-size: 15px; }
+        h1 { color: #58a6ff; margin: 0 0 4px 0; font-size: 18px; }
+        h3 { color: #58a6ff; margin: 0; font-size: 14px; }
 
         .card {
             background: #161b22;
             border: 1px solid #30363d;
             border-radius: 6px;
-            padding: 12px 16px;
+            padding: 8px 12px;
             flex-shrink: 0;
         }
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 12px;
-            margin-bottom: 4px;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 8px;
+            margin-bottom: 2px;
         }
         .stats {
             background: #161b22;
             border: 1px solid #30363d;
-            border-radius: 8px;
-            padding: 10px 14px;
-            font-size: 13px;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
             display: flex;
             align-items: center;
             flex-wrap: wrap;
-            gap: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            gap: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         .stats strong { color: #58a6ff; }
         .ok { color: #3fb950; font-weight: bold; }
@@ -124,11 +124,11 @@
             background: #21262d;
             border: 1px solid #30363d;
             border-bottom: none;
-            padding: 8px 16px;
+            padding: 6px 12px;
             color: #8b949e;
             cursor: pointer;
             border-radius: 6px 6px 0 0;
-            font-size: 13px;
+            font-size: 12px;
             font-family: inherit;
         }
         .tab-btn.active { background: #161b22; color: #58a6ff; }
@@ -139,7 +139,7 @@
             border: 1px solid #30363d;
             border-top: none;
             border-radius: 0 0 6px 6px;
-            padding: 12px;
+            padding: 8px;
             flex: 1;
             min-height: 0;
             overflow: hidden;
@@ -163,20 +163,20 @@
         }
         #tab-modes::-webkit-scrollbar, #tab-scripts::-webkit-scrollbar { display: none; }
         .filter-bar {
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-shrink: 0;
         }
         .filter-input {
             background: #0d1117;
             border: 1px solid #30363d;
             color: #c9d1d9;
-            padding: 6px 10px;
+            padding: 4px 8px;
             border-radius: 4px;
             flex: 1;
-            max-width: 300px;
-            font-size: 13px;
+            max-width: 280px;
+            font-size: 12px;
         }
 
         .table-wrapper {
@@ -213,7 +213,7 @@
         #tab-scripts .table-wrapper th:nth-child(4), #tab-scripts .table-wrapper td:nth-child(4) { width: 24%; }
         #tab-scripts .table-wrapper th:nth-child(5), #tab-scripts .table-wrapper td:nth-child(5) { width: 16%; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #30363d; font-size: 13px; }
+        th, td { padding: 5px 8px; text-align: left; border-bottom: 1px solid #30363d; font-size: 12px; }
         th {
             background: #21262d;
             cursor: pointer;
