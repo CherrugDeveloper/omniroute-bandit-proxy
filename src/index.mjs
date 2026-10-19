@@ -788,9 +788,17 @@ app.get('/v1/debug/status', requireAuth, (req, res) => {
 });
 app.get('/v1/version', (req, res) => {
   try {
-    const changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
-    const m = changelog.match(/^##\s+(v[\d.]+)/m);
-    res.json({ version: m ? m[1] : 'dev' });
+    let version = 'dev';
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+      if (pkg.version) version = 'v' + pkg.version;
+    } catch {}
+    try {
+      const changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
+      const m = changelog.match(/^##\s+(v[\d.]+)/m);
+      if (m && m[1]) version = m[1];
+    } catch {}
+    res.json({ version });
   } catch {
     res.json({ version: 'dev' });
   }
