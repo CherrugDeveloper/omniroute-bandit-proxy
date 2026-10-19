@@ -51,30 +51,31 @@ export class Notifier {
   async _sendToUrl(url, event, message, details) {
     let body;
     const emoji = this._emojiFor(event);
+    let targetUrl = url;
 
-    if (url.includes("hooks.slack.com")) {
+    if (targetUrl.includes("hooks.slack.com")) {
       body = {
         text: `${emoji} *${event}*\n${message}`,
         attachments: details.provider || details.model
           ? [{ text: `\`\`\`${JSON.stringify(details, null, 2)}\`\`\``, color: "#da3633" }]
           : undefined
       };
-    } else if (url.includes("discord.com/api/webhooks")) {
+    } else if (targetUrl.includes("discord.com/api/webhooks")) {
       body = {
         content: `${emoji} **${event}**\n${message}`
       };
-    } else if (url.includes("api.telegram.org")) {
+    } else if (targetUrl.includes("api.telegram.org")) {
       // Formato Telegram: serve chat_id.
       // Lo estraiamo dalla query string dell'URL:
       //   https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>
-      const u = new URL(url);
+      const u = new URL(targetUrl);
       const chatId = u.searchParams.get("chat_id") || this.telegramChatId;
       if (!chatId) {
         throw new Error("Telegram: chat_id mancante (aggiungilo come query string ?chat_id=...)");
       }
-      // Rimuovi chat_id dall'URL prima di inviare (Telegram non lo vuole in query)
+      // Rimuovi chat_id dall'URL prima di inviare (Telegram não lo vuole in query)
       u.searchParams.delete("chat_id");
-      url = u.toString();
+      targetUrl = u.toString();
 
       body = {
         chat_id: chatId,
@@ -90,7 +91,7 @@ export class Notifier {
       };
     }
 
-    const r = await fetch(url, {
+    const r = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)

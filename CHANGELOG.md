@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.52 — 2026-10-19
+- **Fix Telegram URL Mutation in Notifier**:
+  - Introduced local `targetUrl` variable in [`src/notifier.mjs`](src/notifier.mjs:51) when processing Telegram webhook notifications, ensuring `chat_id` query parameter removal does not mutate the original url parameter across subsequent requests.
+
 ## v1.1.51 — 2026-10-19
 - **Dashboard UI Improvements & Conditional Session Affinity Bypass**:
   - **Dashboard UI Improvements**:
