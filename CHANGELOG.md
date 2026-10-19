@@ -2,6 +2,14 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.51 — 2026-10-19
+- **Dashboard UI Improvements & Conditional Session Affinity Bypass**:
+  - **Dashboard UI Improvements**:
+    - Enhanced active requests panel height (`height: 250px`, `min-height: 250px`) and refined default active model filtering in [`public/dashboard.html`](public/dashboard.html:492).
+    - Upgraded script execution output polling in [`public/dashboard.html`](public/dashboard.html:2988) from fixed 180s loop to continuous `while (!isStopped)` polling with 2s intervals, error idle count threshold, and handling of running/stopped/interrupted script states.
+  - **Conditional Session Affinity Bypass**:
+    - Added conditional session affinity bypass in [`src/index.mjs`](src/index.mjs:1501) (`sessionKey = null`) when monitored models count (`sessionModels.size`) is less than total catalog models count (`SELECT COUNT(*) FROM catalog`), ensuring robust routing initialization when fewer models are tracked.
+
 ## v1.1.50 — 2026-10-18
 - **Fix Dashboard Tab Refresh 404 Errors via Hash-Based Routing**:
   - Switched dashboard tab routing in [`public/dashboard.html`](public/dashboard.html:1336) from pathname history state (`/tabName`) to URL hash-based routing (`#tabName`).

@@ -490,13 +490,14 @@
         .active-request.recent { opacity: 0.65; }
         .active-request.placeholder { opacity: 0.15; pointer-events: none; }
         #active-list {
-            display: flex;
-            flex-direction: column;
-            max-height: 220px;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            padding-bottom: 2px;
-        }
+                    display: flex;
+                    flex-direction: column;
+                    height: 250px;
+                    overflow-y: auto;
+                    scrollbar-width: thin;
+                    padding-bottom: 2px;
+                    min-height: 250px;
+                }
         #active-list::-webkit-scrollbar { width: 6px; }
         #active-list::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
         .active-request {
@@ -1598,15 +1599,18 @@
                             if (search && !providerMatches && matchingModels.length === 0) continue;
 
                             // Apply additional filters
-                            const filteredModels = matchingModels.filter(m => {
-                                // Status filter
-                                if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
-                                if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
-                                if (status === 'degraded' && Number(m.degraded) === 1) return true;
-                                if (status === 'banned' && Number(m.permanent) === 1) return true;
-                                if (status === '') return true; // No status filter
-                                return false;
-                            });
+                                                        const filteredModels = matchingModels.filter(m => {
+                                                            // Status filter: show only active models by default (not permanently banned, not in cooldown/degraded without availability)
+                                                            if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
+                                                            if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
+                                                            if (status === 'degraded' && Number(m.degraded) === 1) return true;
+                                                            if (status === 'banned' && Number(m.permanent) === 1) return true;
+                                                            if (status === '') {
+                                                                // Default: show only active models (not permanent, not needs_attention, not in active cooldown)
+                                                                return (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()));
+                                                            }
+                                                            return false;
+                                                        });
                             
                             // N filter
                             const nFiltered = filteredModels.filter(m => Number(m.N) >= minN);
@@ -1635,12 +1639,15 @@
                                 // Search filter
                                 if (search && !String(m.id).toLowerCase().includes(search) && !String(m.provider).toLowerCase().includes(search)) return false;
                                 
-                                // Status filter
+                                // Status filter: show only active models by default (not permanently banned, not in cooldown/degraded without availability)
                                 if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
                                 if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
                                 if (status === 'degraded' && Number(m.degraded) === 1) return true;
                                 if (status === 'banned' && Number(m.permanent) === 1) return true;
-                                if (status === '') return true; // No status filter
+                                if (status === '') {
+                                    // Default: show only active models (not permanent, not needs_attention, not in active cooldown)
+                                    return (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()));
+                                }
                                 return false;
                             });
                             
@@ -1764,12 +1771,15 @@
 
                             // Apply additional filters
                             const filteredModels = matchingModels.filter(m => {
-                                // Status filter
+                                // Status filter: show only active models by default (not permanently banned, not in cooldown/degraded without availability)
                                 if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
                                 if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
                                 if (status === 'degraded' && Number(m.degraded) === 1) return true;
                                 if (status === 'banned' && Number(m.permanent) === 1) return true;
-                                if (status === '') return true; // No status filter
+                                if (status === '') {
+                                    // Default: show only active models (not permanent, not needs_attention, not in active cooldown)
+                                    return (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()));
+                                }
                                 return false;
                             });
                             
@@ -1800,12 +1810,15 @@
                                 // Search filter
                                 if (search && !String(m.id).toLowerCase().includes(search) && !String(m.provider).toLowerCase().includes(search)) return false;
                                 
-                                // Status filter
+                                // Status filter: show only active models by default (not permanently banned, not in cooldown/degraded without availability)
                                 if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
                                 if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
                                 if (status === 'degraded' && Number(m.degraded) === 1) return true;
                                 if (status === 'banned' && Number(m.permanent) === 1) return true;
-                                if (status === '') return true; // No status filter
+                                if (status === '') {
+                                    // Default: show only active models (not permanent, not needs_attention, not in active cooldown)
+                                    return (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()));
+                                }
                                 return false;
                             });
                             
@@ -1962,10 +1975,6 @@
             refreshAll();
         }
 
-        async function resetCounters() {
-            await apiFetch('/v1/reset/counters', { method: 'POST' });
-            refreshAll();
-        }
 
         async function retryProvider(p) {
             const ok = await showConfirm('Vuoi sbloccare il provider?\n\n' + p + '\n\nVerrà rimesso nel pool con cooldown azzerato.', {
@@ -2180,7 +2189,6 @@
             else if (a === 'show-help') showHelp(btn.dataset.name);
             else if (a === 'refresh-all') refreshAll();
             else if (a === 'copy-logs') copyLogs();
-            else if (a === 'reset-counters') resetCounters();
             else if (a === 'toggle-provider') {
                 const name = btn.dataset.name;
                 if (collapsedProviders.has(name)) collapsedProviders.delete(name);
@@ -2189,8 +2197,6 @@
             }
         });
 
-        // ============= REFRESH =============
-        let refreshing = false;
         async function refreshAll() {
             if (document.hidden || refreshing) return;
             refreshing = true;
@@ -2982,28 +2988,35 @@
             const progressBar = document.getElementById('script-progress-bar');
             const progressPct = document.getElementById('script-progress-pct');
             
-            const maxSeconds = 180;
-            for (let i = 1; i <= maxSeconds; i++) {
-                await new Promise(r => setTimeout(r, 1000));
-                
-                // Estimate progress percentage smoothly up to 95% while running
-                const pct = Math.min(95, Math.floor((i / maxSeconds) * 95) + 5);
-                if (progressBar) progressBar.style.width = `${pct}%`;
-                if (progressPct) progressPct.textContent = `${pct}%`;
+            let isStopped = false;
+            let idleCount = 0;
+            
+            while (!isStopped) {
+                await new Promise(r => setTimeout(r, 2000));
                 
                 try {
                     const res = await fetch(`/v1/scripts/output/${pid}`, { headers: authHeaders() });
-                    if (!res.ok) continue;
+                    if (!res.ok) {
+                        idleCount++;
+                        if (idleCount > 15) {
+                            status.innerHTML = '<span style="color:#f85149;">⚠ Script terminato (errore polling)</span>';
+                            isStopped = true;
+                            break;
+                        }
+                        continue;
+                    }
                     
                     const text = await res.text();
                     let data;
                     try {
                         data = text ? JSON.parse(text) : {};
                     } catch (err) {
+                        idleCount++;
                         continue;
                     }
                     
-                    // Real-time output streaming feedback during execution
+                    idleCount = 0;
+                    
                     let liveText = '';
                     if (data.stdout) liveText += `=== STDOUT ===\n${data.stdout}\n`;
                     if (data.stderr) liveText += `=== STDERR ===\n${data.stderr}\n`;
@@ -3031,18 +3044,24 @@
                         output.scrollTop = output.scrollHeight;
                         return;
                     } else if (data.status === 'running') {
-                        const elapsed = data.startTime ? Math.floor((Date.now() - data.startTime) / 1000) : i;
-                        status.innerHTML = `<span style="color:#58a6ff;">⏳ In esecuzione... (${elapsed}s)</span>`;
+                        const elapsed = data.startTime ? Math.floor((Date.now() - data.startTime) / 1000) : 0;
+                        status.innerHTML = `<span style="color:#58a6ff;">⏳ In esecuzione continua... (${elapsed}s)</span>`;
+                        if (progressBar) progressBar.style.width = '100%';
+                        if (progressPct) progressPct.textContent = `${elapsed}s`;
+                    } else if (data.status === 'stopped') {
+                        status.innerHTML = '<span style="color:#f89d0a;">⏹ Script interrotto dall\'utente</span>';
+                        isStopped = true;
+                        return;
                     }
                 } catch (e) {
                     // Ignore polling errors
                 }
             }
-
+            
             if (progressBar) progressBar.style.width = '100%';
             if (progressBar) progressBar.style.background = '#f85149';
-            if (progressPct) progressPct.textContent = 'Timeout';
-            status.innerHTML = '<span style="color:#f85149;">⚠ Timeout: lo script sta ancora eseguendo in background</span>';
+            if (progressPct) progressPct.textContent = 'Interrotto';
+            status.innerHTML = '<span style="color:#f85149;">⏹ Polling interrotto</span>';
         }
         
         // Event listeners per Script Manager
