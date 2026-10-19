@@ -1201,13 +1201,50 @@
         }
 
         let authBannerShown = false;
+        let isPromptingAuth = false;
+        async function handleUnauthorized() {
+            if (isPromptingAuth) return;
+            isPromptingAuth = true;
+            try {
+                const token = await showModal({
+                    title: 'Autenticazione Richiesta',
+                    icon: '🔒',
+                    message: 'Il server richiede un token di autenticazione (DASHBOARD_TOKEN). Inserisci il token API:',
+                    confirmText: 'Salva e Accedi',
+                    cancelText: 'Ignora',
+                    prompt: API_TOKEN || '',
+                    promptPlaceholder: 'Inserisci DASHBOARD_TOKEN...'
+                });
+                if (token && typeof token === 'string' && token.trim() !== '') {
+                    API_TOKEN = token.trim();
+                    localStorage.setItem('api_token', API_TOKEN);
+                    authBannerShown = false;
+                    const banner = document.querySelector('div[style*="background:#f85149"]');
+                    if (banner) banner.remove();
+                    refreshAll();
+                } else {
+                    show401Banner();
+                }
+            } finally {
+                isPromptingAuth = false;
+            }
+        }
+
         function show401Banner() {
             if (authBannerShown) return;
             authBannerShown = true;
             const div = document.createElement('div');
-            div.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:12px;background:#f85149;color:white;text-align:center;font-weight:bold;z-index:9999';
-            div.innerHTML = '🔒 401 — Token mancante o errato. Riapri la dashboard con <code>?token=IL_TUO_TOKEN</code>';
+            div.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:12px;background:#f85149;color:white;text-align:center;font-weight:bold;z-index:9999;display:flex;justify-content:center;align-items:center;gap:12px;';
+            div.innerHTML = '<span>🔒 401 — Token DASHBOARD_TOKEN mancante o errato.</span> <button id="btn-prompt-token" style="background:white;color:#f85149;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:bold;">Inserisci Token</button>';
             document.body.appendChild(div);
+            const btn = document.getElementById('btn-prompt-token');
+            if (btn) {
+                btn.onclick = () => {
+                    div.remove();
+                    authBannerShown = false;
+                    handleUnauthorized();
+                };
+            }
         }
         
         // Remove the redundant 401 permissions banner
@@ -2204,8 +2241,14 @@
                 console.log('[DEBUG dashboard] Fetching /v1/dashboard/stats with token:', API_TOKEN ? 'present' : 'missing');
                 const r = await apiFetch('/v1/dashboard/stats');
                 console.log('[DEBUG dashboard] /v1/dashboard/stats response status:', r.status, 'ok:', r.ok);
-                if (r.status === 401) { show401Banner(); return; }
+                if (r.status === 401) {
+                    handleUnauthorized();
+                    return;
+                }
                 if (!r.ok) return;
+                const existingBanner = document.querySelector('div[style*="background:#f85149"]');
+                if (existingBanner) existingBanner.remove();
+                authBannerShown = false;
                 const d = await r.json();
                 console.log('[DEBUG dashboard] /v1/dashboard/stats data:', d);
                 allData = d;
@@ -2262,7 +2305,7 @@
             if (document.hidden) return;
             try {
                 const r = await apiFetch('/v1/quota');
-                if (r.status === 401) { show401Banner(); return; }
+                if (r.status === 401) { handleUnauthorized(); return; }
                 if (!r.ok) return;
                 const d = await r.json();
                 renderProviderQuota(d);
@@ -2333,7 +2376,7 @@
             if (document.hidden) return; // Skip polling when tab is hidden to save RAM/CPU
             try {
                 const r = await apiFetch('/v1/logs');
-                if (r.status === 401) { show401Banner(); return; }
+                if (r.status === 401) { handleUnauthorized(); return; }
                 if (!r.ok) return;
                 const d = await r.json();
                 if (!Array.isArray(d)) return;
@@ -2560,7 +2603,7 @@
             try {
                 const res = await apiFetch('/v1/consideration');
                 if (!res.ok) {
-                    if (res.status === 401) { show401Banner(); return; }
+                    if (res.status === 401) { handleUnauthorized(); return; }
                     return;
                 }
                 const data = await res.json();

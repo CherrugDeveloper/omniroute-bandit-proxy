@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.57 — 2026-10-19
+- **Dashboard 401 Unauthorized & Token Prompting Improvements**:
+  - Added interactive `handleUnauthorized()` modal prompt in [`public/dashboard.html`](public/dashboard.html:1204) enabling users to input and save their `DASHBOARD_TOKEN` upon receiving a 401 response.
+  - Enhanced 401 banner in [`public/dashboard.html`](public/dashboard.html:1229) with an inline "Inserisci Token" button for immediate token entry.
+
 ## v1.1.56 — 2026-10-19
 - **Fix Dashboard Consideration Fetch via apiFetch & 401 Handling**:
   - Replaced raw `fetch('/v1/consideration')` with `apiFetch('/v1/consideration')` in [`public/dashboard.html`](public/dashboard.html:2561) to include authentication headers.
