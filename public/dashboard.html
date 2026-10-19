@@ -1073,7 +1073,7 @@
         const collapsedProviders = new Set();
         const trainCollapsedProviders = new Set();
         // === Auth token (persistente tra tab) ===
-        const API_TOKEN =
+        let API_TOKEN =
             new URLSearchParams(location.search).get('token') ||
             localStorage.getItem('api_token') ||
             '';
