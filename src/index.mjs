@@ -1282,7 +1282,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let attempt = 0;
     const fallbackTried = new Set();
     // === Session key per affinity ===
-  const sessionKey = computeSessionKey(req.body?.messages);
+  let sessionKey = computeSessionKey(req.body?.messages);
   if (sessionKey) {
     const sys = req.body?.messages?.find(m => m.role === "system");
     const usr = req.body?.messages?.find(m => m.role === "user");

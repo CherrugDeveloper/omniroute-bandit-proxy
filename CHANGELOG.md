@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.54 — 2026-10-19
+- **Fix sessionKey Assignment to Constant Variable Error**:
+  - Changed `const sessionKey` to `let sessionKey` in [`src/index.mjs`](src/index.mjs:1285) to allow conditional reassignment and updates.
+
 ## v1.1.53 — 2026-10-19
 - **Catalog Non-Chat Models Inclusion & Rank Cache Invalidation**:
   - Removed restrictive `isChatModel` check in [`src/bandit.mjs`](src/bandit.mjs:436) that previously skipped non-chat models during catalog sync.
