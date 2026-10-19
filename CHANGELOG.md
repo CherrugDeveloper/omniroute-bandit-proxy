@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.58 — 2026-10-19
+- **Chronological Discarded Models Spec Sheet & Per-Group Provider Quota**:
+  - Added a chronological spec sheet in [`public/dashboard.html`](public/dashboard.html:823) displaying evaluated models, rejection reasons, and currently selected models.
+  - Implemented per-provider per-group (`free`/`paid`) RPM/RPD rate limiting and tracking with 2:00 AM daily resets in [`src/provider-quota.mjs`](src/provider-quota.mjs:23) and [`config/provider-limits.json`](config/provider-limits.json:1).
+
 ## v1.1.57 — 2026-10-19
 - **Dashboard 401 Unauthorized & Token Prompting Improvements**:
   - Added interactive `handleUnauthorized()` modal prompt in [`public/dashboard.html`](public/dashboard.html:1204) enabling users to input and save their `DASHBOARD_TOKEN` upon receiving a 401 response.
