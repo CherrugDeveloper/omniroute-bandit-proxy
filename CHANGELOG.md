@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.55 — 2026-10-19
+- **Fix Dashboard Metrics Remaining at 0 via Null-Coalescing and Logging**:
+  - Added robust null-coalescing and default fallbacks (`d.avgReward || 0`, `d.avgLatencySec || 0`, `d.freeActive ?? 0`) in [`public/dashboard.html`](public/dashboard.html:2225) when rendering dashboard stats.
+  - Added debug request/response logging for `/v1/dashboard/stats` and statistics service payloads in [`src/index.mjs`](src/index.mjs:840) and [`public/dashboard.html`](public/dashboard.html:2201).
+
 ## v1.1.54 — 2026-10-19
 - **Fix sessionKey Assignment to Constant Variable Error**:
   - Changed `const sessionKey` to `let sessionKey` in [`src/index.mjs`](src/index.mjs:1285) to allow conditional reassignment and updates.

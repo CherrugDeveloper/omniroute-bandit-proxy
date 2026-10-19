@@ -2201,10 +2201,13 @@
             if (document.hidden || refreshing) return;
             refreshing = true;
             try {
+                console.log('[DEBUG dashboard] Fetching /v1/dashboard/stats with token:', API_TOKEN ? 'present' : 'missing');
                 const r = await apiFetch('/v1/dashboard/stats');
+                console.log('[DEBUG dashboard] /v1/dashboard/stats response status:', r.status, 'ok:', r.ok);
                 if (r.status === 401) { show401Banner(); return; }
                 if (!r.ok) return;
                 const d = await r.json();
+                console.log('[DEBUG dashboard] /v1/dashboard/stats data:', d);
                 allData = d;
 
                 const reqs = Number(d.totalRequests) || 0;
@@ -2222,9 +2225,9 @@
                     rateEl.className = pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'err';
                 }
 
-                document.getElementById('avg-reward').textContent = d.avgReward.toFixed(3);
-                document.getElementById('avg-latency').textContent = d.avgLatencySec.toFixed(1) + 's';
-                document.getElementById('free-active').textContent = d.freeActive;
+                document.getElementById('avg-reward').textContent = (d.avgReward || 0).toFixed(3);
+                document.getElementById('avg-latency').textContent = (d.avgLatencySec || 0).toFixed(1) + 's';
+                document.getElementById('free-active').textContent = d.freeActive ?? 0;
                 
                 if (d.topModel) {
                     document.getElementById('top-model').textContent = d.topModel;

@@ -470,6 +470,7 @@ function requireAuth(req, res, next) {
   if (!REQUIRE_AUTH) return next();
   const token = req.get("x-api-token") || req.query.token;
   if (token !== DASHBOARD_TOKEN) {
+    console.warn(`[DEBUG server] Unauthorized access attempt to ${req.path}. Token provided: ${Boolean(token)}`);
     return res.status(401).json({ error: { message: "Unauthorized" } });
   }
   next();
@@ -839,7 +840,14 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
 
 app.get("/v1/dashboard/stats", requireAuth, (req, res) => {
   try {
-    res.json(bandit.getDashboardStats());
+    const stats = bandit.getDashboardStats();
+    console.log("[DEBUG server] /v1/dashboard/stats serving stats:", JSON.stringify({
+      totalRequests: stats.totalRequests,
+      totalObservations: stats.totalObservations,
+      modelsActive: stats.modelsActive,
+      totalModels: stats.totalModels
+    }));
+    res.json(stats);
   } catch (e) {
     console.error("[API] Errore /v1/dashboard/stats:", e.message);
     res.status(500).json({ error: e.message });
