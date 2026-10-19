@@ -1218,7 +1218,15 @@ export class DiscountedUCB1Bandit {
       `SELECT provider, fails, cooldown_until, permanent, needs_attention
        FROM provider_history`
     ).all();
-    return { models, providers };
+    const stats = this.getDashboardStats();
+    const summary = {
+      activeCount: stats.modelsActive,
+      avgReward: stats.avgReward,
+      avgLatencySec: stats.avgLatencySec,
+      freeActive: stats.freeActive,
+      topModel: stats.topModel ? (typeof stats.topModel === 'object' ? stats.topModel : { id: stats.topModel }) : null
+    };
+    return { models, providers, summary };
   }
 
   getDashboardStats() {

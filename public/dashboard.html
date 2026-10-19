@@ -807,9 +807,25 @@
             </div>
         </div>
 
+    <!-- Persistent Active Requests & Chronological Spec Sheet -->
+    <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
+        <h3 style="margin-top:0; color:#58a6ff; font-size:14px; margin-bottom:10px;">⚡ Richieste in Corso & Storico Recente</h3>
+        <div id="active-panel" class="active-panel" style="display:block; margin-bottom:12px;">
+            <div id="active-list"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <h4 style="margin:0; color:#c9d1d9; font-size:13px;">📋 Ultima Richiesta: Specchietto Cronologico Scarti & Selezione</h4>
+            </div>
+        </div>
+        <p style="font-size:11px; color:#8b949e; margin:0 0 6px 0;">Elenco cronologico dei modelli valutati, scartati o selezionati nell'ultima richiesta di chat.</p>
+        <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:220px; overflow-y:auto; background:#0d1117; padding:8px 10px; border-radius:4px; border:1px solid #21262d;">
+            Nessuna richiesta recente
+        </div>
+    </div>
+
     <div class="tabs">
-        <button class="tab-btn active" data-tab="active">⚡ In corso</button>
-        <button class="tab-btn" data-tab="logs">📋 Live Logs & Scarti</button>
+        <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
         <button class="tab-btn" data-tab="models">📦 Modelli</button>
         <button class="tab-btn" data-tab="train">🏋️ Train</button>
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
@@ -817,48 +833,7 @@
         <button class="tab-btn" data-tab="scripts">🛠️ Scripts Manager</button>
     </div>
 
-    <div id="tab-active" class="tab-content active">
-        <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
-            <h3 style="margin-top:0; color:#58a6ff; font-size:14px; margin-bottom:10px;">⚡ Richieste in Corso & Storico Recente</h3>
-            <div id="active-panel" class="active-panel" style="display:block; margin-bottom:0;">
-                <div id="active-list"></div>
-            </div>
-        </div>
-        <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <h3 style="margin:0; color:#58a6ff; font-size:14px;">📋 Ultima Richiesta: Specchietto Cronologico Scarti & Selezione</h3>
-                </div>
-            </div>
-            <p style="font-size:11px; color:#8b949e; margin:0 0 6px 0;">Elenco cronologico dei modelli valutati, scartati o selezionati nell'ultima richiesta di chat.</p>
-            <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:220px; overflow-y:auto; background:#0d1117; padding:8px 10px; border-radius:4px; border:1px solid #21262d;">
-                Nessuna richiesta recente
-            </div>
-        </div>
-    </div>
-
-    <div id="tab-logs" class="tab-content">
-        <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
-            <h3>📋 Cronologico Scarti & Tabella Dettaglio Valutazione Modelli</h3>
-            <p style="font-size:12px; color:#8b949e; margin-bottom:10px;">Mostra tutti i modelli valutati nell'ultima richiesta di chat, con stato (selezionato o scartato) e motivo dello scarto.</p>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Modello</th>
-                            <th>Provider</th>
-                            <th>Stato</th>
-                            <th>Motivo Scarto / Selezione</th>
-                            <th>Metriche (N / Reward / Lat)</th>
-                            <th>Tier</th>
-                        </tr>
-                    </thead>
-                    <tbody id="consideration-table-body">
-                        <tr><td colspan="6" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <div id="tab-logs" class="tab-content active">
         <div class="log-header">
             <h3>Log Streaming</h3>
             <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end;">
@@ -1391,7 +1366,7 @@
                 renderAll();
             }
         });
-        const validTabs = ['active', 'logs', 'models', 'train', 'modes', 'providers', 'scripts'];
+        const validTabs = ['logs', 'models', 'train', 'modes', 'providers', 'scripts'];
 
         function switchTab(tabName, updateHistory = true) {
             if (!validTabs.includes(tabName)) tabName = 'logs';
@@ -2644,43 +2619,21 @@
                 }
                 const data = await res.json();
                 const list = data.consideration || [];
-                const tbody = document.getElementById('consideration-table-body');
                 const specSheet = document.getElementById('chronological-spec-sheet');
-                if (!tbody) return;
+                if (!specSheet) return;
                 if (list.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#8b949e;">Nessuna richiesta recente</td></tr>';
-                    if (specSheet) specSheet.innerHTML = '<span style="color:#8b949e;">Nessuna richiesta recente</span>';
+                    specSheet.innerHTML = '<span style="color:#8b949e;">Nessuna richiesta recente</span>';
                     return;
                 }
-                tbody.innerHTML = list.map(item => {
-                    const nVal = item.N !== undefined ? item.N : '-';
-                    const rewardVal = item.avg_reward !== undefined ? Number(item.avg_reward).toFixed(2) : '-';
-                    const latencyVal = item.avg_latency !== undefined ? Math.round(item.avg_latency) + 'ms' : '-';
-                    const metricsHtml = `<span style="font-size:11px; color:#8b949e;">N: <strong>${nVal}</strong> | Rew: <strong>${rewardVal}</strong> | Lat: <strong>${latencyVal}</strong>${item.score !== undefined ? ' | Score: <strong>' + Number(item.score).toFixed(3) + '</strong>' : ''}</span>`;
-                    const statusBg = item.status === 'selected' ? '#238636' : '#da3633';
-                    return `
-                        <tr>
-                            <td><code>${escapeHtml(item.id)}</code></td>
-                            <td><code>${escapeHtml(item.provider)}</code></td>
-                            <td><span style="padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; background:${statusBg}; color:#fff;">${escapeHtml(item.status)}</span></td>
-                            <td><code>${escapeHtml(item.reason || '-')}</code></td>
-                            <td>${metricsHtml}</td>
-                            <td><code>${escapeHtml(item.tier || '-')}</code></td>
-                        </tr>
-                    `;
+                specSheet.innerHTML = list.map((item, idx) => {
+                    const num = idx + 1;
+                    const isSelected = item.status === 'selected';
+                    const badgeColor = isSelected ? '#3fb950' : '#f85149';
+                    const statusText = isSelected ? 'IN USO ATTUALMENTE (Selezionato)' : `scartato: ${item.reason || 'unknown'}`;
+                    return `<div style="margin-bottom:4px; padding:4px 6px; border-radius:3px; background:${isSelected ? '#1f382b' : '#311b1b'}; border-left:3px solid ${badgeColor};">
+                        <strong>#${num}</strong> <code>${escapeHtml(item.id)}</code> [${escapeHtml(item.provider)}] → <span style="color:${badgeColor}; font-weight:600;">${escapeHtml(statusText)}</span>
+                    </div>`;
                 }).join('');
-
-                if (specSheet) {
-                    specSheet.innerHTML = list.map((item, idx) => {
-                        const num = idx + 1;
-                        const isSelected = item.status === 'selected';
-                        const badgeColor = isSelected ? '#3fb950' : '#f85149';
-                        const statusText = isSelected ? 'IN USO ATTUALMENTE (Selezionato)' : `scartato: ${item.reason || 'unknown'}`;
-                        return `<div style="margin-bottom:4px; padding:4px 6px; border-radius:3px; background:${isSelected ? '#1f382b' : '#311b1b'}; border-left:3px solid ${badgeColor};">
-                            <strong>#${num}</strong> <code>${escapeHtml(item.id)}</code> [${escapeHtml(item.provider)}] → <span style="color:${badgeColor}; font-weight:600;">${escapeHtml(statusText)}</span>
-                        </div>`;
-                    }).join('');
-                }
             } catch (e) {
                 // ignore
             }
