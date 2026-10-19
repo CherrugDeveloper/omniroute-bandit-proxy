@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.60 — 2026-10-19
+- **Dashboard Unified Persistent Component & Widget Collapse**:
+  - Deeply merged active requests history and selection rejection spec sheet into a unified persistent component in [`public/dashboard.html`](public/dashboard.html:807).
+  - Added collapsible widget toggle with `localStorage` persistence across sessions in [`public/dashboard.html`](public/dashboard.html:1405).
+
 ## v1.1.59 — 2026-10-19
 - **Dashboard Redesign & Considerazioni Tab Removal**:
   - Removed the redundant `consideration` tab from [`public/dashboard.html`](public/dashboard.html:828) and integrated the model evaluation spec sheet and detailed evaluation table directly into the Live Logs & Scarti tab (`logs`).

@@ -807,20 +807,27 @@
             </div>
         </div>
 
-    <!-- Persistent Active Requests & Chronological Spec Sheet -->
+    <!-- Persistent Unified Widget: Active Requests, Recent History & Chronological Spec Sheet -->
     <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
-        <h3 style="margin-top:0; color:#58a6ff; font-size:14px; margin-bottom:10px;">⚡ Richieste in Corso & Storico Recente</h3>
-        <div id="active-panel" class="active-panel" style="display:block; margin-bottom:12px;">
-            <div id="active-list"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h3 style="margin:0; color:#58a6ff; font-size:14px; display:flex; align-items:center; gap:8px;">
+                <span>⚡</span> Richieste in Corso, Storico Recente & Ultima Valutazione (Scarti & Selezione)
+            </h3>
+            <button id="unified-widget-toggle" onclick="toggleUnifiedWidget()" style="background:none; border:none; color:#8b949e; cursor:pointer; font-size:12px; padding:2px 6px;" title="Comprimi / Espandi">▼</button>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <h4 style="margin:0; color:#c9d1d9; font-size:13px;">📋 Ultima Richiesta: Specchietto Cronologico Scarti & Selezione</h4>
+        <div id="unified-widget-content">
+            <div id="active-panel" class="active-panel" style="display:block; margin-bottom:12px;">
+                <div id="active-list"></div>
             </div>
-        </div>
-        <p style="font-size:11px; color:#8b949e; margin:0 0 6px 0;">Elenco cronologico dei modelli valutati, scartati o selezionati nell'ultima richiesta di chat.</p>
-        <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:220px; overflow-y:auto; background:#0d1117; padding:8px 10px; border-radius:4px; border:1px solid #21262d;">
-            Nessuna richiesta recente
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; border-top:1px solid #30363d; padding-top:10px;">
+                <h4 style="margin:0; color:#c9d1d9; font-size:13px; display:flex; align-items:center; gap:6px;">
+                    <span>📋</span> Specchietto Cronologico Ultima Richiesta (Scarti & Selezione)
+                </h4>
+            </div>
+            <p style="font-size:11px; color:#8b949e; margin:0 0 6px 0;">Elenco cronologico dei modelli valutati, scartati o selezionati nell'ultima richiesta di chat.</p>
+            <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:200px; overflow-y:auto; background:#0d1117; padding:8px 10px; border-radius:4px; border:1px solid #21262d;">
+                Nessuna richiesta recente
+            </div>
         </div>
     </div>
 
@@ -1397,6 +1404,26 @@
                 if (btn) btn.textContent = '▼';
             }
         }
+
+        function toggleUnifiedWidget() {
+            const content = document.getElementById('unified-widget-content');
+            const btn = document.getElementById('unified-widget-toggle');
+            if (!content || !btn) return;
+            const isCollapsed = content.style.display === 'none';
+            content.style.display = isCollapsed ? 'block' : 'none';
+            btn.textContent = isCollapsed ? '▼' : '▲';
+            localStorage.setItem('dashboard.unifiedWidget.collapsed', !isCollapsed);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const isCollapsed = localStorage.getItem('dashboard.unifiedWidget.collapsed') === 'true';
+            if (isCollapsed) {
+                const content = document.getElementById('unified-widget-content');
+                const btn = document.getElementById('unified-widget-toggle');
+                if (content) content.style.display = 'none';
+                if (btn) btn.textContent = '▲';
+            }
+        });
 
         function getInitialTab() {
             if (location.hash) {
