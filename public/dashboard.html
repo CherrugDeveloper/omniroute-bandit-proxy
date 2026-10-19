@@ -810,6 +810,24 @@
             </div>
         </div>
 
+        <div class="card" style="margin-top:12px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <h3 style="margin:0; color:#58a6ff; font-size:14px;">📋 Ultima Richiesta: Specchietto Cronologico Scarti & Selezione</h3>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button class="btn btn-sm" onclick="switchTab('consideration')" style="font-size:11px; padding:2px 8px;" title="Visualizza tabella dettagliata nel tab Considerazioni">🔍 Tabella Dettaglio</button>
+                    <button class="btn btn-sm" onclick="toggleTopSpecSheet()" id="spec-toggle-btn" style="font-size:11px; padding:2px 6px;" title="Comprimi / Espandi">▲</button>
+                </div>
+            </div>
+            <div id="spec-sheet-collapsible-wrapper">
+                <p style="font-size:11px; color:#8b949e; margin:0 0 6px 0;">Elenco cronologico dei modelli valutati, scartati o selezionati nell'ultima richiesta di chat.</p>
+                <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:140px; overflow-y:auto; background:#0d1117; padding:8px 10px; border-radius:4px; border:1px solid #21262d;">
+                    Nessuna richiesta recente
+                </div>
+            </div>
+        </div>
+
 <div class="tabs">
         <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
         <button class="tab-btn" data-tab="models">📦 Modelli</button>
@@ -821,13 +839,6 @@
     </div>
 
     <div id="tab-consideration" class="tab-content">
-        <div class="card" style="margin-top:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:15px; margin-bottom:15px;">
-            <h3 style="margin-top:0; color:#58a6ff; font-size:15px; margin-bottom:6px;">📋 Specchietto Cronologico Scarti & Selezione (Ultima Richiesta)</h3>
-            <p style="font-size:12px; color:#8b949e; margin-bottom:10px;">Elenco cronologico dei modelli valutati, scartati (con relativo motivo) o selezionati per la richiesta.</p>
-            <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:200px; overflow-y:auto; background:#0d1117; padding:10px; border-radius:4px; border:1px solid #21262d;">
-                Nessuna richiesta recente
-            </div>
-        </div>
         <div class="card" style="margin-top:10px;">
             <h3>Tabella Dettaglio Valutazione Modelli</h3>
             <p style="font-size:12px; color:#8b949e; margin-bottom:10px;">Mostra tutti i modelli valutati nell'ultima richiesta di chat, con stato (selezionato o scartato) e motivo dello scarto.</p>
@@ -1400,6 +1411,19 @@
                 if (location.hash !== '#' + tabName) {
                     history.pushState({ tab: tabName }, '', '#' + tabName);
                 }
+            }
+        }
+
+        function toggleTopSpecSheet() {
+            const wrap = document.getElementById('spec-sheet-collapsible-wrapper');
+            const btn = document.getElementById('spec-toggle-btn');
+            if (!wrap) return;
+            if (wrap.style.display === 'none') {
+                wrap.style.display = 'block';
+                if (btn) btn.textContent = '▲';
+            } else {
+                wrap.style.display = 'none';
+                if (btn) btn.textContent = '▼';
             }
         }
 

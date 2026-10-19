@@ -3,7 +3,8 @@
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
 ## v1.1.58 — 2026-10-19
-- **Chronological Discarded Models Spec Sheet & Per-Group Provider Quota**:
+- **Chronological Discarded Models Spec Sheet, Top Panel Integration & Per-Group Provider Quota**:
+  - Integrated the model evaluation specchietto and considerations directly into the top panel of [`public/dashboard.html`](public/dashboard.html:823) for real-time visibility of evaluated models, rejection reasons, and selection flows.
   - Added a chronological spec sheet in [`public/dashboard.html`](public/dashboard.html:823) displaying evaluated models, rejection reasons, and currently selected models.
   - Implemented per-provider per-group (`free`/`paid`) RPM/RPD rate limiting and tracking with 2:00 AM daily resets in [`src/provider-quota.mjs`](src/provider-quota.mjs:23) and [`config/provider-limits.json`](config/provider-limits.json:1).
 

@@ -33,6 +33,7 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 - **Live Logs**: Streaming aggiornato ogni secondo
 - **Metriche**: Richieste, osservazioni, modelli, provider, errori
 - **Modalità**: Signature attive + discovery in attesa
+- **Specchietto Valutazione Modelli**: Integrazione nel pannello superiore di [`public/dashboard.html`](public/dashboard.html:823) per la visualizzazione in tempo reale delle valutazioni, considerazioni e motivi di scarto dei modelli
 
 ### 6. Comportamento del Bandit
 
