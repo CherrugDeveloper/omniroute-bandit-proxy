@@ -2558,8 +2558,11 @@
         async function fetchConsideration() {
             if (document.hidden) return;
             try {
-                const res = await fetch('/v1/consideration');
-                if (!res.ok) return;
+                const res = await apiFetch('/v1/consideration');
+                if (!res.ok) {
+                    if (res.status === 401) { show401Banner(); return; }
+                    return;
+                }
                 const data = await res.json();
                 const list = data.consideration || [];
                 const tbody = document.getElementById('consideration-table-body');

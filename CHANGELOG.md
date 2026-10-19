@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.56 — 2026-10-19
+- **Fix Dashboard Consideration Fetch via apiFetch & 401 Handling**:
+  - Replaced raw `fetch('/v1/consideration')` with `apiFetch('/v1/consideration')` in [`public/dashboard.html`](public/dashboard.html:2561) to include authentication headers.
+  - Added 401 status check (`show401Banner()`) when fetching consideration data in [`public/dashboard.html`](public/dashboard.html:2563).
+
 ## v1.1.55 — 2026-10-19
 - **Fix Dashboard Metrics Remaining at 0 via Null-Coalescing and Logging**:
   - Added robust null-coalescing and default fallbacks (`d.avgReward || 0`, `d.avgLatencySec || 0`, `d.freeActive ?? 0`) in [`public/dashboard.html`](public/dashboard.html:2225) when rendering dashboard stats.
