@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.62 — 2026-10-19
+- **Fix Log Streaming and Ring Buffer Pointer Corruption**:
+  - Resolved ring buffer pointer corruption and restored log streaming functionality in [`src/index.mjs`](src/index.mjs:1).
+
 ## v1.1.61 — 2026-10-19
 - **Fix Dashboard TypeError Assignment to Constant Variable API_TOKEN**:
   - Changed `const API_TOKEN` to `let API_TOKEN` in [`public/dashboard.html`](public/dashboard.html:1076) to allow runtime updates and prevent `TypeError` assignment errors when updating tokens.

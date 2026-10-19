@@ -507,6 +507,14 @@ class RingBuffer {
     this.buffer = [];
     this.index = 0;
   }
+
+  replaceLast(item) {
+    if (this.buffer.length === 0) return;
+    const lastIdx = (this.buffer.length < this.maxSize) ?
+                    (this.buffer.length - 1) :
+                    ((this.index - 1 + this.maxSize) % this.maxSize);
+    this.buffer[lastIdx] = item;
+  }
 }
 
 const logBuffer = new RingBuffer(1000);
@@ -698,12 +706,7 @@ function pushLog(message) {
      const lastEntry = logBuffer.getAll().pop();
      if (lastEntry && lastEntry.includes(message)) {
        // Replace the last entry with grouped version
-       logBuffer.push(`[${new Date().toLocaleTimeString()}] ${message} (x${global.logMessageCount + 1})`);
-       // Remove the previous entry since we're replacing it
-       if (logBuffer.buffer.length > 0) {
-         logBuffer.buffer.pop();
-         if (logBuffer.index > 0) logBuffer.index--;
-       }
+       logBuffer.replaceLast(`[${new Date().toLocaleTimeString()}] ${message} (x${global.logMessageCount + 1})`);
      }
    } else {
      // New message or timeout exceeded, reset counter and log normally
