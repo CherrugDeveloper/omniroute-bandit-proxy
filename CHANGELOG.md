@@ -2,6 +2,11 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.59 — 2026-10-19
+- **Dashboard Redesign & Considerazioni Tab Removal**:
+  - Removed the redundant `consideration` tab from [`public/dashboard.html`](public/dashboard.html:828) and integrated the model evaluation spec sheet and detailed evaluation table directly into the Live Logs & Scarti tab (`logs`).
+  - Refined proxy error classification, retry loop resilience, and `/v1/metrics` stats reporting across [`src/bandit.mjs`](src/bandit.mjs:100) and [`src/index.mjs`](src/index.mjs:800).
+
 ## v1.1.58 — 2026-10-19
 - **Chronological Discarded Models Spec Sheet, Top Panel Integration & Per-Group Provider Quota**:
   - Integrated the model evaluation specchietto and considerations directly into the top panel of [`public/dashboard.html`](public/dashboard.html:823) for real-time visibility of evaluated models, rejection reasons, and selection flows.
