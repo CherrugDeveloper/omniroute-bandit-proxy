@@ -436,16 +436,6 @@ export class DiscountedUCB1Bandit {
         return /(:free|-free|_free|\/free)/.test(lower) || lower.includes(":free");
       };
 
-      const isChatModel = (m, id) => {
-        const lowerId = String(id).toLowerCase();
-
-        // Only exclude batch, rerank, moderation
-        if (/:batch\b/.test(lowerId)) return false;
-        if (/(^|[-_/])(rerank|moderation)([-_/]|$)/.test(lowerId)) return false;
-
-        return true;
-      };
-
       const syncCatalog = this.db.transaction((models) => {
         this.db.prepare("DELETE FROM catalog").run();
         let inserted = 0;
@@ -458,10 +448,6 @@ export class DiscountedUCB1Bandit {
           raw++;
 
           if (modelId.startsWith("auto/") || modelId.startsWith("gh/")) {
-            continue;
-          }
-
-          if (!isChatModel(m, modelId)) {
             skipped++;
             continue;
           }
@@ -478,6 +464,8 @@ export class DiscountedUCB1Bandit {
           let supportsImageGeneration = 0;
           let supportsAudioGeneration = 0;
 
+          const isBatch = /:batch\b/.test(lowerId);
+          const isRerankOrMod = /(^|[-_/])(rerank|moderation)([-_/]|$)/.test(lowerId);
           const isEmbed = /(^|[-_/])(embed|embedding|embeddings|rerank|moderation|batch)([-_/]|$)/i.test(lowerId);
           const isAudio = /(^|[-_/])(tts|text-to-speech|speech|stt|speech-to-text|whisper|voice|audio)([-_/]|$)/i.test(lowerId) && !lowerId.includes("omni") && !lowerId.includes("chat");
           const isAihordeId = lowerId.startsWith("aihorde/") || lowerId.includes("aihorde");
@@ -488,7 +476,13 @@ export class DiscountedUCB1Bandit {
             isImageGenId
           );
 
-          if (isEmbed) {
+          if (isBatch) {
+            capability = 'batch';
+            supportsChat = 0;
+          } else if (isRerankOrMod) {
+            capability = lowerId.includes('rerank') ? 'rerank' : 'moderation';
+            supportsChat = 0;
+          } else if (isEmbed) {
             capability = 'embedding';
             supportsChat = 0;
           } else if (isAudio) {
@@ -508,8 +502,11 @@ export class DiscountedUCB1Bandit {
       });
 
       const { inserted, skipped, raw } = syncCatalog(modelList);
+      this._rankCache = { at: 0, map: new Map() };
       this._setMeta("catalogRawCount", raw);
-      console.log(`[BANDIT] Catalog sincronizzato: ${inserted} modelli chat (esclusi ${skipped} non-chat su ${raw} totali)`);
+      this._setMeta("catalogTotal", inserted);
+      this._setMeta("lastSyncTimestamp", Date.now());
+      console.log(`[BANDIT] Catalog sincronizzato: ${inserted} modelli totali (inclusi chat e non-chat, esclusi ${skipped} ignorati su ${raw} totali)`);
     } catch (err) {
       console.error("[BANDIT] Errore durante fetch modelli:", err.message);
       throw err;

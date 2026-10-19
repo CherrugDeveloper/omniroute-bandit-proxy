@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.53 — 2026-10-19
+- **Catalog Non-Chat Models Inclusion & Rank Cache Invalidation**:
+  - Removed restrictive `isChatModel` check in [`src/bandit.mjs`](src/bandit.mjs:436) that previously skipped non-chat models during catalog sync.
+  - Upgraded capability classification in [`src/bandit.mjs`](src/bandit.mjs:478) to correctly handle batch, rerank, embedding, audio, and image generation models.
+  - Reset `_rankCache` and updated sync metadata (`catalogTotal`, `lastSyncTimestamp`) post-catalog sync in [`src/bandit.mjs`](src/bandit.mjs:505).
+
 ## v1.1.52 — 2026-10-19
 - **Fix Telegram URL Mutation in Notifier**:
   - Introduced local `targetUrl` variable in [`src/notifier.mjs`](src/notifier.mjs:51) when processing Telegram webhook notifications, ensuring `chat_id` query parameter removal does not mutate the original url parameter across subsequent requests.
