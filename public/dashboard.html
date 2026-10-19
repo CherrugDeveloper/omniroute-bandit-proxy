@@ -807,26 +807,17 @@
             </div>
         </div>
 
-    <!-- Persistent Unified Widget: Active Requests, Recent History & Chronological Spec Sheet -->
+    <!-- Persistent Unified Widget: Active Requests & Recent History with Integrated Scarti & Selezione Spec Sheet -->
     <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <h3 style="margin:0; color:#58a6ff; font-size:14px; display:flex; align-items:center; gap:8px;">
-                <span>⚡</span> Richieste in Corso, Storico Recente & Ultima Valutazione (Scarti & Selezione)
+                <span>⚡</span> Richieste in Corso & Storico Recente (con Specchietto Scarti & Selezione Integrato)
             </h3>
             <button id="unified-widget-toggle" onclick="toggleUnifiedWidget()" style="background:none; border:none; color:#8b949e; cursor:pointer; font-size:12px; padding:2px 6px;" title="Comprimi / Espandi">▼</button>
         </div>
         <div id="unified-widget-content">
-            <div id="active-panel" class="active-panel" style="display:block; margin-bottom:12px;">
+            <div id="active-panel" class="active-panel" style="display:block;">
                 <div id="active-list"></div>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; border-top:1px solid #30363d; padding-top:10px;">
-                <h4 style="margin:0; color:#c9d1d9; font-size:13px; display:flex; align-items:center; gap:6px;">
-                    <span>📋</span> Specchietto Cronologico Ultima Richiesta (Scarti & Selezione)
-                </h4>
-            </div>
-            <p style="font-size:11px; color:#8b949e; margin:0 0 6px 0;">Elenco cronologico dei modelli valutati, scartati o selezionati nell'ultima richiesta di chat.</p>
-            <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:200px; overflow-y:auto; background:#0d1117; padding:8px 10px; border-radius:4px; border:1px solid #21262d;">
-                Nessuna richiesta recente
             </div>
         </div>
     </div>
@@ -2529,20 +2520,15 @@
                     const arrowCls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
 
                     const tried = r.triedModels && r.triedModels.length > 0 ? r.triedModels.join(', ') : 'nessuno';
-                    const history = r.selectionHistory && r.selectionHistory.length > 0
-                        ? r.selectionHistory.map(sh => `${sh.id} (${sh.provider}): ${sh.reason}`).join(' | ')
-                        : 'nessuno';
-                    const tooltip = `Modello in corso: ${model}\nVecchi modelli tentati: ${tried}\nScarti analisi modelli: ${history}`;
+                    const history = r.selectionHistory && r.selectionHistory.length > 0 ? r.selectionHistory : [];
 
                     let extraBadges = '';
+                    const rejectedCount = history.filter(sh => sh.status === 'rejected').length;
                     if (r.triedModels && r.triedModels.length > 0) {
                         extraBadges += ` <span style="font-size:10px; color:#d29922; background:rgba(210,153,34,0.1); padding:1px 4px; border-radius:3px;" title="Tentati: ${escapeHtml(tried)}">tried: ${r.triedModels.length}</span>`;
                     }
-                    if (r.selectionHistory && r.selectionHistory.length > 0) {
-                        const rejectedCount = r.selectionHistory.filter(sh => sh.status === 'rejected').length;
-                        if (rejectedCount > 0) {
-                            extraBadges += ` <span style="font-size:10px; color:#f85149; background:rgba(248,81,73,0.1); padding:1px 4px; border-radius:3px;" title="${escapeHtml(history)}">scarti: ${rejectedCount}</span>`;
-                        }
+                    if (rejectedCount > 0) {
+                        extraBadges += ` <span style="font-size:10px; color:#f85149; background:rgba(248,81,73,0.1); padding:1px 4px; border-radius:3px;" title="Scarti: ${rejectedCount}">scarti: ${rejectedCount}</span>`;
                     }
 
                     let timeTxt, durTxt;
@@ -2555,16 +2541,41 @@
                         durTxt = Number(r.durationSec).toFixed(1) + 's';
                     }
 
-                    return '<div class="active-request ' + (kind === 'recent' ? 'recent' : '') + '" title="' + escapeHtml(tooltip) + '">' +
-                        '<span class="src-status"><span class="src-icon ' + srcCls + '">' + srcIcon + '</span><span>' + status + '</span></span>' +
-                        '<span class="model">' + escapeHtml(model) + extraBadges + '</span>' +
-                        '<span class="mi-rank">' + rankTxt + '</span>' +
-                        '<span class="mi-n">' + nTxt + '</span>' +
-                        '<span class="mi-avg">' + avgTxt + '</span>' +
-                        '<span class="mi-trend ' + arrowCls + '">' + arrow + '</span>' +
-                        '<span class="attempt">' + timeTxt + '</span>' +
-                        '<span class="elapsed">' + durTxt + '</span>' +
-                    '</div>';
+                    let specItemsHtml = '<div style="font-size:11px; color:#8b949e; padding:6px 10px; background:#0d1117; border-top:1px solid #30363d; margin-top:4px; border-radius:0 0 4px 4px;">';
+                    specItemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom:4px; font-weight:600; color:#58a6ff;"><span>📋 Specchietto Scarti & Selezione Candidati (${history.length} considerati)</span><span>Tentati: ${escapeHtml(tried)}</span></div>`;
+                    if (history.length === 0) {
+                        specItemsHtml += '<div style="color:#8b949e; font-style:italic;">Nessun dettaglio di selezione registrato per questa richiesta.</div>';
+                    } else {
+                        specItemsHtml += '<div style="display:flex; flex-direction:column; gap:3px; max-height:160px; overflow-y:auto;">';
+                        history.forEach((sh, idx) => {
+                            const isSel = sh.status === 'selected';
+                            const col = isSel ? '#3fb950' : '#f85149';
+                            const bg = isSel ? 'rgba(63,185,80,0.08)' : 'rgba(248,81,73,0.08)';
+                            const label = isSel ? 'SELEZIONATO ✅' : `SCARTATO ❌ (${sh.reason || 'unknown'})`;
+                            specItemsHtml += `<div style="display:flex; justify-content:space-between; align-items:center; background:${bg}; padding:3px 6px; border-radius:3px; border-left:3px solid ${col};">
+                                <div><code>#${idx+1} ${escapeHtml(sh.id)}</code> <span style="color:#8b949e; font-size:10px;">[${escapeHtml(sh.provider)}]</span></div>
+                                <div style="color:${col}; font-weight:600; font-size:10px;">${escapeHtml(label)}</div>
+                            </div>`;
+                        });
+                        specItemsHtml += '</div>';
+                    }
+                    specItemsHtml += '</div>';
+
+                    const rowId = 'req-row-' + Math.random().toString(36).substring(2, 9);
+
+                    return `<div class="active-request-container ${kind === 'recent' ? 'recent' : ''}" style="margin-bottom:4px; border:1px solid #30363d; border-radius:4px; background:#161b22; overflow:hidden;">` +
+                        `<div class="active-request" style="cursor:pointer; padding:4px 8px;" onclick="const d = document.getElementById('${rowId}'); d.style.display = d.style.display === 'none' ? 'block' : 'none';" title="Clicca per espandere/comprimere lo specchietto scarti & selezione">' +
+                            '<span class="src-status"><span class="src-icon ' + srcCls + '">' + srcIcon + '</span><span>' + status + '</span></span>' +
+                            '<span class="model">' + escapeHtml(model) + extraBadges + ' <span style="font-size:10px; color:#58a6ff; float:right;">[📋 specchietto ▾]</span></span>' +
+                            '<span class="mi-rank">' + rankTxt + '</span>' +
+                            '<span class="mi-n">' + nTxt + '</span>' +
+                            '<span class="mi-avg">' + avgTxt + '</span>' +
+                            '<span class="mi-trend ' + arrowCls + '">' + arrow + '</span>' +
+                            '<span class="attempt">' + timeTxt + '</span>' +
+                            '<span class="elapsed">' + durTxt + '</span>' +
+                        '</div>' +
+                        `<div id="${rowId}" style="display:${kind === 'active' ? 'block' : 'none'};">` + specItemsHtml + `</div>` +
+                    `</div>`;
                 }
                 const nActive = (d.requests || []).length;
                 const nRecent = (d.recent || []).length;

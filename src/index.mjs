@@ -682,6 +682,8 @@ function trackRequestComplete(id, meta) {
       avg: info?.avg ?? null,
       trend: info?.trend ?? 'flat',
       rank,
+      selectionHistory: r.selectionHistory || bandit.getLastSelectionHistory(),
+      triedModels: r.triedModels || []
     });
   }
 }
