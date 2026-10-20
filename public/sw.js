@@ -1,7 +1,6 @@
-const CACHE_NAME = 'omniroute-pwa-v1';
+const CACHE_NAME = 'omniroute-pwa-v2';
 const ASSETS_TO_CACHE = [
-  '/dashboard',
-  '/v1/metrics'
+  '/dashboard'
 ];
 
 self.addEventListener('install', (event) => {
@@ -25,16 +24,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.url.includes('/v1/metrics') || event.request.url.includes('/v1/logs')) {
-    // Le metriche e i log usano la rete con fallback su cache o errore
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
-  } else {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        return cachedResponse || fetch(event.request);
-      })
-    );
+  const url = new URL(event.request.url);
+  // Never intercept or cache API endpoints (/v1/)
+  if (url.pathname.startsWith('/v1/')) {
+    return;
   }
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      return cachedResponse || fetch(event.request);
+    })
+  );
 });
