@@ -1096,8 +1096,11 @@
             }
             const headers = { ...(opts.headers || {}) };
             if (API_TOKEN) headers['x-api-token'] = API_TOKEN;
+            console.log(`[DEBUG Dashboard Client] Fetching ${url} with token present: ${Boolean(API_TOKEN)}, token length: ${API_TOKEN.length}`);
             const res = await fetch(url, { ...opts, headers });
+            console.log(`[DEBUG Dashboard Client] Response for ${url}: status=${res.status}, ok=${res.ok}`);
             if (res.status === 401) {
+                console.warn(`[DEBUG Dashboard Client] Received 401 Unauthorized for ${url}`);
                 handleUnauthorized();
             }
             return res;
@@ -2291,10 +2294,14 @@
                 const r = await apiFetch('/v1/dashboard/stats');
                 console.log('[DEBUG dashboard] /v1/dashboard/stats response status:', r.status, 'ok:', r.ok);
                 if (r.status === 401) {
+                    show401Banner();
                     handleUnauthorized();
                     return;
                 }
-                if (!r.ok) return;
+                if (!r.ok) {
+                    console.warn('[DEBUG dashboard] /v1/dashboard/stats non-OK status:', r.status);
+                    return;
+                }
                 const existingBanner = document.querySelector('div[style*="background:#f85149"]');
                 if (existingBanner) existingBanner.remove();
                 authBannerShown = false;
@@ -2346,7 +2353,13 @@
                 document.getElementById('catalog-providers').textContent = d.catalogProviders ?? 0;
 
                 renderAll();
-            } catch (e) { console.error('Errore fetch:', e); }
+            } catch (e) {
+                console.error('Errore fetch dashboard stats:', e);
+                const topModelEl = document.getElementById('top-model');
+                if (topModelEl && topModelEl.textContent === '—') {
+                    topModelEl.textContent = 'Errore connessione';
+                }
+            }
             finally { refreshing = false; }
         }
 
