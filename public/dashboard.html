@@ -1075,14 +1075,32 @@
         // === Auth token (persistente tra tab) ===
         let API_TOKEN =
             new URLSearchParams(location.search).get('token') ||
+            localStorage.getItem('omniroute_token') ||
+            localStorage.getItem('omniroute_dashboard_token') ||
             localStorage.getItem('api_token') ||
             '';
-        if (API_TOKEN) localStorage.setItem('api_token', API_TOKEN);
+        if (API_TOKEN) {
+            localStorage.setItem('omniroute_token', API_TOKEN);
+            localStorage.setItem('omniroute_dashboard_token', API_TOKEN);
+            localStorage.setItem('api_token', API_TOKEN);
+        }
 
-        function apiFetch(url, opts = {}) {
+        async function apiFetch(url, opts = {}) {
+            if (!API_TOKEN) {
+                API_TOKEN =
+                    new URLSearchParams(location.search).get('token') ||
+                    localStorage.getItem('omniroute_token') ||
+                    localStorage.getItem('omniroute_dashboard_token') ||
+                    localStorage.getItem('api_token') ||
+                    '';
+            }
             const headers = { ...(opts.headers || {}) };
             if (API_TOKEN) headers['x-api-token'] = API_TOKEN;
-            return fetch(url, { ...opts, headers });
+            const res = await fetch(url, { ...opts, headers });
+            if (res.status === 401) {
+                handleUnauthorized();
+            }
+            return res;
         }
 
         // ===== MODALI CUSTOM =====
@@ -1212,11 +1230,13 @@
                 });
                 if (token && typeof token === 'string' && token.trim() !== '') {
                     API_TOKEN = token.trim();
+                    localStorage.setItem('omniroute_token', API_TOKEN);
+                    localStorage.setItem('omniroute_dashboard_token', API_TOKEN);
                     localStorage.setItem('api_token', API_TOKEN);
                     authBannerShown = false;
                     const banner = document.querySelector('div[style*="background:#f85149"]');
                     if (banner) banner.remove();
-                    refreshAll();
+                    if (typeof refreshAll === 'function') refreshAll();
                 } else {
                     show401Banner();
                 }
@@ -2921,6 +2941,14 @@
         
         // Helper function to get auth headers
         function authHeaders() {
+            if (!API_TOKEN) {
+                API_TOKEN =
+                    new URLSearchParams(location.search).get('token') ||
+                    localStorage.getItem('omniroute_token') ||
+                    localStorage.getItem('omniroute_dashboard_token') ||
+                    localStorage.getItem('api_token') ||
+                    '';
+            }
             const headers = {};
             if (API_TOKEN) headers['x-api-token'] = API_TOKEN;
             return headers;
@@ -2945,6 +2973,11 @@
                     data = text ? JSON.parse(text) : {};
                 } catch (jsonErr) {
                     throw new Error(`Risposta non valida dal server (${res.status}): ${text.substring(0, 100)}`);
+                }
+
+                if (res.status === 401) {
+                    handleUnauthorized();
+                    return;
                 }
 
                 if (!res.ok) {
@@ -3086,6 +3119,11 @@
                 
                 try {
                     const res = await fetch(`/v1/scripts/output/${pid}`, { headers: authHeaders() });
+                    if (res.status === 401) {
+                        handleUnauthorized();
+                        isStopped = true;
+                        break;
+                    }
                     if (!res.ok) {
                         idleCount++;
                         if (idleCount > 15) {
