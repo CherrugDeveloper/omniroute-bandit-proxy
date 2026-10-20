@@ -1106,6 +1106,17 @@
             return res;
         }
 
+        async function safeJson(res) {
+            try {
+                const text = await res.text();
+                if (!text || text.trim() === '') return {};
+                return JSON.parse(text);
+            } catch (e) {
+                console.warn('[Dashboard] Failed to parse JSON response:', e);
+                return {};
+            }
+        }
+
         // ===== MODALI CUSTOM =====
         function showModal({ title, icon = '❓', message, confirmText = 'OK', cancelText = 'Annulla',
                              confirmStyle = 'primary', danger = false, prompt = null, promptPlaceholder = '' }) {
@@ -2305,7 +2316,7 @@
                 const existingBanner = document.querySelector('div[style*="background:#f85149"]');
                 if (existingBanner) existingBanner.remove();
                 authBannerShown = false;
-                const d = await r.json();
+                const d = await safeJson(r);
                 console.log('[DEBUG dashboard] /v1/dashboard/stats data:', d);
                 allData = d;
 
@@ -2369,7 +2380,7 @@
                 const r = await apiFetch('/v1/quota');
                 if (r.status === 401) { handleUnauthorized(); return; }
                 if (!r.ok) return;
-                const d = await r.json();
+                const d = await safeJson(r);
                 renderProviderQuota(d);
             } catch (e) { console.error('Errore fetch quota:', e); }
         }
