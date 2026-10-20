@@ -9,7 +9,7 @@ import ProviderQuota from './provider-quota.mjs';
 
 export class DiscountedUCB1Bandit {
   constructor(dbPath = "bandit.db") {
-    console.log(`[DIAGNOSTIC] Initializing database at ${dbPath}`);
+    if (typeof DEBUG !== 'undefined' && DEBUG) console.log(`[DIAGNOSTIC] Initializing database at ${dbPath}`);
     this.db = new Database(dbPath);
     this.db.function('REGEXP', (pattern, text) => {
       return new RegExp(pattern, 'i').test(String(text || '')) ? 1 : 0;
@@ -1255,7 +1255,7 @@ export class DiscountedUCB1Bandit {
   getDashboardStats() {
     try {
       const totalRequests = this._getMeta("totalRequests") || 0;
-      console.log(`[DEBUG DashboardStats Validation] totalRequests from meta: ${totalRequests}`);
+      if (typeof DEBUG !== 'undefined' && DEBUG) console.log(`[DEBUG DashboardStats Validation] totalRequests from meta: ${totalRequests}`);
       const totalObservations = this._getMeta("totalObservations") || 0;
 
       let stats = { totalN: 0, totalReward: 0, avgReward: 0 };
@@ -1729,10 +1729,16 @@ export class DiscountedUCB1Bandit {
       });
     };
 
-    // 1. Try strict filtering
+    // --- MODEL SELECTION RELAXATION STRATEGY ---
+    // We attempt to find the best model by progressively relaxing constraints.
+    // This ensures we always try to provide the highest quality/correct model first,
+    // but avoid total failure if the strict environment is too restrictive.
+
+    // Tier 0: Strict Filtering (The Ideal Case)
     let availableModels = filterModels();
 
-    // 2. If no models available, try to reset stale provider flags and retry strict filtering
+    // Tier 0.1: Maintenance Recovery
+    // If no models, reset expired provider flags and retry strict filtering.
     if (availableModels.length === 0) {
       this.db.prepare(`
         UPDATE provider_history
@@ -1749,27 +1755,27 @@ export class DiscountedUCB1Bandit {
       availableModels = filterModels();
     }
 
-    // 3. Relaxation Tier 1: Relax tool requirements (keep token limits strict!)
+    // Tier 1: Capability Relaxation (Ignore Tool requirements)
     if (availableModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT] Relaxation tier 1: relaxing tool requirements`);
+      if (DEBUG) console.log(`[BANDIT] Relaxation Tier 1: Ignoring tool requirements`);
       availableModels = filterModels({ ignoreTools: true });
     }
 
-    // 4. Relaxation Tier 2: Relax policies (excludePaid, onlyFree, excludeThinking) (keep token limits strict!)
+    // Tier 2: Policy Relaxation (Ignore excludePaid, onlyFree, excludeThinking)
     if (availableModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT] Relaxation tier 2: relaxing policies (excludePaid, onlyFree, excludeThinking)`);
+      if (DEBUG) console.log(`[BANDIT] Relaxation Tier 2: Ignoring usage policies`);
       availableModels = filterModels({ ignoreTools: true, ignorePolicies: true });
     }
 
-    // 5. Relaxation Tier 3: Relax token limits (keep tool/policy relaxation)
+    // Tier 3: Resource Relaxation (Ignore token limits)
     if (availableModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT] Relaxation tier 3: relaxing token limits`);
+      if (DEBUG) console.log(`[BANDIT] Relaxation Tier 3: Ignoring token limits`);
       availableModels = filterModels({ ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 
-    // 6. Emergency Last Resort: Relax cooldowns as well
+    // Tier 4: Emergency Relaxation (Ignore Cooldowns)
     if (availableModels.length === 0) {
-      console.warn(`[BANDIT] Warning: All models filtered out by constraints. Applying emergency last-resort selection.`);
+      console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
       availableModels = filterModels({ ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 

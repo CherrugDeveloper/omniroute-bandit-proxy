@@ -73,11 +73,13 @@ export function isImageGenerationRequest(body) {
          'generate image', 'create image', 'draw', 'paint',
          'make a picture', 'create a picture', 'generate picture',
          'text to image', 'image from text', 'create artwork',
-         'generate artwork', 'make an image'
+         'generate artwork', 'make an image', 'visualize', 'render'
        ];
 
+       const contentLower = content.toLowerCase();
        return imageGenerationKeywords.some(keyword =>
-         content.toLowerCase().includes(keyword));
+         contentLower.includes(keyword)) ||
+         /^(generate|create|draw|paint)\s+(a|an|the)?\s*(image|picture|artwork|illustration|portrait|landscape)/i.test(contentLower);
      }
    }
 
@@ -472,9 +474,13 @@ function requireAuth(req, res, next) {
   const token = req.get("x-api-token") || req.query.token;
   const validToken = (process.env.DASHBOARD_TOKEN || "").trim() || (process.env.OMNIROUTE_API_KEY || "").trim();
   const match = token === validToken || (process.env.DASHBOARD_TOKEN && token === process.env.DASHBOARD_TOKEN.trim()) || (process.env.OMNIROUTE_API_KEY && token === process.env.OMNIROUTE_API_KEY.trim());
-  console.log(`[DEBUG AUTH] Checking auth for ${req.path}: REQUIRE_AUTH=${REQUIRE_AUTH}, tokenProvided=${Boolean(token)}, match=${match}`);
+  if (debugVerbose) {
+    console.log(`[DEBUG AUTH] Checking auth for ${req.path}: REQUIRE_AUTH=${REQUIRE_AUTH}, tokenProvided=${Boolean(token)}, match=${match}`);
+  }
   if (!match) {
-    console.warn(`[DEBUG server] Unauthorized access attempt to ${req.path}. Token provided: ${Boolean(token)}, expected length: ${validToken.length}, received length: ${token ? token.length : 0}`);
+    if (debugVerbose) {
+      console.warn(`[DEBUG server] Unauthorized access attempt to ${req.path}. Token provided: ${Boolean(token)}, expected length: ${validToken.length}, received length: ${token ? token.length : 0}`);
+    }
     return res.status(401).json({ error: { message: "Unauthorized" } });
   }
   next();
@@ -1841,7 +1847,9 @@ trackRequestUpdate(requestId, {
 
       if (!r.ok || r.status === 499) {
         const txt = await r.text().catch(() => "");
-        console.error(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
+        if (debugVerbose) {
+          console.error(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
+        }
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
 
