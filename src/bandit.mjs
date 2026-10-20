@@ -1231,6 +1231,7 @@ export class DiscountedUCB1Bandit {
 
   getDashboardStats() {
     const totalRequests = this._getMeta("totalRequests");
+    console.log(`[DEBUG DashboardStats Validation] totalRequests from meta: ${totalRequests}`);
     const totalObservations = this._getMeta("totalObservations");
 
     const stats = this.db.prepare(`
