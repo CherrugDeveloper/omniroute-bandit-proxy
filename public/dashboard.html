@@ -2600,7 +2600,7 @@
                     const rowId = 'req-row-' + Math.random().toString(36).substring(2, 9);
 
                     return `<div class="active-request-container ${kind === 'recent' ? 'recent' : ''}" style="margin-bottom:4px; border:1px solid #30363d; border-radius:4px; background:#161b22; overflow:hidden;">` +
-                        `<div class="active-request" style="cursor:pointer; padding:4px 8px;" onclick="const d = document.getElementById('${rowId}'); d.style.display = d.style.display === 'none' ? 'block' : 'none';" title="Clicca per espandere/comprimere lo specchietto scarti & selezione">' +
+                        `<div class="active-request" style="cursor:pointer; padding:4px 8px;" onclick="const d = document.getElementById('${rowId}'); d.style.display = d.style.display === 'none' ? 'block' : 'none';" title="Clicca per espandere/comprimere lo specchietto scarti & selezione">` +
                             '<span class="src-status"><span class="src-icon ' + srcCls + '">' + srcIcon + '</span><span>' + status + '</span></span>' +
                             '<span class="model">' + escapeHtml(model) + extraBadges + ' <span style="font-size:10px; color:#58a6ff; float:right;">[📋 specchietto ▾]</span></span>' +
                             '<span class="mi-rank">' + rankTxt + '</span>' +

@@ -2,6 +2,10 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.64 — 2026-10-20
+- **Fix Syntax Errors in Dashboard**:
+  - Corrected minor syntax errors and ensured clean structure in [`public/dashboard.html`](public/dashboard.html:1).
+
 ## v1.1.63 — 2026-10-20
 - **Refactor Dashboard UI**:
   - Improved UI efficiency by removing unnecessary `document.hidden` checks in [`public/dashboard.html`](public/dashboard.html:1).
