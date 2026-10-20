@@ -464,7 +464,8 @@ const healthChecker = new HealthChecker(bandit, {
 // ========================================
 
 const DASHBOARD_TOKEN = (process.env.DASHBOARD_TOKEN || process.env.OMNIROUTE_API_KEY || "").trim();
-const REQUIRE_AUTH = DASHBOARD_TOKEN.length > 0;
+const isPlaceholderToken = !DASHBOARD_TOKEN || DASHBOARD_TOKEN === "your_api_key_here" || DASHBOARD_TOKEN === "YourSecureTokenHere";
+const REQUIRE_AUTH = !isPlaceholderToken && DASHBOARD_TOKEN.length > 0;
 
 function requireAuth(req, res, next) {
   if (!REQUIRE_AUTH) return next();

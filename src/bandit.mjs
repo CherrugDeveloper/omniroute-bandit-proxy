@@ -1230,116 +1230,195 @@ export class DiscountedUCB1Bandit {
   }
 
   getDashboardStats() {
-    const totalRequests = this._getMeta("totalRequests");
-    console.log(`[DEBUG DashboardStats Validation] totalRequests from meta: ${totalRequests}`);
-    const totalObservations = this._getMeta("totalObservations");
-
-    const stats = this.db.prepare(`
-      SELECT
-        SUM(N) as totalN,
-        SUM(sum_reward) as totalReward,
-        AVG(CASE WHEN N > 0 THEN sum_reward / N ELSE NULL END) as avgReward
-      FROM models
-    `).get();
-
-    let latency = { avgLatency: 0 };
     try {
-      const latencyResult = this.db.prepare(`
-        SELECT AVG(duration) as avgLatency
-        FROM (
-          SELECT (ended_at - started_at) as duration
-          FROM request_logs
-          WHERE ended_at IS NOT NULL AND started_at IS NOT NULL
-          ORDER BY ended_at DESC
-          LIMIT 1000
-        )
-      `).get();
-      if (latencyResult && latencyResult.avgLatency !== null) {
-        latency = latencyResult;
+      const totalRequests = this._getMeta("totalRequests") || 0;
+      console.log(`[DEBUG DashboardStats Validation] totalRequests from meta: ${totalRequests}`);
+      const totalObservations = this._getMeta("totalObservations") || 0;
+
+      let stats = { totalN: 0, totalReward: 0, avgReward: 0 };
+      try {
+        const res = this.db.prepare(`
+          SELECT
+            SUM(N) as totalN,
+            SUM(sum_reward) as totalReward,
+            AVG(CASE WHEN N > 0 THEN sum_reward / N ELSE NULL END) as avgReward
+          FROM models
+        `).get();
+        if (res) stats = res;
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats models query error:", e.message);
       }
+
+      let latency = { avgLatency: 0 };
+      try {
+        const latencyResult = this.db.prepare(`
+          SELECT AVG(duration) as avgLatency
+          FROM (
+            SELECT (ended_at - started_at) as duration
+            FROM request_logs
+            WHERE ended_at IS NOT NULL AND started_at IS NOT NULL
+            ORDER BY ended_at DESC
+            LIMIT 1000
+          )
+        `).get();
+        if (latencyResult && latencyResult.avgLatency !== null) {
+          latency = latencyResult;
+        }
+      } catch (e) {
+        console.warn("[BANDIT] Errore calcolo latenza (request_logs mancante?):", e.message);
+      }
+
+      // freeActive: check both model-level and provider-level status
+      let freeActive = { count: 0 };
+      try {
+        freeActive = this.db.prepare(`
+          SELECT COUNT(*) as count
+          FROM models m
+          JOIN catalog c ON m.id = c.id
+          LEFT JOIN provider_history ph ON c.provider = ph.provider
+          WHERE c.is_free = 1
+            AND (m.cooldown_until IS NULL OR m.cooldown_until <= ?)
+            AND m.permanent = 0
+            AND m.degraded = 0
+            AND (ph.cooldown_until IS NULL OR ph.cooldown_until <= ? OR ph.cooldown_until = 0)
+            AND (ph.permanent IS NULL OR ph.permanent = 0)
+            AND (ph.needs_attention IS NULL OR ph.needs_attention = 0)
+        `).get(Date.now(), Date.now()) || { count: 0 };
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats freeActive query error:", e.message);
+      }
+
+      let topModel = null;
+      try {
+        const topRes = this.db.prepare(`
+          SELECT id, (sum_reward / NULLIF(N, 0)) as avg
+          FROM models
+          WHERE N >= 10
+          ORDER BY avg DESC
+          LIMIT 1
+        `).get();
+        if (topRes) topModel = topRes.id;
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats topModel query error:", e.message);
+      }
+
+      let catalogCounts = { total: 0, free: 0 };
+      try {
+        const catRes = this.db.prepare(`
+          SELECT COUNT(*) as total, SUM(is_free) as free
+          FROM catalog
+        `).get();
+        if (catRes) catalogCounts = catRes;
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats catalogCounts query error:", e.message);
+      }
+
+      let totalModels = { count: 0 };
+      try {
+        const tmRes = this.db.prepare(`
+          SELECT COUNT(*) as count
+          FROM models
+        `).get();
+        if (tmRes) totalModels = tmRes;
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats totalModels query error:", e.message);
+      }
+
+      let modelsSummary = { active: 0, cooldown: 0, banned: 0, degraded: 0 };
+      try {
+        modelsSummary = this.getModelsSummary("prod") || modelsSummary;
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats getModelsSummary error:", e.message);
+      }
+
+      let providersList = [];
+      try {
+        providersList = this.getProviders() || [];
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats getProviders error:", e.message);
+      }
+
+      const providersActive = providersList.filter(p => !p.permanent && !p.needs_attention && p.cooldownRemaining === 0).length;
+      const providersCooldown = providersList.filter(p => p.cooldownRemaining > 0).length;
+      const providersBanned = providersList.filter(p => p.permanent).length;
+      const providersAttention = providersList.filter(p => p.needs_attention).length;
+      const totalProviders = providersList.length;
+
+      let catalogProviders = 0;
+      try {
+        const catalogProvidersResult = this.db.prepare(`
+          SELECT COUNT(DISTINCT provider) as count FROM catalog
+        `).get();
+        if (catalogProvidersResult) catalogProviders = catalogProvidersResult.count;
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats catalogProviders error:", e.message);
+      }
+
+      // Compute success rate from models table
+      let successRateStats = { modelsWithObservations: 0, modelsAboveThreshold: 0 };
+      try {
+        const srRes = this.db.prepare(`
+          SELECT
+            SUM(CASE WHEN N > 0 THEN 1 ELSE 0 END) as modelsWithObservations,
+            SUM(CASE WHEN N > 0 AND sum_reward / N > 0.5 THEN 1 ELSE 0 END) as modelsAboveThreshold
+          FROM models
+        `).get();
+        if (srRes) successRateStats = srRes;
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats successRateStats error:", e.message);
+      }
+
+      return {
+        totalRequests,
+        totalObservations,
+        avgReward: (stats && stats.avgReward !== null) ? stats.avgReward : 0,
+        avgLatencySec: (latency.avgLatency || 0) / 1000,
+        freeActive: freeActive.count || 0,
+        topModel,
+        catalogTotal: catalogCounts.total || 0,
+        catalogFree: catalogCounts.free || 0,
+        catalogProviders,
+        totalModels: totalModels.count || 0,
+        modelsActive: modelsSummary.active || 0,
+        modelsCooldown: modelsSummary.cooldown || 0,
+        modelsBanned: modelsSummary.banned || 0,
+        modelsDegraded: modelsSummary.degraded || 0,
+        modelsAttention: 0,
+        providersActive,
+        providersCooldown,
+        providersBanned,
+        providersAttention,
+        totalProviders,
+        successRate: (successRateStats && successRateStats.modelsWithObservations > 0)
+          ? (successRateStats.modelsAboveThreshold / successRateStats.modelsWithObservations)
+          : 0
+      };
     } catch (e) {
-      console.warn("[BANDIT] Errore calcolo latenza (request_logs mancante?):", e.message);
+      console.error("[BANDIT] Critical error in getDashboardStats:", e.message);
+      return {
+        totalRequests: 0,
+        totalObservations: 0,
+        avgReward: 0,
+        avgLatencySec: 0,
+        freeActive: 0,
+        topModel: null,
+        catalogTotal: 0,
+        catalogFree: 0,
+        catalogProviders: 0,
+        totalModels: 0,
+        modelsActive: 0,
+        modelsCooldown: 0,
+        modelsBanned: 0,
+        modelsDegraded: 0,
+        modelsAttention: 0,
+        providersActive: 0,
+        providersCooldown: 0,
+        providersBanned: 0,
+        providersAttention: 0,
+        totalProviders: 0,
+        successRate: 0
+      };
     }
-
-    // freeActive: check both model-level and provider-level status
-    const freeActive = this.db.prepare(`
-      SELECT COUNT(*) as count
-      FROM models m
-      JOIN catalog c ON m.id = c.id
-      LEFT JOIN provider_history ph ON c.provider = ph.provider
-      WHERE c.is_free = 1
-        AND (m.cooldown_until IS NULL OR m.cooldown_until <= ?)
-        AND m.permanent = 0
-        AND m.degraded = 0
-        AND (ph.cooldown_until IS NULL OR ph.cooldown_until <= ? OR ph.cooldown_until = 0)
-        AND (ph.permanent IS NULL OR ph.permanent = 0)
-        AND (ph.needs_attention IS NULL OR ph.needs_attention = 0)
-    `).get(Date.now(), Date.now());
-
-    const topModel = this.db.prepare(`
-      SELECT id, (sum_reward / NULLIF(N, 0)) as avg
-      FROM models
-      WHERE N >= 10
-      ORDER BY avg DESC
-      LIMIT 1
-    `).get();
-
-    const catalogCounts = this.db.prepare(`
-      SELECT COUNT(*) as total, SUM(is_free) as free
-      FROM catalog
-    `).get();
-
-    const totalModels = this.db.prepare(`
-      SELECT COUNT(*) as count
-      FROM models
-    `).get();
-
-    const modelsSummary = this.getModelsSummary("prod");
-    const providersList = this.getProviders();
-    const providersActive = providersList.filter(p => !p.permanent && !p.needs_attention && p.cooldownRemaining === 0).length;
-    const providersCooldown = providersList.filter(p => p.cooldownRemaining > 0).length;
-    const providersBanned = providersList.filter(p => p.permanent).length;
-    const providersAttention = providersList.filter(p => p.needs_attention).length;
-    const totalProviders = providersList.length;
-
-    const catalogProvidersResult = this.db.prepare(`
-      SELECT COUNT(DISTINCT provider) as count FROM catalog
-    `).get();
-    const catalogProviders = catalogProvidersResult ? catalogProvidersResult.count : 0;
-
-    // Compute success rate from models table
-    const successRateStats = this.db.prepare(`
-      SELECT
-        SUM(CASE WHEN N > 0 THEN 1 ELSE 0 END) as modelsWithObservations,
-        SUM(CASE WHEN N > 0 AND sum_reward / N > 0.5 THEN 1 ELSE 0 END) as modelsAboveThreshold
-      FROM models
-    `).get();
-
-    return {
-      totalRequests,
-      totalObservations,
-      avgReward: (stats && stats.avgReward !== null) ? stats.avgReward : 0,
-      avgLatencySec: (latency.avgLatency || 0) / 1000,
-      freeActive: freeActive.count,
-      topModel: topModel ? topModel.id : null,
-      catalogTotal: catalogCounts.total,
-      catalogFree: catalogCounts.free,
-      catalogProviders,
-      totalModels: totalModels.count,
-      modelsActive: modelsSummary.active,
-      modelsCooldown: modelsSummary.cooldown,
-      modelsBanned: modelsSummary.banned,
-      modelsDegraded: modelsSummary.degraded,
-      modelsAttention: 0,
-      providersActive,
-      providersCooldown,
-      providersBanned,
-      providersAttention,
-      totalProviders,
-      successRate: (successRateStats && successRateStats.modelsWithObservations > 0)
-        ? (successRateStats.modelsAboveThreshold / successRateStats.modelsWithObservations)
-        : 0
-    };
   }
 
   isModelAvailable(modelId, estimatedTokens = 0, requireImageGeneration = false) {
