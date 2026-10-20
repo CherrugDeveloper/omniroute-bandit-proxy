@@ -1284,7 +1284,7 @@
         // === DEBUG TOGGLE ===
         async function loadDebugStatus() {
             try {
-                const r = await fetch('/v1/debug/status', { headers: { 'x-api-token': 'Cadrega' } });
+                const r = await fetch('/v1/debug/status', { headers: { 'x-api-token': API_TOKEN } });
                 const { verbose } = await r.json();
                 document.getElementById('debug-toggle').checked = verbose;
             } catch (e) {
@@ -1296,7 +1296,7 @@
             try {
                 const r = await fetch('/v1/debug/toggle', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-api-token': 'Cadrega' },
+                    headers: { 'Content-Type': 'application/json', 'x-api-token': API_TOKEN },
                     body: JSON.stringify({ verbose: enabled })
                 });
                 const d = await r.json();
@@ -1459,7 +1459,7 @@
             for (const seg of segments) {
                 if (validTabs.includes(seg)) return seg;
             }
-            return 'active';
+            return 'logs';
         }
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -2298,7 +2298,7 @@
         });
 
         async function refreshAll() {
-            if (document.hidden || refreshing) return;
+            if (refreshing) return;
             refreshing = true;
             try {
                 console.log('[DEBUG dashboard] Fetching /v1/dashboard/stats with token:', API_TOKEN ? 'present' : 'missing');
@@ -2375,7 +2375,6 @@
         }
 
         async function fetchQuota() {
-            if (document.hidden) return;
             try {
                 const r = await apiFetch('/v1/quota');
                 if (r.status === 401) { handleUnauthorized(); return; }
@@ -2446,7 +2445,6 @@
         }
 
         async function fetchLogs() {
-            if (document.hidden) return; // Skip polling when tab is hidden to save RAM/CPU
             try {
                 const r = await apiFetch('/v1/logs');
                 if (r.status === 401) { handleUnauthorized(); return; }
@@ -2467,11 +2465,6 @@
             const showTrain = document.getElementById('log-show-train')?.checked ?? true;
             const showDebug = document.getElementById('log-show-debug')?.checked ?? true;
             
-            // Richiama renderFilteredLogs() quando le checkbox vengono modificate
-            document.getElementById('log-show-zoo')?.addEventListener('change', renderFilteredLogs);
-            document.getElementById('log-show-train')?.addEventListener('change', renderFilteredLogs);
-            document.getElementById('log-show-debug')?.addEventListener('change', renderFilteredLogs);
-
             // Tagga ogni riga. Priorità:
             // 1. Marker espliciti nella riga ([TRAIN], [ZOO], [BANDIT-TRAIN])
             // 2. Marker [PROXY] POST aggiorna lo "stato corrente"
@@ -2536,7 +2529,6 @@
             });
         });
         async function fetchActive() {
-            if (document.hidden) return;
             try {
                 const r = await apiFetch('/v1/active');
                 if (!r.ok) return;
@@ -2692,7 +2684,6 @@
         setInterval(fetchConsideration, 3000);
 
         async function fetchConsideration() {
-            if (document.hidden) return;
             try {
                 const res = await apiFetch('/v1/consideration');
                 if (!res.ok) {
@@ -2720,7 +2711,7 @@
                 // ignore
             }
         }
-        document.addEventListener('DOMContentLoaded', () => {
+        function initFab() {
             const fab = document.getElementById('dev-fab');
             const menu = document.getElementById('dev-menu');
 
@@ -2730,70 +2721,81 @@
                 fab.classList.toggle('open');
                 menu?.classList.toggle('open');
             });
+        }
 
-            // Chiudi menu cliccando fuori
-            document.addEventListener('click', (e) => {
-                if (!menu?.contains(e.target) && e.target !== fab) {
-                    fab?.classList.remove('open');
-                    menu?.classList.remove('open');
-                }
-            });
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFab);
+        } else {
+            initFab();
+        }
 
-            // Apri modal
-            document.querySelectorAll('.dev-menu-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    fab?.classList.remove('open');
-                    menu?.classList.remove('open');
-                    const which = item.dataset.open; // 'developer' | 'changelog'
-                    const modal = document.getElementById('modal-' + which);
-                    if (modal) modal.style.display = 'flex';
-                    if (which === 'changelog') {
-                        const cl = document.getElementById('changelog-content');
-                        if (cl && !cl.dataset.loaded) {
-                            fetch('/v1/changelog').then(r => r.json()).then(d => {
-                                cl.innerHTML = renderChangelog(d.changelog || '');
-                                cl.dataset.loaded = '1';
-                                // Marca come letto
-                                const v = extractFirstVersion(d.changelog || '');
-                                if (v) {
-                                    localStorage.setItem('changelogLastRead', v);
-                                    document.getElementById('dev-fab')?.classList.remove('has-update');
-                                }
-                            }).catch(() => { cl.textContent = 'Errore caricamento changelog.'; });
-                        } else {
-                            // Già caricato: comunque marca come letto
-                            const v = cl.dataset.latestVersion;
+        // Chiudi menu cliccando fuori
+        document.addEventListener('click', (e) => {
+            const fab = document.getElementById('dev-fab');
+            const menu = document.getElementById('dev-menu');
+            if (!menu?.contains(e.target) && e.target !== fab) {
+                fab?.classList.remove('open');
+                menu?.classList.remove('open');
+            }
+        });
+
+        // Apri modal
+        document.querySelectorAll('.dev-menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const fab = document.getElementById('dev-fab');
+                const menu = document.getElementById('dev-menu');
+                fab?.classList.remove('open');
+                menu?.classList.remove('open');
+                const which = item.dataset.open; // 'developer' | 'changelog'
+                const modal = document.getElementById('modal-' + which);
+                if (modal) modal.style.display = 'flex';
+                if (which === 'changelog') {
+                    const cl = document.getElementById('changelog-content');
+                    if (cl && !cl.dataset.loaded) {
+                        fetch('/v1/changelog').then(r => r.json()).then(d => {
+                            cl.innerHTML = renderChangelog(d.changelog || '');
+                            cl.dataset.loaded = '1';
+                            // Marca come letto
+                            const v = extractFirstVersion(d.changelog || '');
                             if (v) {
                                 localStorage.setItem('changelogLastRead', v);
                                 document.getElementById('dev-fab')?.classList.remove('has-update');
                             }
+                        }).catch(() => { cl.textContent = 'Errore caricamento changelog.'; });
+                    } else {
+                        // Già caricato: comunque marca come letto
+                        const v = cl.dataset.latestVersion;
+                        if (v) {
+                            localStorage.setItem('changelogLastRead', v);
+                            document.getElementById('dev-fab')?.classList.remove('has-update');
                         }
                     }
-                });
-            });
-
-            // Chiudi modal (click su overlay o X)
-            document.querySelectorAll('.dev-modal-overlay').forEach(overlay => {
-                overlay.addEventListener('click', (e) => {
-                    if (e.target === overlay) overlay.style.display = 'none';
-                });
-            });
-            document.querySelectorAll('.dev-modal-close').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const id = btn.dataset.close;
-                    document.getElementById(id).style.display = 'none';
-                });
-            });
-
-            // Share
-            document.getElementById('dev-share-btn')?.addEventListener('click', async () => {
-                if (navigator.share) {
-                    try { await navigator.share({ title: 'OmniRoute Bandit Proxy', url: location.href }); } catch {}
-                } else {
-                    await navigator.clipboard.writeText(location.href);
-                    alert('URL copiato negli appunti!');
                 }
             });
+        });
+
+        // Chiudi modal (click su overlay o X)
+        document.querySelectorAll('.dev-modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.style.display = 'none';
+            });
+        });
+        document.querySelectorAll('.dev-modal-close').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.close;
+                document.getElementById(id).style.display = 'none';
+            });
+        });
+
+        // Share
+        document.getElementById('dev-share-btn')?.addEventListener('click', async () => {
+            if (navigator.share) {
+                try { await navigator.share({ title: 'OmniRoute Bandit Proxy', url: location.href }); } catch {}
+            } else {
+                await navigator.clipboard.writeText(location.href);
+                alert('URL copiato negli appunti!');
+            }
+        });
                         // Badge changelog: check nuovo changelog
             fetch('/v1/changelog').then(r => r.json()).then(d => {
                 const latest = extractFirstVersion(d.changelog || '');
