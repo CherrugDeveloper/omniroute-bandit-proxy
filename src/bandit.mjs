@@ -1210,23 +1210,46 @@ export class DiscountedUCB1Bandit {
   }
 
   getMetrics() {
-    const models = this.db.prepare(
-      `SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent
-       FROM models`
-    ).all();
-    const providers = this.db.prepare(
-      `SELECT provider, fails, cooldown_until, permanent, needs_attention
-       FROM provider_history`
-    ).all();
-    const stats = this.getDashboardStats();
-    const summary = {
-      activeCount: stats.modelsActive,
-      avgReward: stats.avgReward,
-      avgLatencySec: stats.avgLatencySec,
-      freeActive: stats.freeActive,
-      topModel: stats.topModel ? (typeof stats.topModel === 'object' ? stats.topModel : { id: stats.topModel }) : null
-    };
-    return { models, providers, summary };
+    try {
+      let models = [];
+      try {
+        models = this.db.prepare(
+          `SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent
+           FROM models`
+        ).all() || [];
+      } catch (e) {
+        console.warn("[BANDIT] getMetrics models query error:", e.message);
+      }
+
+      let providers = [];
+      try {
+        providers = this.db.prepare(
+          `SELECT provider, fails, cooldown_until, permanent, needs_attention
+           FROM provider_history`
+        ).all() || [];
+      } catch (e) {
+        console.warn("[BANDIT] getMetrics providers query error:", e.message);
+      }
+
+      let stats = { modelsActive: 0, avgReward: 0, avgLatencySec: 0, freeActive: 0, topModel: null };
+      try {
+        stats = this.getDashboardStats() || stats;
+      } catch (e) {
+        console.warn("[BANDIT] getMetrics getDashboardStats error:", e.message);
+      }
+
+      const summary = {
+        activeCount: stats.modelsActive || 0,
+        avgReward: stats.avgReward || 0,
+        avgLatencySec: stats.avgLatencySec || 0,
+        freeActive: stats.freeActive || 0,
+        topModel: stats.topModel ? (typeof stats.topModel === 'object' ? stats.topModel : { id: stats.topModel }) : null
+      };
+      return { models, providers, summary };
+    } catch (e) {
+      console.error("[BANDIT] Critical error in getMetrics:", e.message);
+      return { models: [], providers: [], summary: { activeCount: 0, avgReward: 0, avgLatencySec: 0, freeActive: 0, topModel: null } };
+    }
   }
 
   getDashboardStats() {
