@@ -2807,9 +2807,10 @@
             }
         });
 
-        // Apri modal
-        document.querySelectorAll('.dev-menu-item').forEach(item => {
-            item.addEventListener('click', () => {
+        // Apri modal (event delegation)
+        document.addEventListener('click', (e) => {
+            const item = e.target.closest('.dev-menu-item');
+            if (item) {
                 const fab = document.getElementById('dev-fab');
                 const menu = document.getElementById('dev-menu');
                 fab?.classList.remove('open');
@@ -2832,36 +2833,42 @@
                         }).catch(() => { cl.textContent = 'Errore caricamento changelog.'; });
                     } else {
                         // Già caricato: comunque marca come letto
-                        const v = cl.dataset.latestVersion;
+                        const v = cl?.dataset.latestVersion;
                         if (v) {
                             localStorage.setItem('changelogLastRead', v);
                             document.getElementById('dev-fab')?.classList.remove('has-update');
                         }
                     }
                 }
-            });
+            }
         });
 
-        // Chiudi modal (click su overlay o X)
-        document.querySelectorAll('.dev-modal-overlay').forEach(overlay => {
-            overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) overlay.style.display = 'none';
-            });
+        // Chiudi modal (click su overlay o X) (event delegation)
+        document.addEventListener('click', (e) => {
+            const overlay = e.target.closest('.dev-modal-overlay');
+            if (overlay && e.target === overlay) {
+                overlay.style.display = 'none';
+            }
         });
-        document.querySelectorAll('.dev-modal-close').forEach(btn => {
-            btn.addEventListener('click', () => {
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.dev-modal-close');
+            if (btn) {
                 const id = btn.dataset.close;
-                document.getElementById(id).style.display = 'none';
-            });
+                const modal = document.getElementById(id);
+                if (modal) modal.style.display = 'none';
+            }
         });
 
-        // Share
-        document.getElementById('dev-share-btn')?.addEventListener('click', async () => {
-            if (navigator.share) {
-                try { await navigator.share({ title: 'OmniRoute Bandit Proxy', url: location.href }); } catch {}
-            } else {
-                await navigator.clipboard.writeText(location.href);
-                alert('URL copiato negli appunti!');
+        // Share (event delegation)
+        document.addEventListener('click', async (e) => {
+            const shareBtn = e.target.closest('#dev-share-btn');
+            if (shareBtn) {
+                if (navigator.share) {
+                    try { await navigator.share({ title: 'OmniRoute Bandit Proxy', url: location.href }); } catch {}
+                } else {
+                    await navigator.clipboard.writeText(location.href);
+                    alert('URL copiato negli appunti!');
+                }
             }
         });
         // Badge changelog: check nuovo changelog
