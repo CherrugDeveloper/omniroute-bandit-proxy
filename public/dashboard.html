@@ -2386,8 +2386,18 @@
 
         function renderProviderQuota(providers) {
             const tbody = document.getElementById('providers-tbody');
+            if (!tbody) return;
+            const fragment = document.createDocumentFragment();
+
             if (!providers || providers.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty">Nessun dato quota disponibile</td></tr>';
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.className = 'empty';
+                td.textContent = 'Nessun dato quota disponibile';
+                tr.appendChild(td);
+                fragment.appendChild(tr);
+                tbody.replaceChildren(fragment);
                 return;
             }
 
@@ -2409,8 +2419,7 @@
                 return 'ok';
             };
 
-            let html = '';
-            providers.forEach(p => {
+            for (const p of providers) {
                 const rpmUsed = p.rpm_used !== undefined ? p.rpm_used : (p.callsLastMinute || p.calls_last_minute || 0);
                 const rpmLimit = p.rpm_limit !== undefined ? p.rpm_limit : (p.rpmLimit || 0);
                 const rpdUsed = p.rpd_used !== undefined ? p.rpd_used : (p.callsToday || p.calls_today || 0);
@@ -2426,22 +2435,45 @@
                 const rpmClass = rpmColor(rpmUsed, rpmLimit);
                 const rpdClass = rpmColor(rpdUsed, rpdLimit);
 
-                const stateHtml = state === 'quota-exhausted'
-                    ? '<span class="badge badge-bannati">quota-exhausted</span>'
-                    : state === 'cooldown'
-                    ? '<span class="badge badge-cooldown">cooldown</span>'
-                    : '<span class="badge badge-active">attivo</span>';
+                const tr = document.createElement('tr');
+                const td1 = document.createElement('td');
+                td1.textContent = p.provider;
+                tr.appendChild(td1);
 
-                html += '<tr>' +
-                    '<td>' + escapeHtml(p.provider) + '</td>' +
-                    '<td><span class="' + rpmClass + '">' + rpmUsed + ' / ' + rpmLimit + '</span></td>' +
-                    '<td><span class="' + rpdClass + '">' + rpdUsed + ' / ' + rpdLimit + '</span></td>' +
-                    '<td><span class="muted">' + quotaReset + '</span></td>' +
-                    '<td>' + stateHtml + '</td>' +
-                '</tr>';
-            });
+                const td2 = document.createElement('td');
+                const spanRpm = document.createElement('span');
+                spanRpm.className = rpmClass;
+                spanRpm.textContent = `${rpmUsed} / ${rpmLimit}`;
+                td2.appendChild(spanRpm);
+                tr.appendChild(td2);
 
-            tbody.innerHTML = html;
+                const td3 = document.createElement('td');
+                const spanRpd = document.createElement('span');
+                spanRpd.className = rpdClass;
+                spanRpd.textContent = `${rpdUsed} / ${rpdLimit}`;
+                td3.appendChild(spanRpd);
+                tr.appendChild(td3);
+
+                const td4 = document.createElement('td');
+                const spanReset = document.createElement('span');
+                spanReset.className = 'muted';
+                spanReset.textContent = quotaReset;
+                td4.appendChild(spanReset);
+                tr.appendChild(td4);
+
+                const td5 = document.createElement('td');
+                const spanState = document.createElement('span');
+                spanState.className = state === 'quota-exhausted' ? 'badge badge-bannati' :
+                                      state === 'cooldown' ? 'badge badge-cooldown' :
+                                      'badge badge-active';
+                spanState.textContent = state;
+                td5.appendChild(spanState);
+                tr.appendChild(td5);
+
+                fragment.appendChild(tr);
+            }
+
+            tbody.replaceChildren(fragment);
         }
 
         async function fetchLogs() {
@@ -2506,15 +2538,22 @@
             if (filter) filtered = filtered.filter(t => t.line.toLowerCase().includes(filter));
 
             // Color and format the logs
-            const formattedLogs = filtered.map(t => {
-                const line = t.line;
-                const source = t.source;
-                const className = source ? `log-line ${source}` : 'log-line system';
-                return `<span class="${className}">${line}</span>`;
-            }).join('\n');
+            const fragment = document.createDocumentFragment();
+            if (filtered.length === 0) {
+                const span = document.createElement('span');
+                span.textContent = 'Nessun log corrispondente.';
+                fragment.appendChild(span);
+            } else {
+                for (const t of filtered) {
+                    const span = document.createElement('span');
+                    span.className = t.source ? `log-line ${t.source}` : 'log-line system';
+                    span.textContent = t.line;
+                    fragment.appendChild(span);
+                }
+            }
             
             const wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
-            el.innerHTML = filtered.length > 0 ? formattedLogs : 'Nessun log corrispondente.';
+            el.replaceChildren(fragment);
             if (wasAtBottom) el.scrollTop = el.scrollHeight;
         }
         // Aggiorna log quando cambiano i filtri
@@ -2677,11 +2716,24 @@
         fetchActive();
         fetchQuota();
         fetchConsideration();
-        setInterval(refreshAll, 5000);
-        setInterval(fetchLogs, 2500);
-        setInterval(fetchActive, 1500);
-        setInterval(fetchQuota, 15000);
-        setInterval(fetchConsideration, 3000);
+        const polls = [
+            { fn: refreshAll, interval: 5000, lastRun: 0 },
+            { fn: fetchLogs, interval: 2500, lastRun: 0 },
+            { fn: fetchActive, interval: 1500, lastRun: 0 },
+            { fn: fetchQuota, interval: 15000, lastRun: 0 },
+            { fn: fetchConsideration, interval: 3000, lastRun: 0 }
+        ];
+
+        setInterval(() => {
+            if (document.hidden) return;
+            const now = Date.now();
+            for (const poll of polls) {
+                if (now - poll.lastRun >= poll.interval) {
+                    poll.fn();
+                    poll.lastRun = now;
+                }
+            }
+        }, 500);
 
         async function fetchConsideration() {
             try {
