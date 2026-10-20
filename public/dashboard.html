@@ -2569,6 +2569,7 @@
         });
         async function fetchActive() {
             try {
+                console.debug('[DEBUG Dashboard] fetchActive polling triggered at', Date.now());
                 const r = await apiFetch('/v1/active');
                 if (!r.ok) return;
                 const d = await r.json();
@@ -2576,7 +2577,17 @@
                 const list = document.getElementById('active-list');
                 panel.style.display = 'block';
 
-                function fmtRow(r, kind) {
+                // Capture currently open accordions before re-rendering to preserve state
+                const openIds = new Set();
+                if (list) {
+                    list.querySelectorAll('[id^="req-row-"]').forEach(el => {
+                        if (el.style.display === 'block') {
+                            openIds.add(el.id);
+                        }
+                    });
+                }
+
+                function fmtRow(r, kind, idx) {
                     const model = r.model || '(selezione...)';
                     const srcIcon = r.source === 'training' ? '🏋️' : (r.source === 'changelog' ? '📝' : '🦌');
                     const srcCls = r.source === 'training' ? 'src-train' : (r.source === 'changelog' ? 'src-changelog' : 'src-zoo');
@@ -2622,13 +2633,13 @@
                         specItemsHtml += '<div style="color:#8b949e; font-style:italic;">Nessun dettaglio di selezione registrato per questa richiesta.</div>';
                     } else {
                         specItemsHtml += '<div style="display:flex; flex-direction:column; gap:3px; max-height:160px; overflow-y:auto;">';
-                        history.forEach((sh, idx) => {
+                        history.forEach((sh, i) => {
                             const isSel = sh.status === 'selected';
                             const col = isSel ? '#3fb950' : '#f85149';
                             const bg = isSel ? 'rgba(63,185,80,0.08)' : 'rgba(248,81,73,0.08)';
                             const label = isSel ? 'SELEZIONATO ✅' : `SCARTATO ❌ (${sh.reason || 'unknown'})`;
                             specItemsHtml += `<div style="display:flex; justify-content:space-between; align-items:center; background:${bg}; padding:3px 6px; border-radius:3px; border-left:3px solid ${col};">
-                                <div><code>#${idx+1} ${escapeHtml(sh.id)}</code> <span style="color:#8b949e; font-size:10px;">[${escapeHtml(sh.provider)}]</span></div>
+                                <div><code>#${i+1} ${escapeHtml(sh.id)}</code> <span style="color:#8b949e; font-size:10px;">[${escapeHtml(sh.provider)}]</span></div>
                                 <div style="color:${col}; font-weight:600; font-size:10px;">${escapeHtml(label)}</div>
                             </div>`;
                         });
@@ -2636,7 +2647,9 @@
                     }
                     specItemsHtml += '</div>';
 
-                    const rowId = 'req-row-' + Math.random().toString(36).substring(2, 9);
+                    const uniqueKey = r.id || `${r.model || 'model'}-${r.timestamp || r.elapsedSec || idx}`;
+                    const rowId = 'req-row-' + String(uniqueKey).replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const isOpen = openIds.has(rowId) || (openIds.size === 0 && kind === 'active');
 
                     return `<div class="active-request-container ${kind === 'recent' ? 'recent' : ''}" style="margin-bottom:4px; border:1px solid #30363d; border-radius:4px; background:#161b22; overflow:hidden;">` +
                         `<div class="active-request" style="cursor:pointer; padding:4px 8px;" onclick="const d = document.getElementById('${rowId}'); d.style.display = d.style.display === 'none' ? 'block' : 'none';" title="Clicca per espandere/comprimere lo specchietto scarti & selezione">` +
@@ -2649,7 +2662,7 @@
                             '<span class="attempt">' + timeTxt + '</span>' +
                             '<span class="elapsed">' + durTxt + '</span>' +
                         '</div>' +
-                        `<div id="${rowId}" style="display:${kind === 'active' ? 'block' : 'none'};">` + specItemsHtml + `</div>` +
+                        `<div id="${rowId}" style="display:${isOpen ? 'block' : 'none'};">` + specItemsHtml + `</div>` +
                     `</div>`;
                 }
                 const nActive = (d.requests || []).length;
@@ -2674,8 +2687,8 @@
                     if (!showTrain && r.source === 'training') return false;
                     return true;
                 });
-                const activeHtml = filterSrc(d.requests).map(r => fmtRow(r, 'active')).join('');
-                const recentHtml = filterSrc(d.recent).slice(-5).reverse().map(r => fmtRow(r, 'recent')).join('');
+                const activeHtml = filterSrc(d.requests).map((r, i) => fmtRow(r, 'active', i)).join('');
+                const recentHtml = filterSrc(d.recent).slice(-5).reverse().map((r, i) => fmtRow(r, 'recent', i)).join('');
                 const nRows = nActive + Math.min(nRecent, 5);
                 const placeholders = Math.max(0, 4 - nRows);
                 let placeholderHtml = '';
@@ -2688,7 +2701,10 @@
                 }
 
                 list.innerHTML = headerHtml + activeHtml + recentHtml + placeholderHtml;
-            } catch (e) {}
+                console.debug('[DEBUG Dashboard] fetchActive DOM re-rendered via innerHTML, active:', nActive, 'recent:', nRecent);
+            } catch (e) {
+                console.error('[DEBUG Dashboard] fetchActive error:', e);
+            }
         }
         // ============= INIT =============
         // Attach filter event listeners to existing filter elements

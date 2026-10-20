@@ -6,6 +6,7 @@ Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 - **Optimize Dashboard RAM and CPU via Consolidated Polling and DOM Patching**:
   - Consolidated multiple `setInterval` polling timers into a single coordinated interval with `document.hidden` pause checks and drift protection in [`public/dashboard.html`](public/dashboard.html:2716).
   - Replaced heavy `innerHTML` template string concatenation with `DocumentFragment` and `replaceChildren()` DOM patching in [`renderProviderQuota()`](public/dashboard.html:2386) and [`fetchLogs()`](public/dashboard.html:2506) to minimize memory allocations and layout thrashing.
+  - Fixed tab switching lag and requests tab bugs by capturing open accordion states and ensuring stable row identifiers in [`fetchActive()`](public/dashboard.html:2569) within [`public/dashboard.html`](public/dashboard.html:1).
 
 ## v1.1.64 — 2026-10-20
 - **Fix Syntax Errors in Dashboard**:
