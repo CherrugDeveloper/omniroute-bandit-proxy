@@ -3,6 +3,9 @@
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
 ## v1.1.63 — 2026-10-20
+- **Refactor Dashboard UI**:
+  - Improved UI efficiency by removing unnecessary `document.hidden` checks in [`public/dashboard.html`](public/dashboard.html:1).
+  - Reorganized event handlers for better maintainability in [`public/dashboard.html`](public/dashboard.html:1).
 - **Refine Model Selection Relaxation Tiers and Optimize Logging**:
   - Updated relaxation tiers in `selectModel` for clearer progression (Tiers 1-4) in [`src/bandit.mjs`](src/bandit.mjs:1).
   - Conditionalized verbose debug logs using `debugVerbose` in [`src/index.mjs`](src/index.mjs:1) and [`src/bandit.mjs`](src/bandit.mjs:1).
