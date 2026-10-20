@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.63 — 2026-10-20
+- **Refine Model Selection Relaxation Tiers and Optimize Logging**:
+  - Updated relaxation tiers in `selectModel` for clearer progression (Tiers 1-4) in [`src/bandit.mjs`](src/bandit.mjs:1).
+  - Conditionalized verbose debug logs using `debugVerbose` in [`src/index.mjs`](src/index.mjs:1) and [`src/bandit.mjs`](src/bandit.mjs:1).
+  - Enhanced image generation detection heuristics with additional keywords ('visualize', 'render') and regex patterns in [`src/index.mjs`](src/index.mjs:1).
+
 ## v1.1.62 — 2026-10-19
 - **Fix Log Streaming and Ring Buffer Pointer Corruption**:
   - Resolved ring buffer pointer corruption and restored log streaming functionality in [`src/index.mjs`](src/index.mjs:1).
