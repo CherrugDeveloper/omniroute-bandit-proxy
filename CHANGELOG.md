@@ -2,6 +2,13 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.66 — 2026-10-20
+- **Dashboard Performance & Security Optimizations**:
+  - Implemented DOM reflow batching and virtualized rendering updates in [`public/dashboard.html`](public/dashboard.html:1).
+  - Added robust input/event debouncing to eliminate redundant calls and reduce CPU overhead in [`public/dashboard.html`](public/dashboard.html:1).
+  - Enhanced memory leak prevention and interval lifecycle/cleanup management in [`public/dashboard.html`](public/dashboard.html:1).
+  - Added strict string sanitization and XSS prevention for user-facing telemetry and log output in [`public/dashboard.html`](public/dashboard.html:1).
+
 ## v1.1.65 — 2026-10-20
 - **Optimize Dashboard RAM and CPU via Consolidated Polling and DOM Patching**:
   - Consolidated multiple `setInterval` polling timers into a single coordinated interval with `document.hidden` pause checks and drift protection in [`public/dashboard.html`](public/dashboard.html:2716).
