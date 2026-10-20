@@ -463,15 +463,17 @@ const healthChecker = new HealthChecker(bandit, {
 // AUTH
 // ========================================
 
-const DASHBOARD_TOKEN = (process.env.DASHBOARD_TOKEN || "").trim();
+const DASHBOARD_TOKEN = (process.env.DASHBOARD_TOKEN || process.env.OMNIROUTE_API_KEY || "").trim();
 const REQUIRE_AUTH = DASHBOARD_TOKEN.length > 0;
 
 function requireAuth(req, res, next) {
   if (!REQUIRE_AUTH) return next();
   const token = req.get("x-api-token") || req.query.token;
-  console.log(`[DEBUG AUTH] Checking auth for ${req.path}: REQUIRE_AUTH=${REQUIRE_AUTH}, tokenProvided=${Boolean(token)}, match=${token === DASHBOARD_TOKEN}`);
-  if (token !== DASHBOARD_TOKEN) {
-    console.warn(`[DEBUG server] Unauthorized access attempt to ${req.path}. Token provided: ${Boolean(token)}, expected length: ${DASHBOARD_TOKEN.length}, received length: ${token ? token.length : 0}`);
+  const validToken = (process.env.DASHBOARD_TOKEN || "").trim() || (process.env.OMNIROUTE_API_KEY || "").trim();
+  const match = token === validToken || (process.env.DASHBOARD_TOKEN && token === process.env.DASHBOARD_TOKEN.trim()) || (process.env.OMNIROUTE_API_KEY && token === process.env.OMNIROUTE_API_KEY.trim());
+  console.log(`[DEBUG AUTH] Checking auth for ${req.path}: REQUIRE_AUTH=${REQUIRE_AUTH}, tokenProvided=${Boolean(token)}, match=${match}`);
+  if (!match) {
+    console.warn(`[DEBUG server] Unauthorized access attempt to ${req.path}. Token provided: ${Boolean(token)}, expected length: ${validToken.length}, received length: ${token ? token.length : 0}`);
     return res.status(401).json({ error: { message: "Unauthorized" } });
   }
   next();
