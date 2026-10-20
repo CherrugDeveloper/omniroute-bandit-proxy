@@ -2796,20 +2796,20 @@
                 alert('URL copiato negli appunti!');
             }
         });
-                        // Badge changelog: check nuovo changelog
-            fetch('/v1/changelog').then(r => r.json()).then(d => {
-                const latest = extractFirstVersion(d.changelog || '');
-                if (!latest) return;
-                const lastRead = localStorage.getItem('changelogLastRead');
-                if (lastRead !== latest) {
-                    document.getElementById('dev-fab')?.classList.add('has-update');
-                }
-                const cl = document.getElementById('changelog-content');
-                if (cl) cl.dataset.latestVersion = latest;
-            }).catch(() => {});
+        // Badge changelog: check nuovo changelog
+        fetch('/v1/changelog').then(r => r.json()).then(d => {
+            const latest = extractFirstVersion(d.changelog || '');
+            if (!latest) return;
+            const lastRead = localStorage.getItem('changelogLastRead');
+            if (lastRead !== latest) {
+                document.getElementById('dev-fab')?.classList.add('has-update');
+            }
+            const cl = document.getElementById('changelog-content');
+            if (cl) cl.dataset.latestVersion = latest;
+        }).catch(() => {});
 
-            // Inizializza filtri con localStorage
-            function initFilters() {
+        // Inizializza filtri con localStorage
+        function initFilters() {
                 // Models filters
                 const savedModelsFilters = localStorage.getItem('models.filters');
                 if (savedModelsFilters) {
@@ -2888,7 +2888,6 @@
             }
 
             initFilters();
-        });
         fetch('/v1/version').then(r => r.json()).then(d => {
                 const v = (d.version || 'dev');
                 const el1 = document.getElementById('app-version');
