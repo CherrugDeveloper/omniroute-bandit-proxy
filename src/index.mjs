@@ -774,9 +774,15 @@ console.warn = (...args) => { originalWarn(...args); pushLog("WARN: " + serializ
 app.use((req, res, next) => {
   if (req.method === "POST" && req.path.includes("/chat/completions")) {
     if (!req.body || typeof req.body !== "object") {
+      console.warn(`[API] 400 Error: Invalid request body from ${req.ip || req.connection?.remoteAddress}`);
+      bandit.recordRequest();
+      bandit.recordRequestError(400, "Invalid request body");
       return res.status(400).json({ error: { message: "Invalid request body" } });
     }
     if (!req.body.messages && !req.body.prompt && !req.body.model) {
+      console.warn(`[API] 400 Error: Missing required fields from ${req.ip || req.connection?.remoteAddress}`);
+      bandit.recordRequest();
+      bandit.recordRequestError(400, "Missing required fields");
       return res.status(400).json({ error: { message: "Missing required fields" } });
     }
   }
@@ -1239,9 +1245,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   bandit.recordRequest(); // +1 per ogni richiesta ricevuta
   // === Image generation requests are not allowed via chat completions ===
   if (isImageGenerationRequest(req.body)) {
+    const errMsg = "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.";
+    console.warn(`[API] 400 Error: ${errMsg}`);
+    bandit.recordRequestError(400, errMsg);
     return res.status(400).json({
       error: {
-        message: "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.",
+        message: errMsg,
         type: "unsupported_request",
         status: 400
       }
