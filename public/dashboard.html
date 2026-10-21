@@ -807,18 +807,28 @@
             </div>
         </div>
 
-    <!-- Persistent Unified Panel: Panoramica & Considerazioni UCB1 -->
+    <!-- Persistent Unified Panel: Cronologia Operativa & Stato UCB1 -->
     <div class="card" style="margin-bottom:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px 12px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
             <h3 style="margin:0; color:#58a6ff; font-size:13px; display:flex; align-items:center; gap:8px;">
-                <span>⚡</span> Panoramica & Considerazioni UCB1
+                ⚡ Cronologia Operativa & Stato UCB1
             </h3>
             <button class="btn" onclick="switchTab('consideration')" style="font-size:11px; padding:2px 6px; background:#21262d; border:1px solid #30363d; color:#58a6ff; cursor:pointer; border-radius:4px;" title="Vedi Tabella Considerazioni">🔍 Tabella</button>
         </div>
-        <div id="unified-panel-content" style="max-height:140px; overflow-y:auto; scrollbar-width:thin;">
-            <div id="active-panel" class="active-panel" style="margin-bottom:0; border:none; padding:0; background:transparent;">
-                <div id="active-list"></div>
-            </div>
+        <div style="max-height: 150px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
+                        <th style="padding: 6px 8px; text-align: left;">Time</th>
+                        <th style="padding: 6px 8px; text-align: left;">Model / Provider</th>
+                        <th style="padding: 6px 8px; text-align: center;">Status / Role</th>
+                        <th style="padding: 6px 8px; text-align: left;">Reason / Stats</th>
+                    </tr>
+                </thead>
+                <tbody id="unified-cronologia-tbody">
+                    <!-- populated dynamically -->
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -2634,135 +2644,83 @@
                 const r = await apiFetch('/v1/active');
                 if (!r.ok) return;
                 const d = await r.json();
-                const panel = document.getElementById('active-panel');
-                const list = document.getElementById('active-list');
-                panel.style.display = 'block';
+                const tbody = document.getElementById('unified-cronologia-tbody');
+                if (!tbody) return;
 
-                // Capture currently open accordions before re-rendering to preserve state
-                const openIds = new Set();
-                if (list) {
-                    list.querySelectorAll('[id^="req-row-"]').forEach(el => {
-                        if (el.style.display === 'block') {
-                            openIds.add(el.id);
-                        }
-                    });
-                }
-
-                function fmtRow(r, kind, idx) {
+                function fmtRow(r, kind) {
+                    const timeVal = kind === 'active'
+                        ? (Number(r.elapsedSec || 0).toFixed(1) + 's (try ' + (r.attempt || 1) + ')')
+                        : (Math.round((Date.now() - (r.endedAt || r.timestamp || Date.now())) / 1000) + 's ago');
                     const model = r.model || '(selezione...)';
-                    const srcIcon = r.source === 'training' ? '🏋️' : (r.source === 'changelog' ? '📝' : '🦌');
-                    const srcCls = r.source === 'training' ? 'src-train' : (r.source === 'changelog' ? 'src-changelog' : 'src-zoo');
-                    let status;
-                    if (kind === 'active') status = r.status === 'fetching' ? '⏳' : '•';
-                    else status = r.status === 'success' ? '✅' : (r.status && r.status.startsWith('error')) ? '❌' : '•';
-
-                    const rankTxt = r.rank ? ('#' + r.rank) : '-';
-                    const nTxt = (r.N != null && Number(r.N) > 0) ? String(r.N) : '-';
-                    let avgTxt;
-                    if (r.trend === 'new') avgTxt = 'new';
-                    else if (r.avg != null && Number(r.avg) > 0) avgTxt = String(r.avg);
-                    else if (r.N != null && Number(r.N) > 0 && Number(r.N) < 1) avgTxt = 'test';
-                    else avgTxt = '-';
-                    const arrow = r.trend === 'up' ? '↗' : r.trend === 'down' ? '↘' : '→';
-                    const arrowCls = r.trend === 'up' ? 'trend-up' : r.trend === 'down' ? 'trend-down' : 'trend-flat';
-
-                    const tried = r.triedModels && r.triedModels.length > 0 ? r.triedModels.join(', ') : 'nessuno';
-                    const history = r.selectionHistory && r.selectionHistory.length > 0 ? r.selectionHistory : [];
-
-                    let extraBadges = '';
-                    const rejectedCount = history.filter(sh => sh.status === 'rejected').length;
-                    if (r.triedModels && r.triedModels.length > 0) {
-                        extraBadges += ` <span style="font-size:10px; color:#d29922; background:rgba(210,153,34,0.1); padding:1px 4px; border-radius:3px;" title="Tentati: ${escapeHtml(tried)}">tried: ${r.triedModels.length}</span>`;
-                    }
-                    if (rejectedCount > 0) {
-                        extraBadges += ` <span style="font-size:10px; color:#f85149; background:rgba(248,81,73,0.1); padding:1px 4px; border-radius:3px;" title="Scarti: ${rejectedCount}">scarti: ${rejectedCount}</span>`;
-                    }
-
-                    let timeTxt, durTxt;
+                    const provider = r.provider || '-';
+                    
+                    let statusLabel = '';
+                    let statusColor = '#c9d1d9';
                     if (kind === 'active') {
-                        timeTxt = 'try ' + (r.attempt || 1);
-                        durTxt = Number(r.elapsedSec).toFixed(1) + 's';
+                        statusLabel = 'Active (⏳)';
+                        statusColor = '#d29922';
+                    } else if (r.status === 'success') {
+                        statusLabel = 'Success (✅)';
+                        statusColor = '#3fb950';
+                    } else if (r.status && r.status.startsWith('error')) {
+                        statusLabel = 'Rejected (❌)';
+                        statusColor = '#f85149';
                     } else {
-                        const secs = Math.round((Date.now() - r.endedAt) / 1000);
-                        timeTxt = secs < 60 ? secs + 's' : Math.round(secs / 60) + 'm';
-                        durTxt = Number(r.durationSec).toFixed(1) + 's';
+                        statusLabel = 'Success (✅)';
+                        statusColor = '#3fb950';
                     }
 
-                    let specItemsHtml = '<div style="font-size:11px; color:#8b949e; padding:6px 10px; background:#0d1117; border-top:1px solid #30363d; margin-top:4px; border-radius:0 0 4px 4px;">';
-                    specItemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom:4px; font-weight:600; color:#58a6ff;"><span>📋 Specchietto Scarti & Selezione Candidati (${history.length} considerati)</span><span>Tentati: ${escapeHtml(tried)}</span></div>`;
-                    if (history.length === 0) {
-                        specItemsHtml += '<div style="color:#8b949e; font-style:italic;">Nessun dettaglio di selezione registrato per questa richiesta.</div>';
-                    } else {
-                        specItemsHtml += '<div style="display:flex; flex-direction:column; gap:3px; max-height:160px; overflow-y:auto;">';
-                        history.forEach((sh, i) => {
-                            const isSel = sh.status === 'selected';
-                            const col = isSel ? '#3fb950' : '#f85149';
-                            const bg = isSel ? 'rgba(63,185,80,0.08)' : 'rgba(248,81,73,0.08)';
-                            const label = isSel ? 'SELEZIONATO ✅' : `SCARTATO ❌ (${sh.reason || 'unknown'})`;
-                            specItemsHtml += `<div style="display:flex; justify-content:space-between; align-items:center; background:${bg}; padding:3px 6px; border-radius:3px; border-left:3px solid ${col};">
-                                <div><code>#${i+1} ${escapeHtml(sh.id)}</code> <span style="color:#8b949e; font-size:10px;">[${escapeHtml(sh.provider)}]</span></div>
-                                <div style="color:${col}; font-weight:600; font-size:10px;">${escapeHtml(label)}</div>
-                            </div>`;
-                        });
-                        specItemsHtml += '</div>';
+                    let statsParts = [];
+                    if (r.rank) statsParts.push(`rank #${r.rank}`);
+                    if (r.N != null) statsParts.push(`N=${r.N}`);
+                    if (r.avg != null) statsParts.push(`avg=${r.avg}`);
+                    if (r.latency_ms) statsParts.push(`${r.latency_ms}ms`);
+                    if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
+                    if (r.reason) statsParts.push(`reason: ${r.reason}`);
+                    if (r.selectionHistory && r.selectionHistory.length > 0) {
+                        const rejected = r.selectionHistory.filter(sh => sh.status === 'rejected');
+                        if (rejected.length > 0) {
+                            statsParts.push(`scarti: ${rejected.length}`);
+                        }
                     }
-                    specItemsHtml += '</div>';
+                    const statsStr = statsParts.join(' | ') || '-';
 
-                    const uniqueKey = r.id || `${r.model || 'model'}-${r.timestamp || r.elapsedSec || idx}`;
-                    const rowId = 'req-row-' + String(uniqueKey).replace(/[^a-zA-Z0-9_-]/g, '_');
-                    const isOpen = openIds.has(rowId) || (openIds.size === 0 && kind === 'active');
-
-                    return `<div class="active-request-container ${kind === 'recent' ? 'recent' : ''}" style="margin-bottom:4px; border:1px solid #30363d; border-radius:4px; background:#161b22; overflow:hidden;">` +
-                        `<div class="active-request" style="cursor:pointer; padding:4px 8px;" onclick="const d = document.getElementById('${rowId}'); d.style.display = d.style.display === 'none' ? 'block' : 'none';" title="Clicca per espandere/comprimere lo specchietto scarti & selezione">` +
-                            '<span class="src-status"><span class="src-icon ' + srcCls + '">' + srcIcon + '</span><span>' + status + '</span></span>' +
-                            '<span class="model">' + escapeHtml(model) + extraBadges + ' <span style="font-size:10px; color:#58a6ff; float:right;">[📋 specchietto ▾]</span></span>' +
-                            '<span class="mi-rank">' + rankTxt + '</span>' +
-                            '<span class="mi-n">' + nTxt + '</span>' +
-                            '<span class="mi-avg">' + avgTxt + '</span>' +
-                            '<span class="mi-trend ' + arrowCls + '">' + arrow + '</span>' +
-                            '<span class="attempt">' + timeTxt + '</span>' +
-                            '<span class="elapsed">' + durTxt + '</span>' +
-                        '</div>' +
-                        `<div id="${rowId}" style="display:${isOpen ? 'block' : 'none'};">` + specItemsHtml + `</div>` +
-                    `</div>`;
+                    return `<tr style="border-bottom: 1px solid #21262d;">
+                        <td style="padding: 6px 8px; white-space: nowrap; color: #8b949e; font-family: monospace;">${escapeHtml(timeVal)}</td>
+                        <td style="padding: 6px 8px;">
+                            <div style="font-weight: 600; color: #58a6ff;">${escapeHtml(model)}</div>
+                            <div style="font-size: 10px; color: #8b949e;">[${escapeHtml(provider)}]</div>
+                        </td>
+                        <td style="padding: 6px 8px; text-align: center;"><span style="color: ${statusColor}; font-weight: 600;">${escapeHtml(statusLabel)}</span></td>
+                        <td style="padding: 6px 8px; font-family: monospace; font-size: 11px; color: #c9d1d9;">${escapeHtml(statsStr)}</td>
+                    </tr>`;
                 }
-                const nActive = (d.requests || []).length;
-                const nRecent = (d.recent || []).length;
 
-                const headerHtml =
-                    '<div class="active-header-row">' +
-                        '<span class="hdr-icon">⚡</span>' +
-                        '<span class="hdr-in-corso">In corso' + (nActive > 0 ? ' (' + nActive + ')' : '') + '</span>' +
-                        '<span class="hdr-num">#</span>' +
-                        '<span class="hdr-num">N</span>' +
-                        '<span class="hdr-num">Avg</span>' +
-                        '<span class="hdr-num">→</span>' +
-                        '<span class="hdr-num">Tempo</span>' +
-                        '<span class="hdr-num">Durata</span>' +
-                    '</div>';
-                // Legge lo stato dai checkbox del log header (unificati)
                 const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
                 const showTrain = document.getElementById('log-show-train')?.checked ?? true;
-                const filterSrc = (arr) => (arr || []).filter(r => {
-                    if (!showZoo && r.source === 'zoo') return false;
-                    if (!showTrain && r.source === 'training') return false;
+                const filterSrc = (arr) => (arr || []).filter(item => {
+                    if (!showZoo && item.source === 'zoo') return false;
+                    if (!showTrain && item.source === 'training') return false;
                     return true;
                 });
-                const activeHtml = filterSrc(d.requests).map((r, i) => fmtRow(r, 'active', i)).join('');
-                const recentHtml = filterSrc(d.recent).slice(-5).reverse().map((r, i) => fmtRow(r, 'recent', i)).join('');
-                const nRows = nActive + Math.min(nRecent, 5);
-                const placeholders = Math.max(0, 4 - nRows);
+
+                const activeHtml = filterSrc(d.requests).map(r => fmtRow(r, 'active')).join('');
+                const recentHtml = filterSrc(d.recent).slice(-10).reverse().map(r => fmtRow(r, 'recent')).join('');
+                
+                const totalRows = (d.requests || []).length + Math.min((d.recent || []).length, 10);
+                const placeholders = Math.max(0, 4 - totalRows);
                 let placeholderHtml = '';
                 for (let i = 0; i < placeholders; i++) {
-                    placeholderHtml += '<div class="active-request placeholder">' +
-                        '<span class="src-status">·</span><span class="model">·</span>' +
-                        '<span class="mi-rank">·</span><span class="mi-n">·</span><span class="mi-avg">·</span>' +
-                        '<span class="mi-trend">·</span><span class="attempt">·</span><span class="elapsed">·</span>' +
-                    '</div>';
+                    placeholderHtml += `<tr style="border-bottom: 1px solid #21262d; opacity: 0.2;">
+                        <td style="padding: 6px 8px;">-</td>
+                        <td style="padding: 6px 8px;">-</td>
+                        <td style="padding: 6px 8px; text-align: center;">-</td>
+                        <td style="padding: 6px 8px;">-</td>
+                    </tr>`;
                 }
 
-                list.innerHTML = headerHtml + activeHtml + recentHtml + placeholderHtml;
-                console.debug('[DEBUG Dashboard] fetchActive DOM re-rendered via innerHTML, active:', nActive, 'recent:', nRecent);
+                tbody.innerHTML = activeHtml + recentHtml + placeholderHtml;
+                console.debug('[DEBUG Dashboard] fetchActive table updated, active:', (d.requests || []).length, 'recent:', (d.recent || []).length);
             } catch (e) {
                 console.error('[DEBUG Dashboard] fetchActive error:', e);
             }
