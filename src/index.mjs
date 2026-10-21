@@ -1820,16 +1820,32 @@ trackRequestUpdate(requestId, {
         }
       }
     }
-      // Strip campi reasoning non universali (OpenRouter-only).
-      // Groq, nvidia, mistral li rifiutano come "unsupported".
+      // Sanitize messages, strip unsupported reasoning fields, and strip tools if model doesn't support them
+      const modelSupportsTools = bandit.db.prepare(`SELECT supports_tools FROM catalog WHERE id = ?`).get(model)?.supports_tools === 1;
+      if (!modelSupportsTools && requestBody?.tools) {
+        requestBody = { ...requestBody };
+        delete requestBody.tools;
+        delete requestBody.tool_choice;
+        delete requestBody.parallel_tool_calls;
+      }
+
       if (Array.isArray(requestBody?.messages)) {
-        for (const m of requestBody.messages) {
-          if (m && typeof m === "object" && m.role === "assistant") {
-            if ("reasoning_details" in m) delete m.reasoning_details;
-            if ("reasoning_content" in m) delete m.reasoning_content;
-            if ("reasoning" in m) delete m.reasoning;
-          }
-        }
+        requestBody = {
+          ...requestBody,
+          messages: requestBody.messages.map(m => {
+            if (!m || typeof m !== "object") return m;
+            const copy = { ...m };
+            if (copy.role === "assistant") {
+              delete copy.reasoning_details;
+              delete copy.reasoning_content;
+              delete copy.reasoning;
+            }
+            if (copy.content === null || copy.content === undefined) {
+              copy.content = "";
+            }
+            return copy;
+          })
+        };
       }
     trackRequestUpdate(requestId, {
       model,
