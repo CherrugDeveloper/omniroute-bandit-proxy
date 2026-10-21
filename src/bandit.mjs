@@ -108,7 +108,9 @@ export class DiscountedUCB1Bandit {
           started_at REAL,
           ended_at REAL,
           status_code INTEGER,
-          error_message TEXT
+          error_message TEXT,
+          model TEXT,
+          provider TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider);
@@ -251,6 +253,26 @@ export class DiscountedUCB1Bandit {
           throw err;
         }
       }
+      const hasModelLog = requestLogsColumns.some(col => col.name === "model");
+      if (!hasModelLog) {
+        console.log("[BANDIT] Migrazione: aggiungo model a request_logs");
+        try {
+          this.db.exec(`ALTER TABLE request_logs ADD COLUMN model TEXT`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna model:", err.message);
+          throw err;
+        }
+      }
+      const hasProviderLog = requestLogsColumns.some(col => col.name === "provider");
+      if (!hasProviderLog) {
+        console.log("[BANDIT] Migrazione: aggiungo provider a request_logs");
+        try {
+          this.db.exec(`ALTER TABLE request_logs ADD COLUMN provider TEXT`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna provider:", err.message);
+          throw err;
+        }
+      }
 
       // Migrazione quota provider (colonne per sistema quota)
       const quotaCols = [
@@ -383,18 +405,18 @@ export class DiscountedUCB1Bandit {
     ).run(modelId, provider);
   }
 
-  recordRequest() {
+  recordRequest(model = null, provider = null) {
     this.totalRequests++;
     this._setMeta("totalRequests", this.totalRequests);
     this.totalObservations++;
     this._setMeta("totalObservations", this.totalObservations);
-    this.db.prepare("INSERT INTO request_logs (started_at) VALUES (?)").run(Date.now());
+    this.db.prepare("INSERT INTO request_logs (started_at, model, provider) VALUES (?, ?, ?)").run(Date.now(), model, provider);
   }
 
-  recordRequestError(statusCode, errorMessage = null) {
+  recordRequestError(statusCode, errorMessage = null, model = null, provider = null) {
     this.db.prepare(
-      "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
-    ).run(Date.now(), statusCode, errorMessage);
+      "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = COALESCE(?, model), provider = COALESCE(?, provider) WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+    ).run(Date.now(), statusCode, errorMessage, model, provider);
   }
 
   async fetchAndSyncModels() {

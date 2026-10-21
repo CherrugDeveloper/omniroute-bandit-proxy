@@ -2665,7 +2665,7 @@
                     } else if (r.status === 'success') {
                         statusLabel = 'Success (✅)';
                         statusColor = '#3fb950';
-                    } else if (r.status && r.status.startsWith('error')) {
+                    } else if (r.status && (r.status.startsWith('error') || r.status.startsWith('err') || r.status.includes('fail'))) {
                         statusLabel = 'Rejected (❌)';
                         statusColor = '#f85149';
                     } else {
@@ -2680,6 +2680,10 @@
                     if (r.latency_ms) statsParts.push(`${r.latency_ms}ms`);
                     if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
                     if (r.reason) statsParts.push(`reason: ${r.reason}`);
+                    if (r.lastError) statsParts.push(`error: ${r.lastError}`);
+                    if (r.status && (r.status.startsWith('error') || r.status.startsWith('err'))) {
+                        statsParts.push(`status: ${r.status}`);
+                    }
                     if (r.selectionHistory && r.selectionHistory.length > 0) {
                         const rejected = r.selectionHistory.filter(sh => sh.status === 'rejected');
                         if (rejected.length > 0) {

@@ -694,6 +694,8 @@ function trackRequestComplete(id, meta) {
     recentRequests.push({
       ...r,
       ...meta,
+      status: r.status || meta?.status || 'success',
+      lastError: r.lastError || meta?.lastError || null,
       endedAt: Date.now(),
       durationSec: Math.round((Date.now() - r.startTime) / 100) / 10,
       N: info?.N ?? null,
@@ -1247,7 +1249,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   if (isImageGenerationRequest(req.body)) {
     const errMsg = "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.";
     console.warn(`[API] 400 Error: ${errMsg}`);
-    bandit.recordRequestError(400, errMsg);
+    bandit.recordRequestError(400, errMsg, req.body?.model || null, null);
+    trackRequestUpdate(requestId, { status: "error-400", lastError: errMsg, model: req.body?.model || null });
     return res.status(400).json({
       error: {
         message: errMsg,
@@ -1283,7 +1286,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         }
       }
       if (estimatedTokens > MAX_CONTEXT_TOKENS) {
+        const errMsg = `Context too large (${estimatedTokens} tokens). Max ${MAX_CONTEXT_TOKENS}. Compress or start new chat.`;
         console.warn(`[REJECT] Contesto ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → 413`);
+        bandit.recordRequestError(413, errMsg, req.body?.model || null, null);
+        trackRequestUpdate(requestId, { status: "error-413", lastError: errMsg, model: req.body?.model || null });
         return res.status(413).json({
           error: {
             message: `Context too large (${estimatedTokens} tokens). Max ${MAX_CONTEXT_TOKENS}. Compress or start new chat.`,
