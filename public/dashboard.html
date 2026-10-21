@@ -816,11 +816,12 @@
         <div style="max-height: 130px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9;">
                 <thead>
-                    <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
-                        <th style="padding: 4px 6px; text-align: left;">Timestamp</th>
-                        <th style="padding: 4px 6px; text-align: left;">Model / Provider</th>
-                        <th style="padding: 4px 6px; text-align: center;">Status / Role</th>
-                        <th style="padding: 4px 6px; text-align: left;">Reason / Stats</th>
+                    <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
+                        <th style="padding: 3px 6px; text-align: left;">Timestamp</th>
+                        <th style="padding: 3px 6px; text-align: left;">Provider</th>
+                        <th style="padding: 3px 6px; text-align: left;">Model</th>
+                        <th style="padding: 3px 6px; text-align: center; white-space: nowrap;">Status</th>
+                        <th style="padding: 3px 6px; text-align: left;">Reason / Stats</th>
                     </tr>
                 </thead>
                 <tbody id="unified-cronologia-tbody">
@@ -881,14 +882,6 @@
     </div>
 
     <div id="tab-models" class="tab-content">
-        <div class="stats" style="margin-bottom:10px;">
-            <strong>Modelli (Prod):</strong>
-            Totali: <span id="models-count-total" class="badge badge-monitorati">0</span> |
-            <span id="models-count-active" class="badge badge-attivi">0</span> attivi |
-            <span id="models-count-cooldown" class="badge badge-cooldown">0</span> cool |
-            <span id="models-count-degraded" class="badge badge-degraded">0</span> degraded |
-            <span id="models-count-banned" class="badge badge-bannati">0</span> bannati
-        </div>
         <div class="filter-bar" id="models-filter-form">
             <input type="text" class="filter-input" id="models-filter-search" placeholder="🔍 Cerca per ID modello (es. llama3...)">
             <select class="filter-input" id="models-filter-provider">
@@ -2648,25 +2641,27 @@
                 if (!tbody) return;
 
                 function fmtRow(r, kind) {
+                    const ts = r.timestamp || r.endedAt || Date.now();
+                    const dObj = new Date(ts);
                     const timeVal = kind === 'active'
                         ? (Number(r.elapsedSec || 0).toFixed(1) + 's (try ' + (r.attempt || 1) + ')')
-                        : (Math.round((Date.now() - (r.endedAt || r.timestamp || Date.now())) / 1000) + 's ago');
+                        : dObj.toISOString().replace('T', ' ').substring(0, 19);
                     const model = r.model || '(selezione...)';
                     const provider = r.provider || '-';
                     
                     let statusLabel = '';
                     let statusColor = '#c9d1d9';
                     if (kind === 'active') {
-                        statusLabel = 'Active (⏳)';
+                        statusLabel = 'Active ⏳';
                         statusColor = '#d29922';
                     } else if (r.status === 'success') {
-                        statusLabel = 'Success (✅)';
+                        statusLabel = 'Success ✅';
                         statusColor = '#3fb950';
                     } else if (r.status && (r.status.startsWith('error') || r.status.startsWith('err') || r.status.includes('fail'))) {
-                        statusLabel = 'Rejected (❌)';
+                        statusLabel = 'Rejected ❌';
                         statusColor = '#f85149';
                     } else {
-                        statusLabel = 'Success (✅)';
+                        statusLabel = 'Success ✅';
                         statusColor = '#3fb950';
                     }
 
@@ -2690,13 +2685,11 @@
                     const statsStr = statsParts.join(' | ') || '-';
 
                     return `<tr style="border-bottom: 1px solid #21262d;">
-                        <td style="padding: 6px 8px; white-space: nowrap; color: #8b949e; font-family: monospace;">${escapeHtml(timeVal)}</td>
-                        <td style="padding: 6px 8px;">
-                            <div style="font-weight: 600; color: #58a6ff;">${escapeHtml(model)}</div>
-                            <div style="font-size: 10px; color: #8b949e;">[${escapeHtml(provider)}]</div>
-                        </td>
-                        <td style="padding: 6px 8px; text-align: center;"><span style="color: ${statusColor}; font-weight: 600;">${escapeHtml(statusLabel)}</span></td>
-                        <td style="padding: 6px 8px; font-family: monospace; font-size: 11px; color: #c9d1d9;">${escapeHtml(statsStr)}</td>
+                        <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${escapeHtml(timeVal)}</td>
+                        <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">[${escapeHtml(provider)}]</td>
+                        <td style="padding: 3px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff;">${escapeHtml(model)}</td>
+                        <td style="padding: 3px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600;">${escapeHtml(statusLabel)}</span></td>
+                        <td style="padding: 3px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9;">${escapeHtml(statsStr)}</td>
                     </tr>`;
                 }
 
@@ -2716,10 +2709,11 @@
                 let placeholderHtml = '';
                 for (let i = 0; i < placeholders; i++) {
                     placeholderHtml += `<tr style="border-bottom: 1px solid #21262d; opacity: 0.2;">
-                        <td style="padding: 6px 8px;">-</td>
-                        <td style="padding: 6px 8px;">-</td>
-                        <td style="padding: 6px 8px; text-align: center;">-</td>
-                        <td style="padding: 6px 8px;">-</td>
+                        <td style="padding: 3px 6px;">-</td>
+                        <td style="padding: 3px 6px;">-</td>
+                        <td style="padding: 3px 6px;">-</td>
+                        <td style="padding: 3px 6px; text-align: center;">-</td>
+                        <td style="padding: 3px 6px;">-</td>
                     </tr>`;
                 }
 
