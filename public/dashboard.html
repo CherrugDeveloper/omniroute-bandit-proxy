@@ -768,13 +768,17 @@
     </div>
         </div>
         <div class="stats-container">
-            <div class="stats"><strong>Richieste:</strong> <span id="total-req" class="ok">0</span></div>
+            <div class="stats" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <strong>Richieste / Osservazioni:</strong>
+                    <span id="total-req" class="ok">0</span> req |
+                    <span id="total-obs" class="ok">0</span> obs
+                    <span class="muted" id="success-rate">(successo: —)</span>
+                </div>
+                <button class="btn btn-reset" style="padding:2px 6px; font-size:12px; background:none; border:none; cursor:pointer;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
+            </div>
             <div class="stats" title="Modello con lo score UCB1 più alto">
                 <strong>Top model:</strong> <span id="top-model" class="mono">—</span>
-            </div>
-            <div class="stats">
-                <strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span> <span class="muted" id="success-rate">(successo: —)</span>
-                <button class="btn btn-reset" style="margin-left:8px;padding:2px 6px;font-size:11px" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
             </div>
 
             <div class="stats" title="Metriche aggregate">
@@ -784,7 +788,7 @@
                 <span id="free-active" class="attention">—</span> free attivi
             </div>
 
-            <div class="stats" title="Stato Modelli (Monitorati / Attivi / Cooldown / Bannati / Degradati / Da Config / Catalogo)">
+            <div class="stats" title="Stato Modelli (Monitorati / Chat Catalogo / Totali Grezzi)">
                 <strong>Modelli:</strong>
                 Monitorati: <span id="total-models" class="badge badge-monitorati">0</span> |
                 <span id="active-models" class="badge badge-attivi">0</span> attivi |
@@ -807,22 +811,16 @@
             </div>
         </div>
 
-    <!-- Persistent Unified Panel: Cronologia Operativa & Stato UCB1 -->
-    <div class="card" style="margin-bottom:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px 12px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <h3 style="margin:0; color:#58a6ff; font-size:13px; display:flex; align-items:center; gap:8px;">
-                ⚡ Cronologia Operativa & Stato UCB1
-            </h3>
-            <button class="btn" onclick="switchTab('consideration')" style="font-size:11px; padding:2px 6px; background:#21262d; border:1px solid #30363d; color:#58a6ff; cursor:pointer; border-radius:4px;" title="Vedi Tabella Considerazioni">🔍 Tabella</button>
-        </div>
-        <div style="max-height: 150px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px;">
+    <!-- Persistent Unified Panel -->
+    <div class="card" style="margin-bottom:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:6px 10px;">
+        <div style="max-height: 130px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
-                        <th style="padding: 6px 8px; text-align: left;">Time</th>
-                        <th style="padding: 6px 8px; text-align: left;">Model / Provider</th>
-                        <th style="padding: 6px 8px; text-align: center;">Status / Role</th>
-                        <th style="padding: 6px 8px; text-align: left;">Reason / Stats</th>
+                        <th style="padding: 4px 6px; text-align: left;">Timestamp</th>
+                        <th style="padding: 4px 6px; text-align: left;">Model / Provider</th>
+                        <th style="padding: 4px 6px; text-align: center;">Status / Role</th>
+                        <th style="padding: 4px 6px; text-align: left;">Reason / Stats</th>
                     </tr>
                 </thead>
                 <tbody id="unified-cronologia-tbody">
@@ -839,7 +837,6 @@
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
         <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
         <button class="tab-btn" data-tab="scripts">🛠️ Scripts Manager</button>
-        <button class="tab-btn" data-tab="consideration">🔍 Considerazioni</button>
     </div>
 
     <div id="tab-logs" class="tab-content active">
