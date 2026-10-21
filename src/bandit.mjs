@@ -1619,7 +1619,7 @@ export class DiscountedUCB1Bandit {
     const selectionHistory = [];
 
     // Helper filtering function with multi-tier relaxation options
-    const filterModels = (opts = {}) => {
+    const filterModels = (tierName, opts = {}) => {
       const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false } = opts;
       return models.filter(model => {
         let rejectionReason = null;
@@ -1682,10 +1682,8 @@ export class DiscountedUCB1Bandit {
             const dynamicMax = model.dynamic_max_tokens || 0;
             // Always respect dynamic_max_tokens (runtime 413/TPM limit) even if ignoreTokenLimit is true
             if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
-              if (DEBUG) console.log(`[BANDIT][TOKEN-LIMIT] Model ${model.id} excluded by dynamicMax (413/TPM limit): estimatedTokens=${estimatedTokens} > dynamicMax=${dynamicMax}`);
               rejectionReason = 'dynamic_max_tokens_exceeded';
             } else if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
-              if (DEBUG) console.log(`[BANDIT][TOKEN-LIMIT] Model ${model.id} excluded: estimatedTokens=${estimatedTokens} > maxInput=${maxInput}`);
               rejectionReason = 'max_input_tokens_exceeded';
             }
           }
@@ -1716,7 +1714,7 @@ export class DiscountedUCB1Bandit {
             provider: model.provider,
             status: 'rejected',
             reason: rejectionReason,
-            tier: ignoreCooldown ? 'emergency' : (ignorePolicies ? 'tier2' : (ignoreTools ? 'tier1' : 'strict')),
+            tier: tierName,
             N: model.N || 0,
             sum_reward: model.sum_reward || 0,
             avg_reward: (model.N || 0) > 0 ? (model.sum_reward || 0) / (model.N || 0) : 1.0,
@@ -1725,6 +1723,7 @@ export class DiscountedUCB1Bandit {
           return false;
         }
 
+        model._selectionTier = tierName;
         return true;
       });
     };
@@ -1735,7 +1734,7 @@ export class DiscountedUCB1Bandit {
     // but avoid total failure if the strict environment is too restrictive.
 
     // Tier 0: Strict Filtering (The Ideal Case)
-    let availableModels = filterModels();
+    let availableModels = filterModels('strict');
 
     // Tier 0.1: Maintenance Recovery
     // If no models, reset expired provider flags and retry strict filtering.
@@ -1752,31 +1751,31 @@ export class DiscountedUCB1Bandit {
         WHERE cooldown_until > 0 AND cooldown_until <= ?
       `).run(now);
 
-      availableModels = filterModels();
+      availableModels = filterModels('strict');
     }
 
     // Tier 1: Capability Relaxation (Ignore Tool requirements)
     if (availableModels.length === 0) {
       if (DEBUG) console.log(`[BANDIT] Relaxation Tier 1: Ignoring tool requirements`);
-      availableModels = filterModels({ ignoreTools: true });
+      availableModels = filterModels('tier1', { ignoreTools: true });
     }
 
     // Tier 2: Policy Relaxation (Ignore excludePaid, onlyFree, excludeThinking)
     if (availableModels.length === 0) {
       if (DEBUG) console.log(`[BANDIT] Relaxation Tier 2: Ignoring usage policies`);
-      availableModels = filterModels({ ignoreTools: true, ignorePolicies: true });
+      availableModels = filterModels('tier2', { ignoreTools: true, ignorePolicies: true });
     }
 
     // Tier 3: Resource Relaxation (Ignore token limits)
     if (availableModels.length === 0) {
       if (DEBUG) console.log(`[BANDIT] Relaxation Tier 3: Ignoring token limits`);
-      availableModels = filterModels({ ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
+      availableModels = filterModels('tier3', { ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 
     // Tier 4: Emergency Relaxation (Ignore Cooldowns)
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels({ ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
