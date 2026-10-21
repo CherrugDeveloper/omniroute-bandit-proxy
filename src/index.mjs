@@ -69,17 +69,43 @@ export function isImageGenerationRequest(body) {
          ? lastUserMessage.content
          : JSON.stringify(lastUserMessage.content);
 
-       const imageGenerationKeywords = [
-         'generate image', 'create image', 'draw', 'paint',
-         'make a picture', 'create a picture', 'generate picture',
-         'text to image', 'image from text', 'create artwork',
-         'generate artwork', 'make an image', 'visualize', 'render'
+       const contentLower = content.toLowerCase();
+
+       const explicitImagePhrases = [
+         'generate image', 'create image', 'generate a picture', 'create a picture',
+         'make a picture', 'generate picture', 'text to image', 'image from text',
+         'create artwork', 'generate artwork', 'make an image', 'generate an image',
+         'create an image'
        ];
 
-       const contentLower = content.toLowerCase();
-       return imageGenerationKeywords.some(keyword =>
-         contentLower.includes(keyword)) ||
-         /^(generate|create|draw|paint)\s+(a|an|the)?\s*(image|picture|artwork|illustration|portrait|landscape)/i.test(contentLower);
+       if (explicitImagePhrases.some(phrase => contentLower.includes(phrase))) {
+         return true;
+       }
+
+       if (/^(generate|create|draw|paint)\s+(a|an|the)?\s*(image|picture|photo|artwork|illustration|portrait|landscape|avatar|icon|banner|logo|wallpaper|sunset|painting|drawing|sketch|scenery|scene)/i.test(contentLower)) {
+         return true;
+       }
+
+       const ambiguousVerbs = ['draw', 'paint', 'visualize', 'render', 'sketch', 'design'];
+       const imageNouns = [
+         'image', 'picture', 'photo', 'artwork', 'illustration',
+         'avatar', 'icon', 'banner', 'logo', 'wallpaper', 'portrait', 'landscape',
+         'sunset', 'painting', 'drawing', 'sketch', 'scenery', 'scene'
+       ];
+
+       const hasAmbiguousVerb = ambiguousVerbs.some(verb => {
+         const regex = new RegExp(`\\b${verb}\\b`, 'i');
+         return regex.test(contentLower);
+       });
+
+       const hasImageNoun = imageNouns.some(noun => {
+         const regex = new RegExp(`\\b${noun}\\b`, 'i');
+         return regex.test(contentLower);
+       });
+
+       if (hasAmbiguousVerb && hasImageNoun) {
+         return true;
+       }
      }
    }
 

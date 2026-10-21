@@ -152,6 +152,28 @@ describe("Image Generation Request Detection", () => {
       assert.equal(isImageGenerationRequest(body), false);
     });
 
+    test("does not false positive on ambiguous verbs without image nouns (Draw a flowchart, Render this HTML)", () => {
+      const body1 = { messages: [{ role: "user", content: "Draw a flowchart for the authentication process" }] };
+      const body2 = { messages: [{ role: "user", content: "Render this HTML snippet" }] };
+      const body3 = { messages: [{ role: "user", content: "Visualize the algorithm steps" }] };
+      const body4 = { messages: [{ role: "user", content: "Paint a wall in the room" }] };
+
+      assert.equal(isImageGenerationRequest(body1), false);
+      assert.equal(isImageGenerationRequest(body2), false);
+      assert.equal(isImageGenerationRequest(body3), false);
+      assert.equal(isImageGenerationRequest(body4), false);
+    });
+
+    test("detects ambiguous verbs when paired with image nouns (Draw an illustration, Render a wallpaper)", () => {
+      const body1 = { messages: [{ role: "user", content: "Draw an illustration of a cyber cat" }] };
+      const body2 = { messages: [{ role: "user", content: "Render a beautiful wallpaper" }] };
+      const body3 = { messages: [{ role: "user", content: "Visualize a futuristic city landscape" }] };
+
+      assert.equal(isImageGenerationRequest(body1), true);
+      assert.equal(isImageGenerationRequest(body2), true);
+      assert.equal(isImageGenerationRequest(body3), true);
+    });
+
     test("returns false for empty body", () => {
       assert.equal(isImageGenerationRequest({}), false);
     });
