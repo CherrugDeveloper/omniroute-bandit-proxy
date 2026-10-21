@@ -1257,8 +1257,46 @@ app.get("/v1/scripts/output/:pid", requireAuth, (req, res) => {
 });
 
 // ========================================
-// PROXY ENDPOINT
+// PROXY ENDPOINTS
 // ========================================
+
+app.post("/v1/images/generations", async (req, res) => {
+  const requestId = newRequestId();
+  const { prompt, model, n, size, response_format, user } = req.body || {};
+
+  if (!prompt) {
+    return res.status(400).json({ error: { message: "Prompt is required" } });
+  }
+
+  trackRequestStart(requestId, {
+    source: "zoo",
+    model: model || null,
+    status: "starting",
+    clientIp: req.ip || req.connection?.remoteAddress || "?"
+  });
+
+  res.once("finish", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
+  res.once("close", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
+
+  bandit.recordRequest();
+
+  try {
+    const selected = await bandit.selectModel(new Set(), 0, false, true);
+
+    if (!selected) {
+      const errMsg = "No image generation models available";
+      console.warn(`[API] 503 Error: ${errMsg}`);
+      trackRequestUpdate(requestId, { status: "error-503", lastError: errMsg });
+      return res.status(503).json({ error: { message: errMsg } });
+    }
+
+    // TODO: Implement upstream call and response formatting
+    res.status(501).json({ error: { message: "Not implemented yet" } });
+  } catch (e) {
+    console.error("[API] Errore images/generations:", e.message);
+    res.status(500).json({ error: { message: e.message } });
+  }
+});
 
 app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const { stream } = req.body || {};
