@@ -70,7 +70,7 @@
         }
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
             gap: 8px;
             margin-bottom: 2px;
         }
@@ -771,8 +771,8 @@
             <div class="stats" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <div>
                     <strong>Richieste / Osservazioni:</strong>
-                    <span id="total-req" class="ok">0</span> req |
-                    <span id="total-obs" class="ok">0</span> obs
+                    <span id="total-req" class="ok">0</span> |
+                    <span id="total-obs" class="ok">0</span>
                     <span class="muted" id="success-rate">(successo: —)</span>
                     <button class="btn btn-reset" style="padding:1px 4px; font-size:11px; background:none; border:none; cursor:pointer; margin-left:6px;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
                 </div>
@@ -2351,6 +2351,11 @@
             else if (a === 'show-help') showHelp(btn.dataset.name);
             else if (a === 'refresh-all') refreshAll();
             else if (a === 'copy-logs') copyLogs();
+            else if (a === 'reset-counters') {
+                if (confirm('Vuoi azzerare i contatori di richieste e osservazioni?')) {
+                    apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
+                }
+            }
             else if (a === 'toggle-provider') {
                 const name = btn.dataset.name;
                 if (collapsedProviders.has(name)) collapsedProviders.delete(name);
@@ -2646,8 +2651,8 @@
                     const timeVal = kind === 'active'
                         ? (Number(r.elapsedSec || 0).toFixed(1) + 's (try ' + (r.attempt || 1) + ')')
                         : dObj.toISOString().replace('T', ' ').substring(0, 19);
-                    const model = r.model || '(selezione...)';
-                    const provider = r.provider || '-';
+                    const model = r.model || r.selectedModel || r.requestedModel || '(selezione...)';
+                    const provider = r.provider || r.selectedProvider || '-';
                     
                     let statusLabel = '';
                     let statusColor = '#c9d1d9';
