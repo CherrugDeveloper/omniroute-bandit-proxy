@@ -822,6 +822,24 @@
         </div>
     </div>
 
+    <!-- Persistent Top-Header Specchietto Widget -->
+    <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h3 style="margin:0; color:#58a6ff; font-size:14px; display:flex; align-items:center; gap:8px;">
+                <span>📋</span> Ultime Valutazioni & Considerazioni (Specchietto Cronologico)
+            </h3>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn" onclick="switchTab('consideration')" style="font-size:11px; padding:3px 8px; background:#21262d; border:1px solid #30363d; color:#58a6ff; cursor:pointer; border-radius:4px;">🔍 Tabella Completa</button>
+                <button id="top-spec-toggle" onclick="toggleTopSpecWidget()" style="background:none; border:none; color:#8b949e; cursor:pointer; font-size:12px; padding:2px 6px;" title="Comprimi / Espandi">▼</button>
+            </div>
+        </div>
+        <div id="top-spec-content">
+            <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:180px; overflow-y:auto; background:#0d1117; border:1px solid #30363d; border-radius:4px; padding:8px;">
+                Attendendo valutazioni UCB1...
+            </div>
+        </div>
+    </div>
+
     <div class="tabs">
         <button class="tab-btn active" data-tab="logs">📋 Live Logs</button>
         <button class="tab-btn" data-tab="models">📦 Modelli</button>
@@ -829,6 +847,7 @@
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
         <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
         <button class="tab-btn" data-tab="scripts">🛠️ Scripts Manager</button>
+        <button class="tab-btn" data-tab="consideration">🔍 Considerazioni</button>
     </div>
 
     <div id="tab-logs" class="tab-content active">
@@ -1057,6 +1076,46 @@
                     </div>
                 </div>
                 <pre id="script-output" style="background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:400px; font-size:12px; white-space:pre-wrap; word-wrap:break-word;"></pre>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-consideration" class="tab-content">
+        <div class="card" style="margin-bottom:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="margin:0; color:#58a6ff; font-size:15px; display:flex; align-items:center; gap:8px;">
+                    <span>🔍</span> Tabella Cronologica & Breakdown Considerazioni UCB1
+                </h3>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="text" id="consideration-filter" placeholder="🔍 filtra per ID/Provider/Motivo..."
+                        autocomplete="off"
+                        style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:260px;"
+                        oninput="renderConsiderationTab()">
+                    <button class="btn" onclick="fetchConsideration()" style="font-size:12px; padding:4px 10px; background:#21262d; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; border-radius:4px;">🔄 Aggiorna</button>
+                </div>
+            </div>
+            <div id="consideration-stats-summary" style="display:flex; gap:15px; flex-wrap:wrap; font-size:13px; color:#8b949e; margin-bottom:12px; padding:8px; background:#0d1117; border:1px solid #30363d; border-radius:4px;">
+                <div>Totale considerati: <strong id="cons-stat-total" style="color:#c9d1d9;">0</strong></div>
+                <div>Selezionati: <strong id="cons-stat-selected" style="color:#3fb950;">0</strong></div>
+                <div>Scartati: <strong id="cons-stat-rejected" style="color:#f85149;">0</strong></div>
+                <div>Motivo principale: <strong id="cons-stat-top-reason" style="color:#58a6ff;">-</strong></div>
+            </div>
+            <div class="table-wrapper" style="max-height:600px; overflow-y:auto;">
+                <table>
+                    <thead>
+                        <tr style="border-bottom:1px solid #30363d; color:#58a6ff; font-size:13px;">
+                            <th># / Timestamp</th>
+                            <th>Modello ID</th>
+                            <th>Provider</th>
+                            <th>Stato / Risultato</th>
+                            <th>Motivo / Dettagli Scarto</th>
+                            <th>Metriche (N / Reward / Latency)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consideration-table-body">
+                        <tr><td colspan="6" style="text-align:center; color:#8b949e; padding:20px;">Caricamento considerazioni in corso...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -1398,7 +1457,27 @@
                 renderAll();
             }
         });
-        const validTabs = ['logs', 'models', 'train', 'modes', 'providers', 'scripts'];
+        const validTabs = ['logs', 'models', 'train', 'modes', 'providers', 'scripts', 'consideration'];
+
+        function toggleTopSpecWidget() {
+            const content = document.getElementById('top-spec-content');
+            const btn = document.getElementById('top-spec-toggle');
+            if (!content || !btn) return;
+            const isCollapsed = content.style.display === 'none';
+            content.style.display = isCollapsed ? 'block' : 'none';
+            btn.textContent = isCollapsed ? '▼' : '▲';
+            localStorage.setItem('dashboard.topSpec.collapsed', !isCollapsed);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const isTopCollapsed = localStorage.getItem('dashboard.topSpec.collapsed') === 'true';
+            if (isTopCollapsed) {
+                const content = document.getElementById('top-spec-content');
+                const btn = document.getElementById('top-spec-toggle');
+                if (content) content.style.display = 'none';
+                if (btn) btn.textContent = '▲';
+            }
+        });
 
         function switchTab(tabName, updateHistory = true) {
             if (!validTabs.includes(tabName)) tabName = 'logs';
@@ -2751,6 +2830,8 @@
             }
         }, 500);
 
+        let lastConsiderationData = [];
+
         async function fetchConsideration() {
             try {
                 const res = await apiFetch('/v1/consideration');
@@ -2759,25 +2840,98 @@
                     return;
                 }
                 const data = await res.json();
-                const list = data.consideration || [];
-                const specSheet = document.getElementById('chronological-spec-sheet');
-                if (!specSheet) return;
-                if (list.length === 0) {
-                    specSheet.innerHTML = '<span style="color:#8b949e;">Nessuna richiesta recente</span>';
-                    return;
-                }
-                specSheet.innerHTML = list.map((item, idx) => {
-                    const num = idx + 1;
-                    const isSelected = item.status === 'selected';
-                    const badgeColor = isSelected ? '#3fb950' : '#f85149';
-                    const statusText = isSelected ? 'IN USO ATTUALMENTE (Selezionato)' : `scartato: ${item.reason || 'unknown'}`;
-                    return `<div style="margin-bottom:4px; padding:4px 6px; border-radius:3px; background:${isSelected ? '#1f382b' : '#311b1b'}; border-left:3px solid ${badgeColor};">
-                        <strong>#${num}</strong> <code>${escapeHtml(item.id)}</code> [${escapeHtml(item.provider)}] → <span style="color:${badgeColor}; font-weight:600;">${escapeHtml(statusText)}</span>
-                    </div>`;
-                }).join('');
+                lastConsiderationData = data.consideration || [];
+                renderTopSpecSheet(lastConsiderationData);
+                renderConsiderationTab();
             } catch (e) {
-                // ignore
+                console.error("[Dashboard] Error fetching consideration:", e);
             }
+        }
+
+        function renderTopSpecSheet(list) {
+            const specSheet = document.getElementById('chronological-spec-sheet');
+            if (!specSheet) return;
+            if (!list || list.length === 0) {
+                specSheet.innerHTML = '<span style="color:#8b949e;">Nessuna valutazione UCB1 recente registrata.</span>';
+                return;
+            }
+            specSheet.innerHTML = list.map((item, idx) => {
+                const num = idx + 1;
+                const isSelected = item.status === 'selected' || item.selected;
+                const badgeColor = isSelected ? '#3fb950' : '#f85149';
+                const statusText = isSelected ? 'SELEZIONATO ✅ (In Uso)' : `scartato: ${item.reason || item.filterReason || 'unknown'}`;
+                const rewardTxt = item.reward !== undefined ? ` | Reward: ${Number(item.reward).toFixed(3)}` : '';
+                const nTxt = item.N !== undefined ? ` | N: ${item.N}` : '';
+                const latTxt = item.latency_ms !== undefined ? ` | ${item.latency_ms}ms` : '';
+                return `<div style="margin-bottom:4px; padding:4px 6px; border-radius:3px; background:${isSelected ? '#1f382b' : '#311b1b'}; border-left:3px solid ${badgeColor}; display:flex; justify-content:space-between; align-items:center;">
+                    <div><strong>#${num}</strong> <code>${escapeHtml(item.id || item.model || 'model')}</code> <span style="color:#8b949e; font-size:11px;">[${escapeHtml(item.provider || 'provider')}]</span></div>
+                    <div style="text-align:right;"><span style="color:${badgeColor}; font-weight:600;">${escapeHtml(statusText)}</span><span style="color:#8b949e; font-size:10px;">${nTxt}${rewardTxt}${latTxt}</span></div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderConsiderationTab() {
+            const tbody = document.getElementById('consideration-table-body');
+            const filterInput = document.getElementById('consideration-filter');
+            const filterVal = filterInput ? filterInput.value.toLowerCase() : '';
+            if (!tbody) return;
+
+            const list = lastConsiderationData;
+            let total = list.length;
+            let selectedCount = 0;
+            let rejectedCount = 0;
+            const reasonCounts = {};
+
+            const filtered = list.filter(item => {
+                const isSelected = item.status === 'selected' || item.selected;
+                if (isSelected) selectedCount++; else rejectedCount++;
+                const reason = item.reason || item.filterReason || 'none';
+                reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
+
+                if (!filterVal) return true;
+                const txt = `${item.id || item.model || ''} ${item.provider || ''} ${reason} ${item.status || ''}`.toLowerCase();
+                return txt.includes(filterVal);
+            });
+
+            document.getElementById('cons-stat-total').textContent = total;
+            document.getElementById('cons-stat-selected').textContent = selectedCount;
+            document.getElementById('cons-stat-rejected').textContent = rejectedCount;
+
+            let topReason = '-';
+            let maxReasonCount = 0;
+            for (const [r, c] of Object.entries(reasonCounts)) {
+                if (c > maxReasonCount) {
+                    maxReasonCount = c;
+                    topReason = `${r} (${c})`;
+                }
+            }
+            document.getElementById('cons-stat-top-reason').textContent = topReason;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#8b949e; padding:20px;">Nessun record di considerazione corrispondente al filtro.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map((item, idx) => {
+                const isSelected = item.status === 'selected' || item.selected;
+                const badgeColor = isSelected ? '#3fb950' : '#f85149';
+                const statusText = isSelected ? 'SELEZIONATO ✅' : 'SCARTATO ❌';
+                const reason = item.reason || item.filterReason || 'unknown';
+                const bg = isSelected ? '#162b20' : '#2b1616';
+                const nVal = item.N !== undefined ? item.N : '-';
+                const rewardVal = item.reward !== undefined ? Number(item.reward).toFixed(3) : '-';
+                const latVal = item.latency_ms !== undefined ? `${item.latency_ms}ms` : '-';
+                const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : `#${idx+1}`;
+
+                return `<tr style="border-bottom:1px solid #30363d; background:${bg};">
+                    <td style="padding:8px; font-size:12px; color:#8b949e;">${timeStr}</td>
+                    <td style="padding:8px; font-size:12px;"><code>${escapeHtml(item.id || item.model || '-')}</code></td>
+                    <td style="padding:8px; font-size:12px; color:#58a6ff;">${escapeHtml(item.provider || '-')}</td>
+                    <td style="padding:8px; font-size:12px;"><span style="color:${badgeColor}; font-weight:600;">${statusText}</span></td>
+                    <td style="padding:8px; font-size:12px; color:#c9d1d9;">${escapeHtml(reason)}</td>
+                    <td style="padding:8px; font-size:12px; color:#8b949e;">N: ${nVal} | Reward: ${rewardVal} | Lat: ${latVal}</td>
+                </tr>`;
+            }).join('');
         }
         function initFab() {
             const fab = document.getElementById('dev-fab');
