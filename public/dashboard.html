@@ -69,10 +69,17 @@
             flex-shrink: 0;
         }
         .stats-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            align-items: stretch;
             gap: 8px;
             margin-bottom: 2px;
+            overflow-x: auto;
+        }
+        .stats-container .stats {
+            flex: 1;
+            min-width: 0;
         }
         .stats {
             background: #161b22;
@@ -2352,9 +2359,7 @@
             else if (a === 'refresh-all') refreshAll();
             else if (a === 'copy-logs') copyLogs();
             else if (a === 'reset-counters') {
-                if (confirm('Vuoi azzerare i contatori di richieste e osservazioni?')) {
-                    apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
-                }
+                apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
             }
             else if (a === 'toggle-provider') {
                 const name = btn.dataset.name;

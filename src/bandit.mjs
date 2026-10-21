@@ -850,7 +850,7 @@ export class DiscountedUCB1Bandit {
            WHERE id = ?`
         ).run(reward, modelId);
         this.db.prepare(
-          "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = COALESCE(?, model), provider = COALESCE(?, provider) WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+          "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).run(Date.now(), 200, null, modelId, provider);
         this._lastReward.set(modelId, reward);
       } else {
@@ -861,7 +861,7 @@ export class DiscountedUCB1Bandit {
         const statusCode = errorDetails?.status || 500;
         const errorMessage = errorDetails?.message || errorDetails?.error || String(errorDetails) || "Unknown error";
         this.db.prepare(
-          "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = COALESCE(?, model), provider = COALESCE(?, provider) WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+          "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).run(Date.now(), statusCode, errorMessage, modelId, provider);
       }
     });

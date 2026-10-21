@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.68 — 2026-10-21
+- **Dashboard Stats Layout & Request Log Parameter Fix**:
+  - Refactored `.stats-container` in [`public/dashboard.html`](public/dashboard.html:69) to horizontal flex row with overflow-x scrolling and fixed stats item widths.
+  - Streamlined counter reset action in [`public/dashboard.html`](public/dashboard.html:2359) by removing redundant confirmation dialog.
+  - Updated model and provider update query parameters in [`src/bandit.mjs`](src/bandit.mjs:850) for robust request log tracking.
+
 ## v1.1.67 — 2026-10-20
 - **Fix Dashboard Floating Action Button & Developer Handlers**:
   - Replaced direct element queries with robust event delegation for `.dev-menu-item`, `.dev-modal-overlay`, `.dev-modal-close`, and `#dev-share-btn` in [`public/dashboard.html`](public/dashboard.html:1) to ensure changelog, developer modal, and share actions work reliably.
