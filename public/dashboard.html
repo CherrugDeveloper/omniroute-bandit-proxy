@@ -1114,6 +1114,7 @@
 
     <script>
         let allData = { providers: [], models: [] };
+        let refreshing = false;
         let trainData = { providers: [], models: [] };
         let sortCol = null;
         let sortDir = 'asc';
@@ -2455,12 +2456,14 @@
             } catch (e) { console.error('Errore fetch quota:', e); }
         }
 
-        function renderProviderQuota(providers) {
+        function renderProviderQuota(input) {
             const tbody = document.getElementById('providers-tbody');
             if (!tbody) return;
             const fragment = document.createDocumentFragment();
 
-            if (!providers || providers.length === 0) {
+            const providers = Array.isArray(input) ? input : (input?.quota || input?.providers || []);
+
+            if (!providers || !Array.isArray(providers) || providers.length === 0) {
                 const tr = document.createElement('tr');
                 const td = document.createElement('td');
                 td.colSpan = 5;
