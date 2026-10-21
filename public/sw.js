@@ -1,14 +1,6 @@
-const CACHE_NAME = 'omniroute-pwa-v2';
-const ASSETS_TO_CACHE = [
-  '/dashboard'
-];
+const CACHE_NAME = 'omniroute-pwa-v3';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
   self.skipWaiting();
 });
 
@@ -29,6 +21,23 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/v1/')) {
     return;
   }
+
+  // For navigation or HTML / dashboard requests, use network-first strategy
+  if (event.request.mode === 'navigate' || url.pathname === '/dashboard' || event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          });
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // For other static assets, cache-first with network fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       return cachedResponse || fetch(event.request);
