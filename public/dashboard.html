@@ -807,35 +807,29 @@
             </div>
         </div>
 
-    <!-- Persistent Unified Widget: Active Requests & Recent History with Integrated Scarti & Selezione Spec Sheet -->
-    <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3 style="margin:0; color:#58a6ff; font-size:14px; display:flex; align-items:center; gap:8px;">
-                <span>⚡</span> Richieste in Corso & Storico Recente (con Specchietto Scarti & Selezione Integrato)
-            </h3>
-            <button id="unified-widget-toggle" onclick="toggleUnifiedWidget()" style="background:none; border:none; color:#8b949e; cursor:pointer; font-size:12px; padding:2px 6px;" title="Comprimi / Espandi">▼</button>
-        </div>
-        <div id="unified-widget-content">
-            <div id="active-panel" class="active-panel" style="display:block;">
-                <div id="active-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Persistent Top-Header Specchietto Widget -->
-    <div class="card" style="margin-bottom:15px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:12px 15px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3 style="margin:0; color:#58a6ff; font-size:14px; display:flex; align-items:center; gap:8px;">
-                <span>📋</span> Ultime Valutazioni & Considerazioni (Specchietto Cronologico)
+    <!-- Persistent Unified Panel: Panoramica Operativa & Specchietto UCB1 -->
+    <div class="card" style="margin-bottom:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px 12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <h3 style="margin:0; color:#58a6ff; font-size:13px; display:flex; align-items:center; gap:8px;">
+                <span>⚡📋</span> Panoramica Operativa & Specchietto UCB1
             </h3>
             <div style="display:flex; gap:8px; align-items:center;">
-                <button class="btn" onclick="switchTab('consideration')" style="font-size:11px; padding:3px 8px; background:#21262d; border:1px solid #30363d; color:#58a6ff; cursor:pointer; border-radius:4px;">🔍 Tabella Completa</button>
-                <button id="top-spec-toggle" onclick="toggleTopSpecWidget()" style="background:none; border:none; color:#8b949e; cursor:pointer; font-size:12px; padding:2px 6px;" title="Comprimi / Espandi">▼</button>
+                <div style="display:flex; background:#21262d; border-radius:4px; padding:2px; border:1px solid #30363d;">
+                    <button class="unified-tab-btn active" onclick="switchUnifiedSubTab('active')" style="background:#161b22; color:#58a6ff; border:none; padding:2px 8px; font-size:11px; cursor:pointer; border-radius:3px;">In Corso</button>
+                    <button class="unified-tab-btn" onclick="switchUnifiedSubTab('spec')" style="background:transparent; color:#8b949e; border:none; padding:2px 8px; font-size:11px; cursor:pointer; border-radius:3px;">Specchietto UCB1</button>
+                </div>
+                <button class="btn" onclick="switchTab('consideration')" style="font-size:11px; padding:2px 6px; background:#21262d; border:1px solid #30363d; color:#58a6ff; cursor:pointer; border-radius:4px;" title="Vedi Tabella Considerazioni">🔍 Tabella</button>
+                <button id="unified-panel-toggle" onclick="toggleUnifiedPanel()" style="background:none; border:none; color:#8b949e; cursor:pointer; font-size:12px; padding:2px 4px;" title="Comprimi / Espandi">▼</button>
             </div>
         </div>
-        <div id="top-spec-content">
-            <div id="chronological-spec-sheet" style="font-family:monospace; font-size:12px; color:#c9d1d9; max-height:180px; overflow-y:auto; background:#0d1117; border:1px solid #30363d; border-radius:4px; padding:8px;">
-                Attendendo valutazioni UCB1...
+        <div id="unified-panel-content">
+            <div id="unified-subtab-active" class="unified-subtab-content active" style="display:block; max-height:150px; overflow-y:auto; scrollbar-width:thin;">
+                <div id="active-panel" class="active-panel" style="margin-bottom:0; border:none; padding:0; background:transparent;">
+                    <div id="active-list"></div>
+                </div>
+            </div>
+            <div id="unified-subtab-spec" class="unified-subtab-content" style="display:none; max-height:150px; overflow-y:auto; scrollbar-width:thin; font-family:monospace; font-size:11px; color:#c9d1d9; background:#0d1117; border:1px solid #30363d; border-radius:4px; padding:6px;">
+                <div id="chronological-spec-sheet">Attendendo valutazioni UCB1...</div>
             </div>
         </div>
     </div>
@@ -2868,6 +2862,49 @@
                     <div style="text-align:right;"><span style="color:${badgeColor}; font-weight:600;">${escapeHtml(statusText)}</span><span style="color:#8b949e; font-size:10px;">${nTxt}${rewardTxt}${latTxt}</span></div>
                 </div>`;
             }).join('');
+        }
+
+        function switchUnifiedSubTab(tab) {
+            const activeContent = document.getElementById('unified-subtab-active');
+            const specContent = document.getElementById('unified-subtab-spec');
+            const buttons = document.querySelectorAll('.unified-tab-btn');
+            if (!activeContent || !specContent) return;
+
+            buttons.forEach(btn => {
+                btn.style.background = 'transparent';
+                btn.style.color = '#8b949e';
+                btn.classList.remove('active');
+            });
+
+            if (tab === 'active') {
+                activeContent.style.display = 'block';
+                specContent.style.display = 'none';
+                const btn = document.querySelector('button[onclick*="switchUnifiedSubTab(\'active\')"]');
+                if (btn) {
+                    btn.style.background = '#161b22';
+                    btn.style.color = '#58a6ff';
+                    btn.classList.add('active');
+                }
+            } else {
+                activeContent.style.display = 'none';
+                specContent.style.display = 'block';
+                const btn = document.querySelector('button[onclick*="switchUnifiedSubTab(\'spec\')"]');
+                if (btn) {
+                    btn.style.background = '#161b22';
+                    btn.style.color = '#58a6ff';
+                    btn.classList.add('active');
+                }
+            }
+        }
+
+        let unifiedPanelCollapsed = false;
+        function toggleUnifiedPanel() {
+            const content = document.getElementById('unified-panel-content');
+            const toggleBtn = document.getElementById('unified-panel-toggle');
+            if (!content || !toggleBtn) return;
+            unifiedPanelCollapsed = !unifiedPanelCollapsed;
+            content.style.display = unifiedPanelCollapsed ? 'none' : 'block';
+            toggleBtn.textContent = unifiedPanelCollapsed ? '▲' : '▼';
         }
 
         function renderConsiderationTab() {
