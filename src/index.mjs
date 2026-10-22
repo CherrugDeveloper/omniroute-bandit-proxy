@@ -11,6 +11,7 @@ import { DiscountedUCB1Bandit } from "./bandit.mjs";
 import { HealthChecker, sanitizeBaseUrl, buildEndpointUrl } from "./health-check.mjs";
 import { Notifier } from "./notifier.mjs";
 import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered } from './modes-registry.mjs';
+import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebugEnabled, isDebugVerboseEnabled, readDebugVerboseTtlMs, createTtlFlag, isPollingPath } from "./log-throttle.mjs";
 import fs from "node:fs";
 EventEmitter.defaultMaxListeners = 50;
 
@@ -19,7 +20,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use((req, res, next) => {
-  console.log(`[CORS/DEBUG] Incoming ${req.method} ${req.path} from origin: ${req.headers.origin || 'direct/same-origin'}`);
+  // R1: this middleware sits upstream of every other layer, so it used to log
+  // one line per request — including every dashboard poll.  Opt-in via
+  // CORS_DEBUG=true (default: silent).
+  if (isCorsDebugEnabled()) {
+    console.log(`[CORS/DEBUG] Incoming ${req.method} ${req.path} from origin: ${req.headers.origin || 'direct/same-origin'}`);
+  }
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-token");
@@ -449,28 +455,29 @@ app.use((req, res, next) => {
   next();
 });
 
+// R4: consolidated throttling helpers (see src/log-throttle.mjs).
+// Both the dashboard-stats and the /v1/models log lines use the SAME helper
+// factory; only the window differs.  Env var names are preserved.
+const MODELS_LOG_THROTTLE_MS = parseInt(process.env.MODELS_LOG_THROTTLE_MS || "60000", 10);
+const DASHBOARD_STATS_LOG_INTERVAL_MS = parseInt(process.env.DASHBOARD_STATS_LOG_INTERVAL_MS || "60000", 10);
+// R3: throttles the "[DEBUG server] /v1/dashboard/stats serving stats:" line.
+const dashboardStatsLogger = createThrottledLogger("dashboard-stats", DASHBOARD_STATS_LOG_INTERVAL_MS);
+// R4: throttles the "[API] GET /v1/models ..." line.
+const modelsLogger = createThrottledLogger("models", MODELS_LOG_THROTTLE_MS);
+// R2: the middleware-level [DASHBOARD_STATS_DEBUG] diagnostic line.
+const dashboardStatsDebugLogger = createThrottledLogger("dashboard-stats-debug", DASHBOARD_STATS_LOG_INTERVAL_MS);
+
 // Single entry point: canonical per-request log + optional verbose body inspection
 app.use((req, res, next) => {
   const isApi = req.path.startsWith("/v1/");
-  const isPolling = req.path.startsWith("/v1/metrics")
-    || req.path.startsWith("/v1/logs")
-    || req.path.startsWith("/v1/active")
-    || req.path.startsWith("/v1/modes")
-    || req.path.startsWith("/v1/models")
-    || req.path.startsWith("/v1/debug/status")
-    || req.path.startsWith("/v1/inflight")
-    || req.path.startsWith("/v1/dashboard/stats");
+  // R5: use consolidated isPollingPath helper from log-throttle.mjs
+  const isPolling = isPollingPath(req.path);
   if (req.path === '/v1/dashboard/stats') {
-    const now = Date.now();
-    if (now - dashboardStatsLogState.lastLogAt >= DASHBOARD_STATS_LOG_INTERVAL_MS) {
-      const suppressed = dashboardStatsLogState.suppressed;
-      dashboardStatsLogState.lastLogAt = now;
-      dashboardStatsLogState.suppressed = 0;
-      if (debugVerbose || process.env.DASHBOARD_STATS_DEBUG === 'true') {
-        console.log(`[DASHBOARD_STATS_DEBUG] isApi=${isApi}, isPolling=${isPolling}, condition=${isApi && !isPolling}${suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""}`);
-      }
-    } else {
-      dashboardStatsLogState.suppressed++;
+    const { log, message, suppressed } = dashboardStatsDebugLogger.decide(
+      `[DASHBOARD_STATS_DEBUG] isApi=${isApi}, isPolling=${isPolling}, condition=${isApi && !isPolling}`
+    );
+    if (log && (isDebugVerbose() || process.env.DASHBOARD_STATS_DEBUG === 'true')) {
+      console.log(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
     }
   }
   if (isApi && !isPolling) {
@@ -478,7 +485,7 @@ app.use((req, res, next) => {
     if (req.method === 'POST' && req.path === '/v1/chat/completions') {
       suffix = req.get('x-source') === 'training' ? ' [TRAIN]' : ' [ZOO]';
     }
-    if (debugVerbose) {
+    if (isDebugVerbose()) {
       console.log(`[DEBUG] Incoming ${req.method} ${req.path}${suffix} source=${req.get('x-source') || '-'} client=${req.ip || req.connection?.remoteAddress || '?'}`);
     } else {
       console.log(`[PROXY] ${req.method} ${req.path}${suffix}`);
@@ -523,11 +530,11 @@ function requireAuth(req, res, next) {
   const token = req.get("x-api-token") || req.query.token;
   const validToken = (process.env.DASHBOARD_TOKEN || "").trim() || (process.env.OMNIROUTE_API_KEY || "").trim();
   const match = token === validToken || (process.env.DASHBOARD_TOKEN && token === process.env.DASHBOARD_TOKEN.trim()) || (process.env.OMNIROUTE_API_KEY && token === process.env.OMNIROUTE_API_KEY.trim());
-  if (debugVerbose) {
+  if (isDebugVerbose()) {
     console.log(`[DEBUG AUTH] Checking auth for ${req.path}: REQUIRE_AUTH=${REQUIRE_AUTH}, tokenProvided=${Boolean(token)}, match=${match}`);
   }
   if (!match) {
-    if (debugVerbose) {
+    if (isDebugVerbose()) {
       console.warn(`[DEBUG server] Unauthorized access attempt to ${req.path}. Token provided: ${Boolean(token)}, expected length: ${validToken.length}, received length: ${token ? token.length : 0}`);
     }
     return res.status(401).json({ error: { message: "Unauthorized" } });
@@ -583,7 +590,16 @@ const logBuffer = new RingBuffer(1000);
 // ========================================
 // Traccia le richieste in corso con: modello scelto, tentativo, tempo, tier
 // Toggle debug verbose (in memoria, si resetta al restart)
-let debugVerbose = false;
+// R2: seeded from DEBUG_VERBOSE env (default false) and expires after
+// DEBUG_VERBOSE_TTL_MS (default 15 min = 900000ms).
+const debugFlag = createTtlFlag(
+  isDebugVerboseEnabled(),
+  readDebugVerboseTtlMs()
+);
+
+function isDebugVerbose() {
+  return debugFlag.isActive();
+}
 // === SESSION AFFINITY ===
 // Mappa sessionKey → { model, ts }
 // Garantisce che la stessa conversazione usi sempre lo stesso modello
@@ -758,31 +774,37 @@ function trackRequestComplete(id, meta) {
 }
 
 function pushLog(message) {
+   // R6: ring-buffer denylist — low-value polling/debug noise is kept on the
+   // terminal but excluded from the ring buffer (unless LOG_BUFFER_DENYLIST overrides).
+   const denylistRegex = buildDenylistRegex(process.env.LOG_BUFFER_DENYLIST);
+   if (isLowValueNoise(message, denylistRegex)) {
+     return;
+   }
    // Event grouping: if the same message repeats within 5 seconds, increment counter instead of new log entry
    const now = Date.now();
    if (global.lastLogMessage === message && global.lastLogTime && (now - global.lastLogTime) < 5000) {
-     // Same message within 5 seconds, increment counter
-     global.logMessageCount++;
-     // Update the last entry in logBuffer to show the count
-     const lastEntry = logBuffer.getAll().pop();
-     if (lastEntry && lastEntry.includes(message)) {
-       // Replace the last entry with grouped version
-       logBuffer.replaceLast(`[${new Date().toLocaleTimeString()}] ${message} (x${global.logMessageCount + 1})`);
-     }
+      // Same message within 5 seconds, increment counter
+      global.logMessageCount++;
+      // Update the last entry in logBuffer to show the count
+      const lastEntry = logBuffer.getAll().pop();
+      if (lastEntry && lastEntry.includes(message)) {
+        // Replace the last entry with grouped version
+        logBuffer.replaceLast(`[${new Date().toLocaleTimeString()}] ${message} (x${global.logMessageCount + 1})`);
+      }
    } else {
-     // New message or timeout exceeded, reset counter and log normally
-     if (global.logMessageCount > 0) {
-       // If we had a grouped message, add it with its final count
-       const groupedMessage = `${global.lastLogMessage} (x${global.logMessageCount + 1})`;
-       logBuffer.push(`[${new Date().toLocaleTimeString()}] ${groupedMessage}`);
-     }
-     global.lastLogMessage = message;
-     global.logMessageCount = 0;
-     global.lastLogTime = now;
-     const timestamp = new Date().toLocaleTimeString();
-     logBuffer.push(`[${timestamp}] ${message}`);
+      // New message or timeout exceeded, reset counter and log normally
+      if (global.logMessageCount > 0) {
+        // If we had a grouped message, add it with its final count
+        const groupedMessage = `${global.lastLogMessage} (x${global.logMessageCount + 1})`;
+        logBuffer.push(`[${new Date().toLocaleTimeString()}] ${groupedMessage}`);
+      }
+      global.lastLogMessage = message;
+      global.logMessageCount = 0;
+      global.lastLogTime = now;
+      const timestamp = new Date().toLocaleTimeString();
+      logBuffer.push(`[${timestamp}] ${message}`);
    }
- }
+}
 
 // Consolidated request outcome log
 function logSuccess(model, dur, opts = {}) {
@@ -854,7 +876,7 @@ app.get("/dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/dashboard.html"));
 });
 app.get('/v1/debug/status', requireAuth, (req, res) => {
-  res.json({ verbose: debugVerbose });
+  res.json({ verbose: debugFlag.isEnabled() });
 });
 app.get('/v1/version', (req, res) => {
   try {
@@ -883,9 +905,10 @@ app.get('/v1/changelog', (req, res) => {
 });
 app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
   const desired = req.body?.verbose;
-  debugVerbose = typeof desired === 'boolean' ? desired : !debugVerbose;
-  console.log(`[DEBUG] verbose=${debugVerbose}`);
-  res.json({ verbose: debugVerbose });
+  const next = typeof desired === 'boolean' ? desired : !debugFlag.isEnabled();
+  debugFlag.set(next);
+  console.log(`[DEBUG] verbose=${debugFlag.isEnabled()}`);
+  res.json({ verbose: debugFlag.isEnabled() });
 });
 app.get('/v1/modes', requireAuth, (req, res) => {
   res.json({ stats: registryStats(), discovered: listDiscovered() });
@@ -921,12 +944,17 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
 app.get("/v1/dashboard/stats", requireAuth, (req, res) => {
   try {
     const stats = bandit.getDashboardStats();
-    console.log("[DEBUG server] /v1/dashboard/stats serving stats:", JSON.stringify({
-      totalRequests: stats.totalRequests,
-      totalObservations: stats.totalObservations,
-      modelsActive: stats.modelsActive,
-      totalModels: stats.totalModels
-    }));
+    const { log, message, suppressed } = dashboardStatsLogger.decide(
+      `[DEBUG server] /v1/dashboard/stats serving stats: ${JSON.stringify({
+        totalRequests: stats.totalRequests,
+        totalObservations: stats.totalObservations,
+        modelsActive: stats.modelsActive,
+        totalModels: stats.totalModels
+      })}`
+    );
+    if (log) {
+      console.log(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
+    }
     res.json(stats);
   } catch (e) {
     console.error("[API] Errore /v1/dashboard/stats:", e.message);
@@ -952,17 +980,6 @@ app.get("/v1/consideration-logs", requireAuth, (req, res) => {
   }
 });
 
-// Throttling per i log di /v1/models: la dashboard lo polla frequentemente.
-// Logga solo una riga di riepilogo ogni MODELS_LOG_THROTTLE_MS (default 60s)
-// e porta il conteggio delle chiamate throttlellate. Gli errori sono sempre loggati.
-const MODELS_LOG_THROTTLE_MS = parseInt(process.env.MODELS_LOG_THROTTLE_MS || "60000", 10);
-let modelsLogState = { lastLogAt: 0, suppressed: 0 };
-
-// Throttling per i log di /v1/dashboard/stats: la dashboard lo polla frequentemente.
-// Logga solo una riga di riepilogo ogni DASHBOARD_STATS_LOG_INTERVAL_MS (default 60s)
-// e porta il conteggio delle chiamate throttlellate.
-const DASHBOARD_STATS_LOG_INTERVAL_MS = parseInt(process.env.DASHBOARD_STATS_LOG_INTERVAL_MS || "600000", 10);
-let dashboardStatsLogState = { lastLogAt: 0, suppressed: 0 };
 
 app.get("/v1/models", requireAuth, (req, res) => {
   try {
@@ -977,14 +994,11 @@ app.get("/v1/models", requireAuth, (req, res) => {
     };
     const models = bandit.getModels(source, filters);
 
-    const now = Date.now();
-    if (now - modelsLogState.lastLogAt >= MODELS_LOG_THROTTLE_MS) {
-      const suppressed = modelsLogState.suppressed;
-      modelsLogState.lastLogAt = now;
-      modelsLogState.suppressed = 0;
-      console.log(`[API] GET /v1/models source=${source} results=${models.length}${suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""}`);
-    } else {
-      modelsLogState.suppressed++;
+    const { log, message, suppressed } = modelsLogger.decide(
+      `[API] GET /v1/models source=${source} results=${models.length}`
+    );
+    if (log) {
+      console.log(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
     }
 
     res.json({ models });
@@ -1361,11 +1375,11 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const baseTimeout = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 20000;
   const tokenScale = Math.max(1, Math.min(3, Math.ceil((estimatedTokens || 0) / 100000)));
   const upstreamTimeoutMs = baseTimeout * tokenScale;
-  if (tokenScale > 1 && debugVerbose) {
+  if (tokenScale > 1 && isDebugVerbose()) {
     console.log(`[TIMEOUT] scala ${tokenScale}x → ${upstreamTimeoutMs}ms (tokens=${estimatedTokens})`);
   }
   const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
-  if (debugVerbose) console.log(`[CONTEXT] autoCompress=${autoCompress} header="${req.get("x-auto-compress") || "<assente>"}" tokens=${estimatedTokens} maxCatalog=${bandit.maxCatalogInput()}`);
+  if (isDebugVerbose()) console.log(`[CONTEXT] autoCompress=${autoCompress} header="${req.get("x-auto-compress") || "<assente>"}" tokens=${estimatedTokens} maxCatalog=${bandit.maxCatalogInput()}`);
 
     // === MAX_CONTEXT_TOKENS check (con compress d'emergenza se autoCompress) ===
     if (estimatedTokens > MAX_CONTEXT_TOKENS) {
@@ -1427,7 +1441,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     const usr = req.body?.messages?.find(m => m.role === "user");
     const sysPreview = (typeof sys?.content === "string" ? sys.content : JSON.stringify(sys?.content || "")).slice(0, 120);
     const usrPreview = (typeof usr?.content === "string" ? usr.content : JSON.stringify(usr?.content || "")).slice(0, 80);
-    if (debugVerbose) console.log(`[SESSION-KEY] ${sessionKey.slice(0,8)} | sys="${sysPreview}" | usr="${usrPreview}"`);
+    if (isDebugVerbose()) console.log(`[SESSION-KEY] ${sessionKey.slice(0,8)} | sys="${sysPreview}" | usr="${usrPreview}"`);
   }
 
   // === MODE / PROFILE ===
@@ -1482,7 +1496,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         }
       }
     }
-  if (debugVerbose) {
+  if (isDebugVerbose()) {
     const lastMsg = allMsgs[allMsgs.length - 1];
     const lastContent = lastMsg?.content
       ? (typeof lastMsg.content === 'string' ? lastMsg.content : JSON.stringify(lastMsg.content))
@@ -1495,7 +1509,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     console.log(`[MSGS] total=${allMsgs.length} asst_tc=${asstTcCount} tool_result_msgs=${toolResultCount} lastRole=${lastMsg?.role} lastContent="${lastContent.slice(0, 250).replace(/\n/g, ' ')}"`);
   }
   // === MSGS-ERR: dump diagnostico ===
-  if (debugVerbose) {
+  if (isDebugVerbose()) {
     const rolesSummary = {};
     for (const mm of allMsgs) rolesSummary[mm.role] = (rolesSummary[mm.role] || 0) + 1;
     console.log(`[MSGS] total=${allMsgs.length} roles=${JSON.stringify(rolesSummary)}`);
@@ -1971,7 +1985,7 @@ trackRequestUpdate(requestId, {
 
       if (!r.ok || r.status === 499) {
         const txt = await r.text().catch(() => "");
-        if (debugVerbose) {
+        if (isDebugVerbose()) {
           console.error(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
         }
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
@@ -2230,7 +2244,7 @@ trackRequestUpdate(requestId, {
           const msg = data.choices?.[0]?.message;
           const tc = msg?.tool_calls;
           const content = msg?.content;
-          if (debugVerbose) {
+          if (isDebugVerbose()) {
             console.log(`[RESPONSE] ${model} | tool_calls: ${tc?.length || 0} | content: ${(content || "").substring(0, 100)} ${tc && tc.length > 0 ? `tool chiamati: ${tc.map(t => t.function?.name).join(", ")}` : ''}`);
           }
         }
