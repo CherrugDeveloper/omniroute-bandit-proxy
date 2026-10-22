@@ -508,10 +508,32 @@ const notifier = new Notifier({
 bandit.notifier = notifier;
 
 const PORT = process.env.PORT || 8080;
+// Parse per-provider health check intervals from environment variable
+// Format: "openrouter=180000,groq=600000,nvidia=300000,gemini=300000,mistral=300000"
+function parseProviderIntervals(envVar) {
+  const intervals = {};
+  if (!envVar) return intervals;
+  
+  const pairs = envVar.split(',');
+  for (const pair of pairs) {
+    const [provider, interval] = pair.split('=');
+    if (provider && interval) {
+      const parsed = parseInt(interval.trim(), 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        intervals[provider.trim()] = parsed;
+      }
+    }
+  }
+  return intervals;
+}
+
+const providerIntervals = parseProviderIntervals(process.env.HEALTH_CHECK_PROVIDER_INTERVALS_MS);
+
 const healthChecker = new HealthChecker(bandit, {
   baseUrl: sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "http://127.0.0.1:20128/v1"),
   apiKey: process.env.OMNIROUTE_API_KEY || "",
   intervalMs: parseInt(process.env.HEALTH_CHECK_INTERVAL_MS || "300000", 10),
+  providerIntervals,
   batchSize: parseInt(process.env.HEALTH_CHECK_BATCH_SIZE || "20", 10),
   timeoutMs: parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS || "15000", 10),
   verbose: String(process.env.HEALTH_CHECK_VERBOSE || "false").toLowerCase() === "true"
@@ -1594,6 +1616,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         bandit._forceProviderCooldown(prov, 5 * 60 * 1000, "cascade-fail");
         cooledDownThisRequest.add(prov);
       } catch (_) {}
+    }
+    // Update consecutive failures in database for circuit breaker
+    try {
+      bandit._updateConsecutiveProviderFailures(prov, n);
+    } catch (e) {
+      console.error(`[BANDIT] Errore aggiornamento consecutive failures per provider ${prov}: ${e.message}`);
     }
   }
 

@@ -232,6 +232,43 @@ export class DiscountedUCB1Bandit {
         }
       }
 
+      const providerCols = this.db.pragma("table_info(provider_history)");
+      const hasConsecutiveFailures = providerCols.some(col => col.name === "consecutive_failures");
+
+      if (!hasConsecutiveFailures) {
+        console.log("[BANDIT] Migrazione: aggiungo consecutive_failures a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN consecutive_failures INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna consecutive_failures:", err.message);
+          throw err;
+        }
+      }
+
+      const hasCircuitBreakerUntil = providerCols.some(col => col.name === "circuit_breaker_until");
+
+      if (!hasCircuitBreakerUntil) {
+        console.log("[BANDIT] Migrazione: aggiungo circuit_breaker_until a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN circuit_breaker_until REAL DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna circuit_breaker_until:", err.message);
+          throw err;
+        }
+      }
+
+      const hasLastSuccessTime = providerCols.some(col => col.name === "last_success_time");
+
+      if (!hasLastSuccessTime) {
+        console.log("[BANDIT] Migrazione: aggiungo last_success_time a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN last_success_time REAL DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna last_success_time:", err.message);
+          throw err;
+        }
+      }
+
       const requestLogsColumns = this.db.pragma("table_info(request_logs)");
       const hasStatusCode = requestLogsColumns.some(col => col.name === "status_code");
       if (!hasStatusCode) {
@@ -851,6 +888,12 @@ export class DiscountedUCB1Bandit {
           "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).run(Date.now(), 200, null, modelId, provider);
         this._lastReward.set(modelId, reward);
+        // Reset consecutive provider failures on success
+        if (provider && provider !== 'unknown') {
+          this.db.prepare(
+            `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0, last_success_time = ? WHERE provider = ?`
+          ).run(Date.now(), provider);
+        }
       } else {
         this.db.prepare(
           `UPDATE models SET fails = fails + 1, last_used_index = last_used_index + 1
@@ -1167,6 +1210,81 @@ export class DiscountedUCB1Bandit {
     ).run(now + cooldownMs, reason, "Quota esaurita", provider);
   }
 
+  _updateConsecutiveProviderFailures(provider, count) {
+    const now = Date.now();
+    this.db.prepare(
+      `UPDATE provider_history SET consecutive_failures = ?, circuit_breaker_until = ? WHERE provider = ?`
+    ).run(count, now + count * 60000, provider);
+  }
+
+  _resetConsecutiveProviderFailures(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0 WHERE provider = ?`
+    ).run(provider);
+  }
+
+  // Circuit breaker: open after N consecutive failures, half-open after cooldown
+  getCircuitBreakerStatus(provider) {
+    const now = Date.now();
+    const prov = this.db.prepare(
+      `SELECT consecutive_failures, circuit_breaker_until, last_success_time, cooldown_until, permanent, needs_attention FROM provider_history WHERE provider = ?`
+    ).get(provider);
+    if (!prov) {
+      return { open: false, state: "closed", consecutiveFailures: 0, circuitBreakerUntil: 0, cooldownUntil: 0, lastSuccessTime: 0 };
+    }
+    const circuitOpen = prov.circuit_breaker_until && prov.circuit_breaker_until > now;
+    const halfOpen = !circuitOpen && prov.circuit_breaker_until && prov.circuit_breaker_until <= now;
+    const state = circuitOpen ? "open" : (halfOpen ? "half_open" : "closed");
+    return {
+      open: circuitOpen,
+      state,
+      consecutiveFailures: prov.consecutive_failures || 0,
+      circuitBreakerUntil: prov.circuit_breaker_until || 0,
+      cooldownUntil: prov.cooldown_until || 0,
+      lastSuccessTime: prov.last_success_time || 0,
+      permanent: prov.permanent === 1,
+      needsAttention: prov.needs_attention === 1
+    };
+  }
+
+  _recordProviderFailureForCircuitBreaker(provider) {
+    const now = Date.now();
+    const prov = this.db.prepare(
+      `SELECT consecutive_failures, circuit_breaker_until, last_success_time FROM provider_history WHERE provider = ?`
+    ).get(provider);
+    const prevFailures = prov?.consecutive_failures || 0;
+    const prevCircuitUntil = prov?.circuit_breaker_until || 0;
+    const lastSuccess = prov?.last_success_time || 0;
+    const isCircuitOpen = prevCircuitUntil > now;
+    const shouldReset = lastSuccess > 0 && (now - lastSuccess) > 30 * 60 * 1000;
+
+    let newFailures = prevFailures + 1;
+    let circuitOpen = isCircuitOpen;
+    let circuitBreakerUntil = prevCircuitUntil;
+
+    if (!isCircuitOpen && !shouldReset) {
+      const threshold = Number(process.env.CIRCUIT_BREAKER_THRESHOLD || "3");
+      if (newFailures >= threshold) {
+        circuitOpen = true;
+        circuitBreakerUntil = now + 5 * 60 * 1000;
+        console.log(`[BANDIT] Circuit breaker OPENED for provider ${provider} after ${newFailures} consecutive failures`);
+      }
+    }
+
+    this.db.prepare(
+      `UPDATE provider_history SET consecutive_failures = ?, circuit_breaker_until = ?, last_success_time = ? WHERE provider = ?`
+    ).run(newFailures, circuitBreakerUntil, now, provider);
+
+    return { open: circuitOpen, consecutiveFailures: newFailures, circuitBreakerUntil };
+  }
+
+  _recordProviderSuccessForCircuitBreaker(provider) {
+    const now = Date.now();
+    this.db.prepare(
+      `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0, last_success_time = ? WHERE provider = ?`
+    ).run(now, provider);
+  }
+
   _triggerFallback(modelId) {
     const fallbackModels = this.getFallbackModels();
     if (fallbackModels.length > 0) {
@@ -1174,6 +1292,148 @@ export class DiscountedUCB1Bandit {
       return fallbackModels[0];
     }
     return null;
+  }
+
+  scoreFallbackModel(modelId, estimatedTokens = 0, requireTools = false, profile = null) {
+    // Scores fallback models using UCB1-style scoring with provider health and catalog data
+    // Returns { modelId, score, reasons, available }
+    const DEBUG = String(process.env.DEBUG || "false").toLowerCase() === "true";
+    
+    // Get model from catalog
+    const catalogModel = this.db.prepare(
+      `SELECT c.id, c.provider, c.max_input_tokens, c.supports_tools, c.supports_image_generation, c.capability, c.supports_chat, c.supports_audio_generation, c.is_free, ph.fails, ph.cooldown_until, ph.permanent, ph.needs_attention, ph.attention_reason, ph.attention_message
+       FROM catalog c
+       LEFT JOIN provider_history ph ON c.provider = ph.provider
+       WHERE c.id = ?`
+    ).get(modelId);
+    
+    if (!catalogModel) {
+      if (DEBUG) console.log(`[BANDIT][FALLBACK] Model ${modelId} not found in catalog`);
+      return { modelId, score: -Infinity, reasons: ['not_in_catalog'], available: false };
+    }
+    
+    // Check token limit
+    if (estimatedTokens > catalogModel.max_input_tokens) {
+      if (DEBUG) console.log(`[BANDIT][FALLBACK] Model ${modelId} token limit exceeded: ${estimatedTokens} > ${catalogModel.max_input_tokens}`);
+      return { modelId, score: -Infinity, reasons: ['token_limit_exceeded'], available: false };
+    }
+    
+    // Check tool requirement
+    if (requireTools && !catalogModel.supports_tools) {
+      if (DEBUG) console.log(`[BANDIT][FALLBACK] Model ${modelId} doesn't support tools`);
+      return { modelId, score: -Infinity, reasons: ['tools_not_supported'], available: false };
+    }
+    
+    // Check provider status
+    const reasons = [];
+    let score = 0;
+    
+    // Base score from catalog data
+    score += catalogModel.is_free ? 10 : 0; // Free models get bonus
+    
+    // Provider health factors
+    if (catalogModel.permanent === 1) {
+      reasons.push('provider_permanently_banned');
+      score -= 1000;
+    }
+    
+    if (catalogModel.cooldown_until > Date.now()) {
+      const cooldownRemaining = Math.ceil((catalogModel.cooldown_until - Date.now()) / 1000 / 60);
+      reasons.push(`provider_cooldown_${cooldownRemaining}min`);
+      score -= 500;
+    }
+    
+    if (catalogModel.needs_attention === 1) {
+      reasons.push('provider_needs_attention');
+      score -= 200;
+    }
+    
+    // Calculate UCB1-style score for fallback
+    const N = 0; // Fallback models have no history
+    const sum_reward = 0;
+    const avgReward = N > 0 ? sum_reward / N : 1.0;
+    const totalObservations = 1; // Single observation for fallback
+    
+    // Quality-to-Speed ratio calculation
+    const avgLatency = 250; // Default fallback latency
+    const baselineLatency = 500;
+    const latencyFactor = baselineLatency / Math.max(avgLatency, 100);
+    const qualitySpeedScore = avgReward * latencyFactor;
+    
+    // UCB1 exploration bonus for untested models
+    const explorationBonus = 0.5 * Math.sqrt(Math.log(totalObservations + 1) / 1);
+    const ucbScore = 2.0 * qualitySpeedScore + 0.8 * explorationBonus;
+    
+    // Apply soft bias multiplier from profile if specified
+    const mult = profileMultiplier(profile, modelId);
+    const finalScore = (ucbScore * mult) + (Math.random() * 0.0001);
+    
+    score += finalScore;
+    
+    // Add provider-specific factors
+    if (catalogModel.fails > 0) {
+      reasons.push(`provider_has_${catalogModel.fails}_failures`);
+      score -= catalogModel.fails * 50;
+    }
+    
+    if (DEBUG) {
+      console.log(`[BANDIT][FALLBACK] Model ${modelId} score: ${score.toFixed(4)}, reasons: ${reasons.join(', ')}`);
+    }
+    
+    return {
+      modelId,
+      score,
+      reasons,
+      available: true,
+      provider: catalogModel.provider,
+      max_input_tokens: catalogModel.max_input_tokens,
+      supports_tools: catalogModel.supports_tools,
+      is_free: catalogModel.is_free
+    };
+  }
+
+  selectBestFallbackModel(estimatedTokens = 0, requireTools = false, profile = null, excludeSet = new Set()) {
+    // Selects the best fallback model based on scoring
+    // Returns modelId or null
+    const DEBUG = String(process.env.DEBUG || "false").toLowerCase() === "true";
+    
+    const fallbackModels = this.getFallbackModels();
+    if (fallbackModels.length === 0) {
+      if (DEBUG) console.log(`[BANDIT][FALLBACK] No fallback models configured`);
+      return null;
+    }
+    
+    const scoredModels = [];
+    
+    for (const modelId of fallbackModels) {
+      if (excludeSet.has(modelId)) {
+        if (DEBUG) console.log(`[BANDIT][FALLBACK] Skipping excluded model: ${modelId}`);
+        continue;
+      }
+      
+      const scoreResult = this.scoreFallbackModel(modelId, estimatedTokens, requireTools, profile);
+      if (scoreResult.available) {
+        scoredModels.push(scoreResult);
+      }
+    }
+    
+    if (scoredModels.length === 0) {
+      if (DEBUG) console.log(`[BANDIT][FALLBACK] No available fallback models after scoring`);
+      return null;
+    }
+    
+    // Sort by score (descending)
+    scoredModels.sort((a, b) => b.score - a.score);
+    
+    const best = scoredModels[0];
+    if (DEBUG) {
+      console.log(`[BANDIT][FALLBACK] Selected best fallback model: ${best.modelId} (score: ${best.score.toFixed(4)})`);
+      if (best.reasons.length > 0) {
+        console.log(`[BANDIT][FALLBACK] Selection reasons: ${best.reasons.join(', ')}`);
+      }
+    }
+    
+    return best.modelId;
   }
 
   _banProvider(provider) {
@@ -1526,59 +1786,134 @@ export class DiscountedUCB1Bandit {
   }
 
   estimateTokens(body) {
-    // Implementazione realistica: stima approssimativa del numero di token
+    // Improved token estimation using multiple heuristics:
+    // 1. Character-based estimation with model-specific ratios
+    // 2. Word-based estimation for English text (~1.3 tokens/word)
+    // 3. Special handling for code, JSON, and structured content
+    // 4. Image token estimation based on detail level
     if (!body || typeof body !== "object") return 0;
 
     let totalChars = 0;
+    let wordCount = 0;
+    let codeCharCount = 0;
+    let jsonCharCount = 0;
+    let imageCount = 0;
+    let imageDetail = "auto"; // auto, low, high
 
     // Conta i messaggi
     const messages = body.messages || [];
     for (const msg of messages) {
       if (typeof msg.content === "string") {
-        totalChars += msg.content.length;
+        const content = msg.content;
+        totalChars += content.length;
+        wordCount += this._countWords(content);
+        // Detect code blocks
+        if (content.includes("```") || content.includes("`")) {
+          codeCharCount += content.length * 0.3; // Estimate 30% is code
+        }
       } else if (Array.isArray(msg.content)) {
-        // Per i messaggi con contenuti multimodali, stima approssimativa
+        // Per i messaggi con contenuti multimodali
         for (const part of msg.content) {
-          if (part.text) totalChars += part.text.length;
-          if (part.type === "image_url") totalChars += 1000; // Stima approssimativa per immagine
+          if (part.text) {
+            totalChars += part.text.length;
+            wordCount += this._countWords(part.text);
+          }
+          if (part.type === "image_url") {
+            imageCount++;
+            if (part.image_url && part.image_url.detail) {
+              imageDetail = part.image_url.detail;
+            }
+          }
         }
       } else if (msg.content) {
-        totalChars += JSON.stringify(msg.content).length;
+        const str = JSON.stringify(msg.content);
+        totalChars += str.length;
+        jsonCharCount += str.length;
       }
       // Conta eventuali tool_calls nei messaggi assistente
       if (Array.isArray(msg.tool_calls)) {
         for (const tc of msg.tool_calls) {
-          totalChars += JSON.stringify(tc).length;
+          const str = JSON.stringify(tc);
+          totalChars += str.length;
+          jsonCharCount += str.length;
         }
       }
     }
 
     // Includi prompt di sistema o system field separati se presenti
     if (body.system) {
-      if (typeof body.system === "string") {
-        totalChars += body.system.length;
-      } else {
-        totalChars += JSON.stringify(body.system).length;
-      }
+      const str = typeof body.system === "string" ? body.system : JSON.stringify(body.system);
+      totalChars += str.length;
+      wordCount += this._countWords(str);
     }
     if (body.prompt) {
-      if (typeof body.prompt === "string") {
-        totalChars += body.prompt.length;
-      } else {
-        totalChars += JSON.stringify(body.prompt).length;
-      }
+      const str = typeof body.prompt === "string" ? body.prompt : JSON.stringify(body.prompt);
+      totalChars += str.length;
+      wordCount += this._countWords(str);
     }
 
     // Includi tools / functions / tool_choice definiti nella richiesta
     if (body.tools && Array.isArray(body.tools)) {
-      totalChars += JSON.stringify(body.tools).length;
+      const str = JSON.stringify(body.tools);
+      totalChars += str.length;
+      jsonCharCount += str.length;
     }
     if (body.functions && Array.isArray(body.functions)) {
-      totalChars += JSON.stringify(body.functions).length;
+      const str = JSON.stringify(body.functions);
+      totalChars += str.length;
+      jsonCharCount += str.length;
+    }
+    if (body.tool_choice) {
+      const str = JSON.stringify(body.tool_choice);
+      totalChars += str.length;
+      jsonCharCount += str.length;
     }
 
-    // Conversione approssimativa da caratteri a token (media ~4 caratteri per token)
-    return Math.ceil(totalChars / 4);
+    // Improved estimation using weighted heuristics
+    // Base: ~4 chars/token for general text
+    // Code: ~3.5 chars/token (more tokens per char due to symbols)
+    // JSON: ~2.5 chars/token (very token-dense)
+    // Words: ~1.3 tokens/word for English
+    
+    const generalChars = totalChars - codeCharCount - jsonCharCount;
+    let estimatedTokens = 0;
+    
+    // General text estimation (chars/token ratio varies by content type)
+    estimatedTokens += Math.ceil(generalChars / 4);
+    // Code estimation (more tokens per char)
+    estimatedTokens += Math.ceil(codeCharCount / 3.5);
+    // JSON/structured data estimation (very token-dense)
+    estimatedTokens += Math.ceil(jsonCharCount / 2.5);
+    
+    // Cross-check with word-based estimation for English text
+    const wordBasedEstimate = Math.ceil(wordCount * 1.3);
+    // Use the higher of char-based and word-based for safety
+    estimatedTokens = Math.max(estimatedTokens, wordBasedEstimate);
+    
+    // Image token estimation (OpenAI-style)
+    // low detail: 85 tokens, high detail: 170-2550 tokens depending on size
+    // We use a conservative estimate
+    if (imageCount > 0) {
+      let tokensPerImage = 85; // low detail default
+      if (imageDetail === "high") tokensPerImage = 765; // high detail estimate
+      else if (imageDetail === "auto") tokensPerImage = 255; // auto default
+      estimatedTokens += imageCount * tokensPerImage;
+    }
+    
+    // Add overhead for message formatting (role tokens, etc.)
+    // ~3-4 tokens per message for role/structure
+    estimatedTokens += messages.length * 4;
+    
+    // Add small buffer for safety (5%)
+    estimatedTokens = Math.ceil(estimatedTokens * 1.05);
+    
+    return estimatedTokens;
+  }
+
+  _countWords(text) {
+    if (!text || typeof text !== "string") return 0;
+    // Count words separated by whitespace
+    return text.trim().split(/\s+/).filter(w => w.length > 0).length;
   }
 
   maxCatalogInput() {
@@ -1664,6 +1999,10 @@ export class DiscountedUCB1Bandit {
             // Skip if model is in cooldown
             if (model.cooldown_until && model.cooldown_until > now) {
               rejectionReason = 'model_cooldown';
+            }
+            // Skip if provider circuit breaker is active
+            else if (prov && prov.circuit_breaker_until && prov.circuit_breaker_until > now) {
+              rejectionReason = 'provider_circuit_breaker';
             }
             // Skip if provider quota or rate limit is exhausted
             else if (!this.quota.canCall(model.provider)) {

@@ -47,6 +47,7 @@ export class HealthChecker {
     this.baseUrl = sanitizeBaseUrl(options.baseUrl, "http://127.0.0.1:20128/v1");
     this.apiKey = options.apiKey || "";
     this.intervalMs = options.intervalMs || 600000;
+    this.providerIntervals = options.providerIntervals || {};
     this.batchSize = options.batchSize || 20;
     this.timeoutMs = options.timeoutMs || 15000;
     this.verbose = options.verbose || false;
@@ -54,6 +55,7 @@ export class HealthChecker {
     this.timer = null;
     this.running = false;
     this.inFlight = false;
+    this.lastProviderCheck = new Map(); // Track last check time per provider
 
     this.stats = {
       runs: 0,
@@ -87,8 +89,32 @@ export class HealthChecker {
 
   _scheduleNext() {
     if (!this.running) return;
-    this.timer = setTimeout(() => this._tickAndReschedule(), this.intervalMs);
+    // Use per-provider interval if configured, otherwise use global interval
+    const nextProvider = this._getNextProviderToCheck();
+    if (nextProvider) {
+      const providerInterval = this.providerIntervals[nextProvider] || this.intervalMs;
+      const now = Date.now();
+      const lastCheck = this.lastProviderCheck.get(nextProvider) || 0;
+      // Only schedule if enough time has passed for this provider
+      if (now - lastCheck >= providerInterval) {
+        this.timer = setTimeout(() => this._tickAndReschedule(), providerInterval - (now - lastCheck));
+        this.lastProviderCheck.set(nextProvider, Date.now());
+      } else {
+        // Schedule with remaining time
+        this.timer = setTimeout(() => this._tickAndReschedule(), providerInterval - (now - lastCheck));
+        this.lastProviderCheck.set(nextProvider, Date.now());
+      }
+    } else {
+      this.timer = setTimeout(() => this._tickAndReschedule(), this.intervalMs);
+    }
     if (this.timer.unref) this.timer.unref();
+  }
+
+  _getNextProviderToCheck() {
+    const unhealthyModels = this.bandit.getUnhealthyModels(this.batchSize);
+    if (unhealthyModels.length === 0) return null;
+    // Return the first provider that needs checking
+    return unhealthyModels[0]?.provider;
   }
 
   async _tickAndReschedule() {
@@ -125,6 +151,14 @@ export class HealthChecker {
       let revived = 0;
       for (const m of candidates) {
         if (!this.running) break;
+        // Check if enough time has passed for this provider's interval
+        const providerInterval = this.providerIntervals[m.provider] || this.intervalMs;
+        const lastCheck = this.lastProviderCheck.get(m.provider) || 0;
+        if (Date.now() - lastCheck < providerInterval) {
+          if (this.verbose) console.log(`[HEALTH] Skip ${m.id}: provider ${m.provider} last checked ${Math.ceil((Date.now() - lastCheck) / 1000 / 60)}m ago, need ${Math.ceil(providerInterval / 1000 / 60)}min wait`);
+          continue;
+        }
+
         const ok = await this._probe(m.id);
         if (ok) {
           let stato = "in cooldown";
@@ -132,11 +166,20 @@ export class HealthChecker {
           else if (Number(m.degraded) === 1) stato = "DEGRADED";
 
           this.bandit.reviveModel(m.id);
+          // Auto-clear needs_attention flag for the provider on successful health check
+          try {
+            this.bandit.clearProviderAttention(m.provider);
+          } catch (e) {
+            console.error(`[HEALTH] Errore nel clearing attention flag per ${m.provider}: ${e.message}`);
+          }
           revived++;
           console.log(`[HEALTH] ✅ ${m.id} riabilitato (era ${stato})`);
         } else if (this.verbose) {
           console.log(`[HEALTH] ❌ ${m.id} ancora non disponibile`);
         }
+
+        // Update last check time for this provider
+        this.lastProviderCheck.set(m.provider, Date.now());
       }
 
       this.stats.runs++;
@@ -189,6 +232,7 @@ export class HealthChecker {
       running: this.running,
       inFlight: this.inFlight,
       intervalMs: this.intervalMs,
+      providerIntervals: this.providerIntervals,
       batchSize: this.batchSize,
       timeoutMs: this.timeoutMs,
       stats: this.stats

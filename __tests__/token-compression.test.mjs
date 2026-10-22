@@ -8,50 +8,58 @@ const bandit = new DiscountedUCB1Bandit(":memory:");
 describe("Step 5: Token Estimation, Context Compression & Body Preparation", () => {
   describe("Token Estimation (estimateTokens)", () => {
     /**
-     * @test Verify estimateTokens uses ~4 chars/token heuristic for strings
+     * @test Verify estimateTokens uses enhanced multi-heuristic token estimation
      */
-    test("estimates tokens using ~4 chars/token heuristic for string content", () => {
+    test("estimates tokens using enhanced multi-heuristic token estimation for string content", () => {
       const body = {
         messages: [
-          { role: "system", content: "12345678" }, // 8 chars -> 2 tokens
-          { role: "user", content: "123456789012" } // 12 chars -> 3 tokens
+          { role: "system", content: "12345678" }, // 8 chars
+          { role: "user", content: "123456789012" } // 12 chars
         ]
       };
-      // Total chars = 20. Math.ceil(20 / 4) = 5
-      assert.equal(bandit.estimateTokens(body), 5);
+      // Enhanced estimation: char-based (4 chars/token) + word-based cross-check + message overhead + 5% buffer
+      // Total chars = 20, generalChars = 20, estimatedTokens = ceil(20/4) = 5
+      // wordBasedEstimate = ceil(2 * 1.3) = 3, max(5, 3) = 5
+      // + messages.length * 4 = 5 + 8 = 13, * 1.05 = 13.65, ceil = 14
+      assert.equal(bandit.estimateTokens(body), 14);
     });
 
     /**
-     * @test Verify multimodal content handling (text parts and image_url heuristic divided by 4)
+     * @test Verify multimodal content handling (text parts and image_url heuristic with enhanced estimation)
      */
-    test("handles multimodal content with text and image_url", () => {
+    test("handles multimodal content with text and image_url using enhanced estimation", () => {
       const body = {
         messages: [
           {
             role: "user",
             content: [
               { type: "text", text: "Hello" }, // 5 chars
-              { type: "image_url", image_url: { url: "http://..." } } // +1000 chars heuristic
+              { type: "image_url", image_url: { url: "http://..." } } // +255 tokens for auto detail
             ]
           }
         ]
       };
-      // Total chars = 1005. Math.ceil(1005 / 4) = 252
-      assert.equal(bandit.estimateTokens(body), 252);
+      // Enhanced estimation: text (5 chars) + image (255 tokens auto) + message overhead + 5% buffer
+      // text: ceil(5/4) = 2, max with word-based = 2
+      // image: +255 = 257, + messages.length * 4 = 257 + 4 = 261, * 1.05 = 274.05, ceil = 275
+      assert.equal(bandit.estimateTokens(body), 275);
     });
 
     /**
-     * @test Verify non-string/non-array content fallback via JSON serialization
+     * @test Verify non-string/non-array content fallback via JSON serialization with enhanced estimation
      */
-    test("handles non-string/non-array content via JSON serialization fallback", () => {
+    test("handles non-string/non-array content via JSON serialization with enhanced estimation", () => {
       const body = {
         messages: [
           { role: "assistant", content: { foo: "bar" } }
         ]
       };
       const jsonStr = JSON.stringify({ foo: "bar" });
-      const expectedTokens = Math.ceil(jsonStr.length / 4);
-      assert.equal(bandit.estimateTokens(body), expectedTokens);
+      // Enhanced estimation: JSON weighting (2.5 chars/token) + word-based + message overhead + 5% buffer
+      // jsonStr = `{"foo":"bar"}` (13 chars), jsonCharCount = 13, ceil(13/2.5) = 6
+      // wordBasedEstimate = ceil(1 * 1.3) = 2, max(6, 2) = 6
+      // + messages.length * 4 = 6 + 4 = 10, * 1.05 = 10.5, ceil = 11
+      assert.equal(bandit.estimateTokens(body), 11);
     });
 
     /**
