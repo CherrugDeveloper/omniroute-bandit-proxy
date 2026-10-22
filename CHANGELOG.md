@@ -2,6 +2,16 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.72 — 2026-10-22
+- **Dashboard UX Improvements & Codebase Cleanup**:
+  - Fixed timestamp display in [`public/dashboard.html`](public/dashboard.html:2657) to use local time via `toLocaleTimeString()` instead of UTC ISO format
+  - Streamlined request log stats: combined `reason` and `error` fields to avoid redundancy in [`public/dashboard.html`](public/dashboard.html:2718)
+  - Added tooltip to "scarti" count showing "Modelli scartati per questa richiesta" in [`public/dashboard.html`](public/dashboard.html:2724)
+  - Removed bordered table wrapper, optimized scrollbar styling, and added `vertical-align: middle` for cleaner layout in [`public/dashboard.html`](public/dashboard.html:190)
+  - Removed unused diagnostic script `scripts/diag-tokenlimit.mjs`
+  - Removed backup test file `tests/bandit.test.mjs.bak`
+  - Removed obsolete plan files: `dashboard-specchietto-integration.md`, `image-generation-endpoint.md`, `model-categorization-and-filtering-spec.md`, `performance-analysis.md`
+
 ## v1.1.71 — 2026-10-22
 - **Log Noise Reduction & Polling Efficiency**:
   - Added `src/log-throttle.mjs` with request throttling and log-noise filtering to reduce console spam and improve polling efficiency

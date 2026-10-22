@@ -37,12 +37,12 @@
         }
         
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
+            background: transparent;
             border-radius: 4px;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
         }
         body {
             font-family: -apple-system, sans-serif;
@@ -190,8 +190,9 @@
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            border: 1px solid #30363d;
-            border-radius: 4px;
+            border: none;
+            border-radius: 0;
+            background: transparent;
         }
         .table-wrapper table {
             table-layout: fixed;
@@ -220,7 +221,7 @@
         #tab-scripts .table-wrapper th:nth-child(4), #tab-scripts .table-wrapper td:nth-child(4) { width: 24%; }
         #tab-scripts .table-wrapper th:nth-child(5), #tab-scripts .table-wrapper td:nth-child(5) { width: 16%; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 5px 8px; text-align: left; border-bottom: 1px solid #30363d; font-size: 12px; }
+        th, td { padding: 5px 8px; text-align: left; vertical-align: middle; font-size: 12px; }
         th {
             background: #21262d;
             cursor: pointer;
@@ -2653,7 +2654,7 @@
                 function fmtRow(r, kind) {
                     const ts = r.timestamp || r.endedAt || Date.now();
                     const dObj = new Date(ts);
-                    const timeStr = dObj.toISOString().replace('T', ' ').substring(11, 19);
+                    const timeStr = dObj.toLocaleTimeString();
                     // Timestamp on the left; elapsed seconds ONLY for active thinking model
                     const timeVal = (kind === 'active')
                         ? (timeStr + ' <span style="color:#d29922; font-weight:bold;">(' + Number(r.elapsedSec || 0).toFixed(1) + 's try ' + (r.attempt || 1) + ')</span>')
@@ -2714,15 +2715,13 @@
                     if (r.avg != null) statsParts.push(`avg=${r.avg}`);
                     if (r.latency_ms) statsParts.push(`${r.latency_ms}ms`);
                     if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
-                    if (r.reason) statsParts.push(`reason: ${r.reason}`);
-                    if (r.lastError) statsParts.push(`error: ${r.lastError}`);
-                    if (r.status && (r.status.startsWith('error') || r.status.startsWith('err'))) {
-                        statsParts.push(`status: ${r.status}`);
-                    }
+                    // Combine reason and error to avoid redundancy - prefer reason, fallback to lastError
+                    const reasonOrError = r.reason || r.lastError;
+                    if (reasonOrError) statsParts.push(`reason: ${reasonOrError}`);
                     if (r.selectionHistory && r.selectionHistory.length > 0) {
                         const rejected = r.selectionHistory.filter(sh => sh.status === 'rejected');
                         if (rejected.length > 0) {
-                            statsParts.push(`scarti: ${rejected.length}`);
+                            statsParts.push(`<span title="Modelli scartati per questa richiesta">scarti: ${rejected.length}</span>`);
                         }
                     }
                     const statsStr = statsParts.join(' | ') || '-';
