@@ -2,6 +2,20 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.70 — 2026-10-22
+- **Rewrite Image Generation Detection with Strict Three-Rule Strategy**:
+  - Rewrote `isImageGenerationRequest()` in [`src/index.mjs`](src/index.mjs:50) around three explicit rules (R1/R2/R3) to eliminate the recurring `400 Image generation requests are not supported` errors returned to Zoo Code on every request.
+  - **R1 — image model id**: extracted `IMAGE_MODEL_PATTERNS` in [`src/index.mjs`](src/index.mjs:34); a model id matching `dall-e`, `stable-diffusion`, `midjourney`, `flux`, `imagen`, `sdxl`, `sd-xl`, `playground`, `aihorde` (or the `aihorde/` prefix) is always an image request.
+  - **R2 — payload shape**: a `prompt` without `messages` is only an image request when image-specific params (`n`, `size`, `response_format`) are present or no `model` was supplied. A chat model such as `gpt-4o` carrying a `prompt` field is now correctly treated as a regular chat completion.
+  - **R3 — explicit intent**: kept the explicit phrase list and replaced the old "any ambiguous verb + any image noun anywhere" heuristic with the `STRICT_IMAGE_INTENT_RE` adjacency regex in [`src/index.mjs`](src/index.mjs:47), requiring the image noun to directly follow the verb (optional article + up to 2 adjectives).
+  - Added diagnostic logging of the offending payload shape in the `POST /v1/chat/completions` handler in [`src/index.mjs`](src/index.mjs:1336) to pinpoint future false positives.
+  - Full test suite green: 140/140 tests passing (`node --test tests/*.test.mjs __tests__/*.test.mjs`).
+
+## v1.1.69 — 2026-10-22
+- **Fix False-Positive Image Generation Detection**:
+  - Removed overly aggressive regex pattern in [`src/index.mjs`](src/index.mjs:33) that was causing false-positive image generation errors for normal chat completions.
+  - Cleaned up debug logging in [`src/index.mjs`](src/index.mjs:92).
+
 ## v1.1.68 — 2026-10-21
 - **Dashboard Stats Layout & Request Log Parameter Fix**:
   - Refactored `.stats-container` in [`public/dashboard.html`](public/dashboard.html:69) to horizontal flex row with overflow-x scrolling and fixed stats item widths.

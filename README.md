@@ -23,6 +23,10 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 - **TTL 30 min**: Pin valido per 30 minuti
 - **Invalidazione pin**: Se il modello pinnato fallisce (5xx, timeout), il pin viene rimosso
 - **Image Generation Support**: Rilevamento automatico delle richieste di generazione immagini e routing dedicato tramite [`POST /v1/images/generations`](src/index.mjs:1) o conversione trasparente su chat completions.
+- **Rilevamento rigoroso (3 regole)** in [`isImageGenerationRequest()`](src/index.mjs:50) per evitare i falsi positivi `400 Image generation requests are not supported`:
+  1. **R1 - model id immagine**: `dall-e`, `stable-diffusion`, `midjourney`, `flux`, `imagen`, `sdxl`, `sd-xl`, `playground`, `aihorde` → sempre richiesta immagine.
+  2. **R2 - shape del payload**: `prompt` senza `messages` → richiesta immagine **solo** se presenti `n`/`size`/`response_format` oppure se manca del tutto `model`. Un modello chat (es. `gpt-4o`) con campo `prompt` resta una normale chat completion.
+  3. **R3 - intento esplicito**: frasi esplicite (`generate image`, `text to image`, ...) oppure il regex [`STRICT_IMAGE_INTENT_RE`](src/index.mjs:47) che richiede il sostantivo immagine **immediatamente dopo** il verbo (articolo opzionale + fino a 2 aggettivi).
 
 ### 4. Sistema di Modalità
 - **14 modalità Zoo Code**: Riconosce le modalità di Zoo Code analizzando il system prompt

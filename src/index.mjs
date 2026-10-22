@@ -30,13 +30,46 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: "50mb" }));
 
+/** Model-id fragments that identify an image-generation model. */
+const IMAGE_MODEL_PATTERNS = [
+  'dall-e', 'stable-diffusion', 'midjourney', 'flux',
+  'imagen', 'sdxl', 'sd-xl', 'playground', 'aihorde'
+];
+
+/**
+ * Strict verb + image-noun adjacency.
+ *
+ * The previous heuristic ("any ambiguous verb anywhere" + "any image noun anywhere")
+ * produced false positives on ordinary coding prompts such as
+ * "design the new icon for the app" or "Can you render the scene for me?".
+ * Now the noun must directly follow the verb (article + up to 2 adjectives allowed).
+ */
+const STRICT_IMAGE_INTENT_RE =
+  /\b(?:draw|paint|render|visualize|illustrate|sketch|generate|create|make)\s+(?:an?\s+)?(?:[a-z][\w-]*\s+){0,2}?(?:portrait|painting|picture|image|artwork|illustration|landscape|wallpaper|avatar|banner|sunset)\b/i;
+
 export function isImageGenerationRequest(body) {
    // Handle null or undefined body
    if (!body) {
      return false;
    }
 
-   // Check for explicit image generation parameters
+   const modelId = body.model ? String(body.model).toLowerCase() : null;
+   const isImageModel =
+     !!modelId &&
+     (IMAGE_MODEL_PATTERNS.some(pattern => modelId.includes(pattern)) || modelId.startsWith('aihorde/'));
+
+   const hasImageParams =
+     (body.n !== undefined && typeof body.n === 'number' && body.n > 0) ||
+     (body.size && /^\d+x\d+$/.test(body.size)) ||
+     (body.response_format && ['b64_json', 'url'].includes(body.response_format));
+
+   // R1 - the requested model is an image-generation model: always an image request.
+   if (isImageModel) {
+     console.log(`[DEBUG] isImageGenerationRequest: image model id (${modelId}) -> true`);
+     return true;
+   }
+
+   // R2 - image-generation payload shape: a `prompt` without any `messages`.
    if (body.prompt && (!body.messages || body.messages.length === 0)) {
      // Validate image-specific parameters if present
      const hasInvalidImageParams =
@@ -45,30 +78,29 @@ export function isImageGenerationRequest(body) {
        (body.response_format && !['b64_json', 'url'].includes(body.response_format));
 
      if (hasInvalidImageParams) {
+       console.log(`[DEBUG] isImageGenerationRequest: prompt without messages but invalid image params -> false`);
        return false;
      }
 
-     return true;
-   }
-
-   // Check for image-specific parameters with model
-   const hasImageParams =
-     (body.n !== undefined && typeof body.n === 'number' && body.n > 0) ||
-     (body.size && /^\d+x\d+$/.test(body.size)) ||
-     (body.response_format && ['b64_json', 'url'].includes(body.response_format));
-
-   if (hasImageParams && body.model) {
-     const modelId = String(body.model).toLowerCase();
-     const imageModelPatterns = [
-       'dall-e', 'stable-diffusion', 'midjourney', 'flux',
-       'imagen', 'sdxl', 'sd-xl', 'playground', 'aihorde'
-     ];
-     if (imageModelPatterns.some(pattern => modelId.includes(pattern)) || modelId.startsWith('aihorde/')) {
+     // Image-specific parameters (n / size / response_format) confirm the intent.
+     if (hasImageParams) {
+       console.log(`[DEBUG] isImageGenerationRequest: prompt without messages + image params -> true`);
        return true;
      }
+
+     // No model at all: cannot be a routed chat completion -> treat as image request.
+     if (!modelId) {
+       console.log(`[DEBUG] isImageGenerationRequest: prompt without messages and without model -> true`);
+       return true;
+     }
+
+     // A chat model (gpt-4o, ...) with a `prompt` field and no image params is a
+     // regular chat request: NEVER classify it as image generation (false positive).
+     console.log(`[DEBUG] isImageGenerationRequest: prompt + chat model (${modelId}) without image params -> false (not image gen)`);
+     return false;
    }
 
-   // Check messages for image generation intent
+   // R3 - explicit image generation intent inside the last user message.
    if (Array.isArray(body.messages) && body.messages.length > 0) {
      const lastUserMessage = body.messages
        .filter(m => m.role === 'user')
@@ -89,38 +121,19 @@ export function isImageGenerationRequest(body) {
        ];
 
        if (explicitImagePhrases.some(phrase => contentLower.includes(phrase))) {
+         console.log(`[DEBUG] isImageGenerationRequest: explicit phrase match: ${contentLower}`);
          return true;
        }
 
-       if (/^(generate|create|draw|paint)\s+(a|an|the)?\s*(image|picture|photo|artwork|illustration|portrait|landscape|avatar|icon|banner|logo|wallpaper|sunset|painting|drawing|sketch|scenery|scene)/i.test(contentLower)) {
-         return true;
-       }
-
-       const ambiguousVerbs = ['draw', 'paint', 'visualize', 'render', 'sketch', 'design'];
-       const imageNouns = [
-         'image', 'picture', 'photo', 'artwork', 'illustration',
-         'avatar', 'icon', 'banner', 'logo', 'wallpaper', 'portrait', 'landscape',
-         'sunset', 'painting', 'drawing', 'sketch', 'scenery', 'scene'
-       ];
-
-       const hasAmbiguousVerb = ambiguousVerbs.some(verb => {
-         const regex = new RegExp(`\\b${verb}\\b`, 'i');
-         return regex.test(contentLower);
-       });
-
-       const hasImageNoun = imageNouns.some(noun => {
-         const regex = new RegExp(`\\b${noun}\\b`, 'i');
-         return regex.test(contentLower);
-       });
-
-       if (hasAmbiguousVerb && hasImageNoun) {
+       if (STRICT_IMAGE_INTENT_RE.test(content)) {
+         console.log(`[DEBUG] isImageGenerationRequest: strict verb+noun intent match: ${contentLower.slice(0, 160)}`);
          return true;
        }
      }
    }
 
    return false;
-}
+ }
 
 export function convertImageGenerationToChatCompletion(imageGenResponse) {
   // Check for missing or empty data array
@@ -1323,6 +1336,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   if (isImageGenerationRequest(req.body)) {
     const errMsg = "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.";
     console.warn(`[API] 400 Error: ${errMsg}`);
+    // DIAGNOSTIC: dump the offending payload shape to identify the false-positive trigger
+    console.warn(`[DIAG-IMGGEN] model=${req.body?.model} keys=${JSON.stringify(Object.keys(req.body || {}))} hasPrompt=${!!req.body?.prompt} hasMessages=${Array.isArray(req.body?.messages) ? req.body.messages.length : "none"} n=${JSON.stringify(req.body?.n)} size=${JSON.stringify(req.body?.size)} response_format=${JSON.stringify(req.body?.response_format)}`);
+    if (Array.isArray(req.body?.messages) && req.body.messages.length > 0) {
+      const lastUser = req.body.messages.filter(m => m.role === "user").pop();
+      console.warn(`[DIAG-IMGGEN] lastUserContent=${JSON.stringify(String(lastUser?.content || "").slice(0, 300))}`);
+    }
     bandit.recordRequestError(400, errMsg, req.body?.model || null, null);
     trackRequestUpdate(requestId, { status: "error-400", lastError: errMsg, model: req.body?.model || null });
     return res.status(400).json({
