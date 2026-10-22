@@ -199,7 +199,18 @@ Poi:
 | `scripts/switch-mode.sh status` | Stato + metriche rapide |
 | `scripts/train-ctl.sh start/stop/status/logs` | Controllo diretto training daemon |
 
-### 12. Struttura del progetto
+### 12. Controllo del rumore di log e polling efficiente
+
+Il proxy include [`src/log-throttle.mjs`](src/log-throttle.mjs:1) per ridurre il rumore di console e migliorare l'efficienza del polling:
+
+- **Throttling per endpoint**: `DASHBOARD_STATS_LOG_INTERVAL_MS` (default 60s) e `MODELS_LOG_THROTTLE_MS` (default 60s) limitano la frequenza dei log di `/v1/dashboard/stats` e `GET /v1/models`.
+- **CORS/debug silenzioso**: `CORS_DEBUG=false` disabilita il log della riga CORS/debug per ogni richiesta in ingresso.
+- **Verbose debug con TTL**: `DEBUG_VERBOSE=false` e `DEBUG_VERBOSE_TTL_MS=900000` (15 min) attivano log dettagliati che scadono automaticamente.
+- **Ring buffer denylist**: `LOG_BUFFER_DENYLIST` (pipe-separated tag names) esclude tag come `CORS/DEBUG|DEBUG AUTH|DEBUG server|PROXY` dal ring buffer `/v1/logs`, mantenendoli solo sul terminale.
+
+Configura queste variabili in `.env` (vedi `.env.example` per i valori di default).
+
+### 14. Struttura del progetto
 
     src/
       index.mjs            Server Express, proxy handler, endpoint
@@ -207,6 +218,7 @@ Poi:
       modes-registry.mjs   Registry modalità + soft bias + discovery
       health-check.mjs     Probe periodici su modelli degradati/bannati
       notifier.mjs         Webhook Slack/Discord/Telegram
+      log-throttle.mjs     Throttling log, denylist ring buffer, verbose TTL
     public/
       dashboard.html       Dashboard single-file
     config/

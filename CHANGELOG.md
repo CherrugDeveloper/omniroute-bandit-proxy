@@ -2,6 +2,13 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.71 — 2026-10-22
+- **Log Noise Reduction & Polling Efficiency**:
+  - Added `src/log-throttle.mjs` with request throttling and log-noise filtering to reduce console spam and improve polling efficiency
+  - Enhanced `src/index.mjs` with `DASHBOARD_STATS_LOG_INTERVAL_MS`, `MODELS_LOG_THROTTLE_MS`, `CORS_DEBUG`, `DEBUG_VERBOSE`, and `LOG_BUFFER_DENYLIST` config options in `.env.example`
+  - Added `tests/log-noise.test.mjs` with 271 test cases validating throttling behavior, log buffer denylist, and polling efficiency metrics
+  - Updated `.env.example` with new logging/debug noise control parameters
+
 ## v1.1.70 — 2026-10-22
 - **Rewrite Image Generation Detection with Strict Three-Rule Strategy**:
   - Rewrote `isImageGenerationRequest()` in [`src/index.mjs`](src/index.mjs:50) around three explicit rules (R1/R2/R3) to eliminate the recurring `400 Image generation requests are not supported` errors returned to Zoo Code on every request.
