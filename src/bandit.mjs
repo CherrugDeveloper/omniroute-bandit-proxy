@@ -799,11 +799,10 @@ export class DiscountedUCB1Bandit {
                 break;
               case "cooldown-model": {
                 const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
-                if (c.reason === "tpm-exceeded" || errorDetails?.status === 413 || opts.estimatedTokens > 0) {
+                if (c.reason === "tpm-exceeded" || errorDetails?.status === 413) {
                   const errorMessage = String(errorDetails?.message || errorDetails?.error || errorDetails || "");
                   const parsedLimit = this._parseTokenLimit(errorMessage);
-                  const estTokens = opts.estimatedTokens || errorDetails?.estimatedTokens || 0;
-                  const targetLimit = parsedLimit !== null ? parsedLimit : (estTokens > 0 ? estTokens - 1 : 0);
+                  const targetLimit = parsedLimit !== null ? parsedLimit : 0;
                   if (targetLimit > 0) {
                     this.db.prepare(
                       `INSERT INTO models (id, provider, dynamic_max_tokens, N, sum_reward, fails, cooldown_until, last_used_index)
@@ -1936,7 +1935,10 @@ export class DiscountedUCB1Bandit {
       const modelRow = this.db.prepare(
         `SELECT dynamic_max_tokens FROM models WHERE id = ?`
       ).get(modelId);
-      if (modelRow && modelRow.dynamic_max_tokens > 0) dynMax = modelRow.dynamic_max_tokens;
+      // Defensive guard: dynamic_max_tokens values below 1000 tokens are almost
+      // certainly data corruption from a bug, not a real limit. Ignore them so
+      // they don't silently filter out all real requests.
+      if (modelRow && modelRow.dynamic_max_tokens >= 1000) dynMax = modelRow.dynamic_max_tokens;
     } catch (_) {}
 
     if (dynMax > 0 && catMax > 0) {

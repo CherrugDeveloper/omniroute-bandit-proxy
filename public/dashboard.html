@@ -2760,15 +2760,18 @@
         fetchQuota();
         fetchConsideration();
         const polls = [
-            { fn: refreshAll, interval: 5000, lastRun: 0 },
-            { fn: fetchLogs, interval: 2500, lastRun: 0 },
-            { fn: fetchActive, interval: 1500, lastRun: 0 },
-            { fn: fetchQuota, interval: 15000, lastRun: 0 },
-            { fn: fetchConsideration, interval: 3000, lastRun: 0 }
+            { fn: refreshAll, interval: 10000, lastRun: 0 },
+            { fn: fetchLogs, interval: 5000, lastRun: 0 },
+            { fn: fetchActive, interval: 5000, lastRun: 0 },
+            { fn: fetchQuota, interval: 30000, lastRun: 0 },
+            { fn: fetchConsideration, interval: 10000, lastRun: 0 }
         ];
 
         setInterval(() => {
             if (document.hidden) return;
+            // Only poll if dashboard tab is visible (not just browser tab)
+            const activeTab = document.querySelector('.tab-content.active');
+            if (!activeTab) return;
             const now = Date.now();
             for (const poll of polls) {
                 if (now - poll.lastRun >= poll.interval) {
@@ -2776,7 +2779,7 @@
                     poll.lastRun = now;
                 }
             }
-        }, 500);
+        }, 1000);
 
         let lastConsiderationData = [];
 
