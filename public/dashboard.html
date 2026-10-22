@@ -37,12 +37,18 @@
         }
         
         ::-webkit-scrollbar-thumb {
-            background: transparent;
+            background: rgba(255, 255, 255, 0.2);
             border-radius: 4px;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Firefox */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.1);
         }
         body {
             font-family: -apple-system, sans-serif;
@@ -811,11 +817,10 @@
 
             <div class="stats" title="Stato Provider (Attivi / Cooldown / Bannati / Da Config su Monitorati e Catalogo)">
                 <strong>Provider:</strong>
-                <span id="active-providers" class="ok">0</span> attivi |
-                <span id="cooldown-providers" class="warn">0</span> cool |
-                <span id="banned-providers" class="err">0</span> bannati |
-                <span id="attention-providers" class="attention">0</span> config
-                <span class="muted">(Monitorati: <span id="total-providers">0</span> | Catalogo: <span id="catalog-providers">0</span>)</span>
+                <span id="active-providers" class="ok">0</span> <span class="muted">attivi</span> |
+                <span id="cooldown-providers" class="warn">0</span> <span class="muted">cooldown</span> |
+                <span id="banned-providers" class="err">0</span> <span class="muted">bannati</span>
+                <span class="muted"> | <span id="attention-providers" class="attention">0</span> <span class="muted">config</span> | Monitorati: <span id="total-providers">0</span> | Catalogo: <span id="catalog-providers">0</span></span>
             </div>
         </div>
 
@@ -2394,7 +2399,9 @@
                 allData = d;
 
                 const reqs = Number(d.totalRequests) || 0;
-                const obs = Number(d.totalObservations) || 0;
+                // Observations can never exceed requests; cap to avoid display inconsistencies
+                const rawObs = Number(d.totalObservations) || 0;
+                const obs = Math.max(0, Math.min(rawObs, reqs));
                 document.getElementById('total-req').textContent = reqs;
                 document.getElementById('total-obs').textContent = obs;
 
@@ -2403,7 +2410,7 @@
                     rateEl.textContent = '(successo: —)';
                     rateEl.className = 'muted';
                 } else {
-                    const pct = Math.round((obs / reqs) * 100);
+                    const pct = reqs > 0 ? Math.round((obs / reqs) * 100) : 0;
                     rateEl.textContent = '(' + pct + '% successo)';
                     rateEl.className = pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'err';
                 }
@@ -2413,7 +2420,21 @@
                 document.getElementById('free-active').textContent = d.freeActive ?? 0;
                 
                 if (d.topModel) {
-                    document.getElementById('top-model').textContent = d.topModel;
+                    const topModelEl = document.getElementById('top-model');
+                    topModelEl.textContent = d.topModel.name || d.topModel;
+                    // Add subtitle with score and provider if available
+                    if (d.topModel.score !== undefined || d.topModel.provider) {
+                        const subtitle = [];
+                        if (d.topModel.score !== undefined) {
+                            subtitle.push('score: ' + d.topModel.score.toFixed(3));
+                        }
+                        if (d.topModel.provider) {
+                            subtitle.push('provider: ' + d.topModel.provider);
+                        }
+                        if (subtitle.length > 0) {
+                            topModelEl.title = subtitle.join(', ');
+                        }
+                    }
                 } else {
                     document.getElementById('top-model').textContent = '—';
                 }
@@ -2717,7 +2738,14 @@
                     if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
                     // Combine reason and error to avoid redundancy - prefer reason, fallback to lastError
                     const reasonOrError = r.reason || r.lastError;
-                    if (reasonOrError) statsParts.push(`reason: ${reasonOrError}`);
+                    if (reasonOrError) {
+                        // Escape HTML to prevent XSS and improve readability
+                        const cleanReason = reasonOrError
+                            .replace(/</g, '<')
+                            .replace(/>/g, '>')
+                            .replace(/"/g, '"');
+                        statsParts.push(`reason: ${cleanReason}`);
+                    }
                     if (r.selectionHistory && r.selectionHistory.length > 0) {
                         const rejected = r.selectionHistory.filter(sh => sh.status === 'rejected');
                         if (rejected.length > 0) {
