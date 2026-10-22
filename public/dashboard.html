@@ -2653,12 +2653,40 @@
                 function fmtRow(r, kind) {
                     const ts = r.timestamp || r.endedAt || Date.now();
                     const dObj = new Date(ts);
-                    const timeVal = kind === 'active'
-                        ? (Number(r.elapsedSec || 0).toFixed(1) + 's (try ' + (r.attempt || 1) + ')')
-                        : dObj.toISOString().replace('T', ' ').substring(0, 19);
-                    const model = r.model || r.selectedModel || r.requestedModel || '(selezione...)';
-                    const provider = r.provider || r.selectedProvider || '-';
-                    
+                    const timeStr = dObj.toISOString().replace('T', ' ').substring(11, 19);
+                    // Timestamp on the left; elapsed seconds ONLY for active thinking model
+                    const timeVal = (kind === 'active')
+                        ? (timeStr + ' <span style="color:#d29922; font-weight:bold;">(' + Number(r.elapsedSec || 0).toFixed(1) + 's try ' + (r.attempt || 1) + ')</span>')
+                        : timeStr;
+
+                    let model = r.model || r.selectedModel || r.requestedModel || '(selezione...)';
+                    let provider = r.provider || r.selectedProvider || '-';
+
+                    // Parse double provider prefixes like nvidia/nvidia/nemotron-...
+                    if (model.includes('/')) {
+                        const parts = model.split('/');
+                        if (parts.length >= 3 && parts[0] === parts[1]) {
+                            provider = parts[0];
+                            model = parts.slice(2).join('/');
+                        } else if (parts.length >= 2 && parts[0] === parts[1]) {
+                            provider = parts[0];
+                            model = parts.slice(1).join('/');
+                        } else if (parts.length >= 2 && (provider === '-' || provider === parts[0])) {
+                            provider = parts[0];
+                            model = parts.slice(1).join('/');
+                        }
+                    }
+                    if (provider === '-' && model.includes('/')) {
+                        const parts = model.split('/');
+                        if (parts.length >= 2 && parts[0] === parts[1]) {
+                            provider = parts[0];
+                            model = parts.slice(1).join('/');
+                        } else if (parts.length >= 2) {
+                            provider = parts[0];
+                            model = parts.slice(1).join('/');
+                        }
+                    }
+
                     let statusLabel = '';
                     let statusColor = '#c9d1d9';
                     if (kind === 'active') {
@@ -2676,6 +2704,11 @@
                     }
 
                     let statsParts = [];
+                    if (r.trend) {
+                        const trendMap = { up: '↗', down: '↘', flat: '→', new: 'NEW' };
+                        const arrow = trendMap[r.trend] || r.trend;
+                        statsParts.push(arrow);
+                    }
                     if (r.rank) statsParts.push(`rank #${r.rank}`);
                     if (r.N != null) statsParts.push(`N=${r.N}`);
                     if (r.avg != null) statsParts.push(`avg=${r.avg}`);
@@ -2695,7 +2728,7 @@
                     const statsStr = statsParts.join(' | ') || '-';
 
                     return `<tr style="border-bottom: 1px solid #21262d;">
-                        <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${escapeHtml(timeVal)}</td>
+                        <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timeVal}</td>
                         <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">[${escapeHtml(provider)}]</td>
                         <td style="padding: 3px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff;">${escapeHtml(model)}</td>
                         <td style="padding: 3px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600;">${escapeHtml(statusLabel)}</span></td>

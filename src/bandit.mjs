@@ -408,8 +408,6 @@ export class DiscountedUCB1Bandit {
   recordRequest(model = null, provider = null) {
     this.totalRequests++;
     this._setMeta("totalRequests", this.totalRequests);
-    this.totalObservations++;
-    this._setMeta("totalObservations", this.totalObservations);
     this.db.prepare("INSERT INTO request_logs (started_at, model, provider) VALUES (?, ?, ?)").run(Date.now(), model, provider);
   }
 
@@ -841,9 +839,10 @@ export class DiscountedUCB1Bandit {
         }
       }
 
+      this.totalObservations++;
+      this._setMeta("totalObservations", this.totalObservations);
+
       if (success) {
-        this.totalObservations++;
-        this._setMeta("totalObservations", this.totalObservations);
         this.db.prepare(
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0
            WHERE id = ?`
