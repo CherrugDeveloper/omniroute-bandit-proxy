@@ -2,6 +2,15 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.73 — 2026-10-23
+- **Enhanced Error Classification & Provider Expansion**:
+  - Added new providers (`cfp`, `dva`, `xai-oauth`, `xao`) to `config/provider-limits.json` with rate limits and token estimation
+  - Enhanced error classification in `src/bandit.mjs`:
+    - Added Cloudflare Playground (cfp) 502 error handling: transient session failures trigger cooldown, permanent environment errors trigger ban
+    - Improved 400 error classification: excluded image block format mismatches from "model-not-supported" to prevent false positives
+    - Enhanced provider-level error detection for environment errors (ENOENT, spawn failures, CLI not found)
+  - Fixed session affinity check in `src/index.mjs`: now uses database models count (`models` table) instead of sessionModels.size for accurate monitoring
+
 ## v1.1.72 — 2026-10-22
 - **Dashboard UX Improvements & Codebase Cleanup**:
   - Fixed timestamp display in [`public/dashboard.html`](public/dashboard.html:2657) to use local time via `toLocaleTimeString()` instead of UTC ISO format
@@ -10,7 +19,7 @@ Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
   - Removed bordered table wrapper, optimized scrollbar styling, and added `vertical-align: middle` for cleaner layout in [`public/dashboard.html`](public/dashboard.html:190)
   - Removed unused diagnostic script `scripts/diag-tokenlimit.mjs`
   - Removed backup test file `tests/bandit.test.mjs.bak`
-  - Removed obsolete plan files: `dashboard-specchietto-integration.md`, `image-generation-endpoint.md`, `model-categorization-and-filtering-spec.md`, `performance-analysis.md`
+  - Removed obsolete plan files: `dashboard-specchietto-integration.md`, `image-generation-endpoint.md`, `model-categorization-and-filtering-spec.md`, `performance-analysis.md"
 
 ## v1.1.71 — 2026-10-22
 - **Log Noise Reduction & Polling Efficiency**:

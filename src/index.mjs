@@ -1688,12 +1688,14 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   } else {
   // === SESSION AFFINITY DISABLE CHECK ===
   // Disabilita session affinity finché monitored models count < catalog models count
-  // Monitored models = sessionModels.size (entries tracked per session)
+  // Monitored models = models in the `models` table (learned/observed models)
   // Catalog models = total models in catalog table
   // This ensures we only enable affinity when we have enough models monitored
-  if (sessionModels.size < bandit.db.prepare("SELECT COUNT(*) as total FROM catalog").get().total) {
+  const monitoredCount = bandit.db.prepare("SELECT COUNT(*) as total FROM models").get().total;
+  const catalogCount = bandit.db.prepare("SELECT COUNT(*) as total FROM catalog").get().total;
+  if (monitoredCount < catalogCount) {
     sessionKey = null;
-    console.log(`[AFFINITY DISABLE] Monitored models (${sessionModels.size}) < catalog models (${bandit.db.prepare("SELECT COUNT(*) as total FROM catalog").get().total}), bypassing session affinity`);
+    console.log(`[AFFINITY DISABLE] Monitored models (${monitoredCount}) < catalog models (${catalogCount}), bypassing session affinity`);
   }
 
   // === SESSION AFFINITY ===

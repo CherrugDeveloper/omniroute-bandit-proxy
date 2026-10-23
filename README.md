@@ -67,8 +67,10 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | 429 quota exhausted (account) | Cooldown (durata dal messaggio) | Provider |
 | 402 insufficient funds / billing error | Ban permanente (quota-exhausted) | Provider |
 | Anti-abuse / 418 / captcha | Cooldown 6h | Provider |
-| Auth mancante, Playwright, transport, CLI obsoleto, spawn ENOENT (provider [`zc`](src/bandit.mjs:750)) | Ban-provider (provider-misconfigured) | Provider |
+| Auth mancante, Playwright, transport, CLI obsoleto, spawn ENOENT (provider [`zc`](src/bandit.mjs:750), [`cfp`](src/bandit.mjs:931)) | Ban-provider (provider-misconfigured) | Provider |
+| **Cloudflare Playground (cfp) 502 "browser session failed"** | **Cooldown 5 min** | **Provider** (transient, non ban permanente) |
 | 403 account banned/suspended | Ban permanente | Provider |
+| **400 "not supported" (image block format mismatch)** | **Ban-model (model-incompatible)** | **Modello** (capability mismatch, non unavailability) |
 | input-too-long / stream_early_eof | skip-feedback (nessuna penalità) | — |
 
 #### Circuit breaker
@@ -198,6 +200,8 @@ Poi:
 | `scripts/switch-mode.sh stop` | Ferma daemon training |
 | `scripts/switch-mode.sh status` | Stato + metriche rapide |
 | `scripts/train-ctl.sh start/stop/status/logs` | Controllo diretto training daemon |
+| `scripts/check-db.mjs` | Diagnostica database (provider history, meta, catalog) |
+| `scripts/inspect-db.mjs` | Ispezione completa database (models, catalog, meta, tools, free) |
 
 ### 12. Controllo del rumore di log e polling efficiente
 
@@ -223,11 +227,14 @@ Configura queste variabili in `.env` (vedi `.env.example` per i valori di defaul
       dashboard.html       Dashboard single-file
     config/
       modes.json           Registry 14 modalità (pattern + profile)
+      provider-limits.json Rate limits per provider (RPM/RPD/ITPM)
     scripts/
       train-daemon.mjs     Training round-robin
       train-ctl.sh         Start/stop/logs daemon
       switch-mode.sh       Cambio modalità prod/train
       restart.sh           Restart servizio
+      check-db.mjs         Diagnostica database
+      inspect-db.mjs       Ispezione completa database
 
 ### 13. Schema SQLite
 

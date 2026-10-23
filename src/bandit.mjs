@@ -931,8 +931,21 @@ export class DiscountedUCB1Bandit {
     }
 
     // Status 502 misconfiguration / gateway errors -> ban-provider if provider-level, else flag-provider
+    // Cloudflare Playground (cfp) 502 "browser session failed" errors are temporary browser session failures, not permanent misconfigurations
+    // But other CFP environment errors (like missing binary) should still be banned
     if (status === 502 && /No auth provided|Please log in|Playwright is not available|missing url or token|browserType\.launch|Executable doesn't exist|ENOENT/i.test(message)) {
-      if (resolvedProvider === 'cfp' || resolvedProvider === 'zc' || resolvedProvider) {
+      if (resolvedProvider === 'cfp') {
+        // Check if this is a Cloudflare Playground session failure (transient) vs environment error (permanent)
+        if (/browser session failed|Cloudflare Playground|session failed|timeout exceeded|connection interrupted/i.test(message)) {
+          // Cloudflare Playground transient session failure -> cooldown, not permanent ban
+          return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 5 * 60 * 1000 };
+        }
+        // Other CFP errors (e.g., missing binary, executable doesn't exist) -> ban-provider
+        if (resolvedProvider === 'cfp') {
+          return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+        }
+      }
+      if (resolvedProvider === 'zc' || resolvedProvider) {
         return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
       }
       return { action: "flag-provider", reason: "provider-misconfigured" };
@@ -942,6 +955,15 @@ export class DiscountedUCB1Bandit {
     if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured|Playwright is not available/i.test(message)) {
       const isProviderLevel = resolvedProvider === 'zc' || resolvedProvider === 'cfp' || !!resolvedProvider || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
       if (isProviderLevel) {
+        if (resolvedProvider === 'cfp') {
+          // Check if this is a Cloudflare Playground session failure (transient) vs environment error (permanent)
+          if (/browser session failed|Cloudflare Playground|session failed|timeout exceeded|connection interrupted/i.test(message)) {
+            // Cloudflare Playground transient session failure -> cooldown, not permanent ban
+            return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 5 * 60 * 1000 };
+          }
+          // Other CFP errors (e.g., missing binary, executable doesn't exist) -> ban-provider
+          return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+        }
         return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
       } else {
         return { action: "ban-model", scope: "model", reason: "environment-error" };
@@ -953,13 +975,26 @@ export class DiscountedUCB1Bandit {
       return { action: "ban-model", scope: "model", reason: "model-incompatible" };
     }
 
+    // 400 model non utilizzabile (non supportato, provider sconosciuto, code=model_not_found)
+    // NOTE: "not supported" related to image blocks/format mismatches should NOT be model-not-supported.
+    // Check for "not supported" but EXCLUDE image block related errors.
+    // Image block errors like "Anthropic image blocks are not supported" are capability mismatches,
+    // not model unavailability - they should be handled as model-incompatible or filtered.
+    if (status === 400 && /not supported/i.test(message)) {
+      // Exclude errors that are about image block format mismatches
+      if (/image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported/i.test(message)) {
+        // This is a capability/format mismatch, not model unavailability
+        return { action: "ban-model", scope: "model", reason: "model-incompatible" };
+      }
+      // Original check: model not supported, unknown provider for model, model_not_found
+      if (/not supported|unknown provider for model|model_not_found/i.test(message)) {
+        return { action: "ban-model", scope: "model", reason: "model-not-supported" };
+      }
+    }
+
     // Catalog mismatch / unknown model / 404 / 400 model not found / live catalog errors
     if (/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message) || status === 404 || status === 400) {
       return { action: "ban-model", scope: "model", reason: "model-not-found" };
-    }
-    // 400 model non utilizzabile (non supportato, provider sconosciuto, code=model_not_found)
-    if (status === 400 && /not supported|unknown provider for model|model_not_found/i.test(message)) {
-      return { action: "ban-model", scope: "model", reason: "model-not-supported" };
     }
     // Upstream bug (Assignment to constant) -> ban-model
     if (/Assignment to constant variable/i.test(message)) {
