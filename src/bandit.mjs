@@ -1068,7 +1068,7 @@ export class DiscountedUCB1Bandit {
       const isNonResetting = /does not reset|never resets|no reset|lifetime|permanent/i.test(message);
       let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (isNonResetting) {
-        return { action: "ban-provider", scope: "provider", reason: "quota-exhausted" };
+        return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 24 * 3600 * 1000 };
       } else if (!cooldownMs || cooldownMs <= 0) {
         return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs: 24 * 3600 * 1000 };
       } else {
@@ -1150,7 +1150,7 @@ export class DiscountedUCB1Bandit {
     // 402 insufficient funds / billing error -> ban-provider (quota-exhausted)
     // Enhanced detection for billing errors including billing_error code, payment_required, credits exhausted
     if (status === 402 && (/insufficient|funds|credit|payment/i.test(message) || /billing_error|payment_required|credits exhausted/i.test(message + " " + (errorDetails.code || "")))) {
-      return { action: "ban-provider", scope: "provider", reason: "quota-exhausted" };
+      return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 24 * 3600 * 1000 };
     }
 
     // 418 anti-abuse -> cooldown-provider 6h
@@ -2137,7 +2137,12 @@ export class DiscountedUCB1Bandit {
           }
 
           if (!rejectionReason && requireVision && !ignoreVision && !(model.supports_vision || 0)) {
-            rejectionReason = 'no_vision_support';
+            // Hard exclude dva provider from vision requests (known unsupported_image_block issue)
+            if (model.provider === 'dva') {
+              rejectionReason = 'no_vision_support_dva_hard_exclude';
+            } else {
+              rejectionReason = 'no_vision_support';
+            }
           }
 
           if (!rejectionReason && !requireImageGeneration) {
