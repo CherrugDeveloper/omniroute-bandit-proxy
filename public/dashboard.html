@@ -93,12 +93,18 @@
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            flex-wrap: nowrap;
             white-space: normal;
             gap: 2px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             min-width: 0;
             overflow: visible;
+        }
+        .stats .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 8px;
+            row-gap: 1px;
+            width: 100%;
         }
         .stats .mono {
             white-space: nowrap;
@@ -797,44 +803,55 @@
         </div>
         <div class="stats-container">
             <div class="stats">
-                <strong>Richieste:</strong> <span id="total-req" class="ok">0</span> |
-                <strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span> |
-                <strong>Successo:</strong> <span id="success-rate" class="ok">—</span> |
-                <strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span> |
-                <strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span>s |
-                <strong>Free attivi:</strong> <span id="free-active" class="attention">—</span>
+                <div class="stats-grid">
+                    <span><strong>Richieste:</strong> <span id="total-req" class="ok">0</span></span>
+                    <span><strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span></span>
+                    <span><strong>Successo:</strong> <span id="success-rate" class="ok">—</span></span>
+                    <span><strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span></span>
+                    <span><strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span>s</span>
+                    <span><strong>Free attivi:</strong> <span id="free-active" class="attention">—</span></span>
+                </div>
                 <button class="btn btn-reset" style="padding:1px 4px; font-size:11px; background:none; border:none; cursor:pointer; margin-left:6px;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
             </div>
 
             <div class="stats">
-                <strong>Top model:</strong> <span id="top-model" class="mono" title=""></span>
-                <br>
-                <span id="top-model-score" class="muted"></span>
-                <span id="top-model-provider" class="muted"></span> |
-                <span id="top-model-cooldown" class="muted"></span> |
-                <span id="top-model-n" class="muted"></span>
+                <div style="display:flex; flex-direction:column; gap:1px; width:100%;">
+                    <div><strong>Top model:</strong></div>
+                    <div><span id="top-model" class="mono" title="" style="white-space:normal; word-break:break-all;"></span></div>
+                    <div class="stats-grid">
+                        <span><span id="top-model-score" class="muted"></span></span>
+                        <span><span id="top-model-provider" class="muted"></span></span>
+                        <span><span id="top-model-cooldown" class="muted"></span></span>
+                        <span><span id="top-model-n" class="muted"></span></span>
+                    </div>
+                </div>
             </div>
 
             <div class="stats">
-                <strong>Modelli:</strong> Monitorati: <span id="total-models" class="badge badge-monitorati">0</span> |
-                Attivi: <span id="active-models" class="badge badge-attivi">0</span> |
-                Cooldown: <span id="cooldown-models" class="badge badge-cooldown">0</span> |
-                Bannati: <span id="banned-models" class="badge badge-bannati">0</span> |
-                Degraded: <span id="degraded-models" class="badge badge-degraded">0</span> |
-                Config: <span id="attention-models" class="badge badge-config">0</span> |
-                Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span> |
-                Free: <span id="catalog-free" class="badge badge-free">0</span> |
-                Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span>
+                <strong>Modelli:</strong>
+                <div class="stats-grid">
+                    <span>Monitorati: <span id="total-models" class="badge badge-monitorati">0</span></span>
+                    <span>Attivi: <span id="active-models" class="badge badge-attivi">0</span></span>
+                    <span>Cooldown: <span id="cooldown-models" class="badge badge-cooldown">0</span></span>
+                    <span>Bannati: <span id="banned-models" class="badge badge-bannati">0</span></span>
+                    <span>Degraded: <span id="degraded-models" class="badge badge-degraded">0</span></span>
+                    <span>Config: <span id="attention-models" class="badge badge-config">0</span></span>
+                    <span>Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span></span>
+                    <span>Free: <span id="catalog-free" class="badge badge-free">0</span></span>
+                    <span>Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span></span>
+                </div>
             </div>
 
             <div class="stats">
                 <strong>Provider:</strong>
-                Attivi: <span id="active-providers" class="ok">0</span> |
-                Cooldown: <span id="cooldown-providers" class="warn">0</span> |
-                Bannati: <span id="banned-providers" class="err">0</span> |
-                Config: <span id="attention-providers" class="attention">0</span> |
-                Monitorati: <span id="total-providers">0</span> |
-                Catalogo: <span id="catalog-providers">0</span>
+                <div class="stats-grid">
+                    <span>Attivi: <span id="active-providers" class="ok">0</span></span>
+                    <span>Cooldown: <span id="cooldown-providers" class="warn">0</span></span>
+                    <span>Bannati: <span id="banned-providers" class="err">0</span></span>
+                    <span>Config: <span id="attention-providers" class="attention">0</span></span>
+                    <span>Monitorati: <span id="total-providers">0</span></span>
+                    <span>Catalogo: <span id="catalog-providers">0</span></span>
+                </div>
             </div>
         </div>
 
