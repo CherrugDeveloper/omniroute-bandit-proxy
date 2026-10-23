@@ -84,7 +84,8 @@
             overflow-x: auto;
         }
         .stats-container .stats {
-            flex: 0 0 auto;
+            flex: 1 1 auto;
+            min-width: 0;
         }
         .stats {
             background: #161b22;
@@ -98,9 +99,13 @@
             white-space: nowrap;
             gap: 4px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-width: 0;
+            overflow: hidden;
         }
         .stats .mono {
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .stats strong { color: #58a6ff; }
         .ok { color: #3fb950; font-weight: bold; }
