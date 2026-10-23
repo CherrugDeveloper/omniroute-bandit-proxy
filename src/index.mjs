@@ -870,13 +870,15 @@ app.use((req, res, next) => {
   if (req.method === "POST" && req.path.includes("/chat/completions")) {
     if (!req.body || typeof req.body !== "object") {
       console.warn(`[API] 400 Error: Invalid request body from ${req.ip || req.connection?.remoteAddress}`);
-      bandit.recordRequest();
+      // Don't insert into request_logs here - started_at will be set after model selection
+      bandit._incrMeta("totalRequests");
       bandit.recordRequestError(400, "Invalid request body");
       return res.status(400).json({ error: { message: "Invalid request body" } });
     }
     if (!req.body.messages && !req.body.prompt && !req.body.model) {
       console.warn(`[API] 400 Error: Missing required fields from ${req.ip || req.connection?.remoteAddress}`);
-      bandit.recordRequest();
+      // Don't insert into request_logs here - started_at will be set after model selection
+      bandit._incrMeta("totalRequests");
       bandit.recordRequestError(400, "Missing required fields");
       return res.status(400).json({ error: { message: "Missing required fields" } });
     }
@@ -1327,10 +1329,13 @@ app.post("/v1/images/generations", async (req, res) => {
   res.once("finish", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
   res.once("close", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
 
-  bandit.recordRequest();
+  // Increment totalRequests counter but don't insert into request_logs yet
+  bandit._incrMeta("totalRequests");
 
   try {
     const selected = await bandit.selectModel(new Set(), 0, false, true);
+    // Record started_at AFTER model selection to exclude selection time from latency
+    bandit.recordRequestStarted(selected, bandit._getProvider(selected));
 
     if (!selected) {
       const errMsg = "No image generation models available";
@@ -1367,7 +1372,9 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const baseUrl = sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "http://127.0.0.1:20128/v1");
   const apiKey = process.env.OMNIROUTE_API_KEY;
 
-  bandit.recordRequest(); // +1 per ogni richiesta ricevuta
+  // Increment totalRequests counter but don't insert into request_logs yet
+  // started_at will be set after model selection to exclude selection time from latency
+  bandit._incrMeta("totalRequests");
   // === Image generation requests are not allowed via chat completions ===
   if (isImageGenerationRequest(req.body)) {
     const errMsg = "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.";
@@ -1774,6 +1781,11 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
     }
   }
+}
+
+// Record started_at AFTER model selection to exclude selection time from latency
+if (model) {
+  bandit.recordRequestStarted(model, bandit._getProvider(model));
 }
 
 trackRequestUpdate(requestId, {

@@ -782,45 +782,46 @@
     </div>
         </div>
         <div class="stats-container">
-            <div class="stats" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                <div>
-                    <strong>Richieste / Osservazioni:</strong>
-                    <span id="total-req" class="ok">0</span> |
-                    <span id="total-obs" class="ok">0</span>
-                    <span class="muted" id="success-rate">(successo: —)</span>
-                    <button class="btn btn-reset" style="padding:1px 4px; font-size:11px; background:none; border:none; cursor:pointer; margin-left:6px;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
-                </div>
-                <div title="Modello con lo score UCB1 più alto">
-                    <strong>Top model:</strong> <span id="top-model" class="mono">—</span>
-                </div>
+            <div class="stats">
+                <strong>Richieste:</strong> <span id="total-req" class="ok">0</span> |
+                <strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span> |
+                <strong>Successo:</strong> <span id="success-rate" class="ok">—</span>
+                <button class="btn btn-reset" style="padding:1px 4px; font-size:11px; background:none; border:none; cursor:pointer; margin-left:6px;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
             </div>
 
-            <div class="stats" title="Metriche aggregate">
-                <strong>Qualità:</strong>
-                <span id="avg-reward" class="ok">—</span> reward medio /
-                <span id="avg-latency" class="ok">—</span> latenza media /
+            <div class="stats">
+                <strong>Top model:</strong> <span id="top-model" class="mono">—</span>
+                <span id="top-model-score" class="muted"></span>
+                <span id="top-model-provider" class="muted"></span>
+            </div>
+
+            <div class="stats">
+                <strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span> reward medio |
+                <span id="avg-latency" class="ok">—</span> latenza media |
                 <span id="free-active" class="attention">—</span> free attivi
             </div>
 
-            <div class="stats" title="Stato Modelli (Monitorati / Chat Catalogo / Totali Grezzi)">
+            <div class="stats">
                 <strong>Modelli:</strong>
                 Monitorati: <span id="total-models" class="badge badge-monitorati">0</span> |
-                <span id="active-models" class="badge badge-attivi">0</span> attivi |
-                <span id="cooldown-models" class="badge badge-cooldown">0</span> cool |
-                <span id="banned-models" class="badge badge-bannati">0</span> bannati |
-                <span id="degraded-models" class="badge badge-degraded">0</span> degraded |
-                <span id="attention-models" class="badge badge-config">0</span> config |
-                Chat Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span> |
+                Attivi: <span id="active-models" class="badge badge-attivi">0</span> |
+                Cooldown: <span id="cooldown-models" class="badge badge-cooldown">0</span> |
+                Bannati: <span id="banned-models" class="badge badge-bannati">0</span> |
+                Degraded: <span id="degraded-models" class="badge badge-degraded">0</span> |
+                Config: <span id="attention-models" class="badge badge-config">0</span> |
+                Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span> |
                 Free: <span id="catalog-free" class="badge badge-free">0</span> |
-                Totali Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span>
+                Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span>
             </div>
 
-            <div class="stats" title="Stato Provider (Attivi / Cooldown / Bannati / Da Config su Monitorati e Catalogo)">
+            <div class="stats">
                 <strong>Provider:</strong>
-                <span id="active-providers" class="ok">0</span> <span class="muted">attivi</span> |
-                <span id="cooldown-providers" class="warn">0</span> <span class="muted">cooldown</span> |
-                <span id="banned-providers" class="err">0</span> <span class="muted">bannati</span>
-                <span class="muted"> | <span id="attention-providers" class="attention">0</span> <span class="muted">config</span> | Monitorati: <span id="total-providers">0</span> | Catalogo: <span id="catalog-providers">0</span></span>
+                Attivi: <span id="active-providers" class="ok">0</span> |
+                Cooldown: <span id="cooldown-providers" class="warn">0</span> |
+                Bannati: <span id="banned-providers" class="err">0</span> |
+                Config: <span id="attention-providers" class="attention">0</span> |
+                Monitorati: <span id="total-providers">0</span> |
+                Catalogo: <span id="catalog-providers">0</span>
             </div>
         </div>
 
@@ -2407,11 +2408,13 @@
 
                 const rateEl = document.getElementById('success-rate');
                 if (reqs === 0) {
-                    rateEl.textContent = '(successo: —)';
+                    rateEl.textContent = '—';
                     rateEl.className = 'muted';
                 } else {
-                    const pct = reqs > 0 ? Math.round((obs / reqs) * 100) : 0;
-                    rateEl.textContent = '(' + pct + '% successo)';
+                    // Use backend-computed successRate (models above threshold / models with observations)
+                    // instead of obs/reqs ratio which is not a true success rate
+                    const pct = Math.round((d.successRate || 0) * 100);
+                    rateEl.textContent = pct + '%';
                     rateEl.className = pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'err';
                 }
 
@@ -2421,22 +2424,25 @@
                 
                 if (d.topModel) {
                     const topModelEl = document.getElementById('top-model');
-                    topModelEl.textContent = d.topModel.name || d.topModel;
-                    // Add subtitle with score and provider if available
-                    if (d.topModel.score !== undefined || d.topModel.provider) {
-                        const subtitle = [];
-                        if (d.topModel.score !== undefined) {
-                            subtitle.push('score: ' + d.topModel.score.toFixed(3));
-                        }
-                        if (d.topModel.provider) {
-                            subtitle.push('provider: ' + d.topModel.provider);
-                        }
-                        if (subtitle.length > 0) {
-                            topModelEl.title = subtitle.join(', ');
-                        }
+                    topModelEl.textContent = d.topModel;
+                    // Add score and provider info
+                    const scoreEl = document.getElementById('top-model-score');
+                    const providerEl = document.getElementById('top-model-provider');
+                    const details = d.topModelDetails || {};
+                    if (details.score !== undefined) {
+                        scoreEl.textContent = 'score: ' + details.score.toFixed(3);
+                    } else {
+                        scoreEl.textContent = '';
+                    }
+                    if (details.provider) {
+                        providerEl.textContent = 'provider: ' + details.provider;
+                    } else {
+                        providerEl.textContent = '';
                     }
                 } else {
                     document.getElementById('top-model').textContent = '—';
+                    document.getElementById('top-model-score').textContent = '';
+                    document.getElementById('top-model-provider').textContent = '';
                 }
 
                 document.getElementById('catalog-models').textContent = d.catalogTotal ?? '?';
@@ -2684,6 +2690,33 @@
                     let model = r.model || r.selectedModel || r.requestedModel || '(selezione...)';
                     let provider = r.provider || r.selectedProvider || '-';
 
+                    // Parse message field to extract provider/model if available
+                    // Example: "[antigravity/claude-sonnet-4-6] provider antigravity e modello claude-sonnet-4-6"
+                    // or: "[provider/model] All antigravity accounts have exhaused their q"
+                    let messageReason = null;
+                    if (r.message && typeof r.message === 'string') {
+                        const message = r.message;
+                        // Try to extract provider/model from message format like "[provider/model] ..."
+                        const bracketMatch = message.match(/\[([^/]+)\/([^]]+)\]\s*(.*)/);
+                        if (bracketMatch) {
+                            const msgProvider = bracketMatch[1];
+                            const msgModel = bracketMatch[2];
+                            let remainingText = bracketMatch[3] || '';
+                            // Only use message parsing if we have valid provider/model
+                            if (msgProvider && msgModel) {
+                                provider = msgProvider;
+                                model = msgModel;
+                            }
+                            // Remove "provider X e modello Y" prefix from remaining text
+                            if (remainingText) {
+                                remainingText = remainingText.replace(/^provider\s+\S+\s+e\s+modello\s+\S+\.?\s*/i, '').trim();
+                                if (remainingText) {
+                                    messageReason = remainingText;
+                                }
+                            }
+                        }
+                    }
+
                     // Parse double provider prefixes like nvidia/nvidia/nemotron-...
                     if (model.includes('/')) {
                         const parts = model.split('/');
@@ -2736,8 +2769,8 @@
                     if (r.avg != null) statsParts.push(`avg=${r.avg}`);
                     if (r.latency_ms) statsParts.push(`${r.latency_ms}ms`);
                     if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
-                    // Combine reason and error to avoid redundancy - prefer reason, fallback to lastError
-                    const reasonOrError = r.reason || r.lastError;
+                    // Combine reason and error to avoid redundancy - prefer message reason, fallback to reason, fallback to lastError
+                    const reasonOrError = messageReason || r.reason || r.lastError;
                     if (reasonOrError) {
                         // Escape HTML to prevent XSS and improve readability
                         const cleanReason = reasonOrError
@@ -2746,6 +2779,22 @@
                             .replace(/"/g, '"');
                         statsParts.push(`reason: ${cleanReason}`);
                     }
+                    // Also include original reason if different from messageReason
+                    if (r.reason && r.reason !== messageReason && !r.reason.includes('[')) {
+                        statsParts.push(`reason: ${r.reason}`);
+                    }
+                    if (r.lastError && r.lastError !== messageReason && r.lastError !== r.reason && !r.lastError.includes('[')) {
+                        statsParts.push(`lastError: ${r.lastError}`);
+                    }
+                    if (r.errorType) statsParts.push(`err: ${r.errorType}`);
+                    if (r.errorStatus) statsParts.push(`errStatus: ${r.errorStatus}`);
+                    if (r.errorReason) statsParts.push(`errReason: ${r.errorReason}`);
+                    if (r.errorMessage && r.errorMessage !== r.lastError) statsParts.push(`errMsg: ${r.errorMessage}`);
+                    if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
+                    if (r.latency_ms) statsParts.push(`${r.latency_ms}ms`);
+                    if (r.durationSec) statsParts.push(`${r.durationSec}s`);
+                    if (r.attempt) statsParts.push(`attempt:${r.attempt}`);
+                    if (r.triedModels && r.triedModels.length > 0) statsParts.push(`tried:${r.triedModels.length}`);
                     if (r.selectionHistory && r.selectionHistory.length > 0) {
                         const rejected = r.selectionHistory.filter(sh => sh.status === 'rejected');
                         if (rejected.length > 0) {
@@ -2753,13 +2802,15 @@
                         }
                     }
                     const statsStr = statsParts.join(' | ') || '-';
+                    // Truncate long reason to keep row height compact
+                    const truncatedStatsStr = statsStr.length > 200 ? statsStr.substring(0, 200) + '...' : statsStr;
 
                     return `<tr style="border-bottom: 1px solid #21262d;">
                         <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timeVal}</td>
                         <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">[${escapeHtml(provider)}]</td>
                         <td style="padding: 3px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff;">${escapeHtml(model)}</td>
                         <td style="padding: 3px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600;">${escapeHtml(statusLabel)}</span></td>
-                        <td style="padding: 3px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9;">${escapeHtml(statsStr)}</td>
+                        <td style="padding: 3px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(truncatedStatsStr)}</td>
                     </tr>`;
                 }
 

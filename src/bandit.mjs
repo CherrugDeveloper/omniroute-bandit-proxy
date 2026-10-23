@@ -445,6 +445,15 @@ export class DiscountedUCB1Bandit {
   recordRequest(model = null, provider = null) {
     this.totalRequests++;
     this._setMeta("totalRequests", this.totalRequests);
+    // Insert into request_logs for backward compatibility with existing callers/tests.
+    // Production code uses _incrMeta() + recordRequestStarted() to exclude selection time
+    // from latency, but recordRequest() must still log for direct callers.
+    this.db.prepare("INSERT INTO request_logs (started_at, model, provider) VALUES (?, ?, ?)").run(Date.now(), model, provider);
+  }
+
+  recordRequestStarted(model = null, provider = null) {
+    // Insert into request_logs with started_at set to current time
+    // This should be called after model selection to exclude selection time from latency
     this.db.prepare("INSERT INTO request_logs (started_at, model, provider) VALUES (?, ?, ?)").run(Date.now(), model, provider);
   }
 
@@ -1572,17 +1581,19 @@ export class DiscountedUCB1Bandit {
       }
 
       // freeActive: check both model-level and provider-level status
+      // Count from catalog instead of requiring model to be in models table
+      // Models not yet used won't be in models table, so we need to count from catalog
       let freeActive = { count: 0 };
       try {
         freeActive = this.db.prepare(`
           SELECT COUNT(*) as count
-          FROM models m
-          JOIN catalog c ON m.id = c.id
+          FROM catalog c
+          LEFT JOIN models m ON m.id = c.id
           LEFT JOIN provider_history ph ON c.provider = ph.provider
           WHERE c.is_free = 1
             AND (m.cooldown_until IS NULL OR m.cooldown_until <= ?)
-            AND m.permanent = 0
-            AND m.degraded = 0
+            AND (m.permanent IS NULL OR m.permanent = 0)
+            AND (m.degraded IS NULL OR m.degraded = 0)
             AND (ph.cooldown_until IS NULL OR ph.cooldown_until <= ? OR ph.cooldown_until = 0)
             AND (ph.permanent IS NULL OR ph.permanent = 0)
             AND (ph.needs_attention IS NULL OR ph.needs_attention = 0)
@@ -1592,15 +1603,26 @@ export class DiscountedUCB1Bandit {
       }
 
       let topModel = null;
+      let topModelDetails = null;
       try {
         const topRes = this.db.prepare(`
-          SELECT id, (sum_reward / NULLIF(N, 0)) as avg
+          SELECT id, provider, N, (sum_reward / NULLIF(N, 0)) as avg, (sum_reward / NULLIF(N, 0)) as score
           FROM models
           WHERE N >= 10
           ORDER BY avg DESC
           LIMIT 1
         `).get();
-        if (topRes) topModel = topRes.id;
+        if (topRes) {
+          topModel = topRes.id;
+          topModelDetails = {
+            id: topRes.id,
+            name: topRes.id,
+            provider: topRes.provider,
+            N: topRes.N,
+            avg: topRes.avg,
+            score: topRes.score
+          };
+        }
       } catch (e) {
         console.warn("[BANDIT] getDashboardStats topModel query error:", e.message);
       }
@@ -1678,6 +1700,7 @@ export class DiscountedUCB1Bandit {
         avgLatencySec: (latency.avgLatency || 0) / 1000,
         freeActive: freeActive.count || 0,
         topModel,
+        topModelDetails,
         catalogTotal: catalogCounts.total || 0,
         catalogRawCount: this._getMeta("catalogRawCount") || 0,
         catalogFree: catalogCounts.free || 0,
