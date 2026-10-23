@@ -76,7 +76,7 @@
         }
         .stats-container {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1.5fr 2fr;
             gap: 8px;
             margin-bottom: 2px;
         }
@@ -97,11 +97,14 @@
             gap: 4px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             min-width: 0;
-            overflow: hidden;
+            overflow: visible;
         }
         .stats .mono {
             white-space: nowrap;
             overflow: visible;
+        }
+        .stats span {
+            white-space: nowrap;
         }
         .stats strong { color: #58a6ff; }
         .ok { color: #3fb950; font-weight: bold; }
@@ -793,15 +796,15 @@
         </div>
         <div class="stats-container">
             <div class="stats">
-                <strong>Richieste:</strong> <span id="total-req" class="ok">0</span><br>
-                <strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span><br>
-                <strong>Successo:</strong> <span id="success-rate" class="ok">—</span>
-            </div>
-            <div class="stats">
-                <strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span><br>
-                <strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span>s<br>
+                <strong>Richieste:</strong> <span id="total-req" class="ok">0</span> |
+                <strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span> |
+                <strong>Successo:</strong> <span id="success-rate" class="ok">—</span> |
+                <strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span> |
+                <strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span>s |
                 <strong>Free attivi:</strong> <span id="free-active" class="attention">—</span>
+                <button class="btn btn-reset" style="padding:1px 4px; font-size:11px; background:none; border:none; cursor:pointer; margin-left:6px;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
             </div>
+
             <div class="stats" style="white-space: nowrap;">
                 <strong>Top model:</strong> <span id="top-model" class="mono" title=""></span>
                 <span id="top-model-score" class="muted"></span>
@@ -809,11 +812,25 @@
                 <span id="top-model-cooldown" class="muted"></span>
                 <span id="top-model-n" class="muted"></span>
             </div>
+
             <div class="stats">
-                <strong>Modelli</strong><br>
-                Monitorati: <span id="total-models" class="badge badge-monitorati">0</span><br>
-                Attivi: <span id="active-models" class="badge badge-attivi">0</span><br>
-                Cooldown: <span id="cooldown-models" class="badge badge-cooldown">0</span>
+                <strong>Modelli:</strong>
+                Monitorati: <span id="total-models" class="badge badge-monitorati">0</span> |
+                Attivi: <span id="active-models" class="badge badge-attivi">0</span> |
+                Cooldown: <span id="cooldown-models" class="badge badge-cooldown">0</span> |
+                Bannati: <span id="banned-models" class="badge badge-bannati">0</span> |
+                Degraded: <span id="degraded-models" class="badge badge-degraded">0</span> |
+                Config: <span id="attention-models" class="badge badge-config">0</span> |
+                Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span> |
+                Free: <span id="catalog-free" class="badge badge-free">0</span> |
+                Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span> |
+                <strong>Provider:</strong>
+                Attivi: <span id="active-providers" class="ok">0</span> |
+                Cooldown: <span id="cooldown-providers" class="warn">0</span> |
+                Bannati: <span id="banned-providers" class="err">0</span> |
+                Config: <span id="attention-providers" class="attention">0</span> |
+                Monitorati: <span id="total-providers">0</span> |
+                Catalogo: <span id="catalog-providers">0</span>
             </div>
         </div>
 
