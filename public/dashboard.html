@@ -76,7 +76,7 @@
         }
         .stats-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
             gap: 4px;
             margin-bottom: 2px;
         }
@@ -825,16 +825,21 @@
                 Bannati: <span id="banned-models" class="badge badge-bannati">0</span> |
                 Degraded: <span id="degraded-models" class="badge badge-degraded">0</span> |
                 Config: <span id="attention-models" class="badge badge-config">0</span> |
-                Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span>
-            </div>
-            <div class="stats">
-                <strong>Provider:</strong>
-                Attivi: <span id="active-providers" class="ok">0</span> |
-                Cooldown: <span id="cooldown-providers" class="warn">0</span> |
-                Bannati: <span id="banned-providers" class="err">0</span> |
-                Config: <span id="attention-providers" class="attention">0</span> |
-                Monitorati: <span id="total-providers">0</span> |
-                Catalogo: <span id="catalog-providers">0</span>
+                Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span> |
+                Free: <span id="catalog-free" class="badge badge-free">0</span> |
+                Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2px; margin-top:2px;">
+                    <div><strong>Provider:</strong>
+                        Attivi: <span id="active-providers" class="ok">0</span> |
+                        Cooldown: <span id="cooldown-providers" class="warn">0</span> |
+                        Bannati: <span id="banned-providers" class="err">0</span>
+                    </div>
+                    <div>
+                        Config: <span id="attention-providers" class="attention">0</span> |
+                        Monitorati: <span id="total-providers">0</span> |
+                        Catalogo: <span id="catalog-providers">0</span>
+                    </div>
+                </div>
             </div>
         </div>
 
