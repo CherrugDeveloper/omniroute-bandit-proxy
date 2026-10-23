@@ -95,9 +95,17 @@
             font-size: 12px;
             display: flex;
             align-items: center;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
+            white-space: nowrap;
             gap: 4px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .stats .mono {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
         }
         .stats strong { color: #58a6ff; }
         .ok { color: #3fb950; font-weight: bold; }
@@ -791,22 +799,19 @@
             <div class="stats">
                 <strong>Richieste:</strong> <span id="total-req" class="ok">0</span> |
                 <strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span> |
-                <strong>Successo:</strong> <span id="success-rate" class="ok">—</span>
+                <strong>Successo:</strong> <span id="success-rate" class="ok">—</span> |
+                <strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span> |
+                <strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span>s |
+                <strong>Free attivi:</strong> <span id="free-active" class="attention">—</span>
                 <button class="btn btn-reset" style="padding:1px 4px; font-size:11px; background:none; border:none; cursor:pointer; margin-left:6px;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
             </div>
 
-            <div class="stats" style="white-space: nowrap;">
-                <strong>Top model:</strong> <span id="top-model" class="mono">—</span>
+            <div class="stats" style="white-space: nowrap; flex: 2;">
+                <strong>Top model:</strong> <span id="top-model" class="mono" title=""></span>
                 <span id="top-model-score" class="muted"></span>
                 <span id="top-model-provider" class="muted"></span>
                 <span id="top-model-cooldown" class="muted"></span>
                 <span id="top-model-n" class="muted"></span>
-            </div>
-
-            <div class="stats">
-                <strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span> reward medio |
-                <span id="avg-latency" class="ok">—</span> latenza media |
-                <span id="free-active" class="attention">—</span> free attivi
             </div>
 
             <div class="stats">
@@ -819,10 +824,7 @@
                 Config: <span id="attention-models" class="badge badge-config">0</span> |
                 Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span> |
                 Free: <span id="catalog-free" class="badge badge-free">0</span> |
-                Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span>
-            </div>
-
-            <div class="stats">
+                Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span> |
                 <strong>Provider:</strong>
                 Attivi: <span id="active-providers" class="ok">0</span> |
                 Cooldown: <span id="cooldown-providers" class="warn">0</span> |
