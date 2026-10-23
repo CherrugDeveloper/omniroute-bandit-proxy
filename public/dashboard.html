@@ -810,16 +810,13 @@
                 <strong>Top model:</strong> <span id="top-model" class="mono" title=""></span>
                 <br>
                 <span id="top-model-score" class="muted"></span>
-                <span id="top-model-provider" class="muted"></span>
-                |
-                <span id="top-model-cooldown" class="muted"></span>
-                |
+                <span id="top-model-provider" class="muted"></span> |
+                <span id="top-model-cooldown" class="muted"></span> |
                 <span id="top-model-n" class="muted"></span>
             </div>
 
             <div class="stats">
-                <strong>Modelli:</strong>
-                Monitorati: <span id="total-models" class="badge badge-monitorati">0</span> |
+                <strong>Modelli:</strong> Monitorati: <span id="total-models" class="badge badge-monitorati">0</span> |
                 Attivi: <span id="active-models" class="badge badge-attivi">0</span> |
                 Cooldown: <span id="cooldown-models" class="badge badge-cooldown">0</span> |
                 Bannati: <span id="banned-models" class="badge badge-bannati">0</span> |
@@ -828,23 +825,25 @@
                 Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span> |
                 Free: <span id="catalog-free" class="badge badge-free">0</span> |
                 Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2px; margin-top:2px;">
-                    <div><strong>Provider:</strong>
-                        Attivi: <span id="active-providers" class="ok">0</span> |
-                        Cooldown: <span id="cooldown-providers" class="warn">0</span> |
-                        Bannati: <span id="banned-providers" class="err">0</span>
-                    </div>
-                    <div>
-                        Config: <span id="attention-providers" class="attention">0</span> |
-                        Monitorati: <span id="total-providers">0</span> |
-                        Catalogo: <span id="catalog-providers">0</span>
-                    </div>
-                </div>
+            </div>
+
+            <div class="stats">
+                <strong>Provider:</strong>
+                Attivi: <span id="active-providers" class="ok">0</span> |
+                Cooldown: <span id="cooldown-providers" class="warn">0</span> |
+                Bannati: <span id="banned-providers" class="err">0</span> |
+                Config: <span id="attention-providers" class="attention">0</span> |
+                Monitorati: <span id="total-providers">0</span> |
+                Catalogo: <span id="catalog-providers">0</span>
             </div>
         </div>
 
     <!-- Persistent Unified Panel -->
     <div class="card" style="margin-bottom:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:6px 10px;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+            <strong style="font-size:11px; color:#58a6ff;">Cronologia Unificata</strong>
+            <button id="copy-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia tutto">📋 Copia tutto</button>
+        </div>
         <div style="max-height: 130px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9;">
                 <thead>
@@ -2783,7 +2782,7 @@
                     } else if (r.status === 'success') {
                         statusLabel = 'Success ✅';
                         statusColor = '#3fb950';
-                    } else if (r.status && (r.status.startsWith('error') || r.status.startsWith('err') || r.status.includes('fail'))) {
+                    } else if (r.status && (r.status.startsWith('error') || r.status.startsWith('err') || r.status.includes('fail') || r.errorStatus || r.lastError || r.errorType)) {
                         statusLabel = 'Rejected ❌';
                         statusColor = '#f85149';
                     } else {
@@ -2903,6 +2902,30 @@
             }
         }
         // ============= INIT =============
+        // Copy unified table button
+        document.getElementById('copy-unified-btn')?.addEventListener('click', async () => {
+            const tbody = document.getElementById('unified-cronologia-tbody');
+            if (!tbody) return;
+            let text = '';
+            // header
+            const headers = ['Timestamp','Provider','Model','Status','Reason / Stats'];
+            text += headers.join('\t') + '\n';
+            // rows
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(tr => {
+                const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                if (cells.length) text += cells.join('\t') + '\n';
+            });
+            try {
+                await navigator.clipboard.writeText(text);
+                const btn = document.getElementById('copy-unified-btn');
+                const orig = btn.textContent;
+                btn.textContent = '✅ Copiato';
+                setTimeout(()=> btn.textContent = orig, 1500);
+            } catch(e) {
+                console.error('Copy failed', e);
+            }
+        });
         // Attach filter event listeners to existing filter elements
         document.getElementById('models-filter-search')?.addEventListener('input', renderAll);
         document.getElementById('models-filter-provider')?.addEventListener('change', renderAll);
