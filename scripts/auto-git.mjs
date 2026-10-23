@@ -15,6 +15,13 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { appendFileSync } from "node:fs";
+
+function debugLog(msg) {
+  appendFileSync("/tmp/auto-git-mjs.log", `[${new Date().toISOString()}] ${msg}\n`);
+}
+
+debugLog("Script started");
 
 const CONFIG = {
   cleanupPatterns: [

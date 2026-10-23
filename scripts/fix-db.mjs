@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+/import Database from "better-sqlite3";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
