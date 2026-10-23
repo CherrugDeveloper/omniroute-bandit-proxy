@@ -2,6 +2,13 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.74 — 2026-10-23
+- **Codebase Cleanup & Error Classification Enhancements**:
+  - Enhanced 400 error classification: excluded image block format mismatches from "model-not-supported" to prevent false positives
+  - Improved provider-level error detection for environment errors (ENOENT, spawn failures, CLI not found)
+  - Removed unused diagnostic script and plan files
+  - Cleaned up test-target.sh and obsolete plan files
+
 ## v1.1.73 — 2026-10-23
 - **Enhanced Error Classification & Provider Expansion**:
   - Added new providers (`cfp`, `dva`, `xai-oauth`, `xao`) to `config/provider-limits.json` with rate limits and token estimation

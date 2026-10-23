@@ -975,6 +975,11 @@ export class DiscountedUCB1Bandit {
       return { action: "ban-model", scope: "model", reason: "model-incompatible" };
     }
 
+    // 400 unsupported_image_block / devin_agentic_error -> model-incompatible, not model-not-found
+    if (status === 400 && (/unsupported_image_block/i.test(message) || /devin_agentic_error/i.test(message) || (errorDetails.code && /unsupported_image_block/i.test(errorDetails.code)))) {
+      return { action: "ban-model", scope: "model", reason: "model-incompatible" };
+    }
+
     // 400 model non utilizzabile (non supportato, provider sconosciuto, code=model_not_found)
     // NOTE: "not supported" related to image blocks/format mismatches should NOT be model-not-supported.
     // Check for "not supported" but EXCLUDE image block related errors.
@@ -993,7 +998,8 @@ export class DiscountedUCB1Bandit {
     }
 
     // Catalog mismatch / unknown model / 404 / 400 model not found / live catalog errors
-    if (/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message) || status === 404 || status === 400) {
+    // Avoid classifying 400 image/compatibility errors as model-not-found
+    if ((/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message) || status === 404) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
       return { action: "ban-model", scope: "model", reason: "model-not-found" };
     }
     // Upstream bug (Assignment to constant) -> ban-model
@@ -1130,7 +1136,8 @@ export class DiscountedUCB1Bandit {
     }
 
     // 402 insufficient funds / billing error -> ban-provider (quota-exhausted)
-    if (status === 402 && /insufficient|funds|credit|payment/i.test(message)) {
+    // Enhanced detection for billing errors including billing_error code, payment_required, credits exhausted
+    if (status === 402 && (/insufficient|funds|credit|payment/i.test(message) || /billing_error|payment_required|credits exhausted/i.test(message + " " + (errorDetails.code || "")))) {
       return { action: "ban-provider", scope: "provider", reason: "quota-exhausted" };
     }
 

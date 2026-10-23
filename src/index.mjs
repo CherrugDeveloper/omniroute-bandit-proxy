@@ -1401,7 +1401,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const MAX_CONTEXT_TOKENS = parseInt(process.env.MAX_CONTEXT_TOKENS || "150000");
   // Timeout proporzionale: contesti grandi → prefill più lungo.
   // Scala linearmente (100k = 2x, 200k+ = 3x, cap 3x).
-  const baseTimeout = parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 20000;
+  // Clamp to minimum 1ms to prevent TimeoutNegativeWarning
+  const baseTimeout = Math.max(1, parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 20000);
   const tokenScale = Math.max(1, Math.min(3, Math.ceil((estimatedTokens || 0) / 100000)));
   const upstreamTimeoutMs = baseTimeout * tokenScale;
   if (tokenScale > 1 && isDebugVerbose()) {
@@ -1590,9 +1591,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let controller = null;
   let model;  // <-- FIX: declare model before while loop (used at line 1272)
   // Timer streaming — dichiarati fuori da if(stream) così il catch esterno può accedervi
-  const STREAM_IDLE_MS = parseInt(process.env.STREAM_IDLE_MS || "60000", 10);
+  // Clamp to minimum 1ms to prevent TimeoutNegativeWarning
+  const STREAM_IDLE_MS = Math.max(1, parseInt(process.env.STREAM_IDLE_MS || "60000", 10));
   const isSummarizer = (profile === 'summarizer');
-  const STREAM_MAX_MS = parseInt(process.env.STREAM_MAX_MS || (isSummarizer ? "60000" : "180000"), 10);
+  const STREAM_MAX_MS = Math.max(1, parseInt(process.env.STREAM_MAX_MS || (isSummarizer ? "60000" : "180000"), 10));
   let idleTimer = null;
   let hardCapTimer = null;
   let lastMeaningfulByte = Date.now();
@@ -1773,6 +1775,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       excluded.add(pinnedEntry.model);
     }
     model = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, profile, cooledDownThisRequest);
+    // FIX: skip models that are in cooldown / banned / failed in this request
+    if (model && !bandit.isModelAvailable(model, estimatedTokens)) {
+      console.log(`[BANDIT] Attempt ${attempt}: Model ${model} not available (cooldown/banned) → exclude and continue`);
+      excluded.add(model);
+      continue;
+    }
     if (model && sessionKey) {
       sessionModels.set(sessionKey, { model, ts: Date.now() });
       if (sessionModels.size > 10000) {
