@@ -75,16 +75,12 @@
             flex-shrink: 0;
         }
         .stats-container {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: nowrap;
-            align-items: stretch;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
             margin-bottom: 2px;
-            overflow-x: auto;
         }
         .stats-container .stats {
-            flex: 1 1 auto;
             min-width: 0;
         }
         .stats {
