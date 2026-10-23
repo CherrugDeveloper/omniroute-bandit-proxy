@@ -2,6 +2,13 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.75 — 2026-10-23
+- **Vision Support & Model Capability Detection**:
+  - Added `supports_vision` column to catalog schema with migration in `src/bandit.mjs`
+  - Extended `selectModel` signature with `requireVision` parameter and filtering logic for vision-capable models
+  - Added image block detection in chat completions to route vision requests to appropriate models
+  - Updated catalog and models queries to include vision capability flag
+
 ## v1.1.74 — 2026-10-23
 - **Codebase Cleanup & Error Classification Enhancements**:
   - Enhanced 400 error classification: excluded image block format mismatches from "model-not-supported" to prevent false positives

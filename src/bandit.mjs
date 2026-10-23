@@ -98,6 +98,7 @@ export class DiscountedUCB1Bandit {
           is_free INTEGER DEFAULT 0,
           supports_tools INTEGER DEFAULT 0,
           supports_image_generation INTEGER DEFAULT 0,
+          supports_vision INTEGER DEFAULT 0,
           capability TEXT DEFAULT 'chat_completion',
           supports_chat INTEGER DEFAULT 1,
           supports_audio_generation INTEGER DEFAULT 0
@@ -228,6 +229,17 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_audio_generation INTEGER DEFAULT 0`);
         } catch (err) {
           console.error("[BANDIT] Errore aggiunta colonna supports_audio_generation:", err.message);
+          throw err;
+        }
+      }
+
+      const hasSupportsVision = catalogColumns.some(col => col.name === "supports_vision");
+      if (!hasSupportsVision) {
+        console.log("[BANDIT] Migrazione: aggiungo supports_vision a catalog");
+        try {
+          this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_vision INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna supports_vision:", err.message);
           throw err;
         }
       }
@@ -1991,7 +2003,7 @@ export class DiscountedUCB1Bandit {
     return this.db.prepare("SELECT COUNT(DISTINCT provider) FROM catalog").get()['COUNT(DISTINCT provider)'] || 0;
   }
 
-  async selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, requireImageGeneration = false, profile = null, cooledDownThisRequest = true) {
+  async selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, requireImageGeneration = false, requireVision = false, profile = null, cooledDownThisRequest = true) {
     const DEBUG = String(process.env.DEBUG || "false").toLowerCase() === "true";
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excluded);
@@ -2009,11 +2021,11 @@ export class DiscountedUCB1Bandit {
 
     // Get all models from catalog that are available
     const catalogModels = this.db.prepare(`
-      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools, c.supports_image_generation, c.capability, c.supports_chat, c.supports_audio_generation, c.is_free, 0 AS is_paid, 0 AS dynamic_max_tokens
+      SELECT c.id, c.provider, 0 AS N, 0 AS sum_reward, 0 AS fails, 0 AS degraded, 0 AS cooldown_until, 0 AS permanent, c.max_input_tokens, c.supports_tools, c.supports_image_generation, c.supports_vision, c.capability, c.supports_chat, c.supports_audio_generation, c.is_free, 0 AS is_paid, 0 AS dynamic_max_tokens
       FROM catalog c
     `).all();
     const dbModels = this.db.prepare(`
-      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent, m.is_paid, m.dynamic_max_tokens, c.is_free, c.supports_tools, c.supports_image_generation, c.capability, c.supports_chat, c.supports_audio_generation, c.max_input_tokens
+      SELECT m.id, m.provider, m.N, m.sum_reward, m.fails, m.degraded, m.cooldown_until, m.permanent, m.is_paid, m.dynamic_max_tokens, c.is_free, c.supports_tools, c.supports_image_generation, c.supports_vision, c.capability, c.supports_chat, c.supports_audio_generation, c.max_input_tokens
       FROM models m
       LEFT JOIN catalog c ON m.id = c.id
     `).all();
@@ -2033,6 +2045,7 @@ export class DiscountedUCB1Bandit {
         max_input_tokens: model.max_input_tokens !== undefined ? model.max_input_tokens : existing.max_input_tokens,
         supports_tools: model.supports_tools !== undefined ? model.supports_tools : existing.supports_tools,
         supports_image_generation: model.supports_image_generation !== undefined ? model.supports_image_generation : existing.supports_image_generation,
+        supports_vision: model.supports_vision !== undefined ? model.supports_vision : existing.supports_vision,
         supports_chat: model.supports_chat !== undefined ? model.supports_chat : existing.supports_chat,
         supports_audio_generation: model.supports_audio_generation !== undefined ? model.supports_audio_generation : existing.supports_audio_generation,
         capability: model.capability !== undefined ? model.capability : existing.capability,
@@ -2043,7 +2056,7 @@ export class DiscountedUCB1Bandit {
 
     // Helper filtering function with multi-tier relaxation options
     const filterModels = (tierName, opts = {}) => {
-      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false } = opts;
+      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false } = opts;
       return models.filter(model => {
         let rejectionReason = null;
 
@@ -2121,6 +2134,10 @@ export class DiscountedUCB1Bandit {
 
           if (!rejectionReason && requireImageGeneration && !ignoreImageGeneration && !(model.supports_image_generation || 0)) {
             rejectionReason = 'no_image_generation_support';
+          }
+
+          if (!rejectionReason && requireVision && !ignoreVision && !(model.supports_vision || 0)) {
+            rejectionReason = 'no_vision_support';
           }
 
           if (!rejectionReason && !requireImageGeneration) {

@@ -1333,7 +1333,7 @@ app.post("/v1/images/generations", async (req, res) => {
   bandit._incrMeta("totalRequests");
 
   try {
-    const selected = await bandit.selectModel(new Set(), 0, false, true);
+    const selected = await bandit.selectModel(new Set(), 0, false, true, false);
     // Record started_at AFTER model selection to exclude selection time from latency
     bandit.recordRequestStarted(selected, bandit._getProvider(selected));
 
@@ -1576,6 +1576,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const isSummarization = /summariz|summariz|condense|context.*compress|riassunt/i.test(firstMsgStr.slice(0, 500));
   const requireTools = hasTools && !isSummarization;
 
+  // Detect vision requests with image blocks in messages
+  const hasImageBlocks = Array.isArray(req.body?.messages) && req.body.messages.some(msg => {
+    if (!msg.content) return false;
+    if (typeof msg.content === 'string') return false;
+    if (Array.isArray(msg.content)) {
+      return msg.content.some(part => part.type === 'image_url' || part.type === 'image');
+    }
+    return false;
+  });
+  const requireVision = !!hasImageBlocks;
+
   if (hasTools && isSummarization) {
     console.log(`[TOOLS] Richiesta di summarization rilevata → rimuovo tools dal body`);
     // Per summarization, il modello deve rispondere con TESTO.
@@ -1774,7 +1785,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       sessionModels.delete(sessionKey);
       excluded.add(pinnedEntry.model);
     }
-    model = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, profile, cooledDownThisRequest);
+    if (requireVision) {
+      console.log(`[VISION] Richiesta con image blocks → solo modelli vision-capable`);
+    }
+    model = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, requireVision, profile, cooledDownThisRequest);
     // FIX: skip models that are in cooldown / banned / failed in this request
     if (model && !bandit.isModelAvailable(model, estimatedTokens)) {
       console.log(`[BANDIT] Attempt ${attempt}: Model ${model} not available (cooldown/banned) → exclude and continue`);
