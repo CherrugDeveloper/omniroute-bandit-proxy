@@ -1606,7 +1606,7 @@ export class DiscountedUCB1Bandit {
       let topModelDetails = null;
       try {
         const topRes = this.db.prepare(`
-          SELECT id, provider, N, (sum_reward / NULLIF(N, 0)) as avg, (sum_reward / NULLIF(N, 0)) as score
+          SELECT id, provider, N, cooldown_until, (sum_reward / NULLIF(N, 0)) as avg, (sum_reward / NULLIF(N, 0)) as score
           FROM models
           WHERE N >= 10
           ORDER BY avg DESC
@@ -1619,6 +1619,7 @@ export class DiscountedUCB1Bandit {
             name: topRes.id,
             provider: topRes.provider,
             N: topRes.N,
+            cooldown: topRes.cooldown_until || 0,
             avg: topRes.avg,
             score: topRes.score
           };

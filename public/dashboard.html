@@ -576,12 +576,18 @@
         }
         /* Scroll invisibile: mantiene lo scroll ma nasconde la barra */
         #logs,
+        #active-list,
+        #script-output,
+        #consideration-table-body,
         .table-wrapper,
         .tab-content.active {
             scrollbar-width: none;      /* Firefox */
             -ms-overflow-style: none;    /* IE/Edge */
         }
         #logs::-webkit-scrollbar,
+        #active-list::-webkit-scrollbar,
+        #script-output::-webkit-scrollbar,
+        #consideration-table-body::-webkit-scrollbar,
         .table-wrapper::-webkit-scrollbar,
         .tab-content.active::-webkit-scrollbar {
             display: none;               /* Chrome/Safari */
@@ -789,10 +795,12 @@
                 <button class="btn btn-reset" style="padding:1px 4px; font-size:11px; background:none; border:none; cursor:pointer; margin-left:6px;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
             </div>
 
-            <div class="stats">
+            <div class="stats" style="white-space: nowrap;">
                 <strong>Top model:</strong> <span id="top-model" class="mono">—</span>
                 <span id="top-model-score" class="muted"></span>
                 <span id="top-model-provider" class="muted"></span>
+                <span id="top-model-cooldown" class="muted"></span>
+                <span id="top-model-n" class="muted"></span>
             </div>
 
             <div class="stats">
@@ -2425,9 +2433,11 @@
                 if (d.topModel) {
                     const topModelEl = document.getElementById('top-model');
                     topModelEl.textContent = d.topModel;
-                    // Add score and provider info
+                    // Add score, provider, cooldown, and N info
                     const scoreEl = document.getElementById('top-model-score');
                     const providerEl = document.getElementById('top-model-provider');
+                    const cooldownEl = document.getElementById('top-model-cooldown');
+                    const nEl = document.getElementById('top-model-n');
                     const details = d.topModelDetails || {};
                     if (details.score !== undefined) {
                         scoreEl.textContent = 'score: ' + details.score.toFixed(3);
@@ -2439,10 +2449,22 @@
                     } else {
                         providerEl.textContent = '';
                     }
+                    if (details.cooldown !== undefined) {
+                        cooldownEl.textContent = 'cooldown: ' + details.cooldown;
+                    } else {
+                        cooldownEl.textContent = '';
+                    }
+                    if (details.N !== undefined) {
+                        nEl.textContent = 'N: ' + details.N;
+                    } else {
+                        nEl.textContent = '';
+                    }
                 } else {
                     document.getElementById('top-model').textContent = '—';
                     document.getElementById('top-model-score').textContent = '';
                     document.getElementById('top-model-provider').textContent = '';
+                    document.getElementById('top-model-cooldown').textContent = '';
+                    document.getElementById('top-model-n').textContent = '';
                 }
 
                 document.getElementById('catalog-models').textContent = d.catalogTotal ?? '?';
@@ -2690,7 +2712,8 @@
                     let model = r.model || r.selectedModel || r.requestedModel || '(selezione...)';
                     let provider = r.provider || r.selectedProvider || '-';
 
-                    // Parse message field to extract provider/model if available
+                    // Parse message field to extract error reason only - do NOT overwrite model/provider
+                    // The model/provider should come from r.model/r.provider, not from nested error messages
                     // Example: "[antigravity/claude-sonnet-4-6] provider antigravity e modello claude-sonnet-4-6"
                     // or: "[provider/model] All antigravity accounts have exhaused their q"
                     let messageReason = null;
@@ -2702,8 +2725,8 @@
                             const msgProvider = bracketMatch[1];
                             const msgModel = bracketMatch[2];
                             let remainingText = bracketMatch[3] || '';
-                            // Only use message parsing if we have valid provider/model
-                            if (msgProvider && msgModel) {
+                            // Only use message parsing if actual model/provider is missing
+                            if (!r.model && !r.selectedModel && !r.requestedModel && msgProvider && msgModel) {
                                 provider = msgProvider;
                                 model = msgModel;
                             }
@@ -2769,27 +2792,52 @@
                     if (r.avg != null) statsParts.push(`avg=${r.avg}`);
                     if (r.latency_ms) statsParts.push(`${r.latency_ms}ms`);
                     if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
-                    // Combine reason and error to avoid redundancy - prefer message reason, fallback to reason, fallback to lastError
-                    const reasonOrError = messageReason || r.reason || r.lastError;
-                    if (reasonOrError) {
-                        // Escape HTML to prevent XSS and improve readability
-                        const cleanReason = reasonOrError
-                            .replace(/</g, '<')
-                            .replace(/>/g, '>')
-                            .replace(/"/g, '"');
-                        statsParts.push(`reason: ${cleanReason}`);
+                    // Extract clean error code and message - user request: only show error code + message
+                    // Format expected: "[500]: error message" or similar
+                    let errorDisplay = '';
+                    if (r.errorStatus) {
+                        errorDisplay = `err: ${r.errorStatus}`;
+                    } else if (r.lastError) {
+                        // Try to extract error code from messages like "[500]: message" or "500: message"
+                        const lastError = String(r.lastError);
+                        const codeMatch = lastError.match(/^\[?(\d{3})\]?:\s*(.*)/);
+                        if (codeMatch) {
+                            errorDisplay = `${codeMatch[1]}: ${codeMatch[2]}`;
+                        } else {
+                            // Just show the message, truncated
+                            errorDisplay = lastError.substring(0, 100);
+                        }
+                    } else if (messageReason) {
+                        // Extract error code from messageReason if present
+                        const msg = String(messageReason);
+                        const codeMatch = msg.match(/^\[?(\d{3})\]?:\s*(.*)/);
+                        if (codeMatch) {
+                            errorDisplay = `${codeMatch[1]}: ${codeMatch[2]}`;
+                        } else {
+                            errorDisplay = msg.substring(0, 100);
+                        }
                     }
-                    // Also include original reason if different from messageReason
+                    if (errorDisplay) {
+                        statsParts.push(`reason: ${errorDisplay}`);
+                    }
+                    // Also include original reason if different from messageReason and not a bracketed provider/model
                     if (r.reason && r.reason !== messageReason && !r.reason.includes('[')) {
                         statsParts.push(`reason: ${r.reason}`);
                     }
                     if (r.lastError && r.lastError !== messageReason && r.lastError !== r.reason && !r.lastError.includes('[')) {
-                        statsParts.push(`lastError: ${r.lastError}`);
+                        // Only show lastError if it's not already captured as the main error display
+                        const lastErr = String(r.lastError);
+                        const lastCodeMatch = lastErr.match(/^\[?(\d{3})\]?:\s*(.*)/);
+                        if (lastCodeMatch) {
+                            statsParts.push(`reason: ${lastCodeMatch[1]}: ${lastCodeMatch[2]}`);
+                        } else if (!errorDisplay || errorDisplay !== `${lastCodeMatch[1]}: ${lastCodeMatch[2]}`) {
+                            statsParts.push(`reason: ${lastErr.substring(0, 80)}`);
+                        }
                     }
                     if (r.errorType) statsParts.push(`err: ${r.errorType}`);
-                    if (r.errorStatus) statsParts.push(`errStatus: ${r.errorStatus}`);
-                    if (r.errorReason) statsParts.push(`errReason: ${r.errorReason}`);
-                    if (r.errorMessage && r.errorMessage !== r.lastError) statsParts.push(`errMsg: ${r.errorMessage}`);
+                    if (r.errorStatus && !r.lastError) statsParts.push(`errStatus: ${r.errorStatus}`);
+                    if (r.errorReason && !r.lastError) statsParts.push(`errReason: ${r.errorReason}`);
+                    if (r.errorMessage && !r.lastError) statsParts.push(`errMsg: ${r.errorMessage}`);
                     if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
                     if (r.latency_ms) statsParts.push(`${r.latency_ms}ms`);
                     if (r.durationSec) statsParts.push(`${r.durationSec}s`);
@@ -2802,7 +2850,7 @@
                         }
                     }
                     const statsStr = statsParts.join(' | ') || '-';
-                    // Truncate long reason to keep row height compact
+                    // Truncate long reason to keep row height compact - but keep error code visible
                     const truncatedStatsStr = statsStr.length > 200 ? statsStr.substring(0, 200) + '...' : statsStr;
 
                     return `<tr style="border-bottom: 1px solid #21262d;">
