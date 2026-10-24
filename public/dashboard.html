@@ -810,7 +810,7 @@
                     <span><strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span></span>
                     <span><strong>Successo:</strong> <span id="success-rate" class="ok">—</span></span>
                     <span><strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span></span>
-                    <span><strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span>s</span>
+                    <span><strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span></span>
                     <span><strong>Free attivi:</strong> <span id="free-active" class="attention">—</span></span>
                 </div>
                 <button class="btn btn-reset" style="padding:1px 4px; font-size:11px; background:none; border:none; cursor:pointer; margin-left:6px;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
@@ -2455,7 +2455,7 @@
                 }
 
                 document.getElementById('avg-reward').textContent = (d.avgReward || 0).toFixed(3);
-                document.getElementById('avg-latency').textContent = (d.avgLatencySec || 0).toFixed(1) + 's';
+                document.getElementById('avg-latency').textContent = (d.avgLatencySec || 0).toFixed(1);
                 document.getElementById('free-active').textContent = d.freeActive ?? 0;
                 
                 if (d.topModel) {

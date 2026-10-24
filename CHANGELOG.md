@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.79 — 2026-10-24
+- **Dashboard UI**:
+  - Fix: remove duplicate latency unit from dashboard observations/catalog
+
 ## v1.1.78 — 2026-10-24
 - **Dashboard UI**:
   - Implemented fluid typography for dashboard statistics for better responsiveness.
