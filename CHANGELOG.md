@@ -3,6 +3,7 @@
 ## v1.1.78 — 2026-10-24
 - **Dashboard UI**:
   - Implemented fluid typography for dashboard statistics for better responsiveness.
+  - Refined fluid typography scaling for stats boxes to ensure better readability and consistent layout.
 
 - Fix: Reset provider attention flags and cooldowns in `bandit.db`.
 - Refactor: Allow attention flag relaxation in emergency filtering in `src/bandit.mjs`.
