@@ -113,10 +113,10 @@ test("_classifyError: 5xx -> cooldown-model (non provider)", () => {
   b.close();
 });
 
-test("_classifyError: 402 insufficient funds -> ban-provider", () => {
+test("_classifyError: 402 insufficient funds -> cooldown-provider", () => {
   const b = makeBandit();
   const c = b._classifyError({ status: 402, message: "Insufficient account funds" });
-  assert.equal(c.action, "ban-provider");
+  assert.equal(c.action, "cooldown-provider");
   assert.equal(c.reason, "quota-exhausted");
   b.close();
 });
@@ -369,11 +369,11 @@ test("_classifyError: distinguishes permanent bans from transient rate limits", 
   b.close();
 });
 
-test("_classifyError: non-resetting key/quota limits -> ban-provider or 24h cooldown", () => {
+test("_classifyError: non-resetting key/quota limits -> cooldown-provider or 24h cooldown", () => {
   const b = makeBandit();
   // Non-resetting key/quota limit
   const c1 = b._classifyError({ status: 403, message: "Key limit exceeded and does not reset" });
-  assert.equal(c1.action, "ban-provider");
+  assert.equal(c1.action, "cooldown-provider");
   assert.equal(c1.reason, "quota-exhausted");
 
   // Key limit exceeded without reset time -> 24h cooldown
