@@ -1,5 +1,8 @@
 # OmniRoute Bandit Proxy
 
+> Project cleanup and maintenance performed on 2026-10-24. Superfluous files removed, documentation updated, and git history consolidated.
+
+
 ## Panoramica
 
 OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensione Zoo Code di VS Code e il proxy omniroute. Fornisce funzionalità di gestione dei modelli per Zoo Code, con un algoritmo di selezione dei modelli basato su bandit e un sistema di scoring.

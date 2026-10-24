@@ -2,6 +2,12 @@
 
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
+## v1.1.76 — 2026-10-24
+- **Cleanup & Maintenance**:
+  - Added .roo/commands/cleanup.md for standard cleanup workflow
+  - Removed superfluous backup files (e.g., .bak files)
+  - Updated documentation
+
 ## v1.1.75 — 2026-10-23
 - **Vision Support & Model Capability Detection**:
   - Added `supports_vision` column to catalog schema with migration in `src/bandit.mjs`
