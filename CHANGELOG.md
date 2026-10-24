@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.80 — 2026-10-24
+- **Dashboard UI**:
+  - Fix: Removed incorrect `Math.min` capping of observations count in dashboard statistics to accurately display total observations.
+
 ## v1.1.79 — 2026-10-24
 - **Dashboard UI**:
   - Fix: remove duplicate latency unit from dashboard observations/catalog

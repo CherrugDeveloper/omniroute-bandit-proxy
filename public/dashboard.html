@@ -2433,12 +2433,17 @@
                 authBannerShown = false;
                 const d = await safeJson(r);
                 console.log('[DEBUG dashboard] /v1/dashboard/stats data:', d);
+                console.log('[DEBUG dashboard] Values:', {
+                    totalObservations: d.totalObservations,
+                    catalogTotal: d.catalogTotal,
+                    catalogFree: d.catalogFree,
+                    catalogRawCount: d.catalogRawCount
+                });
                 allData = d;
 
                 const reqs = Number(d.totalRequests) || 0;
                 // Observations can never exceed requests; cap to avoid display inconsistencies
-                const rawObs = Number(d.totalObservations) || 0;
-                const obs = Math.max(0, Math.min(rawObs, reqs));
+                const obs = Number(d.totalObservations) || 0;
                 document.getElementById('total-req').textContent = reqs;
                 document.getElementById('total-obs').textContent = obs;
 
