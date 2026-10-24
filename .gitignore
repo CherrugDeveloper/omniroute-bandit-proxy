@@ -1,64 +1,10 @@
 # Node
 node_modules/
 
-# Env & secrets
-.env
+# SQLite
+*.db
+*.db-shm
+*.db-wal
 
-# SQLite runtime
-bandit.db
-omniroute.db
-bandit.db-journal
-bandit.db-shm
-bandit.db-wal
-bandit_state.db
-bandit_state.db-journal
-bandit_state.db-shm
-bandit_state.db-wal
-
-# Logs & pid
-*.log
-training.log
-.train-daemon.pid
-
-# Backup
+# Temp
 *.bak
-*.v384.bak
-
-# Config machine-specific (signature calcolate dai prompt locali)
-config/modes.signatures.json
-config/modes.discovered.json
-# Data directory (mount docker / runtime)
-data/
-
-# OS / editor cruft
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-! .vscode/extensions.json
-
-# Test & coverage artifacts
-coverage/
-.nyc_output/
-.eslintcache
-
-# Build output
-dist/
-build/
-
-# Temp / backup files
-*.tmp
-*.swp
-*~
-.script-output-*.json
-scripts/.script-output-*.json
-
-# Local agent / runtime dirs
-.roo-logs/
-
-
-# Python virtual environments
-venv/
-training.log.old
-analysis_report.md
-report_summary.md
