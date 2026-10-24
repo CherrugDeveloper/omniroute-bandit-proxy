@@ -2224,7 +2224,7 @@ export class DiscountedUCB1Bandit {
     // Tier 4: Emergency Relaxation (Ignore Cooldowns)
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
