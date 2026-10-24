@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/marco/Data/Files/Workspace_vscode/omniroute-bandit-proxy
-ExecStart=/usr/bin/node /home/marco/Data/Files/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
+WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy
+ExecStart=/usr/bin/node /home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
 Restart=on-failure
 RestartSec=5
-EnvironmentFile=-/home/marco/Data/Files/Workspace_vscode/omniroute-bandit-proxy/.env
+EnvironmentFile=-/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/.env
 StandardOutput=journal
 StandardError=journal
 
