@@ -1,5 +1,8 @@
 # Changelog
 
+- Fix: Reset provider attention flags and cooldowns in `bandit.db`.
+- Refactor: Allow attention flag relaxation in emergency filtering in `src/bandit.mjs`.
+
 Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
 ## v1.1.77 — 2026-10-24

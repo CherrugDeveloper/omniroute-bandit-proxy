@@ -1843,9 +1843,9 @@ export class DiscountedUCB1Bandit {
         if (prov.permanent === 1) return false;
         if (prov.cooldown_until && prov.cooldown_until > now) return false;
         if (prov.quota_resets_at && prov.quota_resets_at > now) return false;
-        if (prov.needs_attention === 1 && (!(prov.cooldown_until > 0 && prov.cooldown_until <= now))) {
-          return false;
-        }
+        // if (prov.needs_attention === 1 && (!(prov.cooldown_until > 0 && prov.cooldown_until <= now))) {
+        //   return false;
+        // }
       }
 
       if (!this.quota.canCall(provider)) {
@@ -2056,7 +2056,7 @@ export class DiscountedUCB1Bandit {
 
     // Helper filtering function with multi-tier relaxation options
     const filterModels = (tierName, opts = {}) => {
-      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false } = opts;
+      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false, ignoreAttention = false } = opts;
       return models.filter(model => {
         let rejectionReason = null;
 
@@ -2091,7 +2091,7 @@ export class DiscountedUCB1Bandit {
                 rejectionReason = 'provider_cooldown';
               } else if (prov.quota_resets_at && prov.quota_resets_at > now) {
                 rejectionReason = 'provider_quota_resets_at';
-              } else if (prov.needs_attention === 1) {
+              } else if (prov.needs_attention === 1 && !ignoreAttention) {
                 // Auto-reset if cooldown expired
                 if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
                   this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(model.provider);
@@ -2224,7 +2224,7 @@ export class DiscountedUCB1Bandit {
     // Tier 4: Emergency Relaxation (Ignore Cooldowns)
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
