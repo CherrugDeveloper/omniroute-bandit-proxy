@@ -7,7 +7,7 @@ const dbPath = path.join(__dirname, "../bandit.db");
 
 const db = new Database(dbPath, { readonly: false });
 
-const providersToFix = ["no-think", "cfp", "xao", "xai-oauth", "openrouter"];
+const providersToFix = ["no-think", "cfp", "xao", "xai-oauth", "openrouter", "cxa", "dva"];
 
 for (const provider of providersToFix) {
   console.log(`Fixing ${provider}...`);
