@@ -2056,23 +2056,23 @@ export class DiscountedUCB1Bandit {
 
     // Helper filtering function with multi-tier relaxation options
     const filterModels = (tierName, opts = {}) => {
-      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false, ignoreAttention = false } = opts;
+      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false, ignoreAttention = false, ignorePermanent = false, ignoreDegraded = false } = opts;
       return models.filter(model => {
         let rejectionReason = null;
 
         // Skip if excluded
         if (resolvedExcluded.has(model.id)) {
           rejectionReason = 'already_tried';
-        } else if (model.permanent === 1) {
+        } else if (model.permanent === 1 && !ignorePermanent) {
           rejectionReason = 'model_permanent_ban';
-        } else if (model.degraded === 1) {
+        } else if (model.degraded === 1 && !ignoreDegraded) {
           rejectionReason = 'model_degraded';
         } else {
           // Skip if provider is permanently banned
           const prov = this.db.prepare(
             `SELECT cooldown_until, permanent, needs_attention, quota_resets_at FROM provider_history WHERE provider = ?`
           ).get(model.provider);
-          if (prov && prov.permanent === 1) {
+          if (prov && prov.permanent === 1 && !ignorePermanent) {
             rejectionReason = 'provider_permanent_ban';
           } else if (!ignoreCooldown) {
             // Skip if model is in cooldown
@@ -2224,7 +2224,7 @@ export class DiscountedUCB1Bandit {
     // Tier 4: Emergency Relaxation (Ignore Cooldowns)
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)

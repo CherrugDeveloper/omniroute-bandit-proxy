@@ -52,3 +52,17 @@ test("selectModel: requireTools=true with high token count recovers via relaxati
   // Should successfully select a model via relaxation/emergency tier rather than returning null
   assert.notEqual(chosen, null);
 });
+
+test("selectModel: emergency relaxation recovers when all models are degraded", async () => {
+  const b = makeBandit();
+  // Seed catalog
+  seedCatalog(b, "p1/degraded-model", "p1", 8000, 1, 1);
+  // Manually set as degraded in models table
+  b.db.prepare("INSERT INTO models (id, provider, degraded) VALUES (?, ?, 1)").run("p1/degraded-model", "p1");
+  
+  // Attempt selection
+  const chosen = await b.selectModel();
+  
+  // Should return the degraded model because of emergency relaxation
+  assert.equal(chosen, "p1/degraded-model");
+});
