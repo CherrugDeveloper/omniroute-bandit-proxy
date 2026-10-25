@@ -2506,34 +2506,34 @@ async function startServer(attempt = 1) {
       process.exit(1);
     }
   });
-    console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
-    console.log(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
-    if (!REQUIRE_AUTH) {
-      console.warn("[SECURITY] DASHBOARD_TOKEN non configurato: le API di controllo sono esposte senza autenticazione");
-    } else {
-      console.log("[SECURITY] Auth attiva sulle API di controllo");
-    }
 
-    // Health check parte DOPO che il server è in ascolto
-    if (String(process.env.HEALTH_CHECK_ENABLED || "true").toLowerCase() === "true") {
-      healthChecker.start();
-    } else {
-      console.log("[HEALTH] Health check disabilitato (HEALTH_CHECK_ENABLED=false)");
-    }
-        // Cleanup sessioni scadute ogni 5 min
-    setInterval(() => {
-      const now = Date.now();
-      let removed = 0;
-      for (const [k, v] of sessionModels.entries()) {
-        if (now - v.ts > SESSION_TTL_MS) {
-          sessionModels.delete(k);
-          sessionBlacklist.delete(k); // pulisci anche la blacklist
-          removed++;
-        }
+  console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
+  console.log(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
+  if (!REQUIRE_AUTH) {
+    console.warn("[SECURITY] DASHBOARD_TOKEN non configurato: le API di controllo sono esposte senza autenticazione");
+  } else {
+    console.log("[SECURITY] Auth attiva sulle API di controllo");
+  }
+
+  // Health check parte DOPO che il server è in ascolto
+  if (String(process.env.HEALTH_CHECK_ENABLED || "true").toLowerCase() === "true") {
+    healthChecker.start();
+  } else {
+    console.log("[HEALTH] Health check disabilitato (HEALTH_CHECK_ENABLED=false)");
+  }
+  // Cleanup sessioni scadute ogni 5 min
+  setInterval(() => {
+    const now = Date.now();
+    let removed = 0;
+    for (const [k, v] of sessionModels.entries()) {
+      if (now - v.ts > SESSION_TTL_MS) {
+        sessionModels.delete(k);
+        sessionBlacklist.delete(k); // pulisci anche la blacklist
+        removed++;
       }
-      if (removed > 0) console.log(`[AFFINITY] Cleanup: rimosse ${removed} sessioni scadute`);
-    }, 5 * 60 * 1000).unref();
-  });
+    }
+    if (removed > 0) console.log(`[AFFINITY] Cleanup: rimosse ${removed} sessioni scadute`);
+  }, 5 * 60 * 1000).unref();
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
