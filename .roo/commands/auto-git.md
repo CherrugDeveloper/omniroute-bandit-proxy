@@ -23,7 +23,7 @@ Implements robust automated Git workflow:
 ### 3. Git Workflow
 - Resolve all @problems.
 - Status check (`git status --porcelain`).
-- **CRITICAL: If files are already staged, first run `git reset` to unstage, then run `git add -A` to ensure ALL changes—including modifications, deletions, and new/untracked files (like root scripts)—are correctly staged.**
+- **CRITICAL: Before committing, perform `git status` to detect existing staged files. If changes are staged, explicitly run `git reset` to clean the staging area, then run `git add -A` to ensure ALL changes (modifications, deletions, and untracked files) are correctly and collectively staged.**
 - Secret scanning on staged diff (`git diff --cached`).
 - Conventional commit message generation based on staged files (messages must be descriptive, related to changes, not generic).
 - Look at old commit and clean if needed or merge; maintain clear and clean branch history.
