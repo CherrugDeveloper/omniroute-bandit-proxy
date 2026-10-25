@@ -18,6 +18,7 @@ EventEmitter.defaultMaxListeners = 50;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+let server;
 const app = express();
 app.use((req, res, next) => {
   // R1: this middleware sits upstream of every other layer, so it used to log
@@ -2404,16 +2405,58 @@ process.on("uncaughtException", (error) => {
 
 process.on("SIGTERM", () => {
   healthChecker.stop();
-  console.log("[SHUTDOWN] SIGTERM ricevuto, chiusura graceful...");
+  console.log(`[SHUTDOWN] SIGTERM ricevuto alle ${new Date().toISOString()}, chiusura graceful...`);
   bandit.close();
-  process.exit(0);
+  if (server) {
+    const timeout = setTimeout(() => {
+      console.error("[SHUTDOWN] Chiusura graceful scaduta (10s), forzo l'uscita");
+      process.exit(1);
+    }, 10000);
+
+    // Chiude forzatamente le connessioni attive per velocizzare il rilascio della porta
+    if (typeof server.closeAllConnections === 'function') {
+      console.log("[SHUTDOWN] Chiusura di tutte le connessioni attive...");
+      server.closeAllConnections();
+    } else if (typeof server.closeIdleConnections === 'function') {
+      server.closeIdleConnections();
+    }
+
+    server.close(() => {
+      clearTimeout(timeout);
+      console.log(`[SHUTDOWN] Server chiuso correttamente alle ${new Date().toISOString()}`);
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
 });
 
 process.on("SIGINT", () => {
   healthChecker.stop();
-  console.log("[SHUTDOWN] SIGINT ricevuto, chiusura graceful...");
+  console.log(`[SHUTDOWN] SIGINT ricevuto alle ${new Date().toISOString()}, chiusura graceful...`);
   bandit.close();
-  process.exit(0);
+  if (server) {
+    const timeout = setTimeout(() => {
+      console.error("[SHUTDOWN] Chiusura graceful scaduta (10s), forzo l'uscita");
+      process.exit(1);
+    }, 10000);
+
+    // Chiude forzatamente le connessioni attive per velocizzare il rilascio della porta
+    if (typeof server.closeAllConnections === 'function') {
+      console.log("[SHUTDOWN] Chiusura di tutte le connessioni attive...");
+      server.closeAllConnections();
+    } else if (typeof server.closeIdleConnections === 'function') {
+      server.closeIdleConnections();
+    }
+
+    server.close(() => {
+      clearTimeout(timeout);
+      console.log(`[SHUTDOWN] Server chiuso correttamente alle ${new Date().toISOString()}`);
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
 });
 
 // ========================================
@@ -2439,8 +2482,30 @@ async function startServer(attempt = 1) {
   }
 
   initRegistry();
-  const server = app.listen(PORT, "127.0.0.1", () => {
+  server = app.listen(PORT, "127.0.0.1", () => {
     console.log(`[PROXY] ✓ Server avviato su http://127.0.0.1:${PORT}`);
+  });
+
+  // SO_REUSEADDR permette il riutilizzo rapido della porta dopo restart
+  // (il socket può essere in TIME_WAIT per un po')
+  if (typeof server.setSocketOptions === 'function') {
+    try {
+      server.setSocketOptions({ reusePort: true });
+      console.log("[INIT] SO_REUSEPORT abilitato");
+    } catch (e) {
+      console.log("[INIT] SO_REUSEPORT non disponibile:", e.message);
+    }
+  }
+
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`[FATAL] Porta ${PORT} già in uso. Un'altra istanza è probabilmente ancora attiva.`);
+      process.exit(1);
+    } else {
+      console.error("[FATAL] Errore server:", err);
+      process.exit(1);
+    }
+  });
     console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
     console.log(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
     if (!REQUIRE_AUTH) {

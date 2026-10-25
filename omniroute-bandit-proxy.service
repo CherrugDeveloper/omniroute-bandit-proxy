@@ -8,6 +8,7 @@ WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy
 ExecStart=/usr/bin/node /home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=15
 EnvironmentFile=-/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/.env
 StandardOutput=journal
 StandardError=journal
