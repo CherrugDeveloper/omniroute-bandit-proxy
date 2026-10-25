@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.81 — 2026-10-25
+- **System Stability & Port Conflict Fix**:
+  - Fixed EADDRINUSE port 8080 conflicts by removing duplicate user-level systemd service
+  - Refactored `scripts/restart.sh` to hard-fail on port contention with 30s timeout
+  - Added PID tracking and graceful termination with SIGTERM/SIGKILL escalation
+  - Extended service polling to 30s with TCP connectivity verification
+  - Prevented fallback local node start when systemd is managed
+  - Wait for port release before active service check
+
 ## v1.1.80 — 2026-10-24
 - **Dashboard UI**:
   - Fix: Removed incorrect `Math.min` capping of observations count in dashboard statistics to accurately display total observations.
