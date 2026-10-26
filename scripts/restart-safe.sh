@@ -222,8 +222,8 @@ restart_safe() {
   echo "─────────────────────────────────────────"
   echo "✓ $SERVICE riavviato con successo"
   
-  # Mostra ultimi log
-  run_journalctl -u "$SERVICE" -n 15 --no-pager 2>/dev/null || true
+  # Mostra ultimi log (ultima ora per evitare log storici)
+  run_journalctl -u "$SERVICE" --since "1 hour ago" -n 15 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 15 --no-pager 2>/dev/null || true
 }
 
 follow_logs() {
