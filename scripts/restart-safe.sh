@@ -121,6 +121,19 @@ restart_safe() {
   echo "→ Riavvio sicuro $SERVICE"
   echo "─────────────────────────────────────────"
   
+  # 0. Reset failed state and ensure no active restart job
+  echo "→ Reset failed state..."
+  run_systemctl reset-failed "$SERVICE" || true
+  # Wait for no active restart job
+  local job_wait=0
+  while [ $job_wait -lt 30 ]; do
+    if ! systemctl list-jobs --no-legend 2>/dev/null | grep -q "$SERVICE"; then
+      break
+    fi
+    sleep 1
+    job_wait=$((job_wait + 1))
+  done
+  
   # 1. Ottieni PID attuale PRIMA dello stop
   current_pid=$(systemctl show -p MainPID "$SERVICE" 2>/dev/null | cut -d= -f2 || echo "0")
   if [ -n "$current_pid" ] && [ "$current_pid" != "0" ]; then
@@ -135,6 +148,19 @@ restart_safe() {
     echo "⚠ systemctl stop fallito, provo kill forzato..."
     run_systemctl kill -s SIGTERM "$SERVICE" || true
     sleep 2
+  fi
+  
+  # 2b. Wait for service inactive
+  echo "→ Attendi stato inactive..."
+  local inactive_wait=0
+  while run_systemctl is-active --quiet "$SERVICE" && [ $inactive_wait -lt 60 ]; do
+    sleep 1
+    inactive_wait=$((inactive_wait + 1))
+  done
+  if run_systemctl is-active --quiet "$SERVICE"; then
+    echo "⚠ Servizio ancora attivo dopo attesa"
+  else
+    echo "✓ Servizio inattivo"
   fi
   
   # 3. Attendi terminazione PID
@@ -153,12 +179,37 @@ restart_safe() {
   # 4. Attendi liberazione porta
   wait_for_port_release "$HOST" "$PORT"
   
+  # 4b. Verify no node process listening on port
+  echo "→ Verifica nessun processo node in ascolto su ${HOST}:${PORT}..."
+  local node_check=0
+  while [ $node_check -lt 10 ]; do
+    local listening=false
+    if command -v ss >/dev/null 2>&1; then
+      if ss -tulnpe "sport = :${PORT}" 2>/dev/null | grep -q "node"; then
+        listening=true
+      fi
+    elif command -v lsof >/dev/null 2>&1; then
+      if lsof -i :${PORT} -sTCP:LISTEN 2>/dev/null | grep -q "node"; then
+        listening=true
+      fi
+    fi
+    if [ "$listening" != true ]; then
+      echo "✓ Nessun processo node in ascolto"
+      break
+    fi
+    sleep 1
+    node_check=$((node_check + 1))
+  done
+  
   # 5. START
   echo "→ Avvio servizio..."
   if ! run_systemctl start "$SERVICE"; then
     echo "✗ ERRORE: Avvio servizio fallito"
     exit 1
   fi
+  
+  # Small sleep before checking bind
+  sleep 2
   
   # 6. Attendi active
   if ! wait_for_service_active; then
