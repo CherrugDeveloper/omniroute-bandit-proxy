@@ -47,7 +47,7 @@ describe("Step 7: Feedback Recording, Reward Calculation, Error Classification &
       const classification = bandit._classifyError({ status: 429, message: "quota exceeded reset after 10m" }, "test-provider");
       assert.equal(classification.action, "cooldown-provider");
       assert.equal(classification.reason, "quota-exhausted");
-      assert.equal(classification.cooldownMs, 10 * 60 * 1000);
+      assert.equal(classification.cooldownMs, 24 * 3600 * 1000); // 24h per quota-exhausted (permanent condition)
     });
 
     /**

@@ -2167,6 +2167,8 @@ trackRequestUpdate(requestId, {
         if (res.headersSent) {
           console.error(`[RETRY BLOCKED] headers già inviati per ${model}, stream chiuso`);
           bandit.recordFeedback(model, false, 0, { message: "stream already started" }, { source: feedbackSource });
+          noteProviderFail(model);
+          excluded.add(model);
           cleanup();
           try { res.end(); } catch (_) {}
           return;
@@ -2255,6 +2257,10 @@ trackRequestUpdate(requestId, {
                 const details = (typeof streamInvalid === "object" && streamInvalid !== null)
                   ? streamInvalid
                   : { message: String(streamInvalid) };
+                // Add status code to errorDetails for proper error classification
+                if (!details.status) {
+                  details.status = r.status;
+                }
                 const displayMsg = details.message || details.reason || String(streamInvalid);
                 console.error(`[STREAM INVALID] ${model}: ${displayMsg}`);
                 bandit.recordFeedback(model, false, 0, details, { source: feedbackSource });
@@ -2328,7 +2334,11 @@ trackRequestUpdate(requestId, {
               console.log(`[AFFINITY] ✗ pin ${model} rimosso (response invalidation)`);
             }
           }
-          bandit.recordFeedback(model, false, 0, { message: invalidReason }, { source: feedbackSource });
+          // Pass status code to recordFeedback for proper error classification
+          const errorDetails = typeof invalidReason === 'object' && invalidReason !== null
+            ? { ...invalidReason, status: r.status }
+            : { message: invalidReason, status: r.status };
+          bandit.recordFeedback(model, false, 0, errorDetails, { source: feedbackSource });
           noteProviderFail(model);
           excluded.add(model);
           continue;

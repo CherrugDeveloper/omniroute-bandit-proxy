@@ -86,7 +86,7 @@ test("_classifyError: 429 quota exhausted -> cooldown-provider", () => {
   });
   assert.equal(c.action, "cooldown-provider");
   assert.equal(c.reason, "quota-exhausted");
-  assert.equal(c.cooldownMs, 5 * 60 * 1000); // 5 minuti
+  assert.equal(c.cooldownMs, 24 * 3600 * 1000); // 24h per quota-exhausted (permanent condition)
   b.close();
 });
 

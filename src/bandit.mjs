@@ -969,19 +969,13 @@ export class DiscountedUCB1Bandit {
     }
 
     // Status 502 misconfiguration / gateway errors -> ban-provider if provider-level, else flag-provider
-    // Cloudflare Playground (cfp) 502 "browser session failed" errors are temporary browser session failures, not permanent misconfigurations
-    // But other CFP environment errors (like missing binary) should still be banned
+    // Cloudflare Playground (cfp) 502 "browser session failed" errors are permanent provider misconfigurations
+    // (e.g., "browserType.launch: Executable doesn't exist at <path>")
     if (status === 502 && /No auth provided|Please log in|Playwright is not available|missing url or token|browserType\.launch|Executable doesn't exist|ENOENT/i.test(message)) {
       if (resolvedProvider === 'cfp') {
-        // Check if this is a Cloudflare Playground session failure (transient) vs environment error (permanent)
-        if (/browser session failed|Cloudflare Playground|session failed|timeout exceeded|connection interrupted/i.test(message)) {
-          // Cloudflare Playground transient session failure -> cooldown, not permanent ban
-          return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 5 * 60 * 1000 };
-        }
-        // Other CFP errors (e.g., missing binary, executable doesn't exist) -> ban-provider
-        if (resolvedProvider === 'cfp') {
-          return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
-        }
+        // CFP 502 errors are permanent misconfigurations (e.g., missing browser binary, executable doesn't exist)
+        // Always ban CFP providers on 502 errors to prevent repeated attempts
+        return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
       }
       if (resolvedProvider === 'zc' || resolvedProvider) {
         return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
@@ -994,12 +988,7 @@ export class DiscountedUCB1Bandit {
       const isProviderLevel = resolvedProvider === 'zc' || resolvedProvider === 'cfp' || !!resolvedProvider || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
       if (isProviderLevel) {
         if (resolvedProvider === 'cfp') {
-          // Check if this is a Cloudflare Playground session failure (transient) vs environment error (permanent)
-          if (/browser session failed|Cloudflare Playground|session failed|timeout exceeded|connection interrupted/i.test(message)) {
-            // Cloudflare Playground transient session failure -> cooldown, not permanent ban
-            return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 5 * 60 * 1000 };
-          }
-          // Other CFP errors (e.g., missing binary, executable doesn't exist) -> ban-provider
+          // CFP environment errors (missing binary, executable doesn't exist) -> permanent ban
           return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
         }
         return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
@@ -1118,7 +1107,7 @@ export class DiscountedUCB1Bandit {
     }
 
     // 429 quota exhausted / rate limit -> cooldown-provider / cooldown-model
-    if (is429 || /rate\s*limit|too\s+many\s+requests|throttled|quota\s*exceeded/i.test(message)) {
+    if (is429 || /rate\s*limit|too\s+many\s+requests|throttled|quota\s*exceeded|exhausted/i.test(message)) {
       let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (!cooldownMs || cooldownMs <= 0) {
         const retryAfter = errorDetails.retryAfter || errorDetails.retry_after || 0;
@@ -1137,10 +1126,12 @@ export class DiscountedUCB1Bandit {
           cooldownMs: cooldownMs * cooldownMultiplier
         };
       } else {
+        // Quota exhausted is typically a persistent condition (e.g., "All antigravity accounts have exhausted their quota")
+        // Use a long cooldown (24h) to avoid hammering the provider until quota resets
         return {
           action: "cooldown-provider",
           reason: "quota-exhausted",
-          cooldownMs: cooldownMs
+          cooldownMs: 24 * 3600 * 1000
         };
       }
     }
