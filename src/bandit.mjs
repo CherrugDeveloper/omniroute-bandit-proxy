@@ -924,10 +924,9 @@ export class DiscountedUCB1Bandit {
         }
       }
 
-      this.totalObservations++;
-      this._setMeta("totalObservations", this.totalObservations);
-
       if (success) {
+        this.totalObservations++;
+        this._setMeta("totalObservations", this.totalObservations);
         this.db.prepare(
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0
            WHERE id = ?`
@@ -1559,6 +1558,12 @@ export class DiscountedUCB1Bandit {
   resetGlobalCounters() {
     this.db.prepare("UPDATE meta SET value = 0 WHERE key = 'totalRequests'").run();
     this.db.prepare("UPDATE meta SET value = 0 WHERE key = 'totalObservations'").run();
+    // Clear request_logs history so metrics reflect only current session
+    this.db.prepare("DELETE FROM request_logs").run();
+    // Reset model learning state (N, sum_reward, fails) but keep catalog intact
+    this.db.prepare("UPDATE models SET N = 0, sum_reward = 0, fails = 0, cooldown_until = 0, permanent = 0, degraded = 0, consecutive_5xx = 0, dynamic_max_tokens = 0").run();
+    // Reset provider state
+    this.db.prepare("UPDATE provider_history SET fails = 0, cooldown_until = 0, permanent = 0, needs_attention = 0, consecutive_failures = 0, circuit_breaker_until = 0, quota_resets_at = 0").run();
   }
 
   blockModel(modelId) {
@@ -2181,10 +2186,17 @@ export class DiscountedUCB1Bandit {
 
           if (!rejectionReason && !requireImageGeneration) {
             const lowerModelId = model.id.toLowerCase();
-            const isNonChat = model.supports_chat === 0 || (model.capability || 'chat_completion') !== 'chat_completion' || model.supports_image_generation === 1 || model.supports_audio_generation === 1 ||
-              model.provider === 'aihorde' || lowerModelId.startsWith("aihorde/") || lowerModelId.includes("aihorde") ||
-              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerModelId) ||
-              /image/i.test(lowerModelId);
+            // Exclude models that have NO chat capability
+            // Models with supports_chat === 0 are purely non-chat (e.g., image-only models)
+            // Models with supports_chat === 1 can handle chat even if they also support image generation (e.g., gpt-4o)
+            const hasChatCapability = model.supports_chat !== 0;
+            // Exclude aihorde models (known to be image-only, no chat support)
+            const isAihordeModel = model.provider === 'aihorde' || lowerModelId.startsWith('aihorde/');
+            // Exclude models that are known non-chat patterns (pure image generation, TTS, etc.)
+            const isKnownNonChatPattern = /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerModelId);
+            // Exclude models that explicitly support image/audio generation but NOT chat
+            const isPurelyNonChat = !hasChatCapability && (model.supports_image_generation === 1 || model.supports_audio_generation === 1);
+            const isNonChat = !hasChatCapability || isAihordeModel || isKnownNonChatPattern;
             if (isNonChat) {
               rejectionReason = 'non_chat_model_excluded';
             }
@@ -2378,7 +2390,10 @@ export class DiscountedUCB1Bandit {
       const m = message.match(pat);
       if (m && m[1]) {
         const val = parseInt(m[1], 10);
-        if (val > 0) return val;
+        // Filter out spurious small values (< 1000 tokens) which are likely
+        // error codes, HTTP status codes, or other numbers in the message
+        // rather than actual token limits
+        if (val >= 1000) return val;
       }
     }
     return null;

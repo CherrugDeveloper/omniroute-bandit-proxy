@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.83 — 2026-10-26
+- **Bug Fixes & Logic Improvements**:
+  - Fixed `totalObservations` counter increment timing in `recordFeedback()`: counter now increments only on successful feedback, not on failures
+  - Enhanced `resetGlobalCounters()` to clear `request_logs` history and reset model/provider learning state (N, sum_reward, fails, cooldown, permanent, degraded, consecutive_5xx, dynamic_max_tokens)
+  - Refined model filtering logic in `selectModel()`: models with `supports_chat === 1` are now correctly treated as chat-capable even if they also support image generation (e.g., gpt-4o)
+  - Added validation to token limit parsing: values < 1000 tokens are filtered out as spurious (error codes, HTTP status codes)
+  - Removed redundant `/image/i` regex from non-chat model exclusion (now relies on `supports_chat` flag)
+
 ## v1.1.82 — 2026-10-26
 - **Workspace Cleanup & Documentation Audit**:
   - Verified no superfluous files; plans directory absent

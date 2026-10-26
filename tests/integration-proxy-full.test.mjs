@@ -71,7 +71,7 @@ describe("Integration Proxy Full Test Suite", () => {
     const dashboardStats = bandit.getDashboardStats();
     assert.ok(dashboardStats, "Dashboard stats object should be returned");
     assert.equal(dashboardStats.totalRequests, 2, "totalRequests throughput should equal 2");
-    assert.equal(dashboardStats.totalObservations, 2, "totalObservations should equal 2 (feedback events)");
+    assert.equal(dashboardStats.totalObservations, 1, "totalObservations should equal 1 (successful requests only)");
     assert.ok(typeof dashboardStats.avgLatencySec === "number", "avgLatencySec should be a number");
     assert.equal(dashboardStats.catalogTotal, 1, "catalogTotal should be 1");
   });

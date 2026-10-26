@@ -2,6 +2,8 @@
 
 > Workspace audit and documentation update performed on 2026-10-26. Verified system/service files, production scripts, config files, dashboard UI, and recent cleanup audit findings. No superfluous files found, plans directory already removed, .gitignore validation issue with bandit_state.db documented.
 
+> **v1.1.83 (2026-10-26)**: Bug fixes & logic improvements — fixed `totalObservations` counter timing, enhanced `resetGlobalCounters()` to clear logs and reset learning state, refined model filtering for chat-capable models (e.g., gpt-4o), added token limit validation.
+
 
 ## Panoramica
 
