@@ -1464,6 +1464,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const feedbackSource = (req.get("x-source") || "").toLowerCase() === "training" ? "training" : "prod";
   // Initialize attempt counter before session affinity code that references it
   let attempt = 0;
+  let allSelectionHistory = [];
     const fallbackTried = new Set();
     // === Session key per affinity ===
   let sessionKey = computeSessionKey(req.body?.messages);
@@ -1789,7 +1790,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     if (requireVision) {
       console.log(`[VISION] Richiesta con image blocks → solo modelli vision-capable`);
     }
-    model = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, requireVision, profile, cooledDownThisRequest);
+    const selResult = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, requireVision, profile, cooledDownThisRequest);
+    model = selResult;
+    if (selResult && bandit.lastSelectionHistory) {
+      allSelectionHistory.push(...bandit.lastSelectionHistory);
+    }
+
     // FIX: skip models that are in cooldown / banned / failed in this request
     if (model && !bandit.isModelAvailable(model, estimatedTokens)) {
       console.log(`[BANDIT] Attempt ${attempt}: Model ${model} not available (cooldown/banned) → exclude and continue`);
@@ -1817,7 +1823,7 @@ trackRequestUpdate(requestId, {
   model,
   attempt,
   triedModels: Array.from(excluded),
-  selectionHistory: bandit.getLastSelectionHistory()
+  selectionHistory: allSelectionHistory
 });
     if (!model) {
       console.warn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, tokens=${estimatedTokens}, excluded=${excluded.size})`);

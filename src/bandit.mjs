@@ -8,6 +8,17 @@ import ProviderQuota from './provider-quota.mjs';
 
 
 export class DiscountedUCB1Bandit {
+  _sanitizeModelId(modelId) {
+    if (typeof modelId !== 'string') return modelId;
+    if (modelId.includes('/')) {
+      const parts = modelId.split('/');
+      if (parts.length >= 3 && parts[0] === parts[1]) {
+        return [parts[0], ...parts.slice(2)].join('/');
+      }
+    }
+    return modelId;
+  }
+
   constructor(dbPath = "bandit.db") {
     if (typeof DEBUG !== 'undefined' && DEBUG) console.log(`[DIAGNOSTIC] Initializing database at ${dbPath}`);
     this.db = new Database(dbPath);
@@ -442,6 +453,8 @@ export class DiscountedUCB1Bandit {
   }
 
   _registerModelUse(modelId, provider) {
+    modelId = this._sanitizeModelId(modelId);
+    console.log(`[DEBUG] _registerModelUse modelId=${modelId} provider=${provider}`);
     this.db.prepare(
       `INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
        VALUES (?, 0, 0, 0, 0)`
@@ -521,7 +534,8 @@ export class DiscountedUCB1Bandit {
         let raw = 0;
 
         for (const m of models) {
-          const modelId = typeof m === "string" ? m : (m.id || m.name);
+          let modelId = typeof m === "string" ? m : (m.id || m.name);
+          modelId = this._sanitizeModelId(modelId);
           if (!modelId) continue;
           raw++;
 
@@ -578,9 +592,21 @@ export class DiscountedUCB1Bandit {
         }
         return { inserted, skipped, raw };
       });
-
-      const { inserted, skipped, raw } = syncCatalog(modelList);
-      this._rankCache = { at: 0, map: new Map() };
+  
+        const { inserted, skipped, raw } = syncCatalog(modelList);
+        
+        // Ensure all catalog models have corresponding entries in models table
+        // This ensures session affinity remains enabled (models >= catalog)
+        this.db.prepare(`
+          INSERT OR IGNORE INTO models (id, provider, last_used_index)
+          SELECT c.id, c.provider, 1
+          FROM catalog c
+          WHERE NOT EXISTS (SELECT 1 FROM models WHERE models.id = c.id)
+        `).run();
+        const modelsCount = this.db.prepare("SELECT COUNT(*) as count FROM models").get().count;
+        console.log(`[BANDIT] Models table synchronized: ${modelsCount} models (catalog: ${inserted})`);
+        
+        this._rankCache = { at: 0, map: new Map() };
       this._setMeta("catalogRawCount", raw);
       this._setMeta("catalogTotal", inserted);
       this._setMeta("lastSyncTimestamp", Date.now());
@@ -618,6 +644,7 @@ export class DiscountedUCB1Bandit {
   }
 
   getModelInfo(modelId) {
+    modelId = this._sanitizeModelId(modelId);
     const row = this.db.prepare(
       `SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent
        FROM models WHERE id = ?`
@@ -1556,10 +1583,10 @@ export class DiscountedUCB1Bandit {
     try {
       let models = [];
       try {
-        models = this.db.prepare(
+        models = (this.db.prepare(
           `SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent
            FROM models`
-        ).all() || [];
+        ).all() || []).map(m => ({ ...m, id: this._sanitizeModelId(m.id) }));
       } catch (e) {
         console.warn("[BANDIT] getMetrics models query error:", e.message);
       }
@@ -1588,6 +1615,10 @@ export class DiscountedUCB1Bandit {
         freeActive: stats.freeActive || 0,
         topModel: stats.topModel ? (typeof stats.topModel === 'object' ? stats.topModel : { id: stats.topModel }) : null
       };
+      // Return sanitized topModel for summary if using string topModel
+      if (stats.topModel && typeof stats.topModel === 'string') {
+        summary.topModel = { id: this._sanitizeModelId(stats.topModel) };
+      }
       return { models, providers, summary };
     } catch (e) {
       console.error("[BANDIT] Critical error in getMetrics:", e.message);
@@ -1667,10 +1698,11 @@ export class DiscountedUCB1Bandit {
           LIMIT 1
         `).get();
         if (topRes) {
-          topModel = topRes.id;
+          const sanitizedId = this._sanitizeModelId(topRes.id);
+          topModel = sanitizedId;
           topModelDetails = {
-            id: topRes.id,
-            name: topRes.id,
+            id: sanitizedId,
+            name: sanitizedId,
             provider: topRes.provider,
             N: topRes.N,
             cooldown: topRes.cooldown_until || 0,
@@ -2056,12 +2088,12 @@ export class DiscountedUCB1Bandit {
 
     // Helper filtering function with multi-tier relaxation options
     const filterModels = (tierName, opts = {}) => {
-      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false, ignoreAttention = false, ignorePermanent = false, ignoreDegraded = false } = opts;
+      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false, ignoreAttention = false, ignorePermanent = false, ignoreDegraded = false, ignoreQuota = false, ignoreExcluded = false } = opts;
       return models.filter(model => {
         let rejectionReason = null;
 
         // Skip if excluded
-        if (resolvedExcluded.has(model.id)) {
+        if (resolvedExcluded.has(model.id) && !ignoreExcluded) {
           rejectionReason = 'already_tried';
         } else if (model.permanent === 1 && !ignorePermanent) {
           rejectionReason = 'model_permanent_ban';
@@ -2084,7 +2116,7 @@ export class DiscountedUCB1Bandit {
               rejectionReason = 'provider_circuit_breaker';
             }
             // Skip if provider quota or rate limit is exhausted
-            else if (!this.quota.canCall(model.provider)) {
+            else if (!this.quota.canCall(model.provider) && !ignoreQuota) {
               rejectionReason = 'provider_quota_exhausted';
             } else if (prov) {
               if (prov.cooldown_until > now) {
@@ -2119,8 +2151,10 @@ export class DiscountedUCB1Bandit {
 
           if (!rejectionReason && estimatedTokens > 0) {
             const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
-            const dynamicMax = model.dynamic_max_tokens || 0;
             // Always respect dynamic_max_tokens (runtime 413/TPM limit) even if ignoreTokenLimit is true
+            // Use getModelMaxInput to respect defensive guard
+            const dynamicMax = this.getModelMaxInput(model.id) || 0;
+            
             if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
               rejectionReason = 'dynamic_max_tokens_exceeded';
             } else if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
@@ -2158,6 +2192,9 @@ export class DiscountedUCB1Bandit {
         }
 
         if (rejectionReason) {
+          if (tierName === 'emergency') {
+            console.log(`[BANDIT][EMERGENCY] Model ${model.id} rejected: ${rejectionReason}`);
+          }
           selectionHistory.push({
             id: model.id,
             provider: model.provider,
@@ -2224,7 +2261,7 @@ export class DiscountedUCB1Bandit {
     // Tier 4: Emergency Relaxation (Ignore Cooldowns)
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
@@ -2306,13 +2343,13 @@ export class DiscountedUCB1Bandit {
     // Register the selected model use
     this._registerModelUse(bestModel.id, bestModel.provider);
     this.lastSelectionHistory = selectionHistory;
-
+    
     if (DEBUG) {
       console.log(`[BANDIT][SELECT] Selected model: ${bestModel.id} (provider: ${bestModel.provider}, score: ${bestScore.toFixed(4)}, available: ${availableModels.length}/${models.length})`);
     }
 
     return bestModel.id;
-  }
+    }
 
   getLastSelectionHistory() {
     return this.lastSelectionHistory || [];
