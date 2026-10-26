@@ -2482,20 +2482,16 @@ async function startServer(attempt = 1) {
   }
 
   initRegistry();
-  server = app.listen(PORT, "127.0.0.1", () => {
+  
+  // SO_REUSEPORT deve essere impostato PRIMA del bind, non dopo
+  // Usa listen con opzioni oggetto per abilitare reusePort al momento del bind
+  server = app.listen({
+    port: PORT,
+    host: "127.0.0.1",
+    reusePort: true
+  }, () => {
     console.log(`[PROXY] ✓ Server avviato su http://127.0.0.1:${PORT}`);
   });
-
-  // SO_REUSEADDR permette il riutilizzo rapido della porta dopo restart
-  // (il socket può essere in TIME_WAIT per un po')
-  if (typeof server.setSocketOptions === 'function') {
-    try {
-      server.setSocketOptions({ reusePort: true });
-      console.log("[INIT] SO_REUSEPORT abilitato");
-    } catch (e) {
-      console.log("[INIT] SO_REUSEPORT non disponibile:", e.message);
-    }
-  }
 
   server.on("error", (err) => {
     if (err.code === "EADDRINUSE") {
