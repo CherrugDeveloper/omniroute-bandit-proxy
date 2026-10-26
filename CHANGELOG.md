@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.82 — 2026-10-26
+- **Workspace Cleanup & Documentation Audit**:
+  - Verified no superfluous files; plans directory absent
+  - Confirmed tests/*.bak files absent
+  - No build artifacts detected in workspace
+  - Identified .gitignore validation issue: `bandit_state.db` tracked despite `*.db` ignore pattern
+  - Untracked files identified: `docs/restart-procedure.md`, `scripts/free-port-emergency.sh`, `scripts/restart-safe.sh`
+  - Workspace state documented for potential .gitignore refinement
+
 ## v1.1.81 — 2026-10-25
 - **System Stability & Port Conflict Fix**:
   - Fixed EADDRINUSE port 8080 conflicts by removing duplicate user-level systemd service

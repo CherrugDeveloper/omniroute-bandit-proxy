@@ -3,7 +3,7 @@ name: auto-git
 description: Automate comprehensive git commit-and-push workflow including project cleanup
 trigger: /auto-git
 mode: code
-allow_multiple: true
+allow_multiple: false
 ---
 
 Implements robust automated Git workflow:

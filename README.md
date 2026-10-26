@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> Project cleanup and maintenance performed on 2026-10-24. Superfluous files removed, documentation updated, and git history consolidated.
+> Workspace audit and documentation update performed on 2026-10-26. Verified system/service files, production scripts, config files, dashboard UI, and recent cleanup audit findings. No superfluous files found, plans directory already removed, .gitignore validation issue with bandit_state.db documented.
 
 
 ## Panoramica
@@ -167,25 +167,30 @@ Attiva/disattiva log dettagliati **senza restart**:
 
 ### 10. Esecuzione come servizio systemd
 
+File di servizio attuale: [`omniroute-bandit-proxy.service`](omniroute-bandit-proxy.service) verifica:
+- `WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy`
+- `ExecStart=/usr/bin/node .../src/index.mjs`
+- `EnvironmentFile=-.../.env`
+- `Restart=on-failure`, `RestartSec=10`
+
 Crea `/etc/systemd/system/omniroute-bandit-proxy.service`:
 
     [Unit]
-    Description=OmniRoute Bandit Proxy Service
+    Description=OmniRoute Bandit Proxy - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
     After=network.target
 
     [Service]
     Type=simple
-    User=%USER%
-    WorkingDirectory=/path/to/omniroute-bandit-proxy
-    EnvironmentFile=/path/to/omniroute-bandit-proxy/.env
-    ExecStart=/usr/bin/node /path/to/omniroute-bandit-proxy/src/index.mjs
-    Restart=always
-    RestartSec=5
+    WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy
+    ExecStart=/usr/bin/node /home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
+    Restart=on-failure
+    RestartSec=10
+    EnvironmentFile=-/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/.env
     StandardOutput=journal
     StandardError=journal
 
     [Install]
-    WantedBy=multi-user.target
+    WantedBy=default.target
 
 Poi:
 
@@ -194,6 +199,19 @@ Poi:
     sudo systemctl start omniroute-bandit-proxy
 
 ### 11. Script di utilità
+
+Produzione e manutenzione scripts in [`scripts/`](scripts/):
+- [`scripts/switch-mode.sh`](scripts/switch-mode.sh) - Cambia modalità prod/train-gentle/train/stop/status
+- [`scripts/train-ctl.sh`](scripts/train-ctl.sh) - Controllo training daemon
+- [`scripts/train-daemon.mjs`](scripts/train-daemon.mjs) - Training round-robin warm-up
+- [`scripts/restart.sh`](scripts/restart.sh) - Restart servizio + feedback
+- [`scripts/restart-safe.sh`](scripts/restart-safe.sh) - Restart sicuro
+- [`scripts/free-port-emergency.sh`](scripts/free-port-emergency.sh) - Emergency port release
+- [`scripts/check-db.mjs`](scripts/check-db.mjs) - Diagnostica database
+- [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs) - Ispezione completa DB
+- [`scripts/inspect-bans.mjs`](scripts/inspect-bans.mjs) - Ispezione ban/cooldown
+- [`scripts/fix-db.mjs`](scripts/fix-db.mjs) - Fix database
+- [`scripts/fix-vision.mjs`](scripts/fix-vision.mjs) - Fix vision
 
 | Script | Cosa fa |
 |--------|---------|
@@ -226,13 +244,19 @@ Configura queste variabili in `.env` (vedi `.env.example` per i valori di defaul
       health-check.mjs     Probe periodici su modelli degradati/bannati
       notifier.mjs         Webhook Slack/Discord/Telegram
       log-throttle.mjs     Throttling log, denylist ring buffer, verbose TTL
+      provider-quota.mjs   Quota tracking rolling window per provider
+      request-tracker.mjs  Track active requests
     public/
-      dashboard.html       Dashboard single-file
+      dashboard.html       Dashboard single-file UI
+      manifest.json        PWA manifest
+      sw.js                Service worker
+      icons/               App icons
     config/
+      bandit.json          Fallback models chain (6 models)
       modes.json           Registry 14 modalità (pattern + profile)
       provider-limits.json Rate limits per provider (RPM/RPD/ITPM)
     scripts/
-      train-daemon.mjs     Training round-robin
+      train-daemon.mjs     Training round-robin warm-up
       train-ctl.sh         Start/stop/logs daemon
       switch-mode.sh       Cambio modalità prod/train
       restart.sh           Restart servizio
@@ -250,8 +274,21 @@ Sei tabelle, tutte create/migrate automaticamente all'avvio:
 | `models_train` | Statistiche training (isolate da `models` — non inquinano UCB1 prod) |
 | `provider_history` | Stato per provider (fails, cooldown, permanent, needs_attention, pointer) |
 | `meta` | Contatori globali (totalRequests, totalObservations) |
+| `request_logs` | Ring buffer log richieste (timestamp, model, provider, status, latency_ms, tokens_in, tokens_out, error_type) |
 
-### 14. Sviluppo
+### 14. Sviluppo e Build
+
+Comandi da [`package.json`](package.json):
+- `npm start` - Avvia il proxy server su 127.0.0.1:8080
+- `npm run dev` - Avvia con auto-reload (`--watch`)
+- `npm run check` - Valida sintassi TypeScript e JavaScript (`node --check`)
+- `npm test` - Esegue tutti i test via `node --test tests/*.test.mjs __tests__/*.test.mjs`
+
+Environment variables critiche (vedi [` .env.example`]( .env.example)):
+- `OMNIROUTE_API_KEY`, `OMNIROUTE_BASE_URL`, `DASHBOARD_TOKEN`
+- `EXCLUDE_PAID`, `ONLY_FREE`, `EXCLUDE_THINKING`, `EXPLOIT_ONLY`
+- `HEALTH_CHECK_INTERVAL_MS`, `SESSION_TTL_MS` (default 1800000 = 30min)
+- `UPSTREAM_TIMEOUT_MS` (20000), `STREAM_IDLE_MS` (60000), `STREAM_MAX_MS` (180000)
 
     # Avvio con auto-reload su modifiche
     npm run dev
@@ -268,10 +305,26 @@ Sei tabelle, tutte create/migrate automaticamente all'avvio:
 - Le signature delle modalità (`config/modes.signatures.json`) sono **machine-specific** e non vanno committate.
 - Il training daemon può girare **in parallelo** al proxy senza toccare la produzione.
 
-### 16. Licenza
+### 16. Deployment & Configurazione
 
-MIT - vedi LICENSE.
+File di deployment verificati:
+- [`omniroute-bandit-proxy.service`](omniroute-bandit-proxy.service) - Systemd service (Restart=on-failure, EnvironmentFile=-.env)
+- [`nginx.conf`](nginx.conf) - Reverse proxy config per dashboard e API
+- [`netlify.toml`](netlify.toml) - Netlify redirects per /v1/* API e SPA fallback
+- [`firebase.json`](firebase.json) - Firebase Hosting rewrites per dashboard
+- [`vercel.json`](vercel.json) - Vercel rewrites
 
-### 17. Autore
+Dashboard UI: [`public/dashboard.html`](public/dashboard.html) single-file con 6 tab, live logs, metriche, modelli, modalità, ecc. Icone in [`public/icons/`](public/icons/).
+
+Cleanup audit 2026-10-26:
+- No superfluous files found
+- Plans directory already removed
+- .gitignore validation issue: bandit_state.db tracked despite *.db ignore pattern
+
+### 17. Licenza
+
+MIT - vedi [`LICENSE`](LICENSE).
+
+### 18. Autore
 
 **Marco** - [@CherrugDeveloper](https://github.com/CherrugDeveloper)
