@@ -2702,23 +2702,12 @@
             const filter = (document.getElementById('log-filter')?.value || '').toLowerCase();
             const filtered = raw.filter(entry => {
                 if (!filter) return true;
-                const text = (entry.model || entry.provider || entry.status || entry.error_type || '').toLowerCase();
-                return text.includes(filter);
+                return entry.toLowerCase().includes(filter);
             });
             if (filtered.length === 0) {
                 el.textContent = 'Nessun log corrispondente al filtro.';
             } else {
-                el.textContent = filtered.map(entry => {
-                    const ts = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '-';
-                    const model = entry.model || '-';
-                    const provider = entry.provider || '-';
-                    const status = entry.status || '-';
-                    const latency = entry.latency_ms !== undefined ? `${entry.latency_ms}ms` : '-';
-                    const tokens = entry.tokens_in !== undefined || entry.tokens_out !== undefined
-                        ? `${entry.tokens_in || 0}in/${entry.tokens_out || 0}out`
-                        : '-';
-                    return `[${ts}] ${provider}/${model} ${status} ${latency} ${tokens}`;
-                }).join('\n');
+                el.textContent = filtered.join('\n');
             }
         }
         async function fetchActive() {
