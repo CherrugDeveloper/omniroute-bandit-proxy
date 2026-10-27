@@ -1994,7 +1994,7 @@ trackRequestUpdate(requestId, {
       }
     }
 
-    console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt}) - source=${source}`);
+    console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt}) - source=${feedbackSource}`);
 
     // === AUTO-COMPRESS per il modello specifico ===
     let requestBody = req.body;
