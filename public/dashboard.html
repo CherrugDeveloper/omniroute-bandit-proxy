@@ -998,7 +998,7 @@
             <input type="number" class="filter-input" id="models-filter-minN" min="0" step="1" placeholder="N ≥" value="0" style="width:70px">
             <input type="number" class="filter-input" id="models-filter-minAvg" min="0" step="0.05" placeholder="avg ≥" value="0" style="width:70px">
             <button id="models-reset-filters" class="btn">Reset filtri</button>
-            <button id="models-reset-all" class="btn btn-danger" style="margin-left:10px;">Reset Tutti i Modelli</button>
+            <button id="models-reset-all" class="btn btn-danger" style="margin-left:10px;" data-action="reset-model">Reset Tutti i Modelli</button>
         </div>
         <div class="table-wrapper">
             <table>
@@ -1088,7 +1088,7 @@
 
     <div id="tab-providers" class="tab-content">
         <div class="filter-bar" style="margin-bottom:10px; display:flex; justify-content:flex-end;">
-            <button id="providers-reset-all" class="btn btn-danger">Reset Tutti i Provider</button>
+            <button id="providers-reset-all" class="btn btn-danger" data-action="reset-provider">Reset Tutti i Provider</button>
         </div>
         <div class="table-wrapper">
             <table>
@@ -2458,6 +2458,12 @@
             else if (a === 'copy-logs') copyLogs();
             else if (a === 'reset-counters') {
                 apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
+            }
+            else if (a === 'reset-model' && btn.id === 'models-reset-all') {
+                apiFetch('/v1/reset/model', { method: 'POST' }).then(() => refreshAll());
+            }
+            else if (a === 'reset-provider' && btn.id === 'providers-reset-all') {
+                apiFetch('/v1/reset/provider', { method: 'POST' }).then(() => refreshAll());
             }
             else if (a === 'toggle-provider') {
                 const name = btn.dataset.name;
