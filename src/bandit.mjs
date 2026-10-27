@@ -851,6 +851,7 @@ export class DiscountedUCB1Bandit {
                   console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
                 }
                 this._banProvider(provider);
+                console.log(`[BANDIT-CONSEQUENCE] ban-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
                 break;
               case "ban-model":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
@@ -861,6 +862,7 @@ export class DiscountedUCB1Bandit {
                    VALUES (?, ?, 1, 0, 0, 0, 0, 0)
                    ON CONFLICT(id) DO UPDATE SET permanent = 1`
                 ).run(modelId, provider);
+                console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
                 break;
               case "cooldown-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
@@ -870,15 +872,18 @@ export class DiscountedUCB1Bandit {
                   this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(modelId);
                 }
                 this._forceProviderCooldown(provider, c.cooldownMs, c.reason);
+                console.log(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=provider`);
                 break;
               case "cooldown-paid-only":
                 this._cooldownPaidOnly(provider, c.cooldownMs);
+                console.log(`[BANDIT-CONSEQUENCE] cooldown-paid-only | model=${modelId} provider=${provider} cooldownMs=${c.cooldownMs} scope=provider`);
                 break;
               case "flag-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
                   console.log(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
                 }
                 this._flagProviderAttention(provider, c.reason, errorDetails.message || errorDetails.error || "");
+                console.log(`[BANDIT-CONSEQUENCE] flag-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
                 break;
               case "cooldown-model": {
                 const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
@@ -902,11 +907,13 @@ export class DiscountedUCB1Bandit {
                   const modelRow = this.db.prepare(`SELECT consecutive_5xx FROM models WHERE id = ?`).get(modelId);
                   if (modelRow && modelRow.consecutive_5xx >= 3) {
                     this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ?`).run(Date.now(), modelId);
+                    console.log(`[BANDIT-CONSEQUENCE] degraded | model=${modelId} provider=${provider} reason=consecutive_5xx count=${modelRow.consecutive_5xx} scope=model`);
                   }
                 }
                 // Apply cooldown to model
                 if (c.cooldownMs > 0) {
                   this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + c.cooldownMs, modelId);
+                  console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=model`);
                 } else if (isTransient) {
                   // For transient errors (server-error, timeout, unknown), set a default cooldown
                   // Use the model's cooldown based on its current fail count
@@ -915,6 +922,7 @@ export class DiscountedUCB1Bandit {
                   const cooldownMs = this._getModelCooldownMs(failCount + 1);
                   if (cooldownMs && cooldownMs > 0) {
                     this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, modelId);
+                    console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model (default)`);
                   }
                 }
                 break;
@@ -959,6 +967,7 @@ export class DiscountedUCB1Bandit {
   _classifyError(errorDetails, provider) {
     const status = errorDetails.status || 0;
     const message = errorDetails.message || "";
+    console.log(`[BANDIT-CLASSIFY] status=${status} message=${message.substring(0, 120)} provider=${provider || "unknown"}`);
     const reason = errorDetails.reason || "unknown";
     const is429 = status === 429;
     const resolvedProvider = provider || errorDetails.provider || (errorDetails.modelId ? errorDetails.modelId.split('/')[0] : '');
@@ -1175,6 +1184,7 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 6 * 3600 * 1000 };
     }
 
+    console.log(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${reason} cooldownMs=30000`);
     return {
       action: "cooldown-model",
       reason: reason,
@@ -1551,10 +1561,7 @@ export class DiscountedUCB1Bandit {
     this.db.prepare("UPDATE meta SET value = 0 WHERE key = 'totalObservations'").run();
     // Clear request_logs history so metrics reflect only current session
     this.db.prepare("DELETE FROM request_logs").run();
-    // Reset model learning state (N, sum_reward, fails) but keep catalog intact
-    this.db.prepare("UPDATE models SET N = 0, sum_reward = 0, fails = 0, cooldown_until = 0, permanent = 0, degraded = 0, consecutive_5xx = 0, dynamic_max_tokens = 0").run();
-    // Reset provider state
-    this.db.prepare("UPDATE provider_history SET fails = 0, cooldown_until = 0, permanent = 0, needs_attention = 0, consecutive_failures = 0, circuit_breaker_until = 0, quota_resets_at = 0").run();
+    // NOTE: Does NOT reset models or provider_history - use /v1/reset/model and /v1/reset/provider for that
   }
 
   blockModel(modelId) {
@@ -1619,6 +1626,30 @@ export class DiscountedUCB1Bandit {
     } catch (e) {
       console.error("[BANDIT] Critical error in getMetrics:", e.message);
       return { models: [], providers: [], summary: { activeCount: 0, avgReward: 0, avgLatencySec: 0, freeActive: 0, topModel: null } };
+    }
+  }
+
+  getAllModels() {
+    try {
+      return this.db.prepare(
+        `SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent, consecutive_5xx, dynamic_max_tokens
+         FROM models`
+      ).all() || [];
+    } catch (e) {
+      console.warn("[BANDIT] getAllModels error:", e.message);
+      return [];
+    }
+  }
+
+  getAllProviders() {
+    try {
+      return this.db.prepare(
+        `SELECT provider, fails, cooldown_until, permanent, needs_attention, consecutive_failures, circuit_breaker_until, quota_resets_at
+         FROM provider_history`
+      ).all() || [];
+    } catch (e) {
+      console.warn("[BANDIT] getAllProviders error:", e.message);
+      return [];
     }
   }
 

@@ -66,6 +66,15 @@
         }
         h1 { color: #58a6ff; margin: 0 0 4px 0; font-size: 18px; }
         h3 { color: #58a6ff; margin: 0; font-size: 14px; }
+        
+        /* Color coding for consequence types */
+        .log-line.ban-provider { color: #ff5858; }
+        .log-line.ban-model { color: #ff5858; }
+        .log-line.cooldown-provider { color: #f1c40f; }
+        .log-line.cooldown-model { color: #f1c40f; }
+        .log-line.flag-provider { color: #e6ac00; }
+        .log-line.degraded { color: #e74c3c; }
+        .log-line.cooldown-paid-only { color: #9b59b6; }
 
         .card {
             background: #161b22;
@@ -889,10 +898,10 @@
             <strong style="font-size:11px; color:#58a6ff;">Cronologia Unificata</strong>
             <button id="copy-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia tutto">📋 Copia tutto</button>
         </div>
-        <div style="max-height: 130px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px;">
+        <div style="max-height: 130px; overflow-y: auto; scrollbar-width: thin; border: 1px solid transparent; border-radius: 4px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9;">
                 <thead>
-                    <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
+                    <tr style="border-bottom: 1px solid transparent; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
                         <th style="padding: 3px 6px; text-align: left;">Timestamp</th>
                         <th style="padding: 3px 6px; text-align: left;">Provider</th>
                         <th style="padding: 3px 6px; text-align: left;">Model</th>
@@ -932,6 +941,21 @@
                 </label>
                 <label style="font-size:11px; color:#58a6ff; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
                     <input type="checkbox" id="log-show-train" checked> TRAIN
+                </label>
+                <label style="font-size:11px; color:#ff5858; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-ban" checked> BAN
+                </label>
+                <label style="font-size:11px; color:#f1c40f; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-cooldown" checked> COOLDOWN
+                </label>
+                <label style="font-size:11px; color:#e6ac00; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-flag" checked> FLAG
+                </label>
+                <label style="font-size:11px; color:#e74c3c; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-degraded" checked> DEGRADED
+                </label>
+                <label style="font-size:11px; color:#9b59b6; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-paid-only" checked> PAID-ONLY
                 </label>
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
@@ -974,6 +998,7 @@
             <input type="number" class="filter-input" id="models-filter-minN" min="0" step="1" placeholder="N ≥" value="0" style="width:70px">
             <input type="number" class="filter-input" id="models-filter-minAvg" min="0" step="0.05" placeholder="avg ≥" value="0" style="width:70px">
             <button id="models-reset-filters" class="btn">Reset filtri</button>
+            <button id="models-reset-all" class="btn btn-danger" style="margin-left:10px;">Reset Tutti i Modelli</button>
         </div>
         <div class="table-wrapper">
             <table>
@@ -1062,6 +1087,9 @@
     </div>
 
     <div id="tab-providers" class="tab-content">
+        <div class="filter-bar" style="margin-bottom:10px; display:flex; justify-content:flex-end;">
+            <button id="providers-reset-all" class="btn btn-danger">Reset Tutti i Provider</button>
+        </div>
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -2677,80 +2705,6 @@
             if (!el) return;
             const raw = window.__rawLogs || [];
             const filter = (document.getElementById('log-filter')?.value || '').toLowerCase();
-            const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
-            const showTrain = document.getElementById('log-show-train')?.checked ?? true;
-            const showDebug = document.getElementById('log-show-debug')?.checked ?? true;
-            
-            // Tagga ogni riga. Priorità:
-            // 1. Marker espliciti nella riga ([TRAIN], [ZOO], [BANDIT-TRAIN])
-            // 2. Marker [PROXY] POST aggiorna lo "stato corrente"
-            // 3. Nessun marker → eredita dall'ultimo POST
-            const tagged = [];
-            let currentSource = null;
-            // Prefissi di sistema: non appartengono a ZOO né a TRAIN.
-            // Non devono mai ereditare currentSource, altrimenti spariscono
-            // quando filtri per zoo o train.
-            const SYSTEM_LINE_RE = /\[(?:HEALTH|CONFIG|INIT|MODES|DASHBOARD|NOTIFIER|SECURITY|FATAL|MIGRAZIONE)\]/;
-            for (const line of raw) {
-                const s = String(line);
-                let src = currentSource;
-
-                if (/\[PROXY\] POST \/v1\/chat\/completions \[TRAIN\]/.test(s)) {
-                    currentSource = 'train'; src = 'train';
-                } else if (/\[PROXY\] POST \/v1\/chat\/completions \[ZOO\]/.test(s)) {
-                    currentSource = 'zoo'; src = 'zoo';
-                } else if (/\[BANDIT-TRAIN\]/.test(s)) {
-                    src = 'train';   // marker esplicito, indipendentemente dal contesto
-                } else if (/\[TRAIN\]/.test(s)) {
-                    src = 'train';
-                } else if (/\[ZOO\]/.test(s)) {
-                    src = 'zoo';
-                } else if (/\[DEBUG\]/.test(s) || /\/debug\/\w+/.test(s) || /debug\s*:/.test(s)) {
-                    src = 'debug';
-                } else if (SYSTEM_LINE_RE.test(s)) {
-                    // Riga di sistema: la taggo esplicitamente 'system'
-                    // così non eredita da ZOO/TRAIN e non sparisce mai.
-                    src = 'system';
-                }
-                tagged.push({ line: s, source: src });
-            }
-
-            let filtered = tagged;
-            if (!showZoo) filtered = filtered.filter(t => t.source !== 'zoo');
-            if (!showTrain) filtered = filtered.filter(t => t.source !== 'train');
-            if (!showDebug) filtered = filtered.filter(t => t.source !== 'debug');
-            if (filter) filtered = filtered.filter(t => t.line.toLowerCase().includes(filter));
-
-            // Color and format the logs
-            const fragment = document.createDocumentFragment();
-            if (filtered.length === 0) {
-                const span = document.createElement('span');
-                span.textContent = 'Nessun log corrispondente.';
-                fragment.appendChild(span);
-            } else {
-                for (const t of filtered) {
-                    const span = document.createElement('span');
-                    span.className = t.source ? `log-line ${t.source}` : 'log-line system';
-                    span.textContent = t.line;
-                    fragment.appendChild(span);
-                }
-            }
-            
-            const wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
-            el.replaceChildren(fragment);
-            if (wasAtBottom) el.scrollTop = el.scrollHeight;
-        }
-        // Aggiorna log quando cambiano i filtri
-        ['log-filter', 'log-show-train', 'log-show-zoo', 'log-show-debug'].forEach(id => {
-            document.getElementById(id)?.addEventListener('input', () => {
-                renderFilteredLogs();
-                fetchActive();   // <-- aggiorna anche "In corso"
-            });
-            document.getElementById(id)?.addEventListener('change', () => {
-                renderFilteredLogs();
-                fetchActive();
-            });
-        });
         async function fetchActive() {
             try {
                 console.debug('[DEBUG Dashboard] fetchActive polling triggered at', Date.now());
@@ -2995,6 +2949,18 @@
         ['log-show-zoo', 'log-show-train', 'log-show-debug'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.checked = true;
+        });
+
+        // Reset buttons for models and providers
+        document.getElementById('models-reset-all')?.addEventListener('click', async () => {
+            if (!confirm('Sei sicuro di voler resettare tutti i modelli? Questa azione reimpostera N, sum_reward, fails e stato cooldown per tutti i modelli.')) return;
+            await apiFetch('/v1/reset/model', { method: 'POST' });
+            refreshAll();
+        });
+        document.getElementById('providers-reset-all')?.addEventListener('click', async () => {
+            if (!confirm('Sei sicuro di voler resettare tutti i provider? Questa azione reimpostera stato cooldown e ban per tutti i provider.')) return;
+            await apiFetch('/v1/reset/provider', { method: 'POST' });
+            refreshAll();
         });
 
         // refreshAll(); // Moved to DOMContentLoaded

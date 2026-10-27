@@ -1147,6 +1147,32 @@ app.post("/v1/reset/provider/:p", requireAuth, (req, res) => {
   }
 });
 
+app.post("/v1/reset/model", requireAuth, (req, res) => {
+  try {
+    const models = bandit.getAllModels ? bandit.getAllModels() : [];
+    for (const m of models) {
+      bandit.resetModel(m.id);
+    }
+    res.json({ ok: true, count: models.length });
+  } catch (e) {
+    console.error("[API] Errore reset tutti i modelli:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/v1/reset/provider", requireAuth, (req, res) => {
+  try {
+    const providers = bandit.getAllProviders ? bandit.getAllProviders() : [];
+    for (const p of providers) {
+      bandit.resetProvider(p);
+    }
+    res.json({ ok: true, count: providers.length });
+  } catch (e) {
+    console.error("[API] Errore reset tutti i provider:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/v1/provider/retry/:p", requireAuth, (req, res) => {
   try {
     const ok = bandit.clearProviderAttention(req.params.p);
@@ -1968,7 +1994,7 @@ trackRequestUpdate(requestId, {
       }
     }
 
-    console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt})`);
+    console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt}) - source=${source}`);
 
     // === AUTO-COMPRESS per il modello specifico ===
     let requestBody = req.body;
@@ -2061,6 +2087,7 @@ trackRequestUpdate(requestId, {
         }
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
+        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource}`);
 
         if (sessionKey) {
           const entry = sessionModels.get(sessionKey);
@@ -2125,6 +2152,7 @@ trackRequestUpdate(requestId, {
         excluded.add(model);
         console.log(`[FAILURE] Attempt ${attempt}: ${model} failed with status ${r.status}. Error: ${txt.slice(0, 100)}`);
         trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
+        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource}`);
         continue;
       }
 
@@ -2138,6 +2166,7 @@ trackRequestUpdate(requestId, {
         } catch (e) {
           console.error(`[STREAM READ ERR] ${model}: ${e.message}`);
           bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
+          console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=${e.message} source=${feedbackSource}`);
           noteProviderFail(model);
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
@@ -2147,6 +2176,7 @@ trackRequestUpdate(requestId, {
         if (firstChunkResult.done) {
           console.error(`[STREAM EMPTY] ${model}: empty stream received`);
           bandit.recordFeedback(model, false, 0, { message: "empty stream" }, { source: feedbackSource });
+          console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=empty stream source=${feedbackSource}`);
           noteProviderFail(model);
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
@@ -2157,6 +2187,7 @@ trackRequestUpdate(requestId, {
         if (firstChunkText.includes('"error"') || firstChunkText.includes('"code"') || firstChunkText.includes('rate_limit') || firstChunkText.includes('exceeded')) {
           console.error(`[STREAM ERR] ${model}: ${firstChunkText.substring(0, 200)}`);
           bandit.recordFeedback(model, false, 0, { message: firstChunkText }, { source: feedbackSource });
+          console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream error source=${feedbackSource}`);
           noteProviderFail(model);
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
@@ -2263,16 +2294,17 @@ trackRequestUpdate(requestId, {
                 }
                 const displayMsg = details.message || details.reason || String(streamInvalid);
                 console.error(`[STREAM INVALID] ${model}: ${displayMsg}`);
-                bandit.recordFeedback(model, false, 0, details, { source: feedbackSource });
-                // Header già inviati: NON possiamo cambiare modello.
-                // Chiudiamo lo stream con un errore e usciamo.
-                try {
-                  res.write(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + displayMsg } })}\n\n`);
-                  res.write(`data: [DONE]\n\n`);
-                } catch (_) {}
-                cleanup();
-                try { res.end(); } catch (_) {}
-                return;
+                        bandit.recordFeedback(model, false, 0, details, { source: feedbackSource });
+                        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream-invalid source=${feedbackSource}`);
+                        // Header già inviati: NON possiamo cambiare modello.
+                        // Chiudiamo lo stream con un errore e usciamo.
+                        try {
+                          res.write(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + displayMsg } })}\n\n`);
+                          res.write(`data: [DONE]\n\n`);
+                        } catch (_) {}
+                        cleanup();
+                        try { res.end(); } catch (_) {}
+                        return;
               }
 
             const baseReward = Math.max(0, 1.0 - (dur / 30));
@@ -2297,19 +2329,20 @@ trackRequestUpdate(requestId, {
           return;
         } catch (e) {
           console.error(`[STREAM ABORT] ${model}: ${e.message}`);
-          if (sessionKey) {
-            const entry = sessionModels.get(sessionKey);
-            if (entry && entry.model === model) {
-              sessionModels.delete(sessionKey);
-              console.log(`[AFFINITY] ✗ pin ${model} rimosso (stream abort/error)`);
+            if (sessionKey) {
+              const entry = sessionModels.get(sessionKey);
+              if (entry && entry.model === model) {
+                sessionModels.delete(sessionKey);
+                console.log(`[AFFINITY] ✗ pin ${model} rimosso (stream abort/error)`);
+              }
             }
-          }
-          bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
-          noteProviderFail(model);
-          excluded.add(model);
-          reader.cancel().catch(() => {});
-          if (!res.writableEnded) res.end();
-          continue;
+            bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
+            console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream abort source=${feedbackSource}`);
+            noteProviderFail(model);
+            excluded.add(model);
+            reader.cancel().catch(() => {});
+            if (!res.writableEnded) res.end();
+            continue;
         }
       } else {
         const data = await r.json();
@@ -2339,6 +2372,7 @@ trackRequestUpdate(requestId, {
             ? { ...invalidReason, status: r.status }
             : { message: invalidReason, status: r.status };
           bandit.recordFeedback(model, false, 0, errorDetails, { source: feedbackSource });
+          console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=validation source=${feedbackSource}`);
           noteProviderFail(model);
           excluded.add(model);
           continue;
@@ -2370,9 +2404,11 @@ trackRequestUpdate(requestId, {
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
         console.error(`[ABORT] ${model}: timeout or client disconnect`);
         bandit.recordFeedback(model, false, 0, { message: "timeout/abort" }, { source: feedbackSource });
+        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=timeout/abort source=${feedbackSource}`);
       } else {
         console.error(`[FETCH ERR] ${model}: ${e.message}`);
         bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
+        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=fetch error source=${feedbackSource}`);
       }
       noteProviderFail(model);
       excluded.add(model);
