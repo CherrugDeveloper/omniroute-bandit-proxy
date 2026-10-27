@@ -2277,17 +2277,6 @@
             } catch (e) { showAlert('Copia fallita: ' + e.message, 'Errore', '⚠️'); }
         }
 
-        async function copyScriptOutput() {
-            try {
-                await navigator.clipboard.writeText(document.getElementById('script-output').textContent);
-                const btn = document.getElementById('script-output-copy');
-                if (!btn) return;
-                const orig = btn.textContent;
-                btn.textContent = '✅ Copiato!';
-                setTimeout(() => btn.textContent = orig, 1500);
-            } catch (e) { showAlert('Copia fallita: ' + e.message, 'Errore', '⚠️'); }
-        }
-
         // ============= HELP MODAL =============
         function getHelpForProvider(p) {
             const reason = p.attention_reason || '';
@@ -2711,6 +2700,7 @@
             if (!el) return;
             const raw = window.__rawLogs || [];
             const filter = (document.getElementById('log-filter')?.value || '').toLowerCase();
+        }
         async function fetchActive() {
             try {
                 console.debug('[DEBUG Dashboard] fetchActive polling triggered at', Date.now());
@@ -3655,6 +3645,18 @@
             status.innerHTML = '<span style="color:#f85149;">⏹ Polling interrotto</span>';
         }
         
+        // Copy script output log
+        async function copyScriptOutput() {
+            try {
+                await navigator.clipboard.writeText(document.getElementById('script-output').textContent);
+                const btn = document.getElementById('script-output-copy');
+                if (!btn) return;
+                const orig = btn.textContent;
+                btn.textContent = '✅ Copiato!';
+                setTimeout(() => btn.textContent = orig, 1500);
+            } catch (e) { showAlert('Copia fallita: ' + e.message, 'Errore', '⚠️'); }
+        }
+
         // Event listeners per Script Manager
         document.addEventListener('DOMContentLoaded', () => {
             // Refresh button
