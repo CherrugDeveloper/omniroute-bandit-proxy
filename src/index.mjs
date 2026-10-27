@@ -1164,7 +1164,7 @@ app.post("/v1/reset/provider", requireAuth, (req, res) => {
   try {
     const providers = bandit.getAllProviders ? bandit.getAllProviders() : [];
     for (const p of providers) {
-      bandit.resetProvider(p);
+      bandit.resetProvider(p.provider);
     }
     res.json({ ok: true, count: providers.length });
   } catch (e) {
