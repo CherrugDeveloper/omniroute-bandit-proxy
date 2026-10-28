@@ -1794,13 +1794,14 @@ export class DiscountedUCB1Bandit {
       }
 
       // Compute success rate from models table
-      let successRateStats = { modelsWithObservations: 0, modelsAboveThreshold: 0 };
+      let successRateStats = { modelsWithObservations: 0, modelsAboveThreshold: 0, successfulObservations: 0 };
       try {
         const srRes = this.db.prepare(`
           SELECT
             SUM(CASE WHEN N > 0 THEN 1 ELSE 0 END) as modelsWithObservations,
-            SUM(CASE WHEN N > 0 AND sum_reward / N > 0.5 THEN 1 ELSE 0 END) as modelsAboveThreshold
-          FROM models
+            SUM(CASE WHEN N > 0 AND sum_reward / N > 0.5 THEN 1 ELSE 0 END) as modelsAboveThreshold,
+            SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successfulObservations
+          FROM request_logs
         `).get();
         if (srRes) successRateStats = srRes;
       } catch (e) {
@@ -1810,6 +1811,7 @@ export class DiscountedUCB1Bandit {
       return {
         totalRequests,
         totalObservations,
+        successfulObservations: successRateStats.successfulObservations || 0,
         avgReward: (stats && stats.avgReward !== null) ? stats.avgReward : 0,
         avgLatencySec: (latency.avgLatency || 0) / 1000,
         freeActive: freeActive.count || 0,

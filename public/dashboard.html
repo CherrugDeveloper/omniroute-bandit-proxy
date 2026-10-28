@@ -644,22 +644,25 @@
         .new-badge { color: #d29922; font-weight: bold; }
         .trend-down { color: #f85149; font-weight: bold; }
         .trend-flat { color: #8b949e; }
-        /* FAB (pulsante flottante) */
+        /* FAB (pulsante flottante) - ridotto e mobile */
         #dev-fab {
-            position: fixed; bottom: 20px; right: 20px;
-            width: 52px; height: 52px; border-radius: 50%;
+            position: fixed; bottom: 16px; right: 16px;
+            width: 40px; height: 40px; border-radius: 50%;
             background: #238636; border: 2px solid #30363d;
-            color: #fff; font-size: 22px; cursor: pointer;
+            color: #fff; font-size: 18px; cursor: pointer;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 9998;
             transition: transform 0.25s ease, background 0.2s;
+            touch-action: none; /* evita zoom su mobile */
         }
-        #dev-fab:hover { transform: scale(1.08); background: #2ea043; }
+        #dev-fab:hover { transform: scale(1.1); background: #2ea043; }
         #dev-fab.open { transform: rotate(45deg); background: #1f6feb; }
+        #dev-fab.collapsed { transform: scale(0.85); opacity: 0.7; }
+        #dev-fab.dragging { transform: scale(0.9); transition: none; }
 
         /* Menu espandibile */
         #dev-menu {
-            position: fixed; bottom: 84px; right: 20px;
-            display: flex; flex-direction: column; gap: 8px;
+            position: fixed; bottom: 68px; right: 16px;
+            display: flex; flex-direction: column; gap: 6px;
             opacity: 0; transform: translateY(12px);
             pointer-events: none; z-index: 9998;
             transition: opacity 0.25s ease, transform 0.25s ease;
@@ -668,15 +671,26 @@
             opacity: 1; transform: translateY(0); pointer-events: auto;
         }
         .dev-menu-item {
-            display: flex; align-items: center; gap: 10px;
+            display: flex; align-items: center; gap: 8px;
             background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
-            padding: 10px 16px; border-radius: 24px;
-            cursor: pointer; font-size: 13px; font-family: inherit;
+            padding: 8px 14px; border-radius: 22px;
+            cursor: pointer; font-size: 12px; font-family: inherit;
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
             transition: background 0.15s, transform 0.15s;
         }
         .dev-menu-item:hover { background: #30363d; transform: translateX(-4px); }
-        .dev-menu-item span:first-child { font-size: 16px; }
+        .dev-menu-item span:first-child { font-size: 15px; }
+
+        /* FAB collapse toggle button */
+        #fab-collapse-toggle {
+            position: fixed; bottom: 68px; right: 16px;
+            width: 32px; height: 32px; border-radius: 50%;
+            background: #21262d; border: 1px solid #30363d;
+            color: #8b949e; font-size: 14px; cursor: pointer;
+            z-index: 9997; display: none; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        #fab-collapse-toggle:hover { background: #30363d; color: #c9d1d9; }
 
         /* Modal overlay */
         .dev-modal-overlay {
@@ -844,6 +858,7 @@
                 <div class="stats-grid stats-grid-single">
                     <span><strong>Richieste:</strong> <span id="total-req" class="ok">0</span></span>
                     <span><strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span></span>
+                    <span><strong>Osservazioni OK:</strong> <span id="successful-obs" class="ok">0</span></span>
                     <span><strong>Successo:</strong> <span id="success-rate" class="ok">—</span></span>
                     <span><strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span></span>
                     <span><strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span></span>
@@ -860,6 +875,7 @@
                         <span><span id="top-model-provider" class="muted"></span></span>
                         <span><span id="top-model-cooldown" class="muted"></span></span>
                         <span><span id="top-model-n" class="muted"></span></span>
+                        <span><span id="top-model-latency" class="muted"></span></span>
                     </div>
                 </div>
             </div>
@@ -906,6 +922,8 @@
                         <th style="padding: 3px 6px; text-align: left;">Provider</th>
                         <th style="padding: 3px 6px; text-align: left;">Model</th>
                         <th style="padding: 3px 6px; text-align: center; white-space: nowrap;">Status</th>
+                        <th style="padding: 3px 6px; text-align: left;">Error Type</th>
+                        <th style="padding: 3px 6px; text-align: left;">Countermeasure</th>
                         <th style="padding: 3px 6px; text-align: left;">Reason / Stats</th>
                     </tr>
                 </thead>
@@ -960,24 +978,34 @@
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
         </div>
-        <pre id="logs" style="color:#c9d1d9;">Attendendo log...</pre>
+        <div style="max-height: 400px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px; background:#0d1117;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
+                        <th style="padding: 3px 6px; text-align: left; min-width: 100px;">Timestamp</th>
+                        <th style="padding: 3px 6px; text-align: left; min-width: 120px;">Source</th>
+                        <th style="padding: 3px 6px; text-align: left; min-width: 120px;">Provider</th>
+                        <th style="padding: 3px 6px; text-align: center; white-space: nowrap;">Status</th>
+                        <th style="padding: 3px 6px; text-align: left; min-width: 200px;">Message</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-tbody">
+                    <!-- populated dynamically -->
+                </tbody>
+            </table>
+        </div>
         <style>
-            .log-line {
-                display: block;
-                margin-bottom: 2px;
-            }
-            .log-line.zoo {
-                color: #3fb950;
-            }
-            .log-line.train {
-                color: #58a6ff;
-            }
-            .log-line.debug {
-                color: #ff5858;
-            }
-            .log-line.system {
-                color: #c9d1d9;
-            }
+            .log-row { padding: 2px 6px; border-bottom: 1px solid #21262d; }
+            .log-row.source-zoo { color: #3fb950; }
+            .log-row.source-train { color: #58a6ff; }
+            .log-row.source-debug { color: #ff5858; }
+            .log-row.source-system { color: #c9d1d9; }
+            .log-row.source-ban { color: #f85149; }
+            .log-row.source-cooldown { color: #f1c40f; }
+            .log-row.source-flag { color: #e6ac00; }
+            .log-row.source-degraded { color: #e74c3c; }
+            .log-row.source-paid-only { color: #9b59b6; }
+            .log-row.source-other { color: #c9d1d9; }
         </style>
     </div>
 
@@ -1004,17 +1032,17 @@
             <table>
                 <thead>
                     <tr>
-                        <th data-sort="rank">Rank</th>
-                        <th data-sort="id">ID modello</th>
-                        <th data-sort="provider">Provider</th>
-                        <th data-sort="N" class="mono">N</th>
-                        <th data-sort="avg" class="mono">Avg Reward</th>
-                        <th data-sort="fails">Fails</th>
-                        <th>Stato</th>
-                        <th>Free</th>
-                        <th>Paid</th>
-                        <th>Strumenti</th>
-                        <th>Azioni</th>
+                        <th data-sort="rank" style="width: 50px;">Rank</th>
+                        <th data-sort="id" style="width: 200px;">ID modello</th>
+                        <th data-sort="provider" style="width: 120px;">Provider</th>
+                        <th data-sort="N" class="mono" style="width: 40px;">N</th>
+                        <th data-sort="avg" class="mono" style="width: 80px;">Avg Reward</th>
+                        <th data-sort="fails" style="width: 50px;">Fails</th>
+                        <th style="width: 100px;">Stato</th>
+                        <th style="width: 50px;">Free</th>
+                        <th style="width: 50px;">Paid</th>
+                        <th style="width: 60px;">Strumenti</th>
+                        <th style="width: 120px;">Azioni</th>
                     </tr>
                 </thead>
                 <tbody id="models-tbody"></tbody>
@@ -1049,6 +1077,8 @@
                         <th data-sort="N" class="mono">N</th>
                         <th data-sort="avg" class="mono">Avg Reward</th>
                         <th data-sort="fails">Fails</th>
+                        <th>Paid RPD</th>
+                        <th>Quota reset</th>
                         <th>Stato</th>
                         <th>Free</th>
                         <th>Paid</th>
@@ -1084,6 +1114,21 @@
             <h3>Discovery in attesa</h3>
             <div id="modes-discovered-list" style="margin-top:8px;">Nessuna discovery.</div>
         </div>
+        <div class="card" style="margin-top:10px;">
+            <h3>📈 Bonus/Malus System (Profile Multipliers)</h3>
+            <table id="modes-multipliers-table" style="width:100%; border-collapse:collapse; font-size:12px; margin-top:8px;">
+                <thead>
+                    <tr style="border-bottom:1px solid #30363d; color:#58a6ff;">
+                        <th style="text-align:left; padding:4px;">Profilo</th>
+                        <th style="text-align:left; padding:4px;">Moltiplicatore</th>
+                        <th style="text-align:left; padding:4px;">Descrizione</th>
+                    </tr>
+                </thead>
+                <tbody id="modes-multipliers-body">
+                    <tr><td colspan="3">Caricamento...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div id="tab-providers" class="tab-content">
@@ -1095,8 +1140,10 @@
                 <thead>
                     <tr>
                         <th>Provider</th>
-                        <th>RPM</th>
-                        <th>RPD</th>
+                        <th>Free RPM</th>
+                        <th>Free RPD</th>
+                        <th>Paid RPM</th>
+                        <th>Paid RPD</th>
                         <th>Quota reset</th>
                         <th>Stato</th>
                     </tr>
@@ -1112,6 +1159,19 @@
             <p style="color:#8b949e; font-size:13px; margin-top:4px;">
                 Esegui gli script di amministrazione del sistema. Gli script vengono eseguiti in sandbox e l'output viene salvato. Ciascuno script dispone di una descrizione e di opzioni di aiuto per guidare l'operatore.
             </p>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card" style="margin-bottom:15px; background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:10px 12px;">
+            <h4 style="margin:0 0 8px 0; color:#58a6ff; font-size:13px; display:flex; align-items:center; gap:6px;">⚡ Quick Actions</h4>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "start")' title="Avvia il daemon di training">▶ Start Daemon</button>
+                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "stop")' title="Ferma il daemon di training">⏹ Stop Daemon</button>
+                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "status")' title="Visualizza stato del daemon">📊 Status</button>
+                <span style="width:1px; height:24px; background:#30363d; margin:0 4px;"></span>
+                <button class="btn btn-sm" onclick='quickAction("restart.sh")' title="Riavvia il servizio proxy">🔄 Restart Service</button>
+                <button class="btn btn-sm" onclick='quickAction("switch-mode.sh", "prod")' title="Cambia modalità prod">🏭 Mode: Prod</button>
+            </div>
         </div>
 
         <div class="filter-bar" style="margin-bottom:15px;">
@@ -1216,7 +1276,7 @@
         let trainSortDir = 'asc';
         let flatMode = false;
         let trainFlatMode = false;
-        const collapsedProviders = new Set();
+        const collapsedProviders = new Set(['openrouter', 'anthropic', 'google']);
         const trainCollapsedProviders = new Set();
         // === Auth token (persistente tra tab) ===
         let API_TOKEN =
@@ -2133,21 +2193,24 @@
                 const now = Date.now();
                 if (Number(info.permanent)) {
                     statusBadge = '<span class="badge badge-banned">🚫 IGNORATO</span>';
-                    actions = '<button class="btn btn-copy" data-action="retry-provider" data-name="' + safe + '">🔁 Ripristina</button>';
+                    actions = '<button class="btn btn-copy" data-action="retry-provider" data-name="' + safe + '">🔁 Ripristina</button>' +
+                              '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">🔄 Reset Provider</button>';
                 } else if (Number(info.needs_attention)) {
                     statusBadge = '<button class="badge badge-attention" style="border:none;cursor:pointer;font-family:inherit" data-action="show-help" data-name="' + safe + '">⚠️ DA CONFIGURARE ❓</button>';
                     actions = '<button class="btn btn-copy" data-action="retry-provider" data-name="' + safe + '">🔁 Riprova</button>' +
-                              '<button class="btn btn-reset" data-action="ignore-provider" data-name="' + safe + '">🚫 Ignora</button>';
+                              '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">🔄 Reset Provider</button>' +
+                              '<button class="btn btn-block" data-action="ignore-provider" data-name="' + safe + '">🚫 Ignora</button>';
                 } else {
                     const cd = Number(info.cooldown_until) || 0;
                     if (cd > now) {
                         const mins = Math.round((cd - now) / 60000);
                         statusBadge = '<span class="badge badge-cooldown">⏱ ' + mins + 'm</span>';
+                        actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">⏱ Reset Cooldown</button>';
                     } else {
                         statusBadge = '<span class="badge badge-active">✓ Attivo</span>';
+                        actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">🔄 Reset Provider</button>';
                     }
                 }
-                actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">Reset</button>' + actions;
             } else {
                 statusBadge = '<span class="muted">(non ancora usato)</span>';
             }
@@ -2173,10 +2236,24 @@
             const safe = escapeHtml(m.id);
 
             const isBanned = Number(m.permanent) === 1;
-            const actions = isBanned
-                ? '<button class="btn btn-copy" data-action="reset-model" data-id="' + safe + '">🔁 Sblocca</button>'
-                : '<button class="btn btn-reset" data-action="reset-model" data-id="' + safe + '">Reset</button>' +
-                  ' <button class="btn btn-block" data-action="block-model" data-id="' + safe + '">🚫 Blocca</button>';
+            const isDegraded = Number(m.degraded) === 1;
+            const now = Date.now();
+            const cd = Number(m.cooldown_until) || 0;
+            const isCooldown = cd > now;
+
+            let actions = '';
+            if (isBanned) {
+                actions = '<button class="btn btn-copy" data-action="reset-model" data-id="' + safe + '">🔁 Sblocca</button>';
+            } else if (isDegraded) {
+                actions = '<button class="btn btn-reset" data-action="reset-model" data-id="' + safe + '">⚠️ Reset Degraded</button>' +
+                          ' <button class="btn btn-block" data-action="block-model" data-id="' + safe + '">🚫 Blocca</button>';
+            } else if (isCooldown) {
+                actions = '<button class="btn btn-reset" data-action="reset-model" data-id="' + safe + '">⏱ Reset Cooldown</button>' +
+                          ' <button class="btn btn-block" data-action="block-model" data-id="' + safe + '">🚫 Blocca</button>';
+            } else {
+                actions = '<button class="btn btn-reset" data-action="reset-model" data-id="' + safe + '">Reset</button>' +
+                          ' <button class="btn btn-block" data-action="block-model" data-id="' + safe + '">🚫 Blocca</button>';
+            }
 
             // Rank
             const rank = (m.rank != null && m.rank > 0) ? m.rank : '—';
@@ -2494,8 +2571,10 @@
                 const reqs = Number(d.totalRequests) || 0;
                 // Observations can never exceed requests; cap to avoid display inconsistencies
                 const obs = Number(d.totalObservations) || 0;
+                const successfulObs = Number(d.successfulObservations) || 0;
                 document.getElementById('total-req').textContent = reqs;
                 document.getElementById('total-obs').textContent = obs;
+                document.getElementById('successful-obs').textContent = successfulObs;
 
                 const rateEl = document.getElementById('success-rate');
                 if (reqs === 0) {
@@ -2516,11 +2595,12 @@
                 if (d.topModel) {
                     const topModelEl = document.getElementById('top-model');
                     topModelEl.textContent = d.topModel;
-                    // Add score, provider, cooldown, and N info
+                    // Add score, provider, cooldown, N, and latency info
                     const scoreEl = document.getElementById('top-model-score');
                     const providerEl = document.getElementById('top-model-provider');
                     const cooldownEl = document.getElementById('top-model-cooldown');
                     const nEl = document.getElementById('top-model-n');
+                    const latencyEl = document.getElementById('top-model-latency');
                     const details = d.topModelDetails || {};
                     if (details.score !== undefined) {
                         scoreEl.textContent = 'score: ' + details.score.toFixed(3);
@@ -2542,12 +2622,19 @@
                     } else {
                         nEl.textContent = '';
                     }
+                    // Add latency (use overall avg latency since topModelDetails doesn't have per-model latency)
+                    if (d.avgLatencySec !== undefined && d.avgLatencySec > 0) {
+                        latencyEl.textContent = 'latency: ' + d.avgLatencySec.toFixed(1) + 's';
+                    } else {
+                        latencyEl.textContent = '';
+                    }
                 } else {
                     document.getElementById('top-model').textContent = '—';
                     document.getElementById('top-model-score').textContent = '';
                     document.getElementById('top-model-provider').textContent = '';
                     document.getElementById('top-model-cooldown').textContent = '';
                     document.getElementById('top-model-n').textContent = '';
+                    document.getElementById('top-model-latency').textContent = '';
                 }
 
                 document.getElementById('catalog-models').textContent = d.catalogTotal ?? '?';
@@ -2599,7 +2686,7 @@
             if (!providers || !Array.isArray(providers) || providers.length === 0) {
                 const tr = document.createElement('tr');
                 const td = document.createElement('td');
-                td.colSpan = 5;
+                td.colSpan = 7;
                 td.className = 'empty';
                 td.textContent = 'Nessun dato quota disponibile';
                 tr.appendChild(td);
@@ -2607,6 +2694,107 @@
                 tbody.replaceChildren(fragment);
                 return;
             }
+
+            const fmtMs = (ms) => {
+                if (ms <= 0) return '—';
+                const days = Math.floor(ms / 86400000);
+                const hours = Math.floor((ms % 86400000) / 3600000);
+                const mins = Math.floor(((ms % 3600000) / 60000));
+                if (days > 0) return days + 'd ' + hours + 'h';
+                if (hours > 0) return hours + 'h ' + mins + 'm';
+                return mins + 'm';
+            };
+
+            const rpmColor = (used, limit) => {
+                if (limit === 0) return 'muted';
+                const pct = (used / limit) * 100;
+                if (pct >= 80) return 'err';
+                if (pct >= 50) return 'warn';
+                return 'ok';
+            };
+
+            for (const p of providers) {
+                const free = p.free || {};
+                const paid = p.paid || {};
+                
+                const freeRpmUsed = free.callsLastMinute || 0;
+                const freeRpmLimit = free.rpmLimit || 0;
+                const freeRpdUsed = free.callsToday || 0;
+                const freeRpdLimit = free.rpdLimit || 0;
+                const freeQuotaReset = free.quotaResetAt ? fmtMs(free.quotaResetAt - Date.now()) : '—';
+                const freeExhausted = free.quotaExhausted || false;
+                
+                const paidRpmUsed = paid.callsLastMinute || 0;
+                const paidRpmLimit = paid.rpmLimit || 0;
+                const paidRpdUsed = paid.callsToday || 0;
+                const paidRpdLimit = paid.rpdLimit || 0;
+                const paidQuotaReset = paid.quotaResetAt ? fmtMs(paid.quotaResetAt - Date.now()) : '—';
+                const paidExhausted = paid.quotaExhausted || false;
+
+                let state = 'attivo';
+                if (freeExhausted || paidExhausted) {
+                    state = 'quota-exhausted';
+                } else if ((freeRpmUsed >= freeRpmLimit * 0.8 && freeRpmLimit > 0) || 
+                           (paidRpmUsed >= paidRpmLimit * 0.8 && paidRpmLimit > 0)) {
+                    state = 'cooldown';
+                }
+
+                const tr = document.createElement('tr');
+                
+                const td1 = document.createElement('td');
+                td1.textContent = p.provider;
+                tr.appendChild(td1);
+
+                const td2 = document.createElement('td');
+                const spanFreeRpm = document.createElement('span');
+                spanFreeRpm.className = rpmColor(freeRpmUsed, freeRpmLimit);
+                spanFreeRpm.textContent = freeRpmUsed + ' / ' + freeRpmLimit;
+                td2.appendChild(spanFreeRpm);
+                tr.appendChild(td2);
+
+                const td3 = document.createElement('td');
+                const spanFreeRpd = document.createElement('span');
+                spanFreeRpd.className = rpmColor(freeRpdUsed, freeRpdLimit);
+                spanFreeRpd.textContent = freeRpdUsed + ' / ' + freeRpdLimit;
+                td3.appendChild(spanFreeRpd);
+                tr.appendChild(td3);
+
+                const td4 = document.createElement('td');
+                const spanPaidRpm = document.createElement('span');
+                spanPaidRpm.className = rpmColor(paidRpmUsed, paidRpmLimit);
+                spanPaidRpm.textContent = paidRpmUsed + ' / ' + paidRpmLimit;
+                td4.appendChild(spanPaidRpm);
+                tr.appendChild(td4);
+
+                const td5 = document.createElement('td');
+                const spanPaidRpd = document.createElement('span');
+                spanPaidRpd.className = rpmColor(paidRpdUsed, paidRpdLimit);
+                spanPaidRpd.textContent = paidRpdUsed + ' / ' + paidRpdLimit;
+                td5.appendChild(spanPaidRpd);
+                tr.appendChild(td5);
+
+                const td6 = document.createElement('td');
+                const spanReset = document.createElement('span');
+                spanReset.className = 'muted';
+                spanReset.textContent = freeQuotaReset !== '—' ? freeQuotaReset : paidQuotaReset;
+                td6.appendChild(spanReset);
+                tr.appendChild(td6);
+
+                const td7 = document.createElement('td');
+                const spanState = document.createElement('span');
+                spanState.className = state === 'quota-exhausted' ? 'badge badge-bannati' :
+                                      state === 'cooldown' ? 'badge badge-cooldown' :
+                                      'badge badge-active';
+                spanState.textContent = state;
+                td7.appendChild(spanState);
+                tr.appendChild(td7);
+
+                fragment.appendChild(tr);
+            }
+
+            tbody.replaceChildren(fragment);
+        }
+
 
             const fmtMs = (ms) => {
                 if (ms <= 0) return '—';
@@ -2696,18 +2884,66 @@
             } catch (e) {}
         }
         function renderFilteredLogs() {
-            const el = document.getElementById('logs');
+            const el = document.getElementById('logs-tbody');
             if (!el) return;
             const raw = window.__rawLogs || [];
             const filter = (document.getElementById('log-filter')?.value || '').toLowerCase();
+            const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
+            const showDebug = document.getElementById('log-show-debug')?.checked ?? true;
+            const showTrain = document.getElementById('log-show-train')?.checked ?? true;
+            const showBan = document.getElementById('log-show-ban')?.checked ?? true;
+            const showCooldown = document.getElementById('log-show-cooldown')?.checked ?? true;
+            const showFlag = document.getElementById('log-show-flag')?.checked ?? true;
+            const showDegraded = document.getElementById('log-show-degraded')?.checked ?? true;
+            const showPaidOnly = document.getElementById('log-show-paid-only')?.checked ?? true;
+
+            // Filter entries
             const filtered = raw.filter(entry => {
-                if (!filter) return true;
-                return entry.toLowerCase().includes(filter);
+                // Apply text filter
+                if (filter && !entry.toLowerCase().includes(filter)) return false;
+                // Apply source filters
+                if (!showZoo && entry.source === 'zoo') return false;
+                if (!showDebug && entry.source === 'debug') return false;
+                if (!showTrain && entry.source === 'training') return false;
+                if (!showBan && entry.type === 'ban') return false;
+                if (!showCooldown && entry.type === 'cooldown') return false;
+                if (!showFlag && entry.type === 'flag') return false;
+                if (!showDegraded && entry.type === 'degraded') return false;
+                if (!showPaidOnly && entry.is_paid) return false;
+                return true;
             });
+
+            // Render as table rows
             if (filtered.length === 0) {
-                el.textContent = 'Nessun log corrispondente al filtro.';
+                el.innerHTML = '<tr><td colspan="5" class="empty">Nessun log corrispondente al filtro.</td></tr>';
             } else {
-                el.textContent = filtered.join('\n');
+                el.innerHTML = filtered.map(entry => {
+                    const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '-';
+                    const source = entry.source || 'system';
+                    const provider = entry.provider || '-';
+                    const status = entry.status || '-';
+                    const message = entry.message || '-';
+
+                    // Determine color class
+                    let colorClass = 'source-other';
+                    if (source === 'zoo') colorClass = 'source-zoo';
+                    else if (source === 'debug') colorClass = 'source-debug';
+                    else if (source === 'training') colorClass = 'source-train';
+                    else if (source === 'system') colorClass = 'source-system';
+                    else if (source === 'ban') colorClass = 'source-ban';
+                    else if (source === 'cooldown') colorClass = 'source-cooldown';
+                    else if (source === 'flag') colorClass = 'source-flag';
+                    else if (source === 'degraded') colorClass = 'source-degraded';
+                    else if (entry.is_paid) colorClass = 'source-paid-only';
+
+                    return `<tr class="log-row ${colorClass}">
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timestamp}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">${escapeHtml(source)}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #58a6ff; font-weight: 600;">${escapeHtml(provider)}</td>
+                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: #c9d1d9;">${escapeHtml(status)}</span></td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(message)}</td>
+                    </tr>`;
+                }).join('');
             }
         }
         async function fetchActive() {
@@ -2800,6 +3036,34 @@
                         statusColor = '#3fb950';
                     }
 
+                    // Determine countermeasure based on error type
+                    let countermeasure = '';
+                    if (r.errorType) {
+                        if (r.errorType.includes('429') || r.errorType.includes('rate') || r.errorType.includes('timeout')) {
+                            countermeasure = 'cooldown-provider';
+                        } else if (r.errorType.includes('400') || r.errorType.includes('context')) {
+                            countermeasure = 'ban-model';
+                        } else if (r.errorType.includes('503') || r.errorType.includes('overload')) {
+                            countermeasure = 'cooldown-model';
+                        } else if (r.errorType.includes('401') || r.errorType.includes('403')) {
+                            countermeasure = 'ban-provider';
+                        } else if (r.errorType.includes('410') || r.errorType.includes('gone')) {
+                            countermeasure = 'ban-model';
+                        }
+                    }
+                    // Also check for explicit reason field
+                    if (r.reason) {
+                        if (r.reason.includes('429') || r.reason.includes('rate') || r.reason.includes('timeout')) {
+                            countermeasure = 'cooldown-provider';
+                        } else if (r.reason.includes('400') || r.reason.includes('context') || r.reason.includes('length')) {
+                            countermeasure = 'ban-model';
+                        } else if (r.reason.includes('503') || r.reason.includes('overload')) {
+                            countermeasure = 'cooldown-model';
+                        } else if (r.reason.includes('401') || r.reason.includes('403')) {
+                            countermeasure = 'ban-provider';
+                        }
+                    }
+
                     let statsParts = [];
                     if (r.trend) {
                         const trendMap = { up: '↗', down: '↘', flat: '→', new: 'NEW' };
@@ -2868,6 +3132,10 @@
                             statsParts.push(`<span title="Modelli scartati per questa richiesta">scarti: ${rejected.length}</span>`);
                         }
                     }
+                    // Add error type to stats parts
+                    if (r.errorType) statsParts.unshift(`err: ${r.errorType}`);
+                    // Add countermeasure to stats parts
+                    if (countermeasure) statsParts.unshift(`counter: ${countermeasure}`);
                     const statsStr = statsParts.join(' | ') || '-';
                     // Truncate long reason to keep row height compact - but keep error code visible
                     const truncatedStatsStr = statsStr.length > 200 ? statsStr.substring(0, 200) + '...' : statsStr;
@@ -3144,12 +3412,81 @@
         function initFab() {
             const fab = document.getElementById('dev-fab');
             const menu = document.getElementById('dev-menu');
+            const collapseToggle = document.getElementById('fab-collapse-toggle');
 
             // Toggle menu
             fab?.addEventListener('click', (e) => {
                 e.stopPropagation();
                 fab.classList.toggle('open');
                 menu?.classList.toggle('open');
+            });
+
+            // Collapse/expand FAB
+            collapseToggle?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                fab.classList.toggle('collapsed');
+                collapseToggle.textContent = fab.classList.contains('collapsed') ? '▼' : '▲';
+                // When collapsed, hide menu automatically
+                if (fab.classList.contains('collapsed')) {
+                    menu.classList.remove('open');
+                }
+            });
+
+            // Drag functionality for FAB
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartY = 0;
+            let fabStartX = 0;
+            let fabStartY = 0;
+
+            fab?.addEventListener('mousedown', (e) => {
+                if (e.target === collapseToggle) return;
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                const rect = fab.getBoundingClientRect();
+                fabStartX = rect.left;
+                fabStartY = rect.top;
+                fab.classList.add('dragging');
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+                const newX = fabStartX + dx;
+                const newY = fabStartY + dy;
+                
+                // Keep within viewport bounds
+                const maxX = window.innerWidth - fab.offsetWidth;
+                const maxY = window.innerHeight - fab.offsetHeight;
+                const boundedX = Math.max(0, Math.min(newX, maxX));
+                const boundedY = Math.max(0, Math.min(newY, maxY));
+                
+                fab.style.left = boundedX + 'px';
+                fab.style.top = boundedY + 'px';
+                fab.style.right = 'auto';
+                fab.style.bottom = 'auto';
+                
+                // Update menu position relative to FAB
+                menu.style.left = (boundedX - menu.offsetWidth - 8) + 'px';
+                menu.style.top = boundedY + 'px';
+                menu.style.right = 'auto';
+                menu.style.bottom = 'auto';
+                
+                // Update collapse toggle position
+                collapseToggle.style.left = (boundedX - collapseToggle.offsetWidth - 8) + 'px';
+                collapseToggle.style.top = (boundedY + fab.offsetHeight + 4) + 'px';
+                collapseToggle.style.right = 'auto';
+                collapseToggle.style.bottom = 'auto';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    fab.classList.remove('dragging');
+                }
             });
         }
 
@@ -3336,6 +3673,7 @@
     <!-- FAB + Menu espandibile -->
     <button id="dev-fab" title="Info sviluppatore">🛠️</button>
     <div id="dev-menu">
+    <button id="fab-collapse-toggle" title="Collassa FAB">◀</button>
         <button class="dev-menu-item" data-open="developer">
             <span>🧑‍💻</span><span>Developer</span>
         </button>
@@ -3695,3 +4033,92 @@
     </script>
 </body>
 </html>
+        // === BONUS/MALUS MULTIPLIERS ===
+        async function loadMultipliers() {
+            try {
+                const body = document.getElementById('modes-multipliers-body');
+                if (!body) return;
+                const multipliers = [
+                    { profile: 'code', multiplier: 1.35, desc: 'Boost per modelli di programmazione (coder, codestral, code-*, ecc.)' },
+                    { profile: 'reasoning', multiplier: 1.30, desc: 'Boost per modelli di ragionamento (thinking, reasoning, o1, o3, o4, ecc.)' },
+                    { profile: 'general', multiplier: 0.65, desc: 'Penalty per modelli generici (default)' },
+                    { profile: 'summarizer', multiplier: 2.5, desc: 'Boost per modelli di summarization (fast, non-fast penalty, big penalty, ecc.)' }
+                ];
+                body.innerHTML = multipliers.map(m => `
+                    <tr style="border-bottom:1px solid #21262d;">
+                        <td style="padding:4px;">${m.profile}</td>
+                        <td style="padding:4px; font-family:monospace;">${m.multiplier}x</td>
+                        <td style="padding:4px; color:#8b949e;">${m.desc}</td>
+                    </tr>`).join('');
+            } catch (e) {
+                console.error('[MODES] loadMultipliers failed:', e);
+            }
+        }
+
+        // === QUICK ACTIONS ===
+        async function quickAction(scriptName, arg = '') {
+            const statusDiv = document.getElementById('script-output-status');
+            const outputDiv = document.getElementById('script-output');
+            const container = document.getElementById('script-output-container');
+            const title = document.getElementById('script-output-title');
+            
+            container.style.display = 'block';
+            title.textContent = 'Quick Action: ' + scriptName + (arg ? ' ' + arg : '');
+            statusDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
+            outputDiv.textContent = '';
+            
+            try {
+                const args = arg ? [arg] : [];
+                const res = await fetch('/v1/scripts/execute', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scriptPath: scriptName, args })
+                });
+                
+                const text = await res.text();
+                let result;
+                try {
+                    result = text ? JSON.parse(text) : {};
+                } catch (jsonErr) {
+                    throw new Error('Risposta non valida dal server (' + res.status + '): ' + text.substring(0, 100));
+                }
+                
+                if (!res.ok) {
+                    throw new Error(result.error || 'Errore HTTP ' + res.status);
+                }
+                
+                await pollScriptOutput(result.pid);
+                
+            } catch (e) {
+                statusDiv.innerHTML = '<span style="color:#f85149;">✗ Errore: ' + escapeHtml(e.message) + '</span>';
+                outputDiv.textContent = e.message;
+            }
+        }
+
+        // === INIT ===
+        async function init() {
+            await loadModes();
+            await loadMultipliers();
+            await loadDebugStatus();
+            await loadScripts();
+            await loadQuota();
+            await loadConsideration();
+            await loadDashboardStats();
+            await loadLogs();
+            await loadActive();
+            await loadScriptsList();
+            await loadScriptsOutput();
+            await loadScriptsProgress();
+            await loadScriptsProgressBar();
+            await loadScriptsProgressLabel();
+            await loadScriptsProgressPct();
+            await loadScriptsProgressBar();
+            await loadScriptsProgress();
+            await loadScriptsProgressBar();
+            await loadScriptsProgressLabel();
+            await loadScriptsProgressPct();
+            await loadScriptsProgressBar();
+        }
+
+        // === START ===
+        init();
