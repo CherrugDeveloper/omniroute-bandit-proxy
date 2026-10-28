@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.85 — 2026-10-28
+- **Workspace Cleanup & Auto-Git Workflow**:
+  - Removed superfluous temporary files: `.train-daemon.pid`, `scripts/.script-output-*.json`
+  - Removed obsolete test files from `__tests__/` and `tests/` directories
+  - Removed `AGENTS.md` (superseded by `.roo/rules-code/AGENTS.md`)
+  - Added auto-git command and skill definitions
+  - Updated changelog and readme
+
 ## v1.1.84 — 2026-10-28
 - **Dashboard Overhaul & Fixes**:
   - Comprehensive dashboard overhaul with enhanced metrics, logs, unified history, and controls (41c8882)
@@ -160,5 +168,16 @@ Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
   - Updated relaxation tiers in `selectModel` for clearer progression (Tiers 1-4) in [`src/bandit.mjs`](src/bandit.mjs:1).
   - Conditionalized verbose debug logs using `debugVerbose` in [`src/index.mjs`](src/index.mjs:1) and [`src/bandit.mjs`](src/bandit.mjs:1).
   - Enhanced image generation detection heuristics with additional keywords ('visualize', 'render') and regex patterns in [`src/index.mjs`](src/index.mjs:1).
+## 2026-10-29
 
+fix(dashboard): align numbers, optimize columns, invert unified history order (600bccd) 2026-10-28
+fix(dashboard): align metrics numbers, hide scrollbars, optimize half-screen view (94e5779) 2026-10-28
+fix: resolve 'no such column: N' error in getDashboardStats() (46260d1) 2026-10-28
+fix: CSS overlap fix for 'Osservazioni OK' in dashboard stats (display: inline-flex with gap) (e8afce7) 2026-10-28
+fix(dashboard): fix log streaming rendering and copy button (93e7a41) 2026-10-28
+chore: add auto-git command and skill definitions, update changelog and readme (feb12d1) 2026-10-28
+fix(dashboard): resolve syntax error in public/dashboard.html (cbaf8c1) 2026-10-28
+fix(dashboard): resolve structural issues in public/dashboard.html (85c7e5f) 2026-10-28
+feat(dashboard): comprehensive dashboard overhaul with enhanced metrics, logs, unified history, and controls (41c8882) 2026-10-28
+fix: resolve 'source is not defined' unhandled rejection in selectModel function (2be83f7) 2026-10-27
 ## v1.1.62 — 2026-10-19

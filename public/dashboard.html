@@ -1149,8 +1149,8 @@
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
         </div>
-        <div style="max-height: 200px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
+        <div style="max-height: 200px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117; display: flex; flex-direction: column;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed; flex: 1;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
                         <th style="padding: 2px 6px; text-align: left; width: 10%;">Timestamp</th>
@@ -1160,7 +1160,7 @@
                         <th style="padding: 2px 6px; text-align: left; width: 58%;">Message</th>
                     </tr>
                 </thead>
-                <tbody id="logs-tbody">
+                <tbody id="logs-tbody" style="flex: 1; display: block;">
                     <!-- populated dynamically -->
                 </tbody>
             </table>
@@ -3098,8 +3098,14 @@
                 if (!showPaidOnly && entry.is_paid) return false;
                 return true;
             });
+            // Sort filtered entries by timestamp descending (newest first)
+            const sorted = [...filtered].sort((a, b) => {
+                const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return tb - ta; // newest first
+            });
             // Normalize entries to objects for rendering
-            const normalized = filtered.map(entry => {
+            const normalized = sorted.map(entry => {
                 if (typeof entry === 'string') {
                     return { timestamp: null, source: 'system', provider: null, status: null, message: entry, is_paid: false };
                 }
@@ -3110,39 +3116,6 @@
                 el.innerHTML = '<tr><td colspan="5" class="empty">Nessun log corrispondente al filtro.</td></tr>';
             } else {
                 el.innerHTML = normalized.map(entry => {
-                    const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '-';
-                    const source = entry.source || 'system';
-                    const provider = entry.provider || '-';
-                    const status = entry.status || '-';
-                    const message = entry.message || '-';
-
-                    // Determine color class
-                    let colorClass = 'source-other';
-                    if (source === 'zoo') colorClass = 'source-zoo';
-                    else if (source === 'debug') colorClass = 'source-debug';
-                    else if (source === 'training') colorClass = 'source-train';
-                    else if (source === 'system') colorClass = 'source-system';
-                    else if (source === 'ban') colorClass = 'source-ban';
-                    else if (source === 'cooldown') colorClass = 'source-cooldown';
-                    else if (source === 'flag') colorClass = 'source-flag';
-                    else if (source === 'degraded') colorClass = 'source-degraded';
-                    else if (entry.is_paid) colorClass = 'source-paid-only';
-
-                    return `<tr class="log-row ${colorClass}">
-                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timestamp}</td>
-                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">${escapeHtml(source)}</td>
-                        <td style="padding: 2px 6px; white-space: nowrap; color: #58a6ff; font-weight: 600;">${escapeHtml(provider)}</td>
-                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: #c9d1d9;">${escapeHtml(status)}</span></td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(message)}</td>
-                    </tr>`;
-                }).join('');
-            }
-
-            // Render as table rows
-            if (filtered.length === 0) {
-                el.innerHTML = '<tr><td colspan="5" class="empty">Nessun log corrispondente al filtro.</td></tr>';
-            } else {
-                el.innerHTML = filtered.map(entry => {
                     const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '-';
                     const source = entry.source || 'system';
                     const provider = entry.provider || '-';

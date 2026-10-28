@@ -1,7 +1,7 @@
 #!/bin/bash
-
 # auto-git.sh - Automate comprehensive git commit-and-push workflow
 # Includes project cleanup, changelog updates, and verification
+# Works from any directory in the workspace
 
 set -euo pipefail
 
@@ -27,6 +27,28 @@ log_error() {
 
 log_step() {
     echo -e "${BLUE}[STEP]${NC} $*"
+}
+
+# Resolve workspace root - go to the project root directory
+resolve_workspace_root() {
+    # If we're already in the project root, just return
+    if [ -f "package.json" ] && grep -q "omniroute-bandit-proxy" package.json 2>/dev/null; then
+        return
+    fi
+    
+    # Try to find the project root by looking for package.json
+    local current_dir="$(pwd)"
+    for i in {1..20}; do
+        if [ -f "$current_dir/package.json" ]; then
+            if grep -q "omniroute-bandit-proxy" "$current_dir/package.json" 2>/dev/null; then
+                cd "$current_dir" 2>/dev/null || return
+                return
+            fi
+        fi
+        current_dir="$(dirname "$current_dir")"
+    done
+    # Fallback: stay in current directory
+    log_warn "Could not find workspace root, using current directory"
 }
 
 # Function to resolve workspace problems
@@ -77,6 +99,9 @@ resolve_workspace_problems() {
 # Function to perform cleanup and maintenance
 cleanup_maintenance() {
     log_step "Performing cleanup and maintenance..."
+    
+    # Resolve to workspace root if needed
+    resolve_workspace_root
     
     # Remove superfluous files
     log_info "Removing superfluous files..."
@@ -144,10 +169,29 @@ cleanup_maintenance() {
         fi
     done
     
-    # Validate .gitignore staging
+    # Validate .gitignore staging - check that ignored files are truly ignored
+    log_info "Validating .gitignore..."
     if [ -f ".gitignore" ]; then
-        log_info "Validating .gitignore..."
-        git check-ignore . 2>/dev/null || log_warn "Some files are not ignored by .gitignore"
+        # Check git's view of what would be included
+        git add --dry-run 2>/dev/null | while read -r line; do
+            file=$(echo "$line" | cut -c3-)
+            # Check if file is gitignored
+            if git check-ignore "$file" >/dev/null 2>&1; then
+                log_warn "File $file is gitignored but would be staged - excluding from commit"
+                # Remove from staging if already staged
+                git reset "$file" 2>/dev/null
+            fi
+        done
+        
+        # Also verify that git status respects .gitignore
+        git status --porcelain 2>/dev/null | while read -r line; do
+            file=$(echo "$line" | cut -c3-)
+            if git check-ignore "$file" >/dev/null 2>&1; then
+                log_warn "File $file is gitignored but appears in git status - investigating"
+            fi
+        done
+    else
+        log_warn "No .gitignore file found"
     fi
     
     log_info "Cleanup and maintenance completed."
@@ -157,6 +201,9 @@ cleanup_maintenance() {
 update_changelog() {
     log_step "Updating CHANGELOG.md..."
     
+    # Resolve to workspace root if needed
+    resolve_workspace_root
+    
     if [ ! -f "CHANGELOG.md" ]; then
         log_error "CHANGELOG.md not found!"
         return 1
@@ -165,7 +212,7 @@ update_changelog() {
     # Get recent git commits (limit to last 10)
     log_info "Getting recent git commits..."
     local recent_commits
-    recent_commits=$(git log -n 10 --pretty=format:%s\ (%h)\ %ad\ --date=short 2>/dev/null || echo "No commits found")
+    recent_commits=$(git log -n 10 --pretty=format:"%s (%h) %ad" --date=short 2>/dev/null || echo "No commits found")
     
     # Read existing CHANGELOG.md
     local changelog_content
@@ -212,6 +259,9 @@ update_changelog() {
 update_readme() {
     log_step "Updating README.md..."
     
+    # Resolve to workspace root if needed
+    resolve_workspace_root
+    
     if [ ! -f "README.md" ]; then
         log_error "README.md not found!"
         return 1
@@ -239,6 +289,9 @@ update_readme() {
 git_workflow() {
     log_step "Executing git workflow..."
     
+    # Resolve to workspace root if needed
+    resolve_workspace_root
+    
     # Run git status --porcelain
     log_info "Checking git status..."
     git status --porcelain
@@ -255,9 +308,53 @@ git_workflow() {
         git reset
     fi
     
-    # Stage ALL changes (modifications, deletions, untracked files)
-    log_info "Staging all changes..."
-    git add -A
+    # Check .gitignore and ensure ignored files are not included
+    log_info "Checking .gitignore compliance..."
+    if [ -f ".gitignore" ]; then
+        # Get list of files that git would add with add -A, excluding gitignored
+        git add -A --dry-run 2>/dev/null | grep '^A' | while read -r status file; do
+            # Check if this file is gitignored
+            if git check-ignore "$file" >/dev/null 2>&1; then
+                log_warn "File $file is gitignored but would be included in git add -A - excluding it"
+                # Remove it from the add list by resetting
+                git reset "$file" 2>/dev/null || true
+            fi
+        done
+        
+        # Verify that no gitignored files are staged
+        git status --short 2>/dev/null | while read -r status file; do
+            # Files starting with '?' are untracked, need to check if they're ignored
+            if [ "${status:0:1}" = "?" ]; then
+                if git check-ignore "$file" >/dev/null 2>&1; then
+                    log_info "Removing ignored untracked file: $file"
+                    git rm --cached "$file" 2>/dev/null || git checkout "$file" 2>/dev/null || true
+                fi
+            fi
+        done
+    fi
+    
+    # Stage ALL changes (modifications, deletions, untracked files) - but respect .gitignore
+    log_info "Staging all changes (respecting .gitignore)..."
+    
+    # Use git add -A but then remove any gitignored files from staging
+    git add -A 2>/dev/null || true
+    
+    # Remove any gitignored files that somehow got staged
+    if [ -f ".gitignore" ]; then
+        git status --short 2>/dev/null | grep '^A' | while read -r status file; do
+            if git check-ignore "$file" >/dev/null 2>&1; then
+                log_info "Removing gitignored file from staging: $file"
+                git reset "$file" 2>/dev/null || true
+            fi
+        done
+        git status --short 2>/dev/null | grep '^?' | while read -r status file; do
+            file="${status:1}"
+            if git check-ignore "$file" >/dev/null 2>&1; then
+                log_info "Removing ignored untracked file: $file"
+                git rm --cached "$file" 2>/dev/null || git checkout "$file" 2>/dev/null || true
+            fi
+        done
+    fi
     
     # CRITICAL: Never skip production files during cleanup
     log_info "Ensuring production files are staged..."

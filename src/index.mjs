@@ -2340,17 +2340,26 @@ trackRequestUpdate(requestId, {
                 }
                 const displayMsg = details.message || details.reason || String(streamInvalid);
                 console.error(`[STREAM INVALID] ${model}: ${displayMsg}`);
-                        bandit.recordFeedback(model, false, 0, details, { source: feedbackSource });
-                        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream-invalid source=${feedbackSource}`);
-                        // Header già inviati: NON possiamo cambiare modello.
-                        // Chiudiamo lo stream con un errore e usciamo.
-                        try {
-                          res.write(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + displayMsg } })}\n\n`);
-                          res.write(`data: [DONE]\n\n`);
-                        } catch (_) {}
-                        cleanup();
-                        try { res.end(); } catch (_) {}
-                        return;
+                bandit.recordFeedback(model, false, 0, details, { source: feedbackSource });
+                console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream-invalid source=${feedbackSource}`);
+                
+                // FIX: Invalidate session affinity if model returns 404 "model does not exist" error
+                // This prevents the session from being pinned to a non-existent model
+                if (sessionKey && (details.status === 404 || /does not exist|model_not_found|model does not exist/i.test(displayMsg))) {
+                  console.log(`[AFFINITY] Invalidating session ${sessionKey.slice(0,8)} due to model-not-found error for ${model}`);
+                  sessionModels.delete(sessionKey);
+                  sessionBlacklist.delete(sessionKey);
+                }
+                
+                // Header già inviati: NON possiamo cambiare modello.
+                // Chiudiamo lo stream con un errore e usciamo.
+                try {
+                  res.write(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + displayMsg } })}\n\n`);
+                  res.write(`data: [DONE]\n\n`);
+                } catch (_) {}
+                cleanup();
+                try { res.end(); } catch (_) {}
+                return;
               }
 
             const baseReward = Math.max(0, 1.0 - (dur / 30));

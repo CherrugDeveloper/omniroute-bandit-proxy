@@ -2125,7 +2125,7 @@ export class DiscountedUCB1Bandit {
 
     // Helper filtering function with multi-tier relaxation options
     const filterModels = (tierName, opts = {}) => {
-      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false, ignoreAttention = false, ignorePermanent = false, ignoreDegraded = false, ignoreQuota = false, ignoreExcluded = false } = opts;
+      const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false, ignoreAttention = false, ignorePermanent = false, ignoreDegraded = false, ignoreQuota = false, ignoreExcluded = false, ignoreNonChat = false, ignoreDynamicMaxTokens = false } = opts;
       return models.filter(model => {
         let rejectionReason = null;
 
@@ -2192,7 +2192,7 @@ export class DiscountedUCB1Bandit {
             // Use getModelMaxInput to respect defensive guard
             const dynamicMax = this.getModelMaxInput(model.id) || 0;
             
-            if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
+            if (dynamicMax > 0 && estimatedTokens > dynamicMax && !ignoreDynamicMaxTokens) {
               rejectionReason = 'dynamic_max_tokens_exceeded';
             } else if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
               rejectionReason = 'max_input_tokens_exceeded';
@@ -2229,7 +2229,7 @@ export class DiscountedUCB1Bandit {
             // Exclude models that explicitly support image/audio generation but NOT chat
             const isPurelyNonChat = !hasChatCapability && (model.supports_image_generation === 1 || model.supports_audio_generation === 1);
             const isNonChat = !hasChatCapability || isAihordeModel || isKnownNonChatPattern;
-            if (isNonChat) {
+            if (isNonChat && !ignoreNonChat) {
               rejectionReason = 'non_chat_model_excluded';
             }
           }
@@ -2305,7 +2305,7 @@ export class DiscountedUCB1Bandit {
     // Tier 4: Emergency Relaxation (Ignore Cooldowns)
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true, ignoreDynamicMaxTokens: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
