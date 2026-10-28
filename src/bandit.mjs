@@ -2732,6 +2732,7 @@ export class DiscountedUCB1Bandit {
         m.provider,
         COUNT(*) AS count
       ${baseQuery}
+      ${whereClause}
       GROUP BY m.provider
     `);
     const providerResult = providerStmt.all(...params);

@@ -137,28 +137,69 @@
         }
         .stats .stats-grid-single {
             display: grid;
-            grid-template-columns: 1fr;
-            column-gap: 0;
-            row-gap: 0px;
+            grid-template-columns: 1fr auto;
+            column-gap: 8px;
+            row-gap: 2px;
             width: 100%;
+            align-items: center;
         }
-        .stats .stats-grid-single span {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 0.25em;
-                    white-space: normal;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    font-size: 0.95em;
-                    padding: 0;
-                    margin: 0;
-                    min-width: 0;
-                }
+        .stats .stats-grid-single .metric-label {
+            display: flex;
+            align-items: center;
+            gap: 0.25em;
+            white-space: normal;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.95em;
+            padding: 0;
+            margin: 0;
+            min-width: 0;
+            justify-self: start;
+        }
+        .stats .stats-grid-single .metric-value {
+            display: flex;
+            align-items: center;
+            gap: 0.25em;
+            white-space: nowrap;
+            font-size: 0.95em;
+            padding: 0;
+            margin: 0;
+            justify-self: end;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            min-width: 0;
+        }
         .stats .stats-grid-single strong {
             display: inline-block;
             min-width: 90px;
             width: auto;
             max-width: 120px;
+        }
+        .stats .stats-grid-single .metric-label strong {
+            flex-shrink: 0;
+        }
+        .stats .stats-grid-single .metric-value span {
+            display: inline-block;
+            white-space: nowrap;
+        }
+        .stats .stats-grid-single .metric-value .ok,
+        .stats .stats-grid-single .metric-value .warn,
+        .stats .stats-grid-single .metric-value .err,
+        .stats .stats-grid-single .metric-value .attention,
+        .stats .stats-grid-single .metric-value .muted {
+            display: inline-block;
+            white-space: nowrap;
+        }
+        @media (max-width: 600px) {
+            .stats .stats-grid-single {
+                grid-template-columns: 1fr;
+                column-gap: 0;
+                row-gap: 1px;
+            }
+            .stats .stats-grid-single .metric-value {
+                justify-self: start;
+                text-align: left;
+            }
         }
         .stats .mono {
             white-space: nowrap;
@@ -180,6 +221,76 @@
             .stats .stats-grid {
                 grid-template-columns: 1fr 1fr;
             }
+            body {
+                padding: 4px;
+                gap: 4px;
+            }
+            .card {
+                padding: 6px 8px;
+            }
+            .stats {
+                padding: 4px 6px;
+                font-size: clamp(0.8rem, 0.5vw + 0.5rem, 0.95rem);
+            }
+            .table-wrapper th,
+            .table-wrapper td {
+                padding: 3px 6px;
+                font-size: 11px;
+            }
+            #active-list {
+                height: 200px;
+                min-height: 200px;
+            }
+        }
+
+        /* Schermi molto stretti (half-screen verticale o mobile): 1 colonna per le metriche */
+        @media (max-width: 600px) {
+            .stats-container {
+                grid-template-columns: 1fr !important;
+            }
+            .stats .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .stats .stats-grid-single {
+                grid-template-columns: 1fr;
+                column-gap: 0;
+                row-gap: 1px;
+            }
+            .stats .stats-grid-single .metric-value {
+                justify-self: start;
+                text-align: left;
+            }
+            .tabs {
+                gap: 3px;
+            }
+            .tab-btn {
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            .filter-bar {
+                gap: 4px;
+                flex-wrap: wrap;
+            }
+            .filter-input {
+                max-width: 180px;
+                font-size: 11px;
+            }
+            .table-wrapper th:nth-child(1),
+            .table-wrapper td:nth-child(1) { width: 25%; }
+            .table-wrapper th:nth-child(2),
+            .table-wrapper td:nth-child(2) { width: 12%; }
+            .table-wrapper th:nth-child(3),
+            .table-wrapper td:nth-child(3) { width: 8%; }
+            .table-wrapper th:nth-child(4),
+            .table-wrapper td:nth-child(4) { width: 10%; }
+            .table-wrapper th:nth-child(5),
+            .table-wrapper td:nth-child(5) { width: 10%; }
+            .table-wrapper th:nth-child(6),
+            .table-wrapper td:nth-child(6) { width: 6%; }
+            .table-wrapper th:nth-child(7),
+            .table-wrapper td:nth-child(7) { width: 14%; }
+            .table-wrapper th:nth-child(8),
+            .table-wrapper td:nth-child(8) { width: 15%; }
         }
         .stats strong { color: #58a6ff; }
         .ok { color: #3fb950; font-weight: bold; }
@@ -909,13 +1020,20 @@
                     <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
                 </div>
                 <div class="stats-grid stats-grid-single">
-                    <span><strong>Richieste:</strong> <span id="total-req" class="ok">0</span></span>
-                    <span><strong>Osservazioni:</strong> <span id="total-obs" class="ok">0</span></span>
-                    <span><strong>Osservazioni OK:</strong> <span id="successful-obs" class="ok">0</span></span>
-                    <span><strong>Successo:</strong> <span id="success-rate" class="ok">—</span></span>
-                    <span><strong>Qualità:</strong> <span id="avg-reward" class="ok">—</span></span>
-                    <span><strong>Latenza:</strong> <span id="avg-latency" class="ok">—</span></span>
-                    <span><strong>Free attivi:</strong> <span id="free-active" class="attention">—</span></span>
+                    <span class="metric-label"><strong>Richieste:</strong></span>
+                    <span class="metric-value"><span id="total-req" class="ok">0</span></span>
+                    <span class="metric-label"><strong>Osservazioni:</strong></span>
+                    <span class="metric-value"><span id="total-obs" class="ok">0</span></span>
+                    <span class="metric-label"><strong>Osservazioni OK:</strong></span>
+                    <span class="metric-value"><span id="successful-obs" class="ok">0</span></span>
+                    <span class="metric-label"><strong>Successo:</strong></span>
+                    <span class="metric-value"><span id="success-rate" class="ok">—</span></span>
+                    <span class="metric-label"><strong>Qualità:</strong></span>
+                    <span class="metric-value"><span id="avg-reward" class="ok">—</span></span>
+                    <span class="metric-label"><strong>Latenza:</strong></span>
+                    <span class="metric-value"><span id="avg-latency" class="ok">—</span></span>
+                    <span class="metric-label"><strong>Free attivi:</strong></span>
+                    <span class="metric-value"><span id="free-active" class="attention">—</span></span>
                 </div>
             </div>
 
