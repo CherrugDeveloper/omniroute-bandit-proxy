@@ -1054,27 +1054,27 @@
             <div class="stats">
                 <strong>Modelli:</strong>
                 <div class="stats-grid">
-                    <span>Monitorati: <span id="total-models" class="badge badge-monitorati">0</span></span>
-                    <span>Attivi: <span id="active-models" class="badge badge-attivi">0</span></span>
-                    <span>Cooldown: <span id="cooldown-models" class="badge badge-cooldown">0</span></span>
-                    <span>Bannati: <span id="banned-models" class="badge badge-bannati">0</span></span>
-                    <span>Degraded: <span id="degraded-models" class="badge badge-degraded">0</span></span>
-                    <span>Config: <span id="attention-models" class="badge badge-config">0</span></span>
-                    <span>Catalogo: <span id="catalog-models" class="badge badge-catalog">0</span></span>
-                    <span>Free: <span id="catalog-free" class="badge badge-free">0</span></span>
-                    <span>Grezzi: <span id="catalog-models-raw" class="badge badge-raw">0</span></span>
+                    <span>Monitorati: <span id="total-models" class="badge badge-monitorati tabular-nums">0</span></span>
+                    <span>Attivi: <span id="active-models" class="badge badge-attivi tabular-nums">0</span></span>
+                    <span>Cooldown: <span id="cooldown-models" class="badge badge-cooldown tabular-nums">0</span></span>
+                    <span>Bannati: <span id="banned-models" class="badge badge-bannati tabular-nums">0</span></span>
+                    <span>Degraded: <span id="degraded-models" class="badge badge-degraded tabular-nums">0</span></span>
+                    <span>Config: <span id="attention-models" class="badge badge-config tabular-nums">0</span></span>
+                    <span>Catalogo: <span id="catalog-models" class="badge badge-catalog tabular-nums">0</span></span>
+                    <span>Free: <span id="catalog-free" class="badge badge-free tabular-nums">0</span></span>
+                    <span>Grezzi: <span id="catalog-models-raw" class="badge badge-raw tabular-nums">0</span></span>
                 </div>
             </div>
 
             <div class="stats">
                 <strong>Provider:</strong>
                 <div class="stats-grid">
-                    <span>Attivi: <span id="active-providers" class="ok">0</span></span>
-                    <span>Cooldown: <span id="cooldown-providers" class="warn">0</span></span>
-                    <span>Bannati: <span id="banned-providers" class="err">0</span></span>
-                    <span>Config: <span id="attention-providers" class="attention">0</span></span>
-                    <span>Monitorati: <span id="total-providers">0</span></span>
-                    <span>Catalogo: <span id="catalog-providers">0</span></span>
+                    <span>Attivi: <span id="active-providers" class="ok tabular-nums">0</span></span>
+                    <span>Cooldown: <span id="cooldown-providers" class="warn tabular-nums">0</span></span>
+                    <span>Bannati: <span id="banned-providers" class="err tabular-nums">0</span></span>
+                    <span>Config: <span id="attention-providers" class="attention tabular-nums">0</span></span>
+                    <span>Monitorati: <span id="total-providers" class="tabular-nums">0</span></span>
+                    <span>Catalogo: <span id="catalog-providers" class="tabular-nums">0</span></span>
                 </div>
             </div>
         </div>
@@ -1085,17 +1085,17 @@
             <strong style="font-size:11px; color:#58a6ff;">Cronologia Unificata</strong>
             <button id="copy-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia tutto">📋 Copia tutto</button>
         </div>
-        <div style="max-height: 130px; overflow-y: auto; scrollbar-width: none; border: 1px solid transparent; border-radius: 4px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9; table-layout: fixed;">
+        <div style="max-height: 110px; overflow-y: auto; scrollbar-width: none; border: 1px solid transparent; border-radius: 4px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
                 <thead>
                     <tr style="border-bottom: 1px solid transparent; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
-                        <th style="padding: 3px 6px; text-align: left; width: 12%;">Timestamp</th>
-                        <th style="padding: 3px 6px; text-align: left; width: 12%;">Provider</th>
-                        <th style="padding: 3px 6px; text-align: left; width: 18%;">Model</th>
-                        <th style="padding: 3px 6px; text-align: center; white-space: nowrap; width: 10%;">Status</th>
-                        <th style="padding: 3px 6px; text-align: left; width: 10%;">Error Type</th>
-                        <th style="padding: 3px 6px; text-align: left; width: 10%;">Countermeasure</th>
-                        <th style="padding: 3px 6px; text-align: left; width: 28%;">Reason / Stats</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 10%;">Timestamp</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 10%;">Provider</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 16%;">Model</th>
+                        <th style="padding: 2px 6px; text-align: center; white-space: nowrap; width: 8%;">Status</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 8%;">Error Type</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 8%;">Countermeasure</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 40%;">Reason / Stats</th>
                     </tr>
                 </thead>
                 <tbody id="unified-cronologia-tbody">
@@ -1149,15 +1149,15 @@
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
         </div>
-        <div style="max-height: 300px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9; table-layout: fixed;">
+        <div style="max-height: 200px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
-                        <th style="padding: 3px 6px; text-align: left; width: 12%;">Timestamp</th>
-                        <th style="padding: 3px 6px; text-align: left; width: 12%;">Source</th>
-                        <th style="padding: 3px 6px; text-align: left; width: 16%;">Provider</th>
-                        <th style="padding: 3px 6px; text-align: center; white-space: nowrap; width: 10%;">Status</th>
-                        <th style="padding: 3px 6px; text-align: left; width: 60%;">Message</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 10%;">Timestamp</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 10%;">Source</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 14%;">Provider</th>
+                        <th style="padding: 2px 6px; text-align: center; white-space: nowrap; width: 8%;">Status</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 58%;">Message</th>
                     </tr>
                 </thead>
                 <tbody id="logs-tbody">
@@ -1166,7 +1166,7 @@
             </table>
         </div>
         <style>
-            .log-row { padding: 2px 6px; border-bottom: 1px solid #21262d; }
+            .log-row { padding: 1px 6px; border-bottom: 1px solid #21262d; }
             .log-row.source-zoo { color: #3fb950; }
             .log-row.source-train { color: #58a6ff; }
             .log-row.source-debug { color: #ff5858; }
@@ -3366,11 +3366,11 @@
                     const truncatedStatsStr = statsStr.length > 200 ? statsStr.substring(0, 200) + '...' : statsStr;
 
                     return `<tr style="border-bottom: 1px solid #21262d;">
-                        <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timeVal}</td>
-                        <td style="padding: 3px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">[${escapeHtml(provider)}]</td>
-                        <td style="padding: 3px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff;">${escapeHtml(model)}</td>
-                        <td style="padding: 3px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600;">${escapeHtml(statusLabel)}</span></td>
-                        <td style="padding: 3px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(truncatedStatsStr)}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeVal}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px;">${escapeHtml(model)}</td>
+                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #c9d1d9; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(truncatedStatsStr)}</td>
                     </tr>`;
                 }
 
@@ -3382,10 +3382,20 @@
                     return true;
                 });
 
-                const activeHtml = filterSrc(d.requests).map(r => fmtRow(r, 'active')).join('');
-                const recentHtml = filterSrc(d.recent).slice(-10).reverse().map(r => fmtRow(r, 'recent')).join('');
+                // Combine active + recent events, sort by timestamp descending (newest first)
+                const allEvents = [
+                    ...filterSrc(d.requests).map(r => ({ ...r, kind: 'active' })),
+                    ...filterSrc(d.recent).slice(-10).map(r => ({ ...r, kind: 'recent' }))
+                ];
+                allEvents.sort((a, b) => {
+                    const ta = a.timestamp || a.endedAt || Date.now();
+                    const tb = b.timestamp || b.endedAt || Date.now();
+                    return tb - ta; // newest first
+                });
+
+                const allHtml = allEvents.map(r => fmtRow(r, r.kind)).join('');
                 
-                const totalRows = (d.requests || []).length + Math.min((d.recent || []).length, 10);
+                const totalRows = allEvents.length;
                 const placeholders = Math.max(0, 4 - totalRows);
                 let placeholderHtml = '';
                 for (let i = 0; i < placeholders; i++) {
@@ -3398,8 +3408,8 @@
                     </tr>`;
                 }
 
-                tbody.innerHTML = activeHtml + recentHtml + placeholderHtml;
-                console.debug('[DEBUG Dashboard] fetchActive table updated, active:', (d.requests || []).length, 'recent:', (d.recent || []).length);
+                tbody.innerHTML = allHtml + placeholderHtml;
+                console.debug('[DEBUG Dashboard] fetchActive table updated, total events:', allEvents.length);
             } catch (e) {
                 console.error('[DEBUG Dashboard] fetchActive error:', e);
             }

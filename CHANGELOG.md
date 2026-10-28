@@ -11,6 +11,7 @@
   - Fixed SyntaxError and ReferenceError in dashboard.html (afdf627)
   - Fixed log streaming tab showing empty rows (dashes) instead of actual log entries
   - Fixed "Copia Tutto" (Copy All) button throwing "Cannot read properties of null" error
+  - **Dashboard UI Optimization**: aligned numbers in model/provider boxes with `tabular-nums`, optimized column widths in unified history and log streaming tables, reduced log streaming height from 300px to 200px, inverted unified history order (newest at top)
 - **API & Endpoints**:
   - Fixed resetProvider endpoint to pass provider name correctly (774de70)
   - Fixed dashboard reset buttons to call correct API endpoints (edcc953)
