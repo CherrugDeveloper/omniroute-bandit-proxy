@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.84 — 2026-10-28
+- **Dashboard Overhaul & Fixes**:
+  - Comprehensive dashboard overhaul with enhanced metrics, logs, unified history, and controls (41c8882)
+  - Fixed syntax error in public/dashboard.html (cbaf8c1)
+  - Fixed structural issues in public/dashboard.html (85c7e5f)
+  - Fixed 'source is not defined' unhandled rejection in selectModel function (2be83f7)
+  - Fixed log buffer string entries rendering in dashboard (dcdbfe1)
+  - Fixed log rendering in log streaming panel (8ee9901)
+  - Fixed SyntaxError and ReferenceError in dashboard.html (afdf627)
+- **API & Endpoints**:
+  - Fixed resetProvider endpoint to pass provider name correctly (774de70)
+  - Fixed dashboard reset buttons to call correct API endpoints (edcc953)
+  - Added separate reset endpoints for models and providers (2ca801c)
+
 ## v1.1.83 — 2026-10-26
 - **Bug Fixes & Logic Improvements**:
   - Fixed `totalObservations` counter increment timing in `recordFeedback()`: counter now increments only on successful feedback, not on failures
