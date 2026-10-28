@@ -26,7 +26,7 @@
             -webkit-app-region: no-drag;
         }
         
-        /* Transparent scrollbar */
+        /* Transparent scrollbar - kept for compatibility but overridden by global rules */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -45,10 +45,30 @@
             background: rgba(255, 255, 255, 0.3);
         }
         
-        /* Firefox */
-        * {
+        /* Firefox - overridden by global rules */
+        /* * {
             scrollbar-width: thin;
             scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.1);
+        } */
+        
+        /* Global scrollbar hiding - applies to all elements */
+        body * {
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+        }
+        body *::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+        body *::-webkit-scrollbar-track {
+            display: none !important;
+        }
+        body *::-webkit-scrollbar-thumb {
+            display: none !important;
+        }
+        body *::-webkit-scrollbar-corner {
+            display: none !important;
         }
         body {
             font-family: -apple-system, sans-serif;
@@ -126,17 +146,19 @@
                     display: inline-flex;
                     align-items: center;
                     gap: 0.25em;
-                    white-space: nowrap;
-                    overflow: visible;
-                    text-overflow: clip;
+                    white-space: normal;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
                     font-size: 0.95em;
                     padding: 0;
                     margin: 0;
+                    min-width: 0;
                 }
         .stats .stats-grid-single strong {
             display: inline-block;
-            min-width: 110px;
-            width: 110px;
+            min-width: 90px;
+            width: auto;
+            max-width: 120px;
         }
         .stats .mono {
             white-space: nowrap;
@@ -146,9 +168,18 @@
             display: inline-flex;
             align-items: center;
             gap: 0.25em;
-            white-space: nowrap;
-            overflow: visible;
-            text-overflow: clip;
+            white-space: normal;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* Responsive: 2 colonne in half-screen per evitare overlap */
+        @media (max-width: 900px) {
+            .stats-container {
+                grid-template-columns: 1fr 1fr !important;
+            }
+            .stats .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
         }
         .stats strong { color: #58a6ff; }
         .ok { color: #3fb950; font-weight: bold; }
@@ -559,12 +590,11 @@
                     flex-direction: column;
                     height: 250px;
                     overflow-y: auto;
-                    scrollbar-width: thin;
                     padding-bottom: 2px;
                     min-height: 250px;
                 }
-        #active-list::-webkit-scrollbar { width: 6px; }
-        #active-list::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        #active-list::-webkit-scrollbar { width: 0; }
+        #active-list::-webkit-scrollbar-thumb { background: transparent; border-radius: 0; }
         .active-request {
             min-height: 1.5em;
             line-height: 1.5em;
@@ -625,15 +655,33 @@
             display: flex;
             gap: 4px;
         }
-        /* Scroll invisibile: mantiene lo scroll ma nasconde la barra */
+        /* Scroll invisibile globale: mantiene lo scroll ma nasconde la barra ovunque */
+        * {
+            scrollbar-width: none;      /* Firefox */
+            -ms-overflow-style: none;    /* IE/Edge */
+        }
+        *::-webkit-scrollbar {
+            display: none;               /* Chrome/Safari/Opera */
+            width: 0 !important;
+            height: 0 !important;
+        }
+        *::-webkit-scrollbar-track {
+            display: none;
+        }
+        *::-webkit-scrollbar-thumb {
+            display: none;
+        }
+        *::-webkit-scrollbar-corner {
+            display: none;
+        }
         #logs,
         #active-list,
         #script-output,
         #consideration-table-body,
         .table-wrapper,
         .tab-content.active {
-            scrollbar-width: none;      /* Firefox */
-            -ms-overflow-style: none;    /* IE/Edge */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
         #logs::-webkit-scrollbar,
         #active-list::-webkit-scrollbar,
@@ -641,7 +689,7 @@
         #consideration-table-body::-webkit-scrollbar,
         .table-wrapper::-webkit-scrollbar,
         .tab-content.active::-webkit-scrollbar {
-            display: none;               /* Chrome/Safari */
+            display: none;
         }
         .trend-up   { color: #3fb950; font-weight: bold; }
         .new-badge { color: #d29922; font-weight: bold; }
@@ -708,12 +756,14 @@
             border-radius: 12px; padding: 24px;
             max-width: 520px; width: 100%;
             max-height: 85vh; overflow-y: auto;
-            scrollbar-width: thin; scrollbar-color: #30363d #161b22;
+            scrollbar-width: none !important; scrollbar-color: transparent !important;
             position: relative; animation: slideUp 0.25s ease;
         }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .dev-modal::-webkit-scrollbar { width: 6px; }
-        .dev-modal::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        .dev-modal::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+        .dev-modal::-webkit-scrollbar-thumb { background: transparent !important; border-radius: 0 !important; }
+        .dev-modal::-webkit-scrollbar-track { background: transparent !important; }
+        .dev-modal::-webkit-scrollbar-corner { background: transparent !important; }
         .dev-modal-close {
             position: absolute; top: 12px; right: 12px;
             background: none; border: none; color: #8b949e;
@@ -917,17 +967,17 @@
             <strong style="font-size:11px; color:#58a6ff;">Cronologia Unificata</strong>
             <button id="copy-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia tutto">📋 Copia tutto</button>
         </div>
-        <div style="max-height: 130px; overflow-y: auto; scrollbar-width: thin; border: 1px solid transparent; border-radius: 4px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9;">
+        <div style="max-height: 130px; overflow-y: auto; scrollbar-width: none; border: 1px solid transparent; border-radius: 4px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9; table-layout: fixed;">
                 <thead>
                     <tr style="border-bottom: 1px solid transparent; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
-                        <th style="padding: 3px 6px; text-align: left;">Timestamp</th>
-                        <th style="padding: 3px 6px; text-align: left;">Provider</th>
-                        <th style="padding: 3px 6px; text-align: left;">Model</th>
-                        <th style="padding: 3px 6px; text-align: center; white-space: nowrap;">Status</th>
-                        <th style="padding: 3px 6px; text-align: left;">Error Type</th>
-                        <th style="padding: 3px 6px; text-align: left;">Countermeasure</th>
-                        <th style="padding: 3px 6px; text-align: left;">Reason / Stats</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 12%;">Timestamp</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 12%;">Provider</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 18%;">Model</th>
+                        <th style="padding: 3px 6px; text-align: center; white-space: nowrap; width: 10%;">Status</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 10%;">Error Type</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 10%;">Countermeasure</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 28%;">Reason / Stats</th>
                     </tr>
                 </thead>
                 <tbody id="unified-cronologia-tbody">
@@ -981,15 +1031,15 @@
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
         </div>
-        <div style="max-height: 400px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px; background:#0d1117;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9;">
+        <div style="max-height: 300px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #c9d1d9; table-layout: fixed;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
-                        <th style="padding: 3px 6px; text-align: left; min-width: 100px;">Timestamp</th>
-                        <th style="padding: 3px 6px; text-align: left; min-width: 120px;">Source</th>
-                        <th style="padding: 3px 6px; text-align: left; min-width: 120px;">Provider</th>
-                        <th style="padding: 3px 6px; text-align: center; white-space: nowrap;">Status</th>
-                        <th style="padding: 3px 6px; text-align: left; min-width: 200px;">Message</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 12%;">Timestamp</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 12%;">Source</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 16%;">Provider</th>
+                        <th style="padding: 3px 6px; text-align: center; white-space: nowrap; width: 10%;">Status</th>
+                        <th style="padding: 3px 6px; text-align: left; width: 60%;">Message</th>
                     </tr>
                 </thead>
                 <tbody id="logs-tbody">
@@ -1528,8 +1578,8 @@
                         const stats = await r1.json();
                         const r2 = await apiFetch('/v1/modes/signatures');
                         const sigs = await r2.json();
-                        const r3 = await apiFetch('/v1/modes');
-                        const disc = await r3.json();
+                        // Use stats from r1 for discovered list too (avoid redundant fetch)
+                        const disc = stats;
         
                         const s = stats.stats || {};
                         document.getElementById('modes-stats').innerHTML =
@@ -1538,31 +1588,44 @@
                              <div class="stats">Discovery: <strong>${s.discovered || 0}</strong></div>`;
         
                         const sigBody = document.getElementById('modes-signatures-body');
-                        const sigList = Array.isArray(sigs) ? sigs : (sigs.signatures || []);
+                        // Handle multiple possible response shapes: { signatures: [...] }, [...], or { data: [...] }
+                        let sigList = [];
+                        if (Array.isArray(sigs)) {
+                            sigList = sigs;
+                        } else if (sigs && Array.isArray(sigs.signatures)) {
+                            sigList = sigs.signatures;
+                        } else if (sigs && Array.isArray(sigs.data)) {
+                            sigList = sigs.data;
+                        } else if (sigs && typeof sigs === 'object') {
+                            // Fallback: try any array property
+                            for (const key of Object.keys(sigs)) {
+                                if (Array.isArray(sigs[key])) { sigList = sigs[key]; break; }
+                            }
+                        }
                         if (sigList.length === 0) {
                             sigBody.innerHTML = '<tr><td colspan="5">Nessuna</td></tr>';
                         } else {
                             sigBody.innerHTML = sigList.map(s => `
                                 <tr style="border-bottom:1px solid #21262d;">
-                                    <td style="padding:4px; font-family:monospace;">${s.sig.slice(0,8)}</td>
-                                    <td style="padding:4px;">${s.mode}</td>
-                                    <td style="padding:4px;">${s.profile}</td>
-                                    <td style="padding:4px; color:#8b949e;">${s.source}</td>
-                                    <td style="padding:4px; color:#8b949e;">${new Date(s.ts).toLocaleTimeString()}</td>
+                                    <td style="padding:4px; font-family:monospace;">${s.sig ? s.sig.slice(0,8) : '-'}</td>
+                                    <td style="padding:4px;">${s.mode || '-'}</td>
+                                    <td style="padding:4px;">${s.profile || '-'}</td>
+                                    <td style="padding:4px; color:#8b949e;">${s.source || '-'}</td>
+                                    <td style="padding:4px; color:#8b949e;">${s.ts ? new Date(s.ts).toLocaleTimeString() : '-'}</td>
                                 </tr>`).join('');
                         }
         
                         const list = document.getElementById('modes-discovered-list');
-                        const discList = disc.discovered || [];
+                        const discList = disc.discovered || disc.signatures || [];
                         if (discList.length === 0) {
                             list.innerHTML = 'Nessuna discovery.';
                         } else {
                             list.innerHTML = discList.map(d => `
                                 <div style="background:#21262d; padding:8px; border-radius:6px; margin-bottom:8px;">
-                                    <div style="font-family:monospace; color:#8b949e;">${d.sig.slice(0,8)} · count=${d.count}</div>
-                                    <div style="font-size:12px; color:#c9d1d9; margin:4px 0; word-break:break-all;">${d.sysPreview.slice(0, 200)}</div>
-                                    <button onclick="labelDisc('${d.sig}')" style="background:#238636; color:#fff; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Etichetta</button>
-                                    <button onclick="dismissDisc('${d.sig}')" style="background:#30363d; color:#c9d1d9; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Scarta</button>
+                                    <div style="font-family:monospace; color:#8b949e;">${d.sig ? d.sig.slice(0,8) : '-'} · count=${d.count || 0}</div>
+                                    <div style="font-size:12px; color:#c9d1d9; margin:4px 0; word-break:break-all;">${d.sysPreview ? d.sysPreview.slice(0, 200) : '-'}</div>
+                                    <button onclick="labelDisc('${d.sig || ''}')" style="background:#238636; color:#fff; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Etichetta</button>
+                                    <button onclick="dismissDisc('${d.sig || ''}')" style="background:#30363d; color:#c9d1d9; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Scarta</button>
                                 </div>`).join('');
                         }
                     } catch (e) {
@@ -2643,7 +2706,11 @@
                 const reqs = Number(d.totalRequests) || 0;
                 // Observations can never exceed requests; cap to avoid display inconsistencies
                 const obs = Number(d.totalObservations) || 0;
-                const successfulObs = Number(d.successfulObservations) || 0;
+                // Fallback: if backend returns 0 for successfulObservations, compute from successRate * totalObservations
+                let successfulObs = Number(d.successfulObservations) || 0;
+                if (successfulObs === 0 && obs > 0 && d.successRate !== undefined) {
+                    successfulObs = Math.round(obs * d.successRate);
+                }
                 document.getElementById('total-req').textContent = reqs;
                 document.getElementById('total-obs').textContent = obs;
                 document.getElementById('successful-obs').textContent = successfulObs;

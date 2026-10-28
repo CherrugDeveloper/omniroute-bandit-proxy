@@ -1799,13 +1799,21 @@ export class DiscountedUCB1Bandit {
         const srRes = this.db.prepare(`
           SELECT
             SUM(CASE WHEN N > 0 THEN 1 ELSE 0 END) as modelsWithObservations,
-            SUM(CASE WHEN N > 0 AND sum_reward / N > 0.5 THEN 1 ELSE 0 END) as modelsAboveThreshold,
-            SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successfulObservations
-          FROM request_logs
+            SUM(CASE WHEN N > 0 AND sum_reward / N > 0.5 THEN 1 ELSE 0 END) as modelsAboveThreshold
+          FROM models
         `).get();
         if (srRes) successRateStats = srRes;
       } catch (e) {
         console.warn("[BANDIT] getDashboardStats successRateStats error:", e.message);
+      }
+      // Count successful observations from request_logs
+      try {
+        const successRes = this.db.prepare(
+          `SELECT COUNT(*) as successfulObservations FROM request_logs WHERE status_code >= 200 AND status_code < 300 AND ended_at IS NOT NULL AND started_at IS NOT NULL`
+        ).get();
+        if (successRes) successRateStats.successfulObservations = successRes.successfulObservations;
+      } catch (e) {
+        console.warn("[BANDIT] getDashboardStats successfulObservations error:", e.message);
       }
 
       return {
