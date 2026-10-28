@@ -2406,7 +2406,15 @@
 
         async function copyLogs() {
             try {
-                await navigator.clipboard.writeText(document.getElementById('logs').textContent);
+                const tbody = document.getElementById('logs-tbody');
+                if (!tbody) throw new Error('Elemento logs-tbody non trovato');
+                const rows = tbody.querySelectorAll('tr');
+                let text = '';
+                rows.forEach(row => {
+                    const cells = [...row.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g, ' ').trim());
+                    if (cells.length) text += cells.join('\t') + '\n';
+                });
+                await navigator.clipboard.writeText(text);
                 const btn = document.querySelector('.tab-content.active .btn-copy');
                 if (!btn) return;
                 const orig = btn.textContent;
@@ -2884,8 +2892,13 @@
 
             // Filter entries
             const filtered = raw.filter(entry => {
+                // Normalize entry to object (backward compat with string entries)
+                if (typeof entry === 'string') {
+                    entry = { message: entry, source: 'system', type: null, provider: null, status: null, is_paid: false };
+                }
                 // Apply text filter
-                if (filter && !entry.toLowerCase().includes(filter)) return false;
+                const msg = (entry.message || '').toLowerCase();
+                if (filter && !msg.includes(filter)) return false;
                 // Apply source filters
                 if (!showZoo && entry.source === 'zoo') return false;
                 if (!showDebug && entry.source === 'debug') return false;
@@ -2897,6 +2910,45 @@
                 if (!showPaidOnly && entry.is_paid) return false;
                 return true;
             });
+            // Normalize entries to objects for rendering
+            const normalized = filtered.map(entry => {
+                if (typeof entry === 'string') {
+                    return { timestamp: null, source: 'system', provider: null, status: null, message: entry, is_paid: false };
+                }
+                return entry;
+            });
+            // Render as table rows
+            if (normalized.length === 0) {
+                el.innerHTML = '<tr><td colspan="5" class="empty">Nessun log corrispondente al filtro.</td></tr>';
+            } else {
+                el.innerHTML = normalized.map(entry => {
+                    const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '-';
+                    const source = entry.source || 'system';
+                    const provider = entry.provider || '-';
+                    const status = entry.status || '-';
+                    const message = entry.message || '-';
+
+                    // Determine color class
+                    let colorClass = 'source-other';
+                    if (source === 'zoo') colorClass = 'source-zoo';
+                    else if (source === 'debug') colorClass = 'source-debug';
+                    else if (source === 'training') colorClass = 'source-train';
+                    else if (source === 'system') colorClass = 'source-system';
+                    else if (source === 'ban') colorClass = 'source-ban';
+                    else if (source === 'cooldown') colorClass = 'source-cooldown';
+                    else if (source === 'flag') colorClass = 'source-flag';
+                    else if (source === 'degraded') colorClass = 'source-degraded';
+                    else if (entry.is_paid) colorClass = 'source-paid-only';
+
+                    return `<tr class="log-row ${colorClass}">
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timestamp}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">${escapeHtml(source)}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #58a6ff; font-weight: 600;">${escapeHtml(provider)}</td>
+                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: #c9d1d9;">${escapeHtml(status)}</span></td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(message)}</td>
+                    </tr>`;
+                }).join('');
+            }
 
             // Render as table rows
             if (filtered.length === 0) {

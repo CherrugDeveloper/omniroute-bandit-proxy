@@ -9,6 +9,8 @@
   - Fixed log buffer string entries rendering in dashboard (dcdbfe1)
   - Fixed log rendering in log streaming panel (8ee9901)
   - Fixed SyntaxError and ReferenceError in dashboard.html (afdf627)
+  - Fixed log streaming tab showing empty rows (dashes) instead of actual log entries
+  - Fixed "Copia Tutto" (Copy All) button throwing "Cannot read properties of null" error
 - **API & Endpoints**:
   - Fixed resetProvider endpoint to pass provider name correctly (774de70)
   - Fixed dashboard reset buttons to call correct API endpoints (edcc953)

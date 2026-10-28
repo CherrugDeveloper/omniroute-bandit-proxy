@@ -796,6 +796,52 @@ function trackRequestComplete(id, meta) {
   }
 }
 
+function createLogEntry(message) {
+  const timestamp = new Date().toISOString();
+
+  // Determine source and type from message content
+  let source = 'system';
+  let type = null;
+  let provider = null;
+  let status = null;
+  let is_paid = false;
+
+  if (/\[BAN\]|\[BANNED\]|ban-provider|ban_model/i.test(message)) {
+    source = 'ban';
+    type = 'ban';
+  } else if (/\[COOLDOWN\]|cooldown-provider|cooldown_model/i.test(message)) {
+    source = 'cooldown';
+    type = 'cooldown';
+  } else if (/\[FLAG\]|flag-provider/i.test(message)) {
+    source = 'flag';
+    type = 'flag';
+  } else if (/\[DEGRADED\]/i.test(message)) {
+    source = 'degraded';
+    type = 'degraded';
+  } else if (/\[TRAIN\]|\[TRAINING\]|training daemon|train-daemon/i.test(message)) {
+    source = 'training';
+  } else if (/\[DEBUG\]|debug verbose/i.test(message)) {
+    source = 'debug';
+  } else if (/\[ZOO\]/i.test(message)) {
+    source = 'zoo';
+  } else if (/\[SUCCESS\]/i.test(message)) {
+    source = 'zoo';
+  }
+
+  // Try to extract provider from patterns like "[provider/model]"
+  const providerMatch = message.match(/\[([a-z0-9_-]+)\/[a-z0-9_-]+\/?/i);
+  if (providerMatch) provider = providerMatch[1];
+
+  // Try to extract HTTP status codes
+  const statusMatch = message.match(/\b([45]\d{2})\b/);
+  if (statusMatch) status = statusMatch[1];
+
+  // Check for paid-only indicators
+  if (/paid-only|is_paid.*1|PAID-ONLY/i.test(message)) is_paid = true;
+
+  return { timestamp, source, type, provider, status, message, is_paid };
+}
+
 function pushLog(message) {
    // R6: ring-buffer denylist — low-value polling/debug noise is kept on the
    // terminal but excluded from the ring buffer (unless LOG_BUFFER_DENYLIST overrides).
@@ -810,22 +856,22 @@ function pushLog(message) {
       global.logMessageCount++;
       // Update the last entry in logBuffer to show the count
       const lastEntry = logBuffer.getAll().pop();
-      if (lastEntry && lastEntry.includes(message)) {
+      if (lastEntry && lastEntry.message && lastEntry.message.includes(message)) {
         // Replace the last entry with grouped version
-        logBuffer.replaceLast(`[${new Date().toLocaleTimeString()}] ${message} (x${global.logMessageCount + 1})`);
+        const groupedMessage = `${message} (x${global.logMessageCount + 1})`;
+        logBuffer.replaceLast(createLogEntry(groupedMessage));
       }
    } else {
       // New message or timeout exceeded, reset counter and log normally
       if (global.logMessageCount > 0) {
         // If we had a grouped message, add it with its final count
         const groupedMessage = `${global.lastLogMessage} (x${global.logMessageCount + 1})`;
-        logBuffer.push(`[${new Date().toLocaleTimeString()}] ${groupedMessage}`);
+        logBuffer.push(createLogEntry(groupedMessage));
       }
       global.lastLogMessage = message;
       global.logMessageCount = 0;
       global.lastLogTime = now;
-      const timestamp = new Date().toLocaleTimeString();
-      logBuffer.push(`[${timestamp}] ${message}`);
+      logBuffer.push(createLogEntry(message));
    }
 }
 
