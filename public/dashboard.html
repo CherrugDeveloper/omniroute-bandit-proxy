@@ -1519,54 +1519,115 @@
 
         // === TAB MODALITÀ ===
         async function loadModes() {
-            try {
-                const r1 = await apiFetch('/v1/modes');
-                const stats = await r1.json();
-                const r2 = await apiFetch('/v1/modes/signatures');
-                const sigs = await r2.json();
-                const r3 = await apiFetch('/v1/modes');
-                const disc = await r3.json();
-
-                const s = stats.stats || {};
-                document.getElementById('modes-stats').innerHTML =
-                    `<div class="stats">Modi: <strong>${s.modes || 0}</strong></div>
-                     <div class="stats">Signature: <strong>${s.signatures || 0}</strong></div>
-                     <div class="stats">Discovery: <strong>${s.discovered || 0}</strong></div>`;
-
-                const sigBody = document.getElementById('modes-signatures-body');
-                const sigList = Array.isArray(sigs) ? sigs : (sigs.signatures || []);
-                if (sigList.length === 0) {
-                    sigBody.innerHTML = '<tr><td colspan="5">Nessuna</td></tr>';
-                } else {
-                    sigBody.innerHTML = sigList.map(s => `
-                        <tr style="border-bottom:1px solid #21262d;">
-                            <td style="padding:4px; font-family:monospace;">${s.sig.slice(0,8)}</td>
-                            <td style="padding:4px;">${s.mode}</td>
-                            <td style="padding:4px;">${s.profile}</td>
-                            <td style="padding:4px; color:#8b949e;">${s.source}</td>
-                            <td style="padding:4px; color:#8b949e;">${new Date(s.ts).toLocaleTimeString()}</td>
-                        </tr>`).join('');
+                    try {
+                        await loadMultipliers();
+                        const r1 = await apiFetch('/v1/modes');
+                        const stats = await r1.json();
+                        const r2 = await apiFetch('/v1/modes/signatures');
+                        const sigs = await r2.json();
+                        const r3 = await apiFetch('/v1/modes');
+                        const disc = await r3.json();
+        
+                        const s = stats.stats || {};
+                        document.getElementById('modes-stats').innerHTML =
+                            `<div class="stats">Modi: <strong>${s.modes || 0}</strong></div>
+                             <div class="stats">Signature: <strong>${s.signatures || 0}</strong></div>
+                             <div class="stats">Discovery: <strong>${s.discovered || 0}</strong></div>`;
+        
+                        const sigBody = document.getElementById('modes-signatures-body');
+                        const sigList = Array.isArray(sigs) ? sigs : (sigs.signatures || []);
+                        if (sigList.length === 0) {
+                            sigBody.innerHTML = '<tr><td colspan="5">Nessuna</td></tr>';
+                        } else {
+                            sigBody.innerHTML = sigList.map(s => `
+                                <tr style="border-bottom:1px solid #21262d;">
+                                    <td style="padding:4px; font-family:monospace;">${s.sig.slice(0,8)}</td>
+                                    <td style="padding:4px;">${s.mode}</td>
+                                    <td style="padding:4px;">${s.profile}</td>
+                                    <td style="padding:4px; color:#8b949e;">${s.source}</td>
+                                    <td style="padding:4px; color:#8b949e;">${new Date(s.ts).toLocaleTimeString()}</td>
+                                </tr>`).join('');
+                        }
+        
+                        const list = document.getElementById('modes-discovered-list');
+                        const discList = disc.discovered || [];
+                        if (discList.length === 0) {
+                            list.innerHTML = 'Nessuna discovery.';
+                        } else {
+                            list.innerHTML = discList.map(d => `
+                                <div style="background:#21262d; padding:8px; border-radius:6px; margin-bottom:8px;">
+                                    <div style="font-family:monospace; color:#8b949e;">${d.sig.slice(0,8)} · count=${d.count}</div>
+                                    <div style="font-size:12px; color:#c9d1d9; margin:4px 0; word-break:break-all;">${d.sysPreview.slice(0, 200)}</div>
+                                    <button onclick="labelDisc('${d.sig}')" style="background:#238636; color:#fff; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Etichetta</button>
+                                    <button onclick="dismissDisc('${d.sig}')" style="background:#30363d; color:#c9d1d9; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Scarta</button>
+                                </div>`).join('');
+                        }
+                    } catch (e) {
+                        console.error('[MODES] loadModes failed:', e);
+                    }
+                }
+        
+                async function loadMultipliers() {
+                    try {
+                        const body = document.getElementById('modes-multipliers-body');
+                        if (!body) return;
+                        const multipliers = [
+                            { profile: 'code', multiplier: 1.35, desc: 'Boost per modelli di programmazione (coder, codestral, code-*, ecc.)' },
+                            { profile: 'reasoning', multiplier: 1.30, desc: 'Boost per modelli di ragionamento (thinking, reasoning, o1, o3, o4, ecc.)' },
+                            { profile: 'general', multiplier: 0.65, desc: 'Penalty per modelli generici (default)' },
+                            { profile: 'summarizer', multiplier: 2.5, desc: 'Boost per modelli di summarization (fast, non-fast penalty, big penalty, ecc.)' }
+                        ];
+                        body.innerHTML = multipliers.map(m => `
+                            <tr style="border-bottom:1px solid #21262d;">
+                                <td style="padding:4px;">${m.profile}</td>
+                                <td style="padding:4px; font-family:monospace;">${m.multiplier}x</td>
+                                <td style="padding:4px; color:#8b949e;">${m.desc}</td>
+                            </tr>`).join('');
+                    } catch (e) {
+                        console.error('[MODES] loadMultipliers failed:', e);
+                    }
                 }
 
-                const list = document.getElementById('modes-discovered-list');
-                const discList = disc.discovered || [];
-                if (discList.length === 0) {
-                    list.innerHTML = 'Nessuna discovery.';
-                } else {
-                    list.innerHTML = discList.map(d => `
-                        <div style="background:#21262d; padding:8px; border-radius:6px; margin-bottom:8px;">
-                            <div style="font-family:monospace; color:#8b949e;">${d.sig.slice(0,8)} · count=${d.count}</div>
-                            <div style="font-size:12px; color:#c9d1d9; margin:4px 0; word-break:break-all;">${d.sysPreview.slice(0, 200)}</div>
-                            <button onclick="labelDisc('${d.sig}')" style="background:#238636; color:#fff; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Etichetta</button>
-                            <button onclick="dismissDisc('${d.sig}')" style="background:#30363d; color:#c9d1d9; border:0; padding:4px 10px; border-radius:4px; cursor:pointer;">Scarta</button>
-                        </div>`).join('');
+                async function quickAction(scriptName, arg = '') {
+                    const statusDiv = document.getElementById('script-output-status');
+                    const outputDiv = document.getElementById('script-output');
+                    const container = document.getElementById('script-output-container');
+                    const title = document.getElementById('script-output-title');
+                    
+                    container.style.display = 'block';
+                    title.textContent = 'Quick Action: ' + scriptName + (arg ? ' ' + arg : '');
+                    statusDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
+                    outputDiv.textContent = '';
+                    
+                    try {
+                        const args = arg ? [arg] : [];
+                        const res = await fetch('/v1/scripts/execute', {
+                            method: 'POST',
+                            headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ scriptPath: scriptName, args })
+                        });
+                        
+                        const text = await res.text();
+                        let result;
+                        try {
+                            result = text ? JSON.parse(text) : {};
+                        } catch (jsonErr) {
+                            throw new Error('Risposta non valida dal server (' + res.status + '): ' + text.substring(0, 100));
+                        }
+                        
+                        if (!res.ok) {
+                            throw new Error(result.error || 'Errore HTTP ' + res.status);
+                        }
+                        
+                        await pollScriptOutput(result.pid);
+                        
+                    } catch (e) {
+                        statusDiv.innerHTML = '<span style="color:#f85149;">✗ Errore: ' + escapeHtml(e.message) + '</span>';
+                        outputDiv.textContent = e.message;
+                    }
                 }
-            } catch (e) {
-                console.error('[MODES] loadModes failed:', e);
-            }
-        }
 
-        async function labelDisc(sig) {
+                async function labelDisc(sig) {
             const mode = prompt('Nome della modalità (es. code, architect, summarizer):');
             if (!mode) return;
             const profile = prompt('Profile (code / reasoning / general):', 'code');
@@ -3669,7 +3730,7 @@
                 if (el1) el1.textContent = v;
                 if (el2) el2.textContent = ' ' + v;
         }).catch(() => {});
-    </script>
+</script>
     <!-- FAB + Menu espandibile -->
     <button id="dev-fab" title="Info sviluppatore">🛠️</button>
     <div id="dev-menu">
@@ -4033,92 +4094,3 @@
     </script>
 </body>
 </html>
-        // === BONUS/MALUS MULTIPLIERS ===
-        async function loadMultipliers() {
-            try {
-                const body = document.getElementById('modes-multipliers-body');
-                if (!body) return;
-                const multipliers = [
-                    { profile: 'code', multiplier: 1.35, desc: 'Boost per modelli di programmazione (coder, codestral, code-*, ecc.)' },
-                    { profile: 'reasoning', multiplier: 1.30, desc: 'Boost per modelli di ragionamento (thinking, reasoning, o1, o3, o4, ecc.)' },
-                    { profile: 'general', multiplier: 0.65, desc: 'Penalty per modelli generici (default)' },
-                    { profile: 'summarizer', multiplier: 2.5, desc: 'Boost per modelli di summarization (fast, non-fast penalty, big penalty, ecc.)' }
-                ];
-                body.innerHTML = multipliers.map(m => `
-                    <tr style="border-bottom:1px solid #21262d;">
-                        <td style="padding:4px;">${m.profile}</td>
-                        <td style="padding:4px; font-family:monospace;">${m.multiplier}x</td>
-                        <td style="padding:4px; color:#8b949e;">${m.desc}</td>
-                    </tr>`).join('');
-            } catch (e) {
-                console.error('[MODES] loadMultipliers failed:', e);
-            }
-        }
-
-        // === QUICK ACTIONS ===
-        async function quickAction(scriptName, arg = '') {
-            const statusDiv = document.getElementById('script-output-status');
-            const outputDiv = document.getElementById('script-output');
-            const container = document.getElementById('script-output-container');
-            const title = document.getElementById('script-output-title');
-            
-            container.style.display = 'block';
-            title.textContent = 'Quick Action: ' + scriptName + (arg ? ' ' + arg : '');
-            statusDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
-            outputDiv.textContent = '';
-            
-            try {
-                const args = arg ? [arg] : [];
-                const res = await fetch('/v1/scripts/execute', {
-                    method: 'POST',
-                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ scriptPath: scriptName, args })
-                });
-                
-                const text = await res.text();
-                let result;
-                try {
-                    result = text ? JSON.parse(text) : {};
-                } catch (jsonErr) {
-                    throw new Error('Risposta non valida dal server (' + res.status + '): ' + text.substring(0, 100));
-                }
-                
-                if (!res.ok) {
-                    throw new Error(result.error || 'Errore HTTP ' + res.status);
-                }
-                
-                await pollScriptOutput(result.pid);
-                
-            } catch (e) {
-                statusDiv.innerHTML = '<span style="color:#f85149;">✗ Errore: ' + escapeHtml(e.message) + '</span>';
-                outputDiv.textContent = e.message;
-            }
-        }
-
-        // === INIT ===
-        async function init() {
-            await loadModes();
-            await loadMultipliers();
-            await loadDebugStatus();
-            await loadScripts();
-            await loadQuota();
-            await loadConsideration();
-            await loadDashboardStats();
-            await loadLogs();
-            await loadActive();
-            await loadScriptsList();
-            await loadScriptsOutput();
-            await loadScriptsProgress();
-            await loadScriptsProgressBar();
-            await loadScriptsProgressLabel();
-            await loadScriptsProgressPct();
-            await loadScriptsProgressBar();
-            await loadScriptsProgress();
-            await loadScriptsProgressBar();
-            await loadScriptsProgressLabel();
-            await loadScriptsProgressPct();
-            await loadScriptsProgressBar();
-        }
-
-        // === START ===
-        init();
