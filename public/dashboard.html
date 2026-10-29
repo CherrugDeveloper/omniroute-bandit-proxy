@@ -1149,7 +1149,7 @@
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
         </div>
-        <div style="max-height: 200px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117; display: flex; flex-direction: column;">
+        <div id="logs-container" style="flex: 1; min-height: 200px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117; display: flex; flex-direction: column;">
             <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed; flex: 1;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1; white-space: nowrap;">
@@ -1160,7 +1160,7 @@
                         <th style="padding: 2px 6px; text-align: left; width: 58%;">Message</th>
                     </tr>
                 </thead>
-                <tbody id="logs-tbody" style="flex: 1; display: block;">
+                <tbody id="logs-tbody" style="display: table-row-group;">
                     <!-- populated dynamically -->
                 </tbody>
             </table>
@@ -3149,7 +3149,7 @@
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">${escapeHtml(source)}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #58a6ff; font-weight: 600;">${escapeHtml(provider)}</td>
                         <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: #c9d1d9;">${escapeHtml(status)}</span></td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(message)}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9; overflow-wrap: break-word; word-break: break-word; white-space: pre-wrap;">${escapeHtml(message)}</td>
                     </tr>`;
                 }).join('');
             }

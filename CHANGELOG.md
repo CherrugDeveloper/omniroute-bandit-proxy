@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.87 — 2026-10-29
+- **Dashboard Log Streaming Fix**: Fixed log table column alignment (tbody changed from `display: block` to `display: table-row-group` so `table-layout: fixed` works correctly), removed message truncation (messages now wrap instead of being cut off at 200px), and expanded log container to use all available vertical space (`flex: 1` instead of `max-height: 200px`)
+
 ## v1.1.86 — 2026-10-29
 - **Dashboard Polling Fix**: `renderAll()` now checks the active tab before fetching `/v1/models` data, eliminating unnecessary polling when the models tab is not active. This resolves repeated `/v1/models` API calls every ~60-70 seconds with growing suppression counts in server logs.
 
