@@ -3169,7 +3169,7 @@
                     const timeStr = dObj.toLocaleTimeString();
                     // Timestamp on the left; elapsed seconds ONLY for active thinking model
                     const timeVal = (kind === 'active')
-                        ? (timeStr + ' <span style="color:#d29922; font-weight:bold;">(' + Number(r.elapsedSec || 0).toFixed(1) + 's try ' + (r.attempt || 1) + ')</span>')
+                        ? (timeStr + ' <span style="color:#d29922; font-weight:bold;">(' + Number(r.elapsedSec || 0).toFixed(1) + 's)</span>')
                         : timeStr;
 
                     let model = r.model || r.selectedModel || r.requestedModel || '(selezione...)';

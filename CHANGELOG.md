@@ -1,3 +1,10 @@
+## v1.1.89 — 2026-10-29
+- **Fix Cronologia Unificata Timestamp Overlap**:
+  - Removed orange "try N" text from active model timestamp cell in `fmtRow()` (was causing visual overflow into Provider column)
+  - Active thinking models now show only timestamp + elapsed seconds, e.g. `19:57:05 (20.6s)`
+  - Non-active rows show clean timestamp only, e.g. `19:55:24`
+  - This eliminates the column overlap in the unified history table
+
 ## v1.1.88 — 2026-10-29
 - **Fix Repeated Provider Errors in Bandit Model Selection**:
   - Fixed `isModelAvailable()` to actively check `needs_attention` flag with auto-reset on cooldown expiry (was commented-out)
