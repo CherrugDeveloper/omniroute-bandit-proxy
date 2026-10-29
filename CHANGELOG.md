@@ -1,4 +1,13 @@
-# Changelog
+## v1.1.88 — 2026-10-29
+- **Fix Repeated Provider Errors in Bandit Model Selection**:
+  - Fixed `isModelAvailable()` to actively check `needs_attention` flag with auto-reset on cooldown expiry (was commented-out)
+  - Added `cooledDownThisRequest` filtering in `selectModel()` `filterModels()` to skip providers cooled down during current request, preventing cascade failures
+  - Fixed `cooledDownThisRequest` default from `true` (boolean) to `new Set()` to resolve `TypeError: .has is not a function`
+  - Removed `!ignoreDynamicMaxTokens` condition so runtime-discovered TPM limits (from 413 errors) are always enforced during relaxation tiers
+  - Added `dynamic_max_tokens` check to absolute last resort fallback that previously bypassed all token filtering
+  - All 5 tests in `__tests__/itpm-quota.test.js` now pass
+
+
 
 ## v1.1.87 — 2026-10-29
 - **Dashboard Log Streaming Fix**: Fixed log table column alignment (tbody changed from `display: block` to `display: table-row-group` so `table-layout: fixed` works correctly), removed message truncation (messages now wrap instead of being cut off at 200px), and expanded log container to use all available vertical space (`flex: 1` instead of `max-height: 200px`)

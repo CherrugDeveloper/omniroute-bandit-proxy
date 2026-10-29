@@ -1912,9 +1912,14 @@ export class DiscountedUCB1Bandit {
         if (prov.permanent === 1) return false;
         if (prov.cooldown_until && prov.cooldown_until > now) return false;
         if (prov.quota_resets_at && prov.quota_resets_at > now) return false;
-        // if (prov.needs_attention === 1 && (!(prov.cooldown_until > 0 && prov.cooldown_until <= now))) {
-        //   return false;
-        // }
+        if (prov.needs_attention === 1) {
+          // Auto-reset if cooldown expired
+          if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
+            this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(provider);
+          } else {
+            return false;
+          }
+        }
       }
 
       if (!this.quota.canCall(provider)) {
@@ -2072,7 +2077,7 @@ export class DiscountedUCB1Bandit {
     return this.db.prepare("SELECT COUNT(DISTINCT provider) FROM catalog").get()['COUNT(DISTINCT provider)'] || 0;
   }
 
-  async selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, requireImageGeneration = false, requireVision = false, profile = null, cooledDownThisRequest = true) {
+  async selectModel(excluded = new Set(), estimatedTokens = 0, requireTools = false, requireImageGeneration = false, requireVision = false, profile = null, cooledDownThisRequest = new Set()) {
     const DEBUG = String(process.env.DEBUG || "false").toLowerCase() === "true";
     const now = Date.now();
     const excludeSet = this._normalizeExcludedModels(excluded);
@@ -2170,7 +2175,12 @@ export class DiscountedUCB1Bandit {
               }
             }
           }
-
+  
+          // Skip if provider was cooled down during this request (cascade failures)
+          if (!rejectionReason && cooledDownThisRequest && cooledDownThisRequest.has(model.provider)) {
+            rejectionReason = 'provider_cooled_down_this_request';
+          }
+  
           if (!rejectionReason && !ignorePolicies) {
             // Skip if thinking model and excludeThinking is true
             if (this.excludeThinking && /thinking|reasoning|[-_]r1[-_]|[-_]r1$|^r1[-_]|o1[-_]|o3[-_]|o4[-_]|qwq/i.test(model.id)) {
@@ -2192,7 +2202,7 @@ export class DiscountedUCB1Bandit {
             // Use getModelMaxInput to respect defensive guard
             const dynamicMax = this.getModelMaxInput(model.id) || 0;
             
-            if (dynamicMax > 0 && estimatedTokens > dynamicMax && !ignoreDynamicMaxTokens) {
+            if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
               rejectionReason = 'dynamic_max_tokens_exceeded';
             } else if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
               rejectionReason = 'max_input_tokens_exceeded';
@@ -2324,6 +2334,10 @@ export class DiscountedUCB1Bandit {
             const isNonChat = m.supports_chat === 0 || m.capability !== 'chat_completion' || m.supports_image_generation === 1 || m.supports_audio_generation === 1 ||
               isImageGenModel(m) ||
               /(^|[-_/])(tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerId);
+            const dynamicMax = this.getModelMaxInput(m.id) || 0;
+            if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
+              return false;
+            }
             return !isNonChat;
           });
     }
