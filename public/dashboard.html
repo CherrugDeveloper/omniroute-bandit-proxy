@@ -2085,7 +2085,17 @@
 
         // ============= RENDER =============
         function renderAll() {
+            const activeTab = document.querySelector('.tab-content.active');
+            const activeTabId = activeTab ? activeTab.id : '';
+            const isModelsTab = activeTabId === 'tab-models';
+
             const tbody = document.getElementById('models-tbody');
+            
+            // Only fetch model data when the models tab is active.
+            // This avoids polling /v1/models every 10s when the user is on another tab.
+            if (!isModelsTab) {
+                return;
+            }
             
             // Get filter values
             const search = document.getElementById('models-filter-search').value.toLowerCase();

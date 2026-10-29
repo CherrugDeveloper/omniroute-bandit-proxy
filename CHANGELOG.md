@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.86 — 2026-10-29
+- **Dashboard Polling Fix**: `renderAll()` now checks the active tab before fetching `/v1/models` data, eliminating unnecessary polling when the models tab is not active. This resolves repeated `/v1/models` API calls every ~60-70 seconds with growing suppression counts in server logs.
+
 ## v1.1.85 — 2026-10-28
 - **Workspace Cleanup & Auto-Git Workflow**:
   - Removed superfluous temporary files: `.train-daemon.pid`, `scripts/.script-output-*.json`
