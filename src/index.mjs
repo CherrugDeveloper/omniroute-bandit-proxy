@@ -1426,48 +1426,50 @@ app.post("/v1/images/generations", async (req, res) => {
 });
 
 app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
-  const { stream } = req.body || {};
-  const requestId = newRequestId();
+  // Top-level try/catch to prevent uncaught exceptions from crashing the process
+  try {
+    const { stream } = req.body || {};
+    const requestId = newRequestId();
 
-  trackRequestStart(requestId, {
-    source: (req.get("x-source") === "training") ? "training" :
-            (req.get("x-source") === "changelog") ? "changelog" : "zoo",
-    model: null,
-    attempt: 0,
-    stream: !!stream,
-    status: "starting",
-    clientIp: req.ip || req.connection?.remoteAddress || "?"
-  });
-
-  // Cleanup a fine richiesta (success, error, disconnect)
-  res.once("finish", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
-  res.once("close", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
-  const baseUrl = sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "http://127.0.0.1:20128/v1");
-  const apiKey = process.env.OMNIROUTE_API_KEY;
-
-  // Increment totalRequests counter but don't insert into request_logs yet
-  // started_at will be set after model selection to exclude selection time from latency
-  bandit._incrMeta("totalRequests");
-  // === Image generation requests are not allowed via chat completions ===
-  if (isImageGenerationRequest(req.body)) {
-    const errMsg = "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.";
-    console.warn(`[API] 400 Error: ${errMsg}`);
-    // DIAGNOSTIC: dump the offending payload shape to identify the false-positive trigger
-    console.warn(`[DIAG-IMGGEN] model=${req.body?.model} keys=${JSON.stringify(Object.keys(req.body || {}))} hasPrompt=${!!req.body?.prompt} hasMessages=${Array.isArray(req.body?.messages) ? req.body.messages.length : "none"} n=${JSON.stringify(req.body?.n)} size=${JSON.stringify(req.body?.size)} response_format=${JSON.stringify(req.body?.response_format)}`);
-    if (Array.isArray(req.body?.messages) && req.body.messages.length > 0) {
-      const lastUser = req.body.messages.filter(m => m.role === "user").pop();
-      console.warn(`[DIAG-IMGGEN] lastUserContent=${JSON.stringify(String(lastUser?.content || "").slice(0, 300))}`);
-    }
-    bandit.recordRequestError(400, errMsg, req.body?.model || null, null);
-    trackRequestUpdate(requestId, { status: "error-400", lastError: errMsg, model: req.body?.model || null });
-    return res.status(400).json({
-      error: {
-        message: errMsg,
-        type: "unsupported_request",
-        status: 400
-      }
+    trackRequestStart(requestId, {
+      source: (req.get("x-source") === "training") ? "training" :
+              (req.get("x-source") === "changelog") ? "changelog" : "zoo",
+      model: null,
+      attempt: 0,
+      stream: !!stream,
+      status: "starting",
+      clientIp: req.ip || req.connection?.remoteAddress || "?"
     });
-  }
+
+    // Cleanup a fine richiesta (success, error, disconnect)
+    res.once("finish", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
+    res.once("close", () => { trackRequestComplete(requestId); trackRequestEnd(requestId); });
+    const baseUrl = sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "http://127.0.0.1:20128/v1");
+    const apiKey = process.env.OMNIROUTE_API_KEY;
+
+    // Increment totalRequests counter but don't insert into request_logs yet
+    // started_at will be set after model selection to exclude selection time from latency
+    bandit._incrMeta("totalRequests");
+    // === Image generation requests are not allowed via chat completions ===
+    if (isImageGenerationRequest(req.body)) {
+      const errMsg = "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.";
+      console.warn(`[API] 400 Error: ${errMsg}`);
+      // DIAGNOSTIC: dump the offending payload shape to identify the false-positive trigger
+      console.warn(`[DIAG-IMGGEN] model=${req.body?.model} keys=${JSON.stringify(Object.keys(req.body || {}))} hasPrompt=${!!req.body?.prompt} hasMessages=${Array.isArray(req.body?.messages) ? req.body.messages.length : "none"} n=${JSON.stringify(req.body?.n)} size=${JSON.stringify(req.body?.size)} response_format=${JSON.stringify(req.body?.response_format)}`);
+      if (Array.isArray(req.body?.messages) && req.body.messages.length > 0) {
+        const lastUser = req.body.messages.filter(m => m.role === "user").pop();
+        console.warn(`[DIAG-IMGGEN] lastUserContent=${JSON.stringify(String(lastUser?.content || "").slice(0, 300))}`);
+      }
+      bandit.recordRequestError(400, errMsg, req.body?.model || null, null);
+      trackRequestUpdate(requestId, { status: "error-400", lastError: errMsg, model: req.body?.model || null });
+      return res.status(400).json({
+        error: {
+          message: errMsg,
+          type: "unsupported_request",
+          status: 400
+        }
+      });
+    }
   // === Stima token e (eventuale) auto-compress del contesto ===
   let estimatedTokens = bandit.estimateTokens(req.body);
   // Hard cap: se il contesto stimato supera 150k token, rifiuta
@@ -1888,7 +1890,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
 // Record started_at AFTER model selection to exclude selection time from latency
 if (model) {
-  bandit.recordRequestStarted(model, bandit._getProvider(model));
+  try {
+    bandit.recordRequestStarted(model, bandit._getProvider(model));
+  } catch (err) {
+    console.error(`[CRASH] recordRequestStarted failed: ${err.message}`, err.stack);
+    // Continue without recording - this shouldn't crash the server
+  }
 }
 
 trackRequestUpdate(requestId, {
@@ -1899,10 +1906,14 @@ trackRequestUpdate(requestId, {
 });
     if (!model) {
       console.warn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, tokens=${estimatedTokens}, excluded=${excluded.size})`);
-      notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
-        estimatedTokens,
-        attempt
-      }).catch(() => {});
+      try {
+        await notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
+          estimatedTokens,
+          attempt
+        });
+      } catch (err) {
+        console.error(`[NOTIFIER] Failed to send no_models notification: ${err.message}`);
+      }
 
       // Check if fallback models are available
       const fallbackModels = bandit.getFallbackModels();
@@ -2472,6 +2483,19 @@ trackRequestUpdate(requestId, {
 
   cleanup();
   res.status(502).json({ error: { message: `${attempt - 1} tentativi esauriti su ${maxAttempts}`, status: 502 } });
+    } catch (error) {
+      console.error("[ROUTE HANDLER] Unhandled exception in /v1/chat/completions:", error?.message || error);
+      console.error("[ROUTE HANDLER] Stack:", error?.stack || String(error));
+      // Send error response to client instead of crashing the server
+      cleanup();
+      res.status(500).json({
+        error: {
+          message: "Internal server error",
+          type: "server_error",
+          status: 500
+        }
+      });
+    }
 });
 
 // Serve static files from public directory (manifest, icons, etc.)
@@ -2493,7 +2517,8 @@ app.get("*", (req, res, next) => {
 let unhandledRejectionCount = 0;
 process.on("unhandledRejection", (reason) => {
   unhandledRejectionCount++;
-  console.error(`[UNHANDLED REJECTION #${unhandledRejectionCount}]`, reason?.message || reason);
+  const msg = reason?.message || reason?.stack || String(reason);
+  console.error(`[UNHANDLED REJECTION #${unhandledRejectionCount}]`, msg);
   // Non terminiamo il processo: un errore in una richiesta non deve uccidere il proxy.
   // Se gli errori sono troppi (>20 in 60s), allora c'è un bug serio → crash pulito.
   if (unhandledRejectionCount > 20) {
@@ -2505,9 +2530,25 @@ process.on("unhandledRejection", (reason) => {
 });
 
 process.on("uncaughtException", (error) => {
-  console.error("[UNCAUGHT EXCEPTION]", error);
-  bandit.close();
-  process.exit(1);
+  console.error("[UNCAUGHT EXCEPTION]", error?.message);
+  console.error("[UNCAUGHT EXCEPTION] Stack:", error?.stack);
+  // Non crashare immediatamente: prova a chiudere graceful e riavviare
+  // Un errore in una singola richiesta non deve uccidere l'intero proxy
+  try {
+    if (bandit) bandit.close();
+  } catch (_) {}
+  if (server) {
+    try {
+      server.close(() => {
+        console.log("[SHUTDOWN] Server chiuso dopo uncaughtException");
+        process.exit(1);
+      });
+    } catch (_) {
+      process.exit(1);
+    }
+  } else {
+    process.exit(1);
+  }
 });
 
 process.on("SIGTERM", () => {

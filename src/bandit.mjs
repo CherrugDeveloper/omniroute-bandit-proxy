@@ -822,30 +822,32 @@ export class DiscountedUCB1Bandit {
   }
 
   recordFeedback(modelId, success, reward = 1.0, errorDetails = null, opts = {}) {
-    const tx = this.db.transaction(() => {
-      const now = Date.now();
-      const source = opts.source === 'training' ? 'training' : 'prod';
+    console.log(`[BANDIT-RECORD-FEEDBACK] modelId=${modelId} success=${success} reward=${reward} source=${opts.source}`);
+    try {
+      const tx = this.db.transaction(() => {
+        const now = Date.now();
+        const source = opts.source === 'training' ? 'training' : 'prod';
 
-      // Ensure model exists in models table (for catalog-only models or any model receiving feedback)
-      const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
-      const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(modelId);
-      const provider = cat?.provider || existingModel?.provider || opts.provider || 'unknown';
-      if (provider) {
-        this.db.prepare(
-          `INSERT OR IGNORE INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, permanent, degraded)
-           VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`
-        ).run(modelId, provider);
-      }
+        // Ensure model exists in models table (for catalog-only models or any model receiving feedback)
+        const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
+        const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(modelId);
+        const provider = cat?.provider || existingModel?.provider || opts.provider || 'unknown';
+        if (provider) {
+          this.db.prepare(
+            `INSERT OR IGNORE INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, permanent, degraded)
+             VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`
+          ).run(modelId, provider);
+        }
 
-      if (source === 'training' || source === 'prod') {
-        if (!success && errorDetails && typeof errorDetails === "object") {
-          const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
-          const provider = cat?.provider || null;
-          if (provider) {
-            console.log(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
-            const c = this._classifyError(errorDetails, provider);
-            console.log(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
-            switch (c.action) {
+        if (source === 'training' || source === 'prod') {
+          if (!success && errorDetails && typeof errorDetails === "object") {
+            const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
+            const provider = cat?.provider || null;
+            if (provider) {
+              console.log(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
+              const c = this._classifyError(errorDetails, provider);
+              console.log(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
+              switch (c.action) {
               case "ban-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
                   console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
@@ -960,8 +962,15 @@ export class DiscountedUCB1Bandit {
           "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).run(Date.now(), statusCode, errorMessage, modelId, provider);
       }
-    });
-    tx();
+      return { success, reward, errorDetails };
+      });
+      tx();
+    } catch (err) {
+      console.error(`[BANDIT-RECORD-FEEDBACK] ERROR for model=${modelId}:`, err?.message || err);
+      console.error(`[BANDIT-RECORD-FEEDBACK] Stack:`, err?.stack || String(err));
+      // Never let DB errors crash the server - just log and continue
+      return { success, reward, errorDetails, dbError: err?.message };
+    }
   }
 
   _classifyError(errorDetails, provider) {
@@ -971,6 +980,9 @@ export class DiscountedUCB1Bandit {
     const reason = errorDetails.reason || "unknown";
     const is429 = status === 429;
     const resolvedProvider = provider || errorDetails.provider || (errorDetails.modelId ? errorDetails.modelId.split('/')[0] : '');
+    
+    // DIAGNOSTIC: log full error details for debugging
+    console.log(`[BANDIT-CLASSIFY-DIAG] errorDetails=${JSON.stringify(errorDetails).substring(0, 500)}`);
 
     // Tool-calling requirement failure -> ban-model
     if (/no-tool-call-but-required/i.test(message)) {

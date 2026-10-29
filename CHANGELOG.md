@@ -7,6 +7,12 @@
   - Added `dynamic_max_tokens` check to absolute last resort fallback that previously bypassed all token filtering
   - All 5 tests in `__tests__/itpm-quota.test.js` now pass
 
+- **Fix Connection Errors in Chrome Dashboard Client**:
+  - Added top-level try/catch wrapper to `/v1/chat/completions` route handler to prevent uncaught exceptions from crashing the server process
+  - Previously, exceptions in `compressBody()`, `estimateTokens()`, or model selection logic would trigger the uncaughtException handler, which immediately calls `process.exit(1)`
+  - Now, unhandled exceptions are caught, logged, and a proper 500 JSON response is returned to the client instead of crashing the server
+  - This resolves `ERR_CONNECTION_REFUSED` and `ERR_CONNECTION_RESET` errors in the Chrome dashboard client after successful API calls
+
 
 
 ## v1.1.87 — 2026-10-29
