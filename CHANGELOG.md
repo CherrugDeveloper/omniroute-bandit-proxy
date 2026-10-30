@@ -1,3 +1,17 @@
+## v1.1.93 — 2026-10-30
+- **Fix Model ID Sanitization Validation**:
+  - `_sanitizeModelId()` now validates sanitized model IDs against the catalog, preventing invalid model selection
+  - Resolves the `groq/groq/compound` 404 issue caused by malformed model IDs passing through without catalog validation
+- **Fix Provider Cooldown Duration for Transient 429 Errors**:
+  - `_classifyError()` reduced provider cooldown from 24h to 5min for transient 429 rate-limit errors
+  - Respects `retry-after` header when present; falls back to 5-minute default for transient rate limits
+- **Increase Provider Fail Threshold to Reduce False Cooldowns**:
+  - `PROVIDER_FAIL_THRESHOLD` increased from 3 to 10 to reduce false provider cooldown triggers
+  - Prevents premature provider bans from transient error spikes
+- **Fix Default Error Classification Reason**:
+  - Default error classification now uses `"classification-fallback"` reason for proper metric tracking
+  - Ensures unclassified errors are consistently tagged for dashboard and learning analysis
+
 ## v1.1.92 — 2026-10-30
 - **Fix Cooldown Reset on Successful Requests**:
   - Fixed `recordFeedback()` in `src/bandit.mjs` to clear `cooldown_until` on successful requests

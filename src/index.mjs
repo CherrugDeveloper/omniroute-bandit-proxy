@@ -1703,7 +1703,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // Circuit breaker: contatore fallimenti per provider in questa richiesta.
   // Al 3° fail, mette in cooldown il provider (5 min) → il while salta i suoi modelli.
   const providerFailCount = new Map();
-  const PROVIDER_FAIL_THRESHOLD = 3;
+  const PROVIDER_FAIL_THRESHOLD = 10;
 
   function noteProviderFail(modelId, errorType = 'unknown') {
     const prov = modelId.split('/')[0];

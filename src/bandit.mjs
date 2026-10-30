@@ -13,7 +13,14 @@ export class DiscountedUCB1Bandit {
     if (modelId.includes('/')) {
       const parts = modelId.split('/');
       if (parts.length >= 3 && parts[0] === parts[1]) {
-        return [parts[0], ...parts.slice(2)].join('/');
+        const sanitized = [parts[0], ...parts.slice(2)].join('/');
+        // Validate the sanitized model exists in the catalog
+        const exists = this.db.prepare("SELECT 1 FROM catalog WHERE id = ?").get(sanitized);
+        if (exists) {
+          return sanitized;
+        }
+        // If sanitized model doesn't exist in catalog, return null to reject it
+        return null;
       }
     }
     return modelId;
@@ -1149,12 +1156,12 @@ export class DiscountedUCB1Bandit {
           cooldownMs: cooldownMs * cooldownMultiplier
         };
       } else {
-        // Quota exhausted is typically a persistent condition (e.g., "All antigravity accounts have exhausted their quota")
-        // Use a long cooldown (24h) to avoid hammering the provider until quota resets
+        // 429/rate-limit is typically a transient condition (rate limit, not quota exhaustion)
+        // Use a short cooldown (5 min) to avoid hammering the provider while allowing quick retry
         return {
           action: "cooldown-provider",
-          reason: "quota-exhausted",
-          cooldownMs: 24 * 3600 * 1000
+          reason: "rate-limit",
+          cooldownMs: 300000
         };
       }
     }
@@ -1198,13 +1205,15 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 6 * 3600 * 1000 };
     }
 
-    console.log(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${reason} cooldownMs=30000`);
+    // Default case: ensure proper reason tracking for unclassified errors
+    const defaultReason = reason === "unknown" ? "classification-fallback" : reason;
+    console.log(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${defaultReason} cooldownMs=30000`);
     return {
       action: "cooldown-model",
-      reason: reason,
+      reason: defaultReason,
       cooldownMs: 30000
     };
-  }
+}
 
   _parseResetAfter(message, errorDetails = {}) {
     // Helper to parse numeric value (seconds, ms epoch, or seconds epoch)

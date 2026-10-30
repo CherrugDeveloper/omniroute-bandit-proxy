@@ -1,5 +1,7 @@
 # OmniRoute Bandit Proxy
 
+> **v1.1.93 (2026-10-30)**: Bug fixes — `_sanitizeModelId()` now validates against catalog (fixes groq/groq/compound 404), `_classifyError()` reduced provider cooldown from 24h to 5min for transient 429, `PROVIDER_FAIL_THRESHOLD` increased from 3 to 10, default error classification now uses `"classification-fallback"` reason.
+
 > Workspace audit and documentation update performed on 2026-10-26. Verified system/service files, production scripts, config files, dashboard UI, and recent cleanup audit findings. No superfluous files found, plans directory already removed, .gitignore validation issue with bandit_state.db documented.
 
 > **v1.1.84 (2026-10-28)**: Dashboard overhaul with enhanced metrics, logs, unified history, and controls; fixed syntax errors, structural issues, and API endpoint bugs.
