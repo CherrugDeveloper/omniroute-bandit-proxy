@@ -2325,9 +2325,12 @@ export class DiscountedUCB1Bandit {
     }
 
     // Tier 4: Emergency Relaxation (Ignore Cooldowns)
+    // NOTE: We intentionally do NOT ignore the excluded set here. Models that
+    // already failed (and are in cooldown) must stay excluded, otherwise we
+    // re-select the same failing model in an endless loop.
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true, ignoreDynamicMaxTokens: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: false, ignoreDynamicMaxTokens: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
@@ -2351,7 +2354,7 @@ export class DiscountedUCB1Bandit {
               return false;
             }
             return !isNonChat;
-          });
+          }).filter(m => !resolvedExcluded.has(m.id));
     }
 
     if (availableModels.length === 0) {
