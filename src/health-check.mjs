@@ -97,11 +97,13 @@ export class HealthChecker {
       const lastCheck = this.lastProviderCheck.get(nextProvider) || 0;
       // Only schedule if enough time has passed for this provider
       if (now - lastCheck >= providerInterval) {
-        this.timer = setTimeout(() => this._tickAndReschedule(), providerInterval - (now - lastCheck));
+        // Schedule immediately (delay = 0) to avoid negative timeout warnings
+        this.timer = setTimeout(() => this._tickAndReschedule(), 0);
         this.lastProviderCheck.set(nextProvider, Date.now());
       } else {
         // Schedule with remaining time
-        this.timer = setTimeout(() => this._tickAndReschedule(), providerInterval - (now - lastCheck));
+        const delay = providerInterval - (now - lastCheck);
+        this.timer = setTimeout(() => this._tickAndReschedule(), delay);
         this.lastProviderCheck.set(nextProvider, Date.now());
       }
     } else {

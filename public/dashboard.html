@@ -1143,6 +1143,9 @@
                 <label style="font-size:11px; color:#e74c3c; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
                     <input type="checkbox" id="log-show-degraded" checked> DEGRADED
                 </label>
+                <label style="font-size:11px; color:#e74c3c; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="log-show-proxy" checked> PROXY
+                </label>
                 <label style="font-size:11px; color:#9b59b6; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
                     <input type="checkbox" id="log-show-paid-only" checked> PAID-ONLY
                 </label>
@@ -1175,6 +1178,7 @@
             .log-row.source-cooldown { color: #f1c40f; }
             .log-row.source-flag { color: #e6ac00; }
             .log-row.source-degraded { color: #e74c3c; }
+            .log-row.source-proxy { color: #f0883e; }
             .log-row.source-paid-only { color: #9b59b6; }
             .log-row.source-other { color: #c9d1d9; }
         </style>
@@ -3086,6 +3090,7 @@
             const showCooldown = document.getElementById('log-show-cooldown')?.checked ?? true;
             const showFlag = document.getElementById('log-show-flag')?.checked ?? true;
             const showDegraded = document.getElementById('log-show-degraded')?.checked ?? true;
+            const showProxy = document.getElementById('log-show-proxy')?.checked ?? true;
             const showPaidOnly = document.getElementById('log-show-paid-only')?.checked ?? true;
 
             // Filter entries
@@ -3105,6 +3110,7 @@
                 if (!showCooldown && entry.type === 'cooldown') return false;
                 if (!showFlag && entry.type === 'flag') return false;
                 if (!showDegraded && entry.type === 'degraded') return false;
+                if (!showProxy && entry.source === 'proxy') return false;
                 if (!showPaidOnly && entry.is_paid) return false;
                 return true;
             });
@@ -3142,6 +3148,7 @@
                     else if (source === 'cooldown') colorClass = 'source-cooldown';
                     else if (source === 'flag') colorClass = 'source-flag';
                     else if (source === 'degraded') colorClass = 'source-degraded';
+                    else if (source === 'proxy') colorClass = 'source-proxy';
                     else if (entry.is_paid) colorClass = 'source-paid-only';
 
                     return `<tr class="log-row ${colorClass}">

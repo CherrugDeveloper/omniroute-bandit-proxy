@@ -826,6 +826,9 @@ function createLogEntry(message) {
     source = 'zoo';
   } else if (/\[SUCCESS\]/i.test(message)) {
     source = 'zoo';
+  } else if (/\[UPSTREAM\]|\[FETCH ERR\]|\[STREAM ERR\]|\[STREAM ABORT\]|\[ABORT\]|\[TIMEOUT\]|\[FAILURE\]|\[RETRY\]|\[CONTEXT\]|\[AFFINITY\]|\[FALLBACK\]|\[BANDIT\]|\[ROUTE HANDLER\]|\[API\]|\[CONFIG\]|\[SECURITY\]|\[HEALTH\]|\[DASHBOARD\]|\[MODES\]|\[INIT\]|\[SHUTDOWN\]|\[UNHANDLED\]|\[UNCAUGHT\]|\[FATAL\]/.test(message)) {
+    source = 'proxy';
+    type = 'proxy_error';
   }
 
   // Try to extract provider from patterns like "[provider/model]"

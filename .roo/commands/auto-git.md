@@ -1,6 +1,6 @@
-# auto-git
+# Skill: auto-git
 
-Automate comprehensive git commit-and-push workflow including project cleanup, changelog updates, and verification.
+Execute the `auto-git` skill to automate comprehensive git commit-and-push workflow including project cleanup, changelog updates, and verification.
 
 ## Usage
 
@@ -8,7 +8,7 @@ Type `/auto-git` in the chat to execute this command.
 
 ## Workflow
 
-This command invokes the `auto-git` skill, which performs the following steps:
+This command directly invokes the `auto-git` skill, which performs the following steps:
 
 1. **Resolve workspace problems**
    - Ensure all syntax errors, lint errors, and test failures are fixed.

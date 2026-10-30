@@ -1,3 +1,13 @@
+## v1.1.90 — 2026-10-30
+- **Auto-Git Command Enhancement**:
+  - Added `# Skill: auto-git` directive to `.roo/commands/auto-git.md` to make the command executable via the skill system
+- **Dashboard Log Filter Enhancement**:
+  - Added `log-show-proxy` checkbox to dashboard log filter in `public/dashboard.html` for filtering proxy-related log entries
+- **Health Check Improvements**:
+  - Modified health check logic in `src/health-check.mjs` for improved reliability and error handling
+- **Proxy Error Handling Improvements**:
+  - Enhanced proxy error handling in `src/index.mjs` with better error classification and recovery mechanisms
+
 ## v1.1.89 — 2026-10-29
 - **Fix Cronologia Unificata Timestamp Overlap**:
   - Removed orange "try N" text from active model timestamp cell in `fmtRow()` (was causing visual overflow into Provider column)
@@ -19,7 +29,6 @@
   - Previously, exceptions in `compressBody()`, `estimateTokens()`, or model selection logic would trigger the uncaughtException handler, which immediately calls `process.exit(1)`
   - Now, unhandled exceptions are caught, logged, and a proper 500 JSON response is returned to the client instead of crashing the server
   - This resolves `ERR_CONNECTION_REFUSED` and `ERR_CONNECTION_RESET` errors in the Chrome dashboard client after successful API calls
-
 
 
 ## v1.1.87 — 2026-10-29
