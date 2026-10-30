@@ -130,7 +130,7 @@
         }
         .stats .stats-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             column-gap: 6px;
             row-gap: 3px;
             width: 100%;
@@ -220,6 +220,12 @@
             }
             .stats .stats-grid {
                 grid-template-columns: 1fr 1fr;
+            }
+            .filter-bar {
+                flex-wrap: wrap;
+            }
+            .filter-input {
+                max-width: 200px;
             }
             body {
                 padding: 4px;
@@ -372,6 +378,7 @@
             margin-bottom: 6px;
             display: flex;
             gap: 8px;
+            flex-wrap: wrap;
             flex-shrink: 0;
         }
         .filter-input {
