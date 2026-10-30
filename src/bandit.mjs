@@ -2324,13 +2324,14 @@ export class DiscountedUCB1Bandit {
       availableModels = filterModels('tier3', { ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 
-    // Tier 4: Emergency Relaxation (Ignore Cooldowns)
-    // NOTE: We intentionally do NOT ignore the excluded set here. Models that
-    // already failed (and are in cooldown) must stay excluded, otherwise we
-    // re-select the same failing model in an endless loop.
+    // Tier 4: Emergency Relaxation (Ignore Policies/Tools/Token Limits, NOT Cooldowns)
+    // We keep cooldown checking active so models recently failed (and in cooldown)
+    // are properly excluded. The ignoreExcluded: false ensures the exact same
+    // model that just failed stays excluded, preventing an endless loop of
+    // re-selecting the same failing model. Other excluded models may be tried.
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: false, ignoreDynamicMaxTokens: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: false, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: false, ignoreDynamicMaxTokens: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
@@ -2354,7 +2355,7 @@ export class DiscountedUCB1Bandit {
               return false;
             }
             return !isNonChat;
-          }).filter(m => !resolvedExcluded.has(m.id));
+          }).filter(m => !resolvedExcluded.has(m.id) && (!m.cooldown_until || m.cooldown_until <= now));
     }
 
     if (availableModels.length === 0) {
