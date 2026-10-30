@@ -1312,6 +1312,12 @@ export class DiscountedUCB1Bandit {
     ).run(now + cooldownMs, reason, "Quota esaurita", provider);
   }
 
+  _resetProviderCooldown(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET cooldown_until = 0, circuit_breaker_until = 0, consecutive_failures = 0, needs_attention = 0, attention_reason = '', attention_message = '' WHERE provider = ?`
+    ).run(provider);
+  }
+
   _updateConsecutiveProviderFailures(provider, count) {
     const now = Date.now();
     this.db.prepare(
@@ -1565,6 +1571,12 @@ export class DiscountedUCB1Bandit {
   resetProvider(provider) {
     this.db.prepare(
       `UPDATE provider_history SET fails = 0, cooldown_until = 0, permanent = 0, needs_attention = 0 WHERE provider = ?`
+    ).run(provider);
+  }
+
+  resetProviderCooldown(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET cooldown_until = 0 WHERE provider = ?`
     ).run(provider);
   }
 

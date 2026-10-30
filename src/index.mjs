@@ -1692,7 +1692,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let retryDelay = 0; // Exponential backoff delay in milliseconds
 
   const providerCount = bandit.getProviderCount();
-  const maxAttempts = forceModel ? 1 : Math.min(500, providerCount * 4 + 100);
+  const maxAttempts = forceModel ? 1 : Math.min(50, providerCount * 2 + 10);
   const startedAt = Date.now();
   const MAX_TOTAL_MS = parseInt(process.env.MAX_TOTAL_MS) || 10 * 60 * 1000;
 
@@ -1705,22 +1705,39 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const providerFailCount = new Map();
   const PROVIDER_FAIL_THRESHOLD = 3;
 
-  function noteProviderFail(modelId) {
+  function noteProviderFail(modelId, errorType = 'unknown') {
     const prov = modelId.split('/')[0];
     const n = (providerFailCount.get(prov) || 0) + 1;
     providerFailCount.set(prov, n);
-    if (n === PROVIDER_FAIL_THRESHOLD) {
-      console.log(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta → cooldown 5min`);
+
+    // Only trigger provider-level cooldown for hard/persistent errors, NOT for
+    // timeouts, fetch errors, or transient 429s. Those should only affect the
+    // specific model (cooldown-model), not the entire provider.
+    const isHardError = ['auth', '401', '403', '404', '410', 'permanent', 'ban', 'misconfigured'].some(k =>
+      String(errorType).toLowerCase().includes(k)
+    );
+
+    if (n === PROVIDER_FAIL_THRESHOLD && isHardError) {
+      console.log(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta (errore hard: ${errorType}) → cooldown 5min`);
       try {
         bandit._forceProviderCooldown(prov, 5 * 60 * 1000, "cascade-fail");
         cooledDownThisRequest.add(prov);
       } catch (_) {}
+    } else if (n === PROVIDER_FAIL_THRESHOLD) {
+      console.log(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta (errore transitorio: ${errorType}) → solo model-level cooldown, nessun provider cooldown`);
     }
-    // Update consecutive failures in database for circuit breaker
-    try {
-      bandit._updateConsecutiveProviderFailures(prov, n);
-    } catch (e) {
-      console.error(`[BANDIT] Errore aggiornamento consecutive failures per provider ${prov}: ${e.message}`);
+
+    // Update consecutive failures in database for circuit breaker ONLY for hard errors
+    // Transient errors (timeouts, fetch errors, 429s) should not trigger circuit breaker
+    const isHardError = ['auth', '401', '403', '404', '410', 'permanent', 'ban', 'misconfigured'].some(k =>
+      String(errorType).toLowerCase().includes(k)
+    );
+    if (isHardError) {
+      try {
+        bandit._updateConsecutiveProviderFailures(prov, n);
+      } catch (e) {
+        console.error(`[BANDIT] Errore aggiornamento consecutive failures per provider ${prov}: ${e.message}`);
+      }
     }
   }
 
@@ -2087,7 +2104,7 @@ trackRequestUpdate(requestId, {
               sessionModels.delete(sessionKey);
             }
           }
-          noteProviderFail(model);
+          noteProviderFail(model, 'compression');
           excluded.add(model);
           continue;
         }
@@ -2240,7 +2257,7 @@ trackRequestUpdate(requestId, {
               await new Promise(resolve => setTimeout(resolve, retryDelay));
             }
 
-        noteProviderFail(model);
+        noteProviderFail(model, `status-${r.status}`);
         excluded.add(model);
         console.log(`[FAILURE] Attempt ${attempt}: ${model} failed with status ${r.status}. Error: ${txt.slice(0, 100)}`);
         trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
@@ -2259,7 +2276,7 @@ trackRequestUpdate(requestId, {
           console.error(`[STREAM READ ERR] ${model}: ${e.message}`);
           bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
           console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=${e.message} source=${feedbackSource}`);
-          noteProviderFail(model);
+          noteProviderFail(model, 'stream-read-error');
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
           continue;
@@ -2269,7 +2286,7 @@ trackRequestUpdate(requestId, {
           console.error(`[STREAM EMPTY] ${model}: empty stream received`);
           bandit.recordFeedback(model, false, 0, { message: "empty stream" }, { source: feedbackSource });
           console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=empty stream source=${feedbackSource}`);
-          noteProviderFail(model);
+          noteProviderFail(model, 'empty-stream');
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
           continue;
@@ -2280,7 +2297,7 @@ trackRequestUpdate(requestId, {
           console.error(`[STREAM ERR] ${model}: ${firstChunkText.substring(0, 200)}`);
           bandit.recordFeedback(model, false, 0, { message: firstChunkText }, { source: feedbackSource });
           console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream error source=${feedbackSource}`);
-          noteProviderFail(model);
+          noteProviderFail(model, 'stream-error');
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
           continue;
@@ -2290,7 +2307,7 @@ trackRequestUpdate(requestId, {
         if (res.headersSent) {
           console.error(`[RETRY BLOCKED] headers già inviati per ${model}, stream chiuso`);
           bandit.recordFeedback(model, false, 0, { message: "stream already started" }, { source: feedbackSource });
-          noteProviderFail(model);
+          noteProviderFail(model, 'stream-already-started');
           excluded.add(model);
           cleanup();
           try { res.end(); } catch (_) {}
@@ -2439,7 +2456,7 @@ trackRequestUpdate(requestId, {
             }
             bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
             console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream abort source=${feedbackSource}`);
-            noteProviderFail(model);
+            noteProviderFail(model, 'stream-abort');
             excluded.add(model);
             reader.cancel().catch(() => {});
             if (!res.writableEnded) res.end();
@@ -2474,7 +2491,7 @@ trackRequestUpdate(requestId, {
             : { message: invalidReason, status: r.status };
           bandit.recordFeedback(model, false, 0, errorDetails, { source: feedbackSource });
           console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=validation source=${feedbackSource}`);
-          noteProviderFail(model);
+          noteProviderFail(model, 'response-validation');
           excluded.add(model);
           continue;
         }
@@ -2511,7 +2528,7 @@ trackRequestUpdate(requestId, {
         bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
         console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=fetch error source=${feedbackSource}`);
       }
-      noteProviderFail(model);
+      noteProviderFail(model, 'fetch-error');
       excluded.add(model);
     }
   }

@@ -174,6 +174,12 @@ export class HealthChecker {
           } catch (e) {
             console.error(`[HEALTH] Errore nel clearing attention flag per ${m.provider}: ${e.message}`);
           }
+          // Reset provider-level cooldown when a model from that provider is reachable
+          try {
+            this.bandit.resetProviderCooldown(m.provider);
+          } catch (e) {
+            console.error(`[HEALTH] Errore nel reset cooldown provider per ${m.provider}: ${e.message}`);
+          }
           revived++;
           console.log(`[HEALTH] ✅ ${m.id} riabilitato (era ${stato})`);
         } else if (this.verbose) {

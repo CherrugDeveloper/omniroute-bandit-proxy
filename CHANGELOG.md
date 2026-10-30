@@ -217,4 +217,16 @@ fix(dashboard): resolve syntax error in public/dashboard.html (cbaf8c1) 2026-10-
 fix(dashboard): resolve structural issues in public/dashboard.html (85c7e5f) 2026-10-28
 feat(dashboard): comprehensive dashboard overhaul with enhanced metrics, logs, unified history, and controls (41c8882) 2026-10-28
 fix: resolve 'source is not defined' unhandled rejection in selectModel function (2be83f7) 2026-10-27
+## 2026-10-30
+
+fix(proxy): fail fast on model-not-found errors and fix status reporting (0d09d07) 2026-10-30
+fix: enforce cooldown in bandit emergency relaxation tiers (1fa82d2) 2026-10-30
+fix: prevent model re-selection loop in bandit emergency relaxation (7137d7e) 2026-10-30
+fix: revert incorrect ZOO mode addition; fix dashboard CSS alignment and filter overflow (af0293d) 2026-10-30
+chore: v1.1.90 — 2026-10-30 (f88bb76) 2026-10-30
+fix(dashboard): remove try text from Cronologia Unificata timestamp to resolve column overlap (67e3a8f) 2026-10-29
+fix(dashboard): prevent connection errors by adding try/catch to chat/completions route handler (21a11b3) 2026-10-29
+fix: prevent repeated provider errors in bandit model selection (aa4a7ab) 2026-10-29
+fix(dashboard): fix log streaming column alignment, message truncation, and container height (54591e0) 2026-10-29
+fix(dashboard): stop polling /v1/models when models tab is not active (118c37a) 2026-10-29
 ## v1.1.62 — 2026-10-19
