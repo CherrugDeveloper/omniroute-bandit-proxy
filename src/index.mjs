@@ -1733,6 +1733,9 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   });
 
   let retriesExhausted = false;
+  let lastErrorStatus = null;
+  let lastErrorBody = null;
+  let lastErrorModel = null;
   while (++attempt <= maxAttempts) {
     if (attempt >= maxAttempts) {
       retriesExhausted = true;
@@ -1750,6 +1753,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         const fallbackModel = fallbackModels[0];
           if (fallbackTried.has(fallbackModel) || !bandit.isModelAvailable(fallbackModel)) {
             console.error(`[FALLBACK] ${fallbackModel} non disponibile o già tentato → 503`);
+            trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available", model });
             cleanup();
             return res.status(503).json({ error: { message: "No models available", status: 503 } });
           }
@@ -1759,18 +1763,21 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         retriesExhausted = false; // Reset flag after fallback
       } else {
         console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
+        trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available", model });
         cleanup();
         return res.status(503).json({ error: { message: "No models available", status: 503 } });
       }
     }
     if (Date.now() - startedAt > MAX_TOTAL_MS) {
       console.warn(`[BANDIT] Limite tempo totale (${MAX_TOTAL_MS}ms) raggiunto dopo ${attempt} tentativi`);
+      trackRequestUpdate(requestId, { status: "error-504", lastError: "Gateway timeout: nessun modello disponibile in tempo utile", model });
       cleanup();
       return res.status(504).json({ error: { message: "Gateway timeout: nessun modello disponibile in tempo utile", status: 504 } });
     }
 
     if (attempt === 1 && forceModel) {
       if (!bandit.isModelAvailable(forceModel)) {
+        trackRequestUpdate(requestId, { status: "error-404", lastError: `Modello forzato ${forceModel} non disponibile in catalogo`, model: forceModel });
         cleanup();
         return res.status(404).json({
           error: { message: `Modello forzato ${forceModel} non disponibile in catalogo`, status: 404 }
@@ -2044,11 +2051,13 @@ trackRequestUpdate(requestId, {
           model = selectedFallbackModel;
         } else {
           console.error(`[FALLBACK] Attempt ${attempt}: All fallback options are exhausted / no suitable fallback models found (requireTools=${requireTools}, tried=${Array.from(fallbackTried).join(', ')})`);
+          trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available (filtering exhausted all models, fallback options exhausted)", model });
           cleanup();
           return res.status(503).json({ error: { message: "No models available (filtering exhausted all models, fallback options exhausted)", status: 503 } });
         }
       } else {
         console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured (no models available, filtering exhausted all models)`);
+        trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available (no fallback models configured)", model });
         cleanup();
         return res.status(503).json({ error: { message: "No models available (no fallback models configured)", status: 503 } });
       }
@@ -2148,6 +2157,29 @@ trackRequestUpdate(requestId, {
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
         bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
         console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource}`);
+
+        // Track last error status for final response
+        lastErrorStatus = r.status;
+        lastErrorBody = txt;
+        lastErrorModel = model;
+
+        // Check if this is a model-not-found error (404 or specific patterns)
+        // These errors are NOT retryable - the model simply doesn't exist
+        const isModelNotFound = r.status === 404 ||
+          /catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(txt);
+        if (isModelNotFound) {
+          console.error(`[FATAL] Model ${model} not found (status ${r.status}). Not retrying - returning 404 to client.`);
+          // Update request tracker BEFORE returning so the dashboard shows the correct error status
+          trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 200), model });
+          cleanup();
+          return res.status(404).json({
+            error: {
+              message: `Modello ${model} non disponibile: ${txt.substring(0, 200)}`,
+              status: 404,
+              type: "invalid_request_error"
+            }
+          });
+        }
 
         if (sessionKey) {
           const entry = sessionModels.get(sessionKey);
@@ -2485,7 +2517,9 @@ trackRequestUpdate(requestId, {
   }
 
   cleanup();
-  res.status(502).json({ error: { message: `${attempt - 1} tentativi esauriti su ${maxAttempts}`, status: 502 } });
+  const finalStatus = lastErrorStatus || 502;
+  const finalMessage = lastErrorBody ? lastErrorBody.substring(0, 200) : `${attempt - 1} tentativi esauriti su ${maxAttempts}`;
+  res.status(finalStatus).json({ error: { message: finalMessage, status: finalStatus } });
     } catch (error) {
       console.error("[ROUTE HANDLER] Unhandled exception in /v1/chat/completions:", error?.message || error);
       console.error("[ROUTE HANDLER] Stack:", error?.stack || String(error));
