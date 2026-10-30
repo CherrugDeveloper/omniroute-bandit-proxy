@@ -1,3 +1,10 @@
+## v1.1.92 — 2026-10-30
+- **Fix Cooldown Reset on Successful Requests**:
+  - Fixed `recordFeedback()` in `src/bandit.mjs` to clear `cooldown_until` on successful requests
+  - Models/providers were stuck in cooldown because successful requests didn't reset `cooldown_until`, causing continuous `provider_cooldown` rejections
+  - Added `cooldown_until = 0` reset in the success path of `recordFeedback()` for both model and provider records
+  - Provider cooldown is now properly cleared via `UPDATE provider_history SET cooldown_until = 0` on success
+
 ## v1.1.90 — 2026-10-30
 - **Auto-Git Command Enhancement**:
   - Added `# Skill: auto-git` directive to `.roo/commands/auto-git.md` to make the command executable via the skill system

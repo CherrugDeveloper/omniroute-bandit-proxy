@@ -938,7 +938,7 @@ export class DiscountedUCB1Bandit {
         this.totalObservations++;
         this._setMeta("totalObservations", this.totalObservations);
         this.db.prepare(
-          `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0
+          `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0, cooldown_until = 0
            WHERE id = ?`
         ).run(reward, modelId);
         this.db.prepare(
@@ -948,9 +948,11 @@ export class DiscountedUCB1Bandit {
         // Reset consecutive provider failures on success
         if (provider && provider !== 'unknown') {
           this.db.prepare(
-            `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0, last_success_time = ? WHERE provider = ?`
+            `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0, last_success_time = ?, cooldown_until = 0 WHERE provider = ?`
           ).run(Date.now(), provider);
         }
+        // Belt-and-suspenders: clear model cooldown on success
+        this.db.prepare(`UPDATE models SET cooldown_until = 0 WHERE id = ?`).run(modelId);
       } else {
         this.db.prepare(
           `UPDATE models SET fails = fails + 1, last_used_index = last_used_index + 1
