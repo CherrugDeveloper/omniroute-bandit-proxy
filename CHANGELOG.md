@@ -15,6 +15,18 @@
   - Non-active rows show clean timestamp only, e.g. `19:55:24`
   - This eliminates the column overlap in the unified history table
 
+## v1.1.91 — 2026-10-30
+- **Fix Service Startup Crash (Duplicate Variable Declaration)**:
+  - Removed duplicate `const isHardError` declaration at `src/index.mjs:1732` inside `noteProviderFail()`
+  - The duplicate caused `SyntaxError: Identifier 'isHardError' has already been declared` at module load, preventing the server from binding port 8080
+  - This was the root cause of `restart-safe.sh` failing with "Porta 127.0.0.1:8080 non si è bindata dopo 60s" — systemd's `Restart=on-failure` kept restarting the crashed process in a loop
+  - Also ran `npm install` to restore missing `node_modules` (express and other dependencies were absent)
+- **Fix Cronologia Unificata Timestamp Overlap**:
+  - Removed orange "try N" text from active model timestamp cell in `fmtRow()` (was causing visual overflow into Provider column)
+  - Active thinking models now show only timestamp + elapsed seconds, e.g. `19:57:05 (20.6s)`
+  - Non-active rows show clean timestamp only, e.g. `19:55:24`
+  - This eliminates the column overlap in the unified history table
+
 ## v1.1.88 — 2026-10-29
 - **Fix Repeated Provider Errors in Bandit Model Selection**:
   - Fixed `isModelAvailable()` to actively check `needs_attention` flag with auto-reset on cooldown expiry (was commented-out)

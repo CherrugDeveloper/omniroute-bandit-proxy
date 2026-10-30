@@ -1729,9 +1729,6 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
     // Update consecutive failures in database for circuit breaker ONLY for hard errors
     // Transient errors (timeouts, fetch errors, 429s) should not trigger circuit breaker
-    const isHardError = ['auth', '401', '403', '404', '410', 'permanent', 'ban', 'misconfigured'].some(k =>
-      String(errorType).toLowerCase().includes(k)
-    );
     if (isHardError) {
       try {
         bandit._updateConsecutiveProviderFailures(prov, n);
