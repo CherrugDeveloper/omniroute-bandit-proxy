@@ -446,6 +446,7 @@
         #tab-scripts .table-wrapper th:nth-child(4), #tab-scripts .table-wrapper td:nth-child(4) { width: 24%; }
         #tab-scripts .table-wrapper th:nth-child(5), #tab-scripts .table-wrapper td:nth-child(5) { width: 16%; }
         table { width: 100%; border-collapse: collapse; }
+        #unified-table td, #unified-table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         th, td { padding: 5px 8px; text-align: left; vertical-align: middle; font-size: 12px; }
         th {
             background: #21262d;
@@ -1127,10 +1128,10 @@
             <strong style="font-size:11px; color:#58a6ff;">Cronologia Unificata</strong>
             <button id="copy-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia tutto">📋 Copia tutto</button>
         </div>
-        <div style="max-height: 110px; overflow-y: auto; scrollbar-width: none; border: 1px solid transparent; border-radius: 4px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
+        <div style="max-height: 110px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px;">
+            <table id="unified-table" style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
                 <thead>
-                    <tr style="border-bottom: 1px solid transparent; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
+                    <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
                         <th style="padding: 2px 6px; text-align: left; width: 10%;">Timestamp</th>
                         <th style="padding: 2px 6px; text-align: left; width: 10%;">Provider</th>
                         <th style="padding: 2px 6px; text-align: left; width: 16%;">Model</th>

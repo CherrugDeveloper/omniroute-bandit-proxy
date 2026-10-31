@@ -1,3 +1,6 @@
+## v1.0.0 — 2026-10-31
+- chore: update dashboard.html
+
 ## v1.1.93 — 2026-10-30
 - **Fix Model ID Sanitization Validation**:
   - `_sanitizeModelId()` now validates sanitized model IDs against the catalog, preventing invalid model selection
