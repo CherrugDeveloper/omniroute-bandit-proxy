@@ -254,7 +254,7 @@ restart_safe() {
   
   # 4. Attendi liberazione porta
   wait_for_port_release "$HOST" "$PORT"
-  
+
   # 4b. Verify no node process listening on port
   echo "→ Verifica nessun processo node in ascolto su ${HOST}:${PORT}..."
   local node_check=0
@@ -276,7 +276,46 @@ restart_safe() {
     sleep 1
     node_check=$((node_check + 1))
   done
+
+  # 4c. Verifica WorkingDirectory preventiva per evitare errori CHDIR
+  echo "→ Verifica WorkingDirectory del servizio..."
+  local working_dir=""
+  working_dir=$(run_systemctl show -p WorkingDirectory --value "$SERVICE" 2>/dev/null || echo "")
+  if [ -z "$working_dir" ] || [ "$working_dir" = " " ]; then
+    echo "✗ ERRORE: Impossibile recuperare WorkingDirectory da systemd"
+    echo "  Il servizio potrebbe non essere configurato correttamente"
+    exit 1
+  fi
+  echo "  WorkingDirectory configurata: $working_dir"
   
+  if [ ! -d "$working_dir" ]; then
+    echo "✗ ERRORE CRITICO: WorkingDirectory non esiste"
+    echo "  Directory: $working_dir"
+    echo "  Il servizio systemd non può avviare senza WorkingDirectory valida"
+    echo "  Soluzione: creare la directory o correggere il file systemd"
+    exit 1
+  fi
+  
+  if [ ! -w "$working_dir" ]; then
+    echo "✗ ERRORE CRITICO: WorkingDirectory non scrivibile"
+    echo "  Directory: $working_dir"
+    echo "  Permessi attuali: $(ls -ld "$working_dir" | awk '{print $1}')"
+    echo "  Il servizio non può scrivere nella WorkingDirectory"
+    echo "  Soluzione: correggere i permessi della directory (chmod 755)"
+    exit 1
+  fi
+  
+  if [ ! -x "$working_dir" ]; then
+    echo "✗ ERRORE CRITICO: WorkingDirectory non accessibile"
+    echo "  Directory: $working_dir"
+    echo "  Permessi attuali: $(ls -ld "$working_dir" | awk '{print $1}')"
+    echo "  Il servizio non può accedere alla WorkingDirectory"
+    echo "  Soluzione: correggere i permessi della directory"
+    exit 1
+  fi
+  
+  echo "✓ WorkingDirectory valida e scrivibile: $working_dir"
+
   # 5. START
   echo "→ Avvio servizio..."
   if ! run_systemctl start "$SERVICE"; then
@@ -284,7 +323,7 @@ restart_safe() {
     exit 1
   fi
   
-  # Controllo stato servizio con attesa graduale
+  # Controllo stato servizio con attesa graduale e parsing errori CHDIR
   local service_state=""
   local service_substate=""
   local check_attempt=0
@@ -303,6 +342,26 @@ restart_safe() {
       echo "✗ ERRORE: Servizio entrato in stato FAILED"
       echo "  Log errori (ultimi 30 righe):"
       run_journalctl -u "$SERVICE" --since "2 minutes ago" -n 30 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 30 --no-pager 2>/dev/null
+      
+      # Parsing specifico errori CHDIR
+      echo "  → Analisi errori CHDIR..."
+      local chdir_errors=$(run_journalctl -u "$SERVICE" --since "2 minutes ago" -n 100 --no-pager 2>/dev/null | grep -i "chdir\|cannot change directory\|working directory" || true)
+      if [ -n "$chdir_errors" ]; then
+        echo "  ✗ ERRORE CHDIR RILEVATO!"
+        echo "  Dettagli errore:"
+        echo "$chdir_errors"
+        echo ""
+        echo "  Diagnostica WorkingDirectory:"
+        local wd=$(run_systemctl show -p WorkingDirectory --value "$SERVICE" 2>/dev/null || echo "N/A")
+        echo "    WorkingDirectory configurata: $wd"
+        if [ -n "$wd" ] && [ "$wd" != "N/A" ]; then
+          echo "    Esistenza directory: $([ -d "$wd" ] && echo "ESISTE" || echo "NON ESISTE")"
+          echo "    Permessi directory: $(ls -ld "$wd" 2>/dev/null || echo "Non accessibile")"
+          echo "    Utente servizio: $(run_systemctl show -p User --value "$SERVICE" 2>/dev/null || echo "root/system")"
+        fi
+        echo "  Soluzione: verificare che la WorkingDirectory esista e sia accessibile"
+      fi
+      
       echo "  Stato dettagliato:"
       run_systemctl status "$SERVICE" --no-pager 2>/dev/null || true
       exit 1
@@ -341,6 +400,24 @@ restart_safe() {
     echo "    $new_pid"
     echo "  Log errori (ultimi 20 righe):"
     run_journalctl -u "$SERVICE" --since "1 minute ago" -n 20 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 20 --no-pager 2>/dev/null
+    
+    # Parsing specifico errori CHDIR in caso di fallimento immediato
+    local chdir_errors=$(run_journalctl -u "$SERVICE" --since "1 minute ago" -n 50 --no-pager 2>/dev/null | grep -i "chdir\|cannot change directory\|working directory\|failed to change to runtime directory" || true)
+    if [ -n "$chdir_errors" ]; then
+      echo ""
+      echo "  ✗ ANALISI ERRORE CHDIR RILEVATA!"
+      echo "  Messaggi rilevati:"
+      echo "$chdir_errors"
+      echo ""
+      echo "  Diagnostica dettagliata:"
+      local wd=$(run_systemctl show -p WorkingDirectory --value "$SERVICE" 2>/dev/null || echo "N/A")
+      echo "    WorkingDirectory: $wd"
+      [ -n "$wd" ] && [ "$wd" != "N/A" ] && test -d "$wd" && echo "    Directory esiste: SI" || echo "    Directory esiste: NO"
+      [ -n "$wd" ] && [ "$wd" != "N/A" ] && test -r "$wd" 2>/dev/null && echo "    Directory leggibile: SI" || echo "    Directory leggibile: NO"
+      [ -n "$wd" ] && [ "$wd" != "N/A" ] && test -w "$wd" 2>/dev/null && echo "    Directory scrivibile: SI" || echo "    Directory scrivibile: NO"
+      [ -n "$wd" ] && [ "$wd" != "N/A" ] && test -x "$wd" 2>/dev/null && echo "    Directory eseguibile: SI" || echo "    Directory eseguibile: NO"
+    fi
+    
     echo "  exit code systemd:"
     run_systemctl show -p Result --value "$SERVICE" 2>/dev/null || echo "N/A"
     exit 1
@@ -351,6 +428,29 @@ restart_safe() {
     echo "✗ ERRORE: Servizio entrato in stato FAILED dopo avvio"
     echo "  Log errori (ultimi 30 righe):"
     run_journalctl -u "$SERVICE" --since "1 minute ago" -n 30 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 30 --no-pager 2>/dev/null
+    
+    # Parsing specifico errori CHDIR
+    echo "  → Analisi specifica errori CHDIR..."
+    local chdir_errors=$(run_journalctl -u "$SERVICE" --since "1 minute ago" -n 100 --no-pager 2>/dev/null | grep -i "chdir\|cannot change directory\|working directory\|failed to change" || true)
+    if [ -n "$chdir_errors" ]; then
+      echo "  ✗ ERRORE CHDIR CONFERMATO!"
+      echo "  Messaggi di errore rilevati:"
+      echo "$chdir_errors"
+      echo ""
+      echo "  Diagnostica WorkingDirectory:"
+      local wd=$(run_systemctl show -p WorkingDirectory --value "$SERVICE" 2>/dev/null || echo "N/A")
+      echo "    Configurata: $wd"
+      if [ -n "$wd" ] && [ "$wd" != "N/A" ]; then
+        echo "    Esiste: $([ -d "$wd" ] && echo "✓ SI" || echo "✗ NO")"
+        echo "    Leggibile: $([ -r "$wd" ] 2>/dev/null && echo "✓ SI" || echo "✗ NO")"
+        echo "    Scrivibile: $([ -w "$wd" ] 2>/dev/null && echo "✓ SI" || echo "✗ NO")"
+        echo "    Eseguibile: $([ -x "$wd" ] 2>/dev/null && echo "✓ SI" || echo "✗ NO")"
+        echo "    Owner: $(stat -c '%U:%G' "$wd" 2>/dev/null || echo "N/A")"
+        echo "    Permessi: $(stat -c '%a' "$wd" 2>/dev/null || echo "N/A")"
+      fi
+      echo "  Soluzione immediata: verificare esistenza e permessi della directory"
+    fi
+    
     echo "  Stato dettagliato:"
     run_systemctl status "$SERVICE" --no-pager 2>/dev/null || true
     exit 1
