@@ -15,9 +15,9 @@ HOST="127.0.0.1"
 PORT="8080"
 
 run_systemctl() {
-  if systemctl --user "$@" 2>/dev/null; then
+  if systemctl "$@" 2>/dev/null; then
     return 0
-  elif systemctl "$@" 2>/dev/null; then
+  elif systemctl --user "$@" 2>/dev/null; then
     return 0
   else
     return 1
@@ -25,9 +25,9 @@ run_systemctl() {
 }
 
 run_journalctl() {
-  if journalctl --user "$@" 2>/dev/null; then
+  if journalctl "$@" 2>/dev/null; then
     return 0
-  elif journalctl "$@" 2>/dev/null; then
+  elif journalctl --user "$@" 2>/dev/null; then
     return 0
   else
     return 1

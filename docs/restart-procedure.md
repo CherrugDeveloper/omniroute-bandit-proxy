@@ -21,9 +21,18 @@ Riavvio sicuro con sequenza **stop → attesa porta libera → start**:
 # 2. systemctl stop (bloccante)
 # 3. Attendi terminazione PID (max 60s)
 # 4. Attendi liberazione porta 127.0.0.1:8080
-# 5. systemctl start
-# 6. Attendi binding porta
+# 5. systemctl start (priorità system systemd)
+# 6. Attendi binding porta con rilevamento multi-metodo
+# 7. Verifica processo node in ascolto
 ```
+
+**Migliorie recenti:**
+
+- `run_systemctl` e `run_journalctl` ora provano prima `systemctl` system poi `--user`, evitando falsi negativi su servizio system-wide
+- `wait_for_port_bind` con fallback nc/ss/lsof + estrazione PID node
+- `wait_for_service_failed` monitora stato failed immediato e ritardato
+- Controllo stato servizio con attesa graduale 5x2s per evitare falsi inactive durante fase activating
+- Diagnostica porta con metodo rilevato e PID processo
 
 **Uso:**
 ```bash
@@ -31,6 +40,8 @@ Riavvio sicuro con sequenza **stop → attesa porta libera → start**:
 ./scripts/restart-safe.sh -q       # Silenzioso
 ./scripts/restart-safe.sh -f       # Con follow logs
 ```
+
+> **Nota:** Lo script `scripts/restart.sh` è obsoleto. Usare esclusivamente `restart-safe.sh` per evitare race condition e mismatch user/system systemd.
 
 ### 2. Service file aggiornato
 
@@ -167,4 +178,5 @@ sudo systemctl daemon-reexec
 - PID attuale corretto: 286599 (verificato)
 - Porta 8080 occupata correttamente dal servizio
 - Non usare mai `systemctl restart` diretto → usa `restart-safe.sh`
-- Script vecchio `restart.sh` mantiene bug, usare solo `restart-safe.sh`
+- Script `restart.sh` è obsoleto e mantenuto solo per retrocompatibilità; usare esclusivamente `restart-safe.sh` per evitare race condition su porta 8080
+- Modifiche recenti: priorità systemd system prima di user, rilevamento binding multi-metodo (nc/ss/lsof), monitoraggio stato failed immediato e ritardato

@@ -1376,7 +1376,7 @@
                 <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "stop")' title="Ferma il daemon di training">⏹ Stop Daemon</button>
                 <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "status")' title="Visualizza stato del daemon">📊 Status</button>
                 <span style="width:1px; height:24px; background:#30363d; margin:0 4px;"></span>
-                <button class="btn btn-sm" onclick='quickAction("restart.sh")' title="Riavvia il servizio proxy">🔄 Restart Service</button>
+                <button class="btn btn-sm" onclick='quickAction("restart-safe.sh")' title="Riavvia il servizio proxy">🔄 Restart Service</button>
                 <button class="btn btn-sm" onclick='quickAction("switch-mode.sh", "prod")' title="Cambia modalità prod">🏭 Mode: Prod</button>
             </div>
         </div>
@@ -4220,7 +4220,7 @@
             'check-db.mjs': 'Verifica l’integrità del database SQLite, conteggi tabelle e stato generale.',
             'clean-cjs-tests.mjs': 'Pulisce file di test CommonJS obsoleti o residui dalla directory.',
             'inspect-db.mjs': 'Ispeziona lo schema e i dati contenuti nelle tabelle del database principale.',
-            'restart.sh': 'Riavvia il servizio del proxy in modo pulito preservando le sessioni attive.',
+            'restart-safe.sh': 'Riavvia il servizio del proxy in modo pulito preservando le sessioni attive (consigliato).',
             'switch-mode.sh': 'Gestisce i passaggi tra modalità (prod, train-gentle, train, stop).',
             'test-final.mjs': 'Esegue i test finali di verifica del sistema e della suite di proxy.',
             'test-target.sh': 'Esegue test mirati su componenti specifici o moduli isolati.',

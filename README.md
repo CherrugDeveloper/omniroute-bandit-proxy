@@ -210,8 +210,8 @@ Produzione e manutenzione scripts in [`scripts/`](scripts/):
 - [`scripts/switch-mode.sh`](scripts/switch-mode.sh) - Cambia modalità prod/train-gentle/train/stop/status
 - [`scripts/train-ctl.sh`](scripts/train-ctl.sh) - Controllo training daemon
 - [`scripts/train-daemon.mjs`](scripts/train-daemon.mjs) - Training round-robin warm-up
-- [`scripts/restart.sh`](scripts/restart.sh) - Restart servizio + feedback
-- [`scripts/restart-safe.sh`](scripts/restart-safe.sh) - Restart sicuro
+- [`scripts/restart-safe.sh`](scripts/restart-safe.sh) - Restart sicuro (consigliato)
+- [`scripts/free-port-emergency.sh`](scripts/free-port-emergency.sh) - Emergency port release
 - [`scripts/free-port-emergency.sh`](scripts/free-port-emergency.sh) - Emergency port release
 - [`scripts/check-db.mjs`](scripts/check-db.mjs) - Diagnostica database
 - [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs) - Ispezione completa DB
@@ -221,7 +221,7 @@ Produzione e manutenzione scripts in [`scripts/`](scripts/):
 
 | Script | Cosa fa |
 |--------|---------|
-| `scripts/restart.sh` | Restart servizio + feedback su stdout |
+| `scripts/restart-safe.sh` | Restart sicuro con gestione porte e stato servizio |
 | `scripts/switch-mode.sh prod` | Modalità prod (EXPLOIT_ONLY=true, <2s) |
 | `scripts/switch-mode.sh train-gentle` | Avvia daemon training in parallelo |
 | `scripts/switch-mode.sh stop` | Ferma daemon training |
@@ -265,7 +265,7 @@ Configura queste variabili in `.env` (vedi `.env.example` per i valori di defaul
       train-daemon.mjs     Training round-robin warm-up
       train-ctl.sh         Start/stop/logs daemon
       switch-mode.sh       Cambio modalità prod/train
-      restart.sh           Restart servizio
+      restart-safe.sh      Restart sicuro del servizio
       check-db.mjs         Diagnostica database
       inspect-db.mjs       Ispezione completa database
 
