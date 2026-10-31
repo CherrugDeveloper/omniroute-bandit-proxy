@@ -82,16 +82,53 @@ wait_for_port_bind() {
   
   while [ $elapsed -lt $timeout ]; do
     local bound=false
+    local detection_method=""
     
+    # Fallback 1: nc check (connection test)
     if command -v nc >/dev/null 2>&1; then
       if nc -z -w1 "$host" "$port" 2>/dev/null; then
         bound=true
+        detection_method="nc"
+      fi
+    fi
+    
+    # Fallback 2: ss check (socket listening with node process)
+    if [ "$bound" != true ] && command -v ss >/dev/null 2>&1; then
+      if ss -tulnpe "sport = :${port}" 2>/dev/null | grep -q "node"; then
+        bound=true
+        detection_method="ss"
+      elif ss -tuln "sport = :${port}" 2>/dev/null | grep -q ":${port}"; then
+        bound=true
+        detection_method="ss (socket only)"
+      fi
+    fi
+    
+    # Fallback 3: lsof check (process listening)
+    if [ "$bound" != true ] && command -v lsof >/dev/null 2>&1; then
+      if lsof -i :${port} -sTCP:LISTEN 2>/dev/null | grep -q "node"; then
+        bound=true
+        detection_method="lsof (node)"
+      elif lsof -i :${port} 2>/dev/null | grep -q "LISTEN"; then
+        bound=true
+        detection_method="lsof"
       fi
     fi
     
     if [ "$bound" = true ]; then
-      echo "✓ Porta ${host}:${port} in ascolto"
+      echo "✓ Porta ${host}:${port} in ascolto (rilevato via $detection_method)"
+      # Verifica PID del processo node in ascolto
+      if command -v ss >/dev/null 2>&1; then
+        local node_pid=$(ss -tulnpe "sport = :${port}" 2>/dev/null | grep node | grep -oP 'pid=\K[0-9]+' | head -1)
+        if [ -n "$node_pid" ]; then
+          echo "  PID processo node: $node_pid"
+        fi
+      fi
       return 0
+    fi
+    
+    # Log diagnostico ogni 10 secondi
+    if [ $((elapsed % 10)) -eq 0 ] && [ $elapsed -gt 0 ]; then
+      echo "  ... $elapsed/${timeout}s trascorsi, porta non ancora bindata"
     fi
     
     sleep 1
@@ -99,6 +136,15 @@ wait_for_port_bind() {
   done
   
   echo "✗ ERRORE: Porta ${host}:${port} non si è bindata dopo ${timeout}s"
+  echo "  Diagnostica:"
+  if command -v ss >/dev/null 2>&1; then
+    echo "  ss -tulnpe sport = :${port}:"
+    ss -tulnpe "sport = :${port}" 2>/dev/null || echo "    (nessun output o comando non disponibile)"
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    echo "  lsof -i :${port}:"
+    lsof -i :${port} 2>/dev/null || echo "    (nessun output o comando non disponibile)"
+  fi
   exit 1
 }
 
@@ -114,6 +160,34 @@ wait_for_service_active() {
     elapsed=$((elapsed + 1))
   done
   
+  return 1
+}
+
+wait_for_service_failed() {
+  local timeout=10
+  local elapsed=0
+  
+  echo "→ Verifica stato servizio post-avvio..."
+  
+  while [ $elapsed -lt $timeout ]; do
+    local state=$(run_systemctl show -p ActiveState --value "$SERVICE" 2>/dev/null || echo "unknown")
+    
+    if [ "$state" = "failed" ]; then
+      echo "✗ Servizio entrato in stato FAILED"
+      return 0
+    elif [ "$state" = "active" ]; then
+      echo "✓ Servizio in stato active"
+      return 1
+    fi
+    
+    # Se il servizio è inactivating/deactivating, aspetta ancora
+    if [ "$state" = "inactive" ]; then
+      sleep 1
+      elapsed=$((elapsed + 1))
+    fi
+  done
+  
+  # Timeout: servizio non in failed entro il timeout
   return 1
 }
 
@@ -159,6 +233,8 @@ restart_safe() {
   done
   if run_systemctl is-active --quiet "$SERVICE"; then
     echo "⚠ Servizio ancora attivo dopo attesa"
+    echo "  Tentativo diagnostica stato:"
+    run_systemctl status "$SERVICE" --no-pager 2>/dev/null | head -20 || true
   else
     echo "✓ Servizio inattivo"
   fi
@@ -208,6 +284,35 @@ restart_safe() {
     exit 1
   fi
   
+  # Controllo immediato stato servizio dopo start
+  sleep 2
+  local service_state=$(run_systemctl show -p ActiveState --value "$SERVICE" 2>/dev/null || echo "unknown")
+  local service_substate=$(run_systemctl show -p SubState --value "$SERVICE" 2>/dev/null || echo "unknown")
+  echo "→ Stato servizio: $service_state ($service_substate)"
+  
+  # Verifica se il servizio è entrato in stato failed
+  if [ "$service_state" = "failed" ]; then
+    echo "✗ ERRORE: Servizio entrato in stato FAILED immediatamente dopo start"
+    echo "  PID nuovo processo:"
+    local new_pid=$(run_systemctl show -p MainPID --value "$SERVICE" 2>/dev/null || echo "nessuno")
+    echo "    $new_pid"
+    echo "  Log errori (ultimi 20 righe):"
+    run_journalctl -u "$SERVICE" --since "1 minute ago" -n 20 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 20 --no-pager 2>/dev/null
+    echo "  exit code systemd:"
+    run_systemctl show -p Result --value "$SERVICE" 2>/dev/null || echo "N/A"
+    exit 1
+  fi
+  
+  # Verifica stato failed con funzione dedicata
+  if wait_for_service_failed; then
+    echo "✗ ERRORE: Servizio entrato in stato FAILED dopo avvio"
+    echo "  Log errori (ultimi 30 righe):"
+    run_journalctl -u "$SERVICE" --since "1 minute ago" -n 30 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 30 --no-pager 2>/dev/null
+    echo "  Stato dettagliato:"
+    run_systemctl status "$SERVICE" --no-pager 2>/dev/null || true
+    exit 1
+  fi
+  
   # Small sleep before checking bind
   sleep 2
   
@@ -218,6 +323,27 @@ restart_safe() {
   
   # 7. Attendi binding porta
   wait_for_port_bind "$HOST" "$PORT"
+  
+  # 8. Verifica processo node effettivamente in ascolto
+  echo "→ Verifica processo node in ascolto sulla porta..."
+  local node_verified=false
+  if command -v ss >/dev/null 2>&1; then
+    if ss -tulnpe "sport = :${PORT}" 2>/dev/null | grep -q "node"; then
+      node_verified=true
+      local node_pid=$(ss -tulnpe "sport = :${PORT}" 2>/dev/null | grep node | grep -oP 'pid=\K[0-9]+' | head -1)
+      echo "✓ Processo node verificato (PID: $node_pid) in ascolto su ${HOST}:${PORT}"
+    fi
+  elif command -v lsof >/dev/null 2>&1; then
+    if lsof -i :${PORT} -sTCP:LISTEN 2>/dev/null | grep -q "node"; then
+      node_verified=true
+      local node_pid=$(lsof -i :${PORT} -sTCP:LISTEN 2>/dev/null | grep node | awk '{print $2}' | head -1)
+      echo "✓ Processo node verificato (PID: $node_pid) in ascolto su ${HOST}:${PORT}"
+    fi
+  fi
+  
+  if [ "$node_verified" != true ]; then
+    echo "⚠ WARNING: Porta bindata ma processo node non verificato con ss/lsof"
+  fi
   
   echo "─────────────────────────────────────────"
   echo "✓ $SERVICE riavviato con successo"
