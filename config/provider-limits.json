@@ -5,8 +5,14 @@
             "rpd": 1000,
             "itpm": 50000,
             "groups": {
-                "free": { "rpm": 20, "rpd": 1000 },
-                "paid": { "rpm": 100, "rpd": 10000 }
+                "free": {
+                    "rpm": 20,
+                    "rpd": 1000
+                },
+                "paid": {
+                    "rpm": 100,
+                    "rpd": 10000
+                }
             }
         },
         "groq": {
@@ -14,8 +20,14 @@
             "rpd": 500,
             "itpm": 7000,
             "groups": {
-                "free": { "rpm": 30, "rpd": 500 },
-                "paid": { "rpm": 50, "rpd": 2000 }
+                "free": {
+                    "rpm": 30,
+                    "rpd": 500
+                },
+                "paid": {
+                    "rpm": 50,
+                    "rpd": 2000
+                }
             }
         },
         "nvidia": {
@@ -23,8 +35,14 @@
             "rpd": 1500,
             "itpm": 60000,
             "groups": {
-                "free": { "rpm": 50, "rpd": 1000 },
-                "paid": { "rpm": 150, "rpd": 10000 }
+                "free": {
+                    "rpm": 50,
+                    "rpd": 1000
+                },
+                "paid": {
+                    "rpm": 150,
+                    "rpd": 10000
+                }
             }
         },
         "gemini": {
@@ -32,8 +50,14 @@
             "rpd": 300,
             "itpm": 30000,
             "groups": {
-                "free": { "rpm": 15, "rpd": 300 },
-                "paid": { "rpm": 30, "rpd": 3000 }
+                "free": {
+                    "rpm": 15,
+                    "rpd": 300
+                },
+                "paid": {
+                    "rpm": 30,
+                    "rpd": 3000
+                }
             }
         },
         "mistral": {
@@ -41,8 +65,14 @@
             "rpd": 750,
             "itpm": 30000,
             "groups": {
-                "free": { "rpm": 30, "rpd": 500 },
-                "paid": { "rpm": 75, "rpd": 5000 }
+                "free": {
+                    "rpm": 30,
+                    "rpd": 500
+                },
+                "paid": {
+                    "rpm": 75,
+                    "rpd": 5000
+                }
             }
         },
         "cfp": {
@@ -64,6 +94,17 @@
             "rpm": 25,
             "rpd": 250,
             "itpm": 8000
+        },
+        "test-provider": {
+            "rpm": 10,
+            "rpd": 100,
+            "itpm": 1000,
+            "groups": {
+                "free": {
+                    "rpm": 5,
+                    "rpd": 50
+                }
+            }
         }
     }
 }

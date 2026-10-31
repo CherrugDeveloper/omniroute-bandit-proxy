@@ -2869,3 +2869,4 @@ export class DiscountedUCB1Bandit {
     }
   }
 }
+// Test comment added to bandit.mjs for auto-git test
