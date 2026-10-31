@@ -284,15 +284,45 @@ restart_safe() {
     exit 1
   fi
   
-  # Controllo immediato stato servizio dopo start
-  sleep 2
-  local service_state=$(run_systemctl show -p ActiveState --value "$SERVICE" 2>/dev/null || echo "unknown")
-  local service_substate=$(run_systemctl show -p SubState --value "$SERVICE" 2>/dev/null || echo "unknown")
-  echo "→ Stato servizio: $service_state ($service_substate)"
+  # Controllo stato servizio con attesa graduale
+  local service_state=""
+  local service_substate=""
+  local check_attempt=0
+  local max_checks=5
   
-  # Verifica se il servizio non è partito (inactive/dead)
-  if [ "$service_state" = "inactive" ] || [ "$service_state" = "unknown" ]; then
-    echo "✗ ERRORE: Servizio non partito, stato $service_state ($service_substate)"
+  while [ $check_attempt -lt $max_checks ]; do
+    sleep 2
+    service_state=$(run_systemctl show -p ActiveState --value "$SERVICE" 2>/dev/null || echo "unknown")
+    service_substate=$(run_systemctl show -p SubState --value "$SERVICE" 2>/dev/null || echo "unknown")
+    echo "→ Stato servizio: $service_state ($service_substate) [tentativo $((check_attempt+1))/$max_checks]"
+    
+    if [ "$service_state" = "active" ]; then
+      echo "✓ Servizio attivo"
+      break
+    elif [ "$service_state" = "failed" ]; then
+      echo "✗ ERRORE: Servizio entrato in stato FAILED"
+      echo "  Log errori (ultimi 30 righe):"
+      run_journalctl -u "$SERVICE" --since "2 minutes ago" -n 30 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 30 --no-pager 2>/dev/null
+      echo "  Stato dettagliato:"
+      run_systemctl status "$SERVICE" --no-pager 2>/dev/null || true
+      exit 1
+    fi
+    
+    # Se servizio è ancora inactive/dead, potrebbe essere in avvio, continua ad aspettare
+    if [ "$service_state" = "inactive" ] || [ "$service_state" = "unknown" ]; then
+      check_attempt=$((check_attempt + 1))
+      if [ $check_attempt -lt $max_checks ]; then
+        echo "  Servizio non ancora attivo, attesa ulteriori 2s..."
+        continue
+      fi
+    fi
+    
+    check_attempt=$((check_attempt + 1))
+  done
+  
+  # Verifica finale se il servizio non è partito
+  if [ "$service_state" != "active" ] && [ "$service_state" != "activating" ]; then
+    echo "✗ ERRORE: Servizio non partito dopo $max_checks tentativi, stato $service_state ($service_substate)"
     echo "  systemctl start ha restituito successo ma servizio non è attivo"
     echo "  Log errori (ultimi 30 righe):"
     run_journalctl -u "$SERVICE" --since "2 minutes ago" -n 30 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 30 --no-pager 2>/dev/null
@@ -300,6 +330,8 @@ restart_safe() {
     run_systemctl status "$SERVICE" --no-pager 2>/dev/null || true
     exit 1
   fi
+  
+  # Se servizio è activating, continua con il normale flusso di attesa
   
   # Verifica se il servizio è entrato in stato failed
   if [ "$service_state" = "failed" ]; then
