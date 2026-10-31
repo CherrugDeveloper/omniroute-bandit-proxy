@@ -1,4 +1,9 @@
 ## v1.0.0 — 2026-10-31
+- feat(src,docs): update bandit logic
+
+## v1.1.94 — 2026-10-31
+- [Pending] Bandit Proxy Fix:
+  - TBD: Investigation and fix of bandit proxy issue.
 - chore: automated update
 - chore: update dashboard.html
 
@@ -23,6 +28,18 @@
   - Added `cooldown_until = 0` reset in the success path of `recordFeedback()` for both model and provider records
   - Provider cooldown is now properly cleared via `UPDATE provider_history SET cooldown_until = 0` on success
 
+## v1.1.91 — 2026-10-30
+- **Fix Service Startup Crash (Duplicate Variable Declaration)**:
+  - Removed duplicate `const isHardError` declaration at `src/index.mjs:1732` inside `noteProviderFail()`
+  - The duplicate caused `SyntaxError: Identifier 'isHardError' has already been declared` at module load, preventing the server from binding port 8080
+  - This was the root cause of `restart-safe.sh` failing with "Porta 127.0.0.1:8080 non si è bindata dopo 60s" — systemd's `Restart=on-failure` kept restarting the crashed process in a loop
+  - Also ran `npm install` to restore missing `node_modules` (express and other dependencies were absent)
+- **Fix Cronologia Unificata Timestamp Overlap**:
+  - Removed orange "try N" text from active model timestamp cell in `fmtRow()` (was causing visual overflow into Provider column)
+  - Active thinking models now show only timestamp + elapsed seconds, e.g. `19:57:05 (20.6s)`
+  - Non-active rows show clean timestamp only, e.g. `19:55:24`
+  - This eliminates the column overlap in the unified history table
+
 ## v1.1.90 — 2026-10-30
 - **Auto-Git Command Enhancement**:
   - Added `# Skill: auto-git` directive to `.roo/commands/auto-git.md` to make the command executable via the skill system
@@ -34,18 +51,6 @@
   - Enhanced proxy error handling in `src/index.mjs` with better error classification and recovery mechanisms
 
 ## v1.1.89 — 2026-10-29
-- **Fix Cronologia Unificata Timestamp Overlap**:
-  - Removed orange "try N" text from active model timestamp cell in `fmtRow()` (was causing visual overflow into Provider column)
-  - Active thinking models now show only timestamp + elapsed seconds, e.g. `19:57:05 (20.6s)`
-  - Non-active rows show clean timestamp only, e.g. `19:55:24`
-  - This eliminates the column overlap in the unified history table
-
-## v1.1.91 — 2026-10-30
-- **Fix Service Startup Crash (Duplicate Variable Declaration)**:
-  - Removed duplicate `const isHardError` declaration at `src/index.mjs:1732` inside `noteProviderFail()`
-  - The duplicate caused `SyntaxError: Identifier 'isHardError' has already been declared` at module load, preventing the server from binding port 8080
-  - This was the root cause of `restart-safe.sh` failing with "Porta 127.0.0.1:8080 non si è bindata dopo 60s" — systemd's `Restart=on-failure` kept restarting the crashed process in a loop
-  - Also ran `npm install` to restore missing `node_modules` (express and other dependencies were absent)
 - **Fix Cronologia Unificata Timestamp Overlap**:
   - Removed orange "try N" text from active model timestamp cell in `fmtRow()` (was causing visual overflow into Provider column)
   - Active thinking models now show only timestamp + elapsed seconds, e.g. `19:57:05 (20.6s)`
@@ -66,7 +71,6 @@
   - Previously, exceptions in `compressBody()`, `estimateTokens()`, or model selection logic would trigger the uncaughtException handler, which immediately calls `process.exit(1)`
   - Now, unhandled exceptions are caught, logged, and a proper 500 JSON response is returned to the client instead of crashing the server
   - This resolves `ERR_CONNECTION_REFUSED` and `ERR_CONNECTION_RESET` errors in the Chrome dashboard client after successful API calls
-
 
 ## v1.1.87 — 2026-10-29
 - **Dashboard Log Streaming Fix**: Fixed log table column alignment (tbody changed from `display: block` to `display: table-row-group` so `table-layout: fixed` works correctly), removed message truncation (messages now wrap instead of being cut off at 200px), and expanded log container to use all available vertical space (`flex: 1` instead of `max-height: 200px`)
@@ -138,11 +142,8 @@
   - Implemented fluid typography for dashboard statistics for better responsiveness.
   - Refined fluid typography scaling for stats boxes to ensure better readability and consistent layout.
   - Fix: Use viewport-based scaling for stats boxes in dashboard.
-
 - Fix: Reset provider attention flags and cooldowns in `bandit.db`.
 - Refactor: Allow attention flag relaxation in emergency filtering in `src/bandit.mjs`.
-
-Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
 
 ## v1.1.77 — 2026-10-24
 - **Systemd Path Fix**:
@@ -242,40 +243,5 @@ Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
   - Updated relaxation tiers in `selectModel` for clearer progression (Tiers 1-4) in [`src/bandit.mjs`](src/bandit.mjs:1).
   - Conditionalized verbose debug logs using `debugVerbose` in [`src/index.mjs`](src/index.mjs:1) and [`src/bandit.mjs`](src/bandit.mjs:1).
   - Enhanced image generation detection heuristics with additional keywords ('visualize', 'render') and regex patterns in [`src/index.mjs`](src/index.mjs:1).
-## 2026-10-29
 
-fix(dashboard): align numbers, optimize columns, invert unified history order (600bccd) 2026-10-28
-fix(dashboard): align metrics numbers, hide scrollbars, optimize half-screen view (94e5779) 2026-10-28
-fix: resolve 'no such column: N' error in getDashboardStats() (46260d1) 2026-10-28
-fix: CSS overlap fix for 'Osservazioni OK' in dashboard stats (display: inline-flex with gap) (e8afce7) 2026-10-28
-fix(dashboard): fix log streaming rendering and copy button (93e7a41) 2026-10-28
-chore: add auto-git command and skill definitions, update changelog and readme (feb12d1) 2026-10-28
-fix(dashboard): resolve syntax error in public/dashboard.html (cbaf8c1) 2026-10-28
-fix(dashboard): resolve structural issues in public/dashboard.html (85c7e5f) 2026-10-28
-feat(dashboard): comprehensive dashboard overhaul with enhanced metrics, logs, unified history, and controls (41c8882) 2026-10-28
-fix: resolve 'source is not defined' unhandled rejection in selectModel function (2be83f7) 2026-10-27
-## 2026-10-30
-
-fix(proxy): fail fast on model-not-found errors and fix status reporting (0d09d07) 2026-10-30
-fix: enforce cooldown in bandit emergency relaxation tiers (1fa82d2) 2026-10-30
-fix: prevent model re-selection loop in bandit emergency relaxation (7137d7e) 2026-10-30
-fix: revert incorrect ZOO mode addition; fix dashboard CSS alignment and filter overflow (af0293d) 2026-10-30
-chore: v1.1.90 — 2026-10-30 (f88bb76) 2026-10-30
-fix(dashboard): remove try text from Cronologia Unificata timestamp to resolve column overlap (67e3a8f) 2026-10-29
-fix(dashboard): prevent connection errors by adding try/catch to chat/completions route handler (21a11b3) 2026-10-29
-fix: prevent repeated provider errors in bandit model selection (aa4a7ab) 2026-10-29
-fix(dashboard): fix log streaming column alignment, message truncation, and container height (54591e0) 2026-10-29
-fix(dashboard): stop polling /v1/models when models tab is not active (118c37a) 2026-10-29
-## 2026-10-31
-
-fix: model sanitization validation, error classification improvements, and provider cooldown fixes (7160d37) 2026-10-30
-fix: clear cooldown_until on successful requests in recordFeedback() (706de4f) 2026-10-30
-fix: remove duplicate isHardError variable declaration causing service startup crash (6992fe5) 2026-10-30
-fix: universal provider_cooldown rejections - fix noteProviderFail error type filtering, reduce maxAttempts, set EXPLOIT_ONLY=false, add provider cooldown reset via health check (4365d84) 2026-10-30
-fix(proxy): fail fast on model-not-found errors and fix status reporting (0d09d07) 2026-10-30
-fix: enforce cooldown in bandit emergency relaxation tiers (1fa82d2) 2026-10-30
-fix: prevent model re-selection loop in bandit emergency relaxation (7137d7e) 2026-10-30
-fix: revert incorrect ZOO mode addition; fix dashboard CSS alignment and filter overflow (af0293d) 2026-10-30
-chore: v1.1.90 — 2026-10-30 (f88bb76) 2026-10-30
-fix(dashboard): remove try text from Cronologia Unificata timestamp to resolve column overlap (67e3a8f) 2026-10-29
 ## v1.1.62 — 2026-10-19

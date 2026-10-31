@@ -463,11 +463,7 @@ export class DiscountedUCB1Bandit {
   _registerModelUse(modelId, provider) {
     const originalModelId = modelId;
     modelId = this._sanitizeModelId(modelId);
-    // If sanitization changed the model id or returned null, use original for tracking
-    if (!modelId || modelId !== originalModelId) {
-      modelId = originalModelId;
-    }
-    console.log(`[DEBUG] _registerModelUse modelId=${modelId} provider=${provider}`);
+    console.log(`[DEBUG] _registerModelUse: original=${originalModelId}, sanitized=${modelId}`);
     this.db.prepare(
       `INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
        VALUES (?, 0, 0, 0, 0)`
@@ -835,6 +831,8 @@ export class DiscountedUCB1Bandit {
   }
 
   recordFeedback(modelId, success, reward = 1.0, errorDetails = null, opts = {}) {
+    const sanitizedModelId = this._sanitizeModelId(modelId);
+    console.log(`[DEBUG] recordFeedback: modelId=${modelId}, sanitized=${sanitizedModelId}`);
     console.log(`[BANDIT-RECORD-FEEDBACK] modelId=${modelId} success=${success} reward=${reward} source=${opts.source}`);
     try {
       const tx = this.db.transaction(() => {
@@ -842,20 +840,20 @@ export class DiscountedUCB1Bandit {
         const source = opts.source === 'training' ? 'training' : 'prod';
 
         // Ensure model exists in models table (for catalog-only models or any model receiving feedback)
-        const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
-        const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(modelId);
+        const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(sanitizedModelId);
+        const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(sanitizedModelId);
         const provider = cat?.provider || existingModel?.provider || opts.provider || 'unknown';
         if (provider) {
           this.db.prepare(
             `INSERT OR IGNORE INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, permanent, degraded)
              VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`
-          ).run(modelId, provider);
+          ).run(sanitizedModelId, provider);
         }
 
         if (source === 'training' || source === 'prod') {
           if (!success && errorDetails && typeof errorDetails === "object") {
-            const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
-            const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(modelId);
+            const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(sanitizedModelId);
+            const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(sanitizedModelId);
             const provider = cat?.provider || existingModel?.provider || opts.provider || 'unknown';
             if (provider) {
               console.log(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
@@ -877,7 +875,7 @@ export class DiscountedUCB1Bandit {
                   `INSERT INTO models (id, provider, permanent, N, sum_reward, fails, cooldown_until, last_used_index)
                    VALUES (?, ?, 1, 0, 0, 0, 0, 0)
                    ON CONFLICT(id) DO UPDATE SET permanent = 1`
-                ).run(modelId, provider);
+                ).run(sanitizedModelId, provider);
                 console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
                 break;
               case "cooldown-provider":
@@ -885,7 +883,7 @@ export class DiscountedUCB1Bandit {
                   console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
                 }
                 if (c.reason === "no-credit" || /402|payment|credit|funds/i.test(String(errorDetails?.status || "") + " " + String(errorDetails?.message || ""))) {
-                  this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(modelId);
+                  this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(sanitizedModelId);
                 }
                 this._forceProviderCooldown(provider, c.cooldownMs, c.reason);
                 console.log(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=provider`);
@@ -915,20 +913,20 @@ export class DiscountedUCB1Bandit {
                          WHEN dynamic_max_tokens = 0 OR dynamic_max_tokens > excluded.dynamic_max_tokens THEN excluded.dynamic_max_tokens
                          ELSE MIN(dynamic_max_tokens, excluded.dynamic_max_tokens)
                        END`
-                    ).run(modelId, provider, targetLimit);
+                    ).run(sanitizedModelId, provider, targetLimit);
                   }
                 }
                 if (isTransient) {
-                  this.db.prepare(`UPDATE models SET consecutive_5xx = consecutive_5xx + 1 WHERE id = ?`).run(modelId);
-                  const modelRow = this.db.prepare(`SELECT consecutive_5xx FROM models WHERE id = ?`).get(modelId);
+                  this.db.prepare(`UPDATE models SET consecutive_5xx = consecutive_5xx + 1 WHERE id = ?`).run(sanitizedModelId);
+                  const modelRow = this.db.prepare(`SELECT consecutive_5xx FROM models WHERE id = ?`).get(sanitizedModelId);
                   if (modelRow && modelRow.consecutive_5xx >= 3) {
-                    this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ?`).run(Date.now(), modelId);
+                    this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ?`).run(Date.now(), sanitizedModelId);
                     console.log(`[BANDIT-CONSEQUENCE] degraded | model=${modelId} provider=${provider} reason=consecutive_5xx count=${modelRow.consecutive_5xx} scope=model`);
                   }
                 }
                 // Apply cooldown to model
                 if (c.cooldownMs > 0) {
-                  this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + c.cooldownMs, modelId);
+                  this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + c.cooldownMs, sanitizedModelId);
                   console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=model`);
                 } else if (isTransient) {
                   // For transient errors (server-error, timeout, unknown), set a default cooldown
@@ -1919,13 +1917,16 @@ export class DiscountedUCB1Bandit {
 
   isModelAvailable(modelId, estimatedTokens = 0, requireImageGeneration = false) {
     const now = Date.now();
+    const sanitizedModelId = this._sanitizeModelId(modelId);
     const model = this.db.prepare(
       `SELECT cooldown_until, permanent, degraded, provider FROM models WHERE id = ?`
-    ).get(modelId);
+    ).get(sanitizedModelId);
 
     const catModel = this.db.prepare(
       `SELECT provider, max_input_tokens, supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
-    ).get(modelId);
+    ).get(sanitizedModelId);
+
+    console.log(`[DEBUG] isModelAvailable: modelId=${modelId}, sanitized=${sanitizedModelId}, found=${!!model}`);
 
     if (!requireImageGeneration && catModel) {
       const lowerId = modelId.toLowerCase();
