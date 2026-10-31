@@ -1136,7 +1136,7 @@ export class DiscountedUCB1Bandit {
       return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
     }
 
-    // 429 quota exhausted / rate limit -> cooldown-provider / cooldown-model
+    // 429 quota exhausted / rate limit -> cooldown-model (not provider)
     if (is429 || /rate\s*limit|too\s+many\s+requests|throttled|quota\s*exceeded|exhausted/i.test(message)) {
       let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (!cooldownMs || cooldownMs <= 0) {
@@ -1151,7 +1151,7 @@ export class DiscountedUCB1Bandit {
       if (repeated429) {
         const cooldownMultiplier = 2;
         return {
-          action: "cooldown-provider",
+          action: "cooldown-model",
           reason: "quota-exhausted",
           cooldownMs: cooldownMs * cooldownMultiplier
         };
@@ -1159,7 +1159,7 @@ export class DiscountedUCB1Bandit {
         // 429/rate-limit is typically a transient condition (rate limit, not quota exhaustion)
         // Use a short cooldown (5 min) to avoid hammering the provider while allowing quick retry
         return {
-          action: "cooldown-provider",
+          action: "cooldown-model",
           reason: "rate-limit",
           cooldownMs: 300000
         };
@@ -1366,7 +1366,7 @@ export class DiscountedUCB1Bandit {
     };
   }
 
-  _recordProviderFailureForCircuitBreaker(provider) {
+  _recordProviderFailureForCircuitBreaker(provider, isHardError = false) {
     const now = Date.now();
     const prov = this.db.prepare(
       `SELECT consecutive_failures, circuit_breaker_until, last_success_time FROM provider_history WHERE provider = ?`
@@ -1377,11 +1377,13 @@ export class DiscountedUCB1Bandit {
     const isCircuitOpen = prevCircuitUntil > now;
     const shouldReset = lastSuccess > 0 && (now - lastSuccess) > 30 * 60 * 1000;
 
-    let newFailures = prevFailures + 1;
+    // Only increment consecutive_failures for hard errors (auth/403/404/permanent),
+    // not transient errors (timeouts, 429s)
+    let newFailures = isHardError ? prevFailures + 1 : prevFailures;
     let circuitOpen = isCircuitOpen;
     let circuitBreakerUntil = prevCircuitUntil;
 
-    if (!isCircuitOpen && !shouldReset) {
+    if (!isCircuitOpen && !shouldReset && isHardError) {
       const threshold = Number(process.env.CIRCUIT_BREAKER_THRESHOLD || "3");
       if (newFailures >= threshold) {
         circuitOpen = true;
@@ -1948,8 +1950,8 @@ export class DiscountedUCB1Bandit {
         if (prov.cooldown_until && prov.cooldown_until > now) return false;
         if (prov.quota_resets_at && prov.quota_resets_at > now) return false;
         if (prov.needs_attention === 1) {
-          // Auto-reset if cooldown expired
-          if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
+          // Auto-reset if cooldown expired OR cooldown is 0 (already cleared)
+          if (prov.cooldown_until === 0 || prov.cooldown_until <= now) {
             this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(provider);
           } else {
             return false;
@@ -2284,11 +2286,27 @@ export class DiscountedUCB1Bandit {
           if (tierName === 'emergency') {
             console.log(`[BANDIT][EMERGENCY] Model ${model.id} rejected: ${rejectionReason}`);
           }
+          // Map rejection reason to countermeasure
+          let countermeasure = '';
+          if (rejectionReason.includes('cooldown') && !rejectionReason.includes('quota') && !rejectionReason.includes('circuit')) {
+            countermeasure = 'cooldown-model';
+          } else if (rejectionReason.includes('provider_cooldown') || rejectionReason === 'provider_cooled_down_this_request') {
+            countermeasure = 'cooldown-provider';
+          } else if (rejectionReason === 'provider_quota_exhausted') {
+            countermeasure = 'quota_exhausted';
+          } else if (rejectionReason === 'model_permanent_ban' || rejectionReason === 'provider_permanent_ban') {
+            countermeasure = 'ban-model';
+          } else if (rejectionReason === 'exclude_thinking' || rejectionReason === 'exclude_paid' || rejectionReason === 'only_free' || rejectionReason === 'dynamic_max_tokens_exceeded' || rejectionReason === 'max_input_tokens_exceeded' || rejectionReason === 'no_tools_support' || rejectionReason === 'no_image_generation_support' || rejectionReason === 'no_vision_support' || rejectionReason === 'non_chat_model_excluded' || rejectionReason === 'provider_needs_attention') {
+            countermeasure = 'flag-provider';
+          } else if (rejectionReason === 'provider_circuit_breaker') {
+            countermeasure = 'flag-provider';
+          }
           selectionHistory.push({
             id: model.id,
             provider: model.provider,
             status: 'rejected',
             reason: rejectionReason,
+            countermeasure: countermeasure,
             tier: tierName,
             N: model.N || 0,
             sum_reward: model.sum_reward || 0,
@@ -2347,14 +2365,12 @@ export class DiscountedUCB1Bandit {
       availableModels = filterModels('tier3', { ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 
-    // Tier 4: Emergency Relaxation (Ignore Policies/Tools/Token Limits, NOT Cooldowns)
-    // We keep cooldown checking active so models recently failed (and in cooldown)
-    // are properly excluded. The ignoreExcluded: false ensures the exact same
-    // model that just failed stays excluded, preventing an endless loop of
-    // re-selecting the same failing model. Other excluded models may be tried.
+    // Tier 4: Emergency Relaxation (Ignore Policies/Tools/Token Limits AND Cooldowns)
+    // This is the last resort before absolute fallback - ignore all cooldowns to ensure
+    // we can still serve requests even if all providers are in cooldown.
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: false, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: false, ignoreDynamicMaxTokens: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: false, ignoreDynamicMaxTokens: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)

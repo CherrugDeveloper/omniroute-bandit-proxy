@@ -306,6 +306,25 @@
         .degraded { color: #db6d28; font-weight: bold; }
         .muted { color: #8b949e; font-size: 0.8em; }
 
+        .stat-change {
+            position: absolute;
+            font-size: 10px;
+            font-weight: bold;
+            color: #ffd700;
+            background: rgba(0,0,0,0.6);
+            padding: 1px 4px;
+            border-radius: 3px;
+            pointer-events: none;
+            animation: statPop 2.5s ease-out forwards;
+            z-index: 1000;
+        }
+
+        @keyframes statPop {
+            0% { opacity: 0; transform: translateY(0) scale(0.8); }
+            15% { opacity: 1; transform: translateY(-8px) scale(1.1); }
+            100% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+        }
+
         .badge {
             display: inline-flex;
             align-items: center;
@@ -1018,6 +1037,22 @@
             <input type="checkbox" id="debug-toggle" onchange="toggleDebug(this.checked)" style="cursor:pointer;">
             <span>🐛 Debug verbose</span>
         </label>
+        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="config-exclude-paid" onchange="toggleConfig('excludePaid', this.checked)" style="cursor:pointer;">
+            <span>💰 Exclude Paid</span>
+        </label>
+        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="config-only-free" onchange="toggleConfig('onlyFree', this.checked)" style="cursor:pointer;">
+            <span>🆓 Only Free</span>
+        </label>
+        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="config-exclude-thinking" onchange="toggleConfig('excludeThinking', this.checked)" style="cursor:pointer;">
+            <span>🧠 Exclude Thinking</span>
+        </label>
+        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="config-exploit-only" onchange="toggleConfig('exploitOnly', this.checked)" style="cursor:pointer;">
+            <span>🎯 Exploit Only</span>
+        </label>
     </div>
         </div>
         <div class="stats-container">
@@ -1125,37 +1160,27 @@
         <div class="log-header">
             <h3>Log Streaming</h3>
             <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end;">
-                <input type="text" id="log-filter" placeholder="🔍 filtra..."
-                    autocomplete="off"
-                    style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:220px;"
-                    onfocus="this.value=''; renderFilteredLogs()">
-                <label style="font-size:11px; color:#3fb950; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-zoo" checked> ZOO
-                </label>
-                <label style="font-size:11px; color:#ff5858; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-debug" checked> DEBUG
-                </label>
-                <label style="font-size:11px; color:#58a6ff; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-train" checked> TRAIN
-                </label>
-                <label style="font-size:11px; color:#ff5858; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-ban" checked> BAN
-                </label>
-                <label style="font-size:11px; color:#f1c40f; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-cooldown" checked> COOLDOWN
-                </label>
-                <label style="font-size:11px; color:#e6ac00; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-flag" checked> FLAG
-                </label>
-                <label style="font-size:11px; color:#e74c3c; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-degraded" checked> DEGRADED
-                </label>
-                <label style="font-size:11px; color:#e74c3c; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-proxy" checked> PROXY
-                </label>
-                <label style="font-size:11px; color:#9b59b6; display:flex; gap:4px; align-items:center; cursor:pointer; user-select:none;">
-                    <input type="checkbox" id="log-show-paid-only" checked> PAID-ONLY
-                </label>
+                <div style="position:relative;">
+                    <select id="log-filter-dropdown" style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 24px 4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:220px; appearance:none; cursor:pointer;" onchange="applyLogFilterPreset(this.value)">
+                        <option value="all">🌟 Tutti i log</option>
+                        <option value="errors">⚠️ Solo errori (BAN/COOLDOWN/FLAG/DEGRADED)</option>
+                        <option value="proxy">🔌 Solo PROXY</option>
+                        <option value="system">🏗️ Solo SYSTEM/ZOO/TRAIN/DEBUG</option>
+                        <option value="zoo">🌿 Solo ZOO</option>
+                        <option value="debug">🐛 Solo DEBUG</option>
+                        <option value="train">🏋️ Solo TRAIN</option>
+                        <option value="paid">💳 Solo PAID-ONLY</option>
+                        <option value="active">✅ Solo BAN/COOLDOWN/FLAG</option>
+                        <option value="custom">⚙️ Filtro personalizzato...</option>
+                    </select>
+                    <span style="position:absolute; right:8px; top:50%; transform:translateY(-50%); pointer-events:none; color:#8b949e;">▼</span>
+                </div>
+                <div style="display:none;" id="custom-log-filters">
+                    <input type="text" id="log-filter" placeholder="🔍 testo..."
+                        autocomplete="off"
+                        style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:120px;"
+                        oninput="logFilterText = this.value; renderFilteredLogs()">
+                </div>
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
         </div>
@@ -1436,12 +1461,14 @@
                             <th>Modello ID</th>
                             <th>Provider</th>
                             <th>Stato / Risultato</th>
+                            <th>Error Type</th>
+                            <th>Countermeasure</th>
                             <th>Motivo / Dettagli Scarto</th>
                             <th>Metriche (N / Reward / Latency)</th>
                         </tr>
                     </thead>
                     <tbody id="consideration-table-body">
-                        <tr><td colspan="6" style="text-align:center; color:#8b949e; padding:20px;">Caricamento considerazioni in corso...</td></tr>
+                        <tr><td colspan="8" style="text-align:center; color:#8b949e; padding:20px;">Caricamento considerazioni in corso...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1460,6 +1487,8 @@
         let trainFlatMode = false;
         const collapsedProviders = new Set(['openrouter', 'anthropic', 'google']);
         const trainCollapsedProviders = new Set();
+        let prevStats = {};
+        let prevModelStats = {};
         // === Auth token (persistente tra tab) ===
         let API_TOKEN =
             new URLSearchParams(location.search).get('token') ||
@@ -1699,6 +1728,36 @@
             }
         }
 
+        async function loadConfigStatus() {
+            try {
+                const r = await fetch('/v1/config/status', { headers: { 'x-api-token': API_TOKEN } });
+                const cfg = await r.json();
+                document.getElementById('config-exclude-paid').checked = cfg.excludePaid;
+                document.getElementById('config-only-free').checked = cfg.onlyFree;
+                document.getElementById('config-exclude-thinking').checked = cfg.excludeThinking;
+                document.getElementById('config-exploit-only').checked = cfg.exploitOnly;
+            } catch (e) {
+                console.warn('[CONFIG] load status failed:', e);
+            }
+        }
+
+        async function toggleConfig(flag, enabled) {
+            try {
+                const r = await fetch('/v1/config/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-token': API_TOKEN },
+                    body: JSON.stringify({ flag, enabled })
+                });
+                const d = await r.json();
+                const cb = document.getElementById(`config-${flag === 'excludePaid' ? 'exclude-paid' : flag === 'onlyFree' ? 'only-free' : flag === 'excludeThinking' ? 'exclude-thinking' : 'exploit-only'}`);
+                if (cb) cb.checked = !!d[flag];
+            } catch (e) {
+                console.warn(`[CONFIG] toggle ${flag} failed:`, e);
+                const cb = document.getElementById(`config-${flag === 'excludePaid' ? 'exclude-paid' : flag === 'onlyFree' ? 'only-free' : flag === 'excludeThinking' ? 'exclude-thinking' : 'exploit-only'}`);
+                if (cb) cb.checked = !enabled;
+            }
+        }
+
         // === TAB MODALITÀ ===
         async function loadModes() {
                     try {
@@ -1844,6 +1903,7 @@
         }
 
         loadDebugStatus();
+        loadConfigStatus();
         loadModes();
         setInterval(() => {
             if (document.hidden) return;
@@ -2049,6 +2109,18 @@
             const div = document.createElement('div');
             div.textContent = String(str ?? '');
             return div.innerHTML;
+        }
+
+        function showStatChange(el, text) {
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const span = document.createElement('span');
+            span.className = 'stat-change';
+            span.textContent = text;
+            span.style.left = (rect.left + rect.width / 2) + 'px';
+            span.style.top = (rect.top) + 'px';
+            document.body.appendChild(span);
+            setTimeout(() => span.remove(), 2500);
         }
 
         function badge(item, clickable = false) {
@@ -2270,6 +2342,43 @@
                         tbody.innerHTML = '<tr><td colspan="11" class="empty">Nessun risultato</td></tr>';
                     } else {
                         tbody.innerHTML = html;
+                        // Highlight changed model values
+                        setTimeout(() => {
+                            const rows = tbody.querySelectorAll('tr');
+                            rows.forEach(row => {
+                                const idCell = row.querySelector('td:nth-child(2) b');
+                                if (!idCell) return;
+                                const id = idCell.textContent.trim();
+                                const providerCell = row.querySelector('td:nth-child(3)');
+                                const provider = providerCell ? providerCell.textContent.trim() : '';
+                                const key = provider + '::' + id;
+                                const prev = prevModelStats[key];
+                                if (prev) {
+                                    const nCell = row.querySelector('td:nth-child(4)');
+                                    if (nCell) {
+                                        const nVal = parseFloat(nCell.textContent) || 0;
+                                        if (nVal > prev.N) {
+                                            showStatChange(nCell, `+${(nVal - prev.N).toFixed(1)}`);
+                                            nCell.style.background = '#1f382b';
+                                            setTimeout(() => { nCell.style.background = ''; }, 2000);
+                                        }
+                                    }
+                                    const avgCell = row.querySelector('td:nth-child(5)');
+                                    if (avgCell) {
+                                        const avgVal = parseFloat(avgCell.textContent) || 0;
+                                        if (avgVal > prev.avg) {
+                                            showStatChange(avgCell, `+${(avgVal - prev.avg).toFixed(3)}`);
+                                            avgCell.style.background = '#1f382b';
+                                            setTimeout(() => { avgCell.style.background = ''; }, 2000);
+                                        }
+                                    }
+                                }
+                                // Update prev after check
+                                const nVal = parseFloat(row.querySelector('td:nth-child(4)')?.textContent) || 0;
+                                const avgVal = parseFloat(row.querySelector('td:nth-child(5)')?.textContent) || 0;
+                                prevModelStats[key] = { N: nVal, avg: avgVal };
+                            });
+                        }, 0);
                     }
                 })
                 .catch(err => {
@@ -2500,6 +2609,15 @@
             const fails = Number(m.fails) || 0;
             const score = m.score === Infinity ? '∞' : (m.score == null || isNaN(m.score) ? '—' : Number(m.score).toFixed(3));
             const safe = escapeHtml(m.id);
+            
+            const key = m.provider + '::' + m.id;
+            if (prevModelStats[key]) {
+                const prevN = prevModelStats[key].N || 0;
+                if (n > prevN) {
+                    // Note: actual DOM element will be highlighted after render
+                }
+            }
+            prevModelStats[key] = { N: n };
 
             const isBanned = Number(m.permanent) === 1;
             const isDegraded = Number(m.degraded) === 1;
@@ -2819,6 +2937,8 @@
             try {
                 console.log('[DEBUG dashboard] Fetching /v1/dashboard/stats with token:', API_TOKEN ? 'present' : 'missing');
                 const r = await apiFetch('/v1/dashboard/stats');
+                loadDebugStatus();
+                loadConfigStatus();
                 console.log('[DEBUG dashboard] /v1/dashboard/stats response status:', r.status, 'ok:', r.ok);
                 if (r.status === 401) {
                     show401Banner();
@@ -2919,19 +3039,32 @@
                 document.getElementById('catalog-free').textContent = d.catalogFree ?? '?';
                 document.getElementById('catalog-models-raw').textContent = d.catalogRawCount ?? '?';
 
-                document.getElementById('active-models').textContent = d.modelsActive ?? 0;
-                document.getElementById('cooldown-models').textContent = d.modelsCooldown ?? 0;
-                document.getElementById('banned-models').textContent = d.modelsBanned ?? 0;
-                document.getElementById('degraded-models').textContent = d.modelsDegraded ?? 0;
-                document.getElementById('attention-models').textContent = d.modelsAttention ?? 0;
-                document.getElementById('total-models').textContent = d.totalModels ?? 0;
+                const updateStat = (id, value, key) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    const prev = prevStats[key];
+                    if (prev !== undefined && value > prev) {
+                        showStatChange(el, `+${value - prev}`);
+                        el.style.background = '#1f382b';
+                        setTimeout(() => { el.style.background = ''; }, 2000);
+                    }
+                    el.textContent = value ?? 0;
+                    prevStats[key] = value ?? 0;
+                };
 
-                document.getElementById('active-providers').textContent = d.providersActive ?? 0;
-                document.getElementById('cooldown-providers').textContent = d.providersCooldown ?? 0;
-                document.getElementById('banned-providers').textContent = d.providersBanned ?? 0;
-                document.getElementById('attention-providers').textContent = d.providersAttention ?? 0;
-                document.getElementById('total-providers').textContent = d.totalProviders ?? 0;
-                document.getElementById('catalog-providers').textContent = d.catalogProviders ?? 0;
+                updateStat('active-models', d.modelsActive, 'modelsActive');
+                updateStat('cooldown-models', d.modelsCooldown, 'modelsCooldown');
+                updateStat('banned-models', d.modelsBanned, 'modelsBanned');
+                updateStat('degraded-models', d.modelsDegraded, 'modelsDegraded');
+                updateStat('attention-models', d.modelsAttention, 'modelsAttention');
+                updateStat('total-models', d.totalModels, 'totalModels');
+
+                updateStat('active-providers', d.providersActive, 'providersActive');
+                updateStat('cooldown-providers', d.providersCooldown, 'providersCooldown');
+                updateStat('banned-providers', d.providersBanned, 'providersBanned');
+                updateStat('attention-providers', d.providersAttention, 'providersAttention');
+                updateStat('total-providers', d.totalProviders, 'totalProviders');
+                updateStat('catalog-providers', d.catalogProviders, 'catalogProviders');
 
                 renderAll();
             } catch (e) {
@@ -3085,20 +3218,32 @@
                 renderFilteredLogs();
             } catch (e) {}
         }
+        let logFilterPreset = 'all';
+        let logFilterText = '';
+
+        function applyLogFilterPreset(preset) {
+            logFilterPreset = preset;
+            const customDiv = document.getElementById('custom-log-filters');
+            const dropdown = document.getElementById('log-filter-dropdown');
+            if (preset === 'custom') {
+                if (customDiv) customDiv.style.display = 'inline-block';
+                document.getElementById('log-filter').focus();
+            } else {
+                if (customDiv) customDiv.style.display = 'none';
+                logFilterText = '';
+                const logInput = document.getElementById('log-filter');
+                if (logInput) logInput.value = '';
+            }
+            if (dropdown) dropdown.value = preset;
+            renderFilteredLogs();
+        }
+
         function renderFilteredLogs() {
             const el = document.getElementById('logs-tbody');
             if (!el) return;
             const raw = window.__rawLogs || [];
-            const filter = (document.getElementById('log-filter')?.value || '').toLowerCase();
-            const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
-            const showDebug = document.getElementById('log-show-debug')?.checked ?? true;
-            const showTrain = document.getElementById('log-show-train')?.checked ?? true;
-            const showBan = document.getElementById('log-show-ban')?.checked ?? true;
-            const showCooldown = document.getElementById('log-show-cooldown')?.checked ?? true;
-            const showFlag = document.getElementById('log-show-flag')?.checked ?? true;
-            const showDegraded = document.getElementById('log-show-degraded')?.checked ?? true;
-            const showProxy = document.getElementById('log-show-proxy')?.checked ?? true;
-            const showPaidOnly = document.getElementById('log-show-paid-only')?.checked ?? true;
+            const textFilter = (logFilterText || document.getElementById('log-filter')?.value || '').toLowerCase();
+            const preset = logFilterPreset;
 
             // Filter entries
             const filtered = raw.filter(entry => {
@@ -3108,17 +3253,40 @@
                 }
                 // Apply text filter
                 const msg = (entry.message || '').toLowerCase();
-                if (filter && !msg.includes(filter)) return false;
-                // Apply source filters
-                if (!showZoo && entry.source === 'zoo') return false;
-                if (!showDebug && entry.source === 'debug') return false;
-                if (!showTrain && entry.source === 'training') return false;
-                if (!showBan && entry.type === 'ban') return false;
-                if (!showCooldown && entry.type === 'cooldown') return false;
-                if (!showFlag && entry.type === 'flag') return false;
-                if (!showDegraded && entry.type === 'degraded') return false;
-                if (!showProxy && entry.source === 'proxy') return false;
-                if (!showPaidOnly && entry.is_paid) return false;
+                if (textFilter && !msg.includes(textFilter)) return false;
+                
+                // Apply preset filters
+                switch (preset) {
+                    case 'errors':
+                        if (!['ban', 'cooldown', 'flag', 'degraded'].includes(entry.type)) return false;
+                        break;
+                    case 'proxy':
+                        if (entry.source !== 'proxy') return false;
+                        break;
+                    case 'system':
+                        if (!['zoo', 'debug', 'training', 'system'].includes(entry.source)) return false;
+                        break;
+                    case 'zoo':
+                        if (entry.source !== 'zoo') return false;
+                        break;
+                    case 'debug':
+                        if (entry.source !== 'debug') return false;
+                        break;
+                    case 'train':
+                        if (entry.source !== 'training') return false;
+                        break;
+                    case 'paid':
+                        if (!entry.is_paid) return false;
+                        break;
+                    case 'active':
+                        if (!['ban', 'cooldown', 'flag'].includes(entry.type)) return false;
+                        break;
+                    case 'all':
+                    case 'custom':
+                    default:
+                        // No preset filter
+                        break;
+                }
                 return true;
             });
             // Sort filtered entries by timestamp descending (newest first)
@@ -3460,12 +3628,14 @@
         document.getElementById('models-filter-minAvg-train')?.addEventListener('input', renderTrainAll);
 
         // Reset filtri al load (no persistenza browser)
+        logFilterPreset = 'all';
+        logFilterText = '';
+        const logDropdown = document.getElementById('log-filter-dropdown');
+        if (logDropdown) logDropdown.value = 'all';
+        const customDiv = document.getElementById('custom-log-filters');
+        if (customDiv) customDiv.style.display = 'none';
         const logFilterEl = document.getElementById('log-filter');
         if (logFilterEl) logFilterEl.value = '';
-        ['log-show-zoo', 'log-show-train', 'log-show-debug'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.checked = true;
-        });
 
         // Reset buttons for models and providers
         document.getElementById('models-reset-all')?.addEventListener('click', async () => {
@@ -3536,12 +3706,16 @@
                 const isSelected = item.status === 'selected' || item.selected;
                 const badgeColor = isSelected ? '#3fb950' : '#f85149';
                 const statusText = isSelected ? 'SELEZIONATO ✅ (In Uso)' : `scartato: ${item.reason || item.filterReason || 'unknown'}`;
+                const errorType = item.errorType || item.error_type || item.errType || '';
+                const countermeasure = item.countermeasure || item.counter_measure || item.countermeasure || '';
                 const rewardTxt = item.reward !== undefined ? ` | Reward: ${Number(item.reward).toFixed(3)}` : '';
                 const nTxt = item.N !== undefined ? ` | N: ${item.N}` : '';
                 const latTxt = item.latency_ms !== undefined ? ` | ${item.latency_ms}ms` : '';
                 return `<div style="margin-bottom:4px; padding:4px 6px; border-radius:3px; background:${isSelected ? '#1f382b' : '#311b1b'}; border-left:3px solid ${badgeColor}; display:flex; justify-content:space-between; align-items:center;">
                     <div><strong>#${num}</strong> <code>${escapeHtml(item.id || item.model || 'model')}</code> <span style="color:#8b949e; font-size:11px;">[${escapeHtml(item.provider || 'provider')}]</span></div>
                     <div style="text-align:right;"><span style="color:${badgeColor}; font-weight:600;">${escapeHtml(statusText)}</span><span style="color:#8b949e; font-size:10px;">${nTxt}${rewardTxt}${latTxt}</span></div>
+                    <div style="text-align:right; color:#f85149; font-size:11px;">${escapeHtml(errorType) || '-'}</div>
+                    <div style="text-align:right; color:#f1c40f; font-size:11px;">${escapeHtml(countermeasure) || '-'}</div>
                 </div>`;
             }).join('');
         }
@@ -3627,7 +3801,7 @@
             document.getElementById('cons-stat-top-reason').textContent = topReason;
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#8b949e; padding:20px;">Nessun record di considerazione corrispondente al filtro.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#8b949e; padding:20px;">Nessun record di considerazione corrispondente al filtro.</td></tr>';
                 return;
             }
 
@@ -3642,11 +3816,17 @@
                 const latVal = item.latency_ms !== undefined ? `${item.latency_ms}ms` : '-';
                 const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : `#${idx+1}`;
 
+                // Error type and countermeasure from selection history
+                const errorType = item.errorType || item.error_type || item.errType || '';
+                const countermeasure = item.countermeasure || item.counter_measure || item.countermeasure || '';
+
                 return `<tr style="border-bottom:1px solid #30363d; background:${bg};">
                     <td style="padding:8px; font-size:12px; color:#8b949e;">${timeStr}</td>
                     <td style="padding:8px; font-size:12px;"><code>${escapeHtml(item.id || item.model || '-')}</code></td>
                     <td style="padding:8px; font-size:12px; color:#58a6ff;">${escapeHtml(item.provider || '-')}</td>
                     <td style="padding:8px; font-size:12px;"><span style="color:${badgeColor}; font-weight:600;">${statusText}</span></td>
+                    <td style="padding:8px; font-size:12px; color:#f85149; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(errorType)}">${escapeHtml(errorType) || '-'}</td>
+                    <td style="padding:8px; font-size:12px; color:#f1c40f; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(countermeasure)}">${escapeHtml(countermeasure) || '-'}</td>
                     <td style="padding:8px; font-size:12px; color:#c9d1d9;">${escapeHtml(reason)}</td>
                     <td style="padding:8px; font-size:12px; color:#8b949e;">N: ${nVal} | Reward: ${rewardVal} | Lat: ${latVal}</td>
                 </tr>`;

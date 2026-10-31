@@ -984,6 +984,33 @@ app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
   console.log(`[DEBUG] verbose=${debugFlag.isEnabled()}`);
   res.json({ verbose: debugFlag.isEnabled() });
 });
+
+app.get('/v1/config/status', requireAuth, (req, res) => {
+  res.json({
+    excludePaid: bandit.excludePaid,
+    onlyFree: bandit.onlyFree,
+    excludeThinking: bandit.excludeThinking,
+    exploitOnly: bandit.exploitOnly
+  });
+});
+
+app.post('/v1/config/toggle', requireAuth, express.json(), (req, res) => {
+  const { flag, enabled } = req.body;
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: 'Invalid enabled value' });
+  }
+
+  switch (flag) {
+    case 'excludePaid': bandit.excludePaid = enabled; break;
+    case 'onlyFree': bandit.onlyFree = enabled; break;
+    case 'excludeThinking': bandit.excludeThinking = enabled; break;
+    case 'exploitOnly': bandit.exploitOnly = enabled; break;
+    default: return res.status(400).json({ error: 'Invalid flag' });
+  }
+  
+  console.log(`[CONFIG] ${flag} set to ${enabled}`);
+  res.json({ [flag]: bandit[flag] });
+});
 app.get('/v1/modes', requireAuth, (req, res) => {
   res.json({ stats: registryStats(), discovered: listDiscovered() });
 });

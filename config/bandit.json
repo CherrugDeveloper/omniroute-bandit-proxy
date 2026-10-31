@@ -5,6 +5,12 @@
     "mistral/mistral-small-latest",
     "mistral/mistral-large-latest",
     "groq/llama-3.3-70b-versatile",
-    "openrouter/gpt-oss-20b"
+    "openrouter/gpt-oss-20b",
+    "nvidia/nemotron-mini",
+    "gemini/gemini-1.5-flash",
+    "cfp/claude-3-haiku",
+    "dva/dva-small",
+    "xai-oauth/grok-3-mini",
+    "xao/grok-3-mini"
   ]
 }

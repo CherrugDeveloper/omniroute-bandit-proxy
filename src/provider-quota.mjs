@@ -6,6 +6,33 @@ class ProviderQuota {
     constructor(db) {
         this.db = db;
         this.providerLimits = this._loadProviderLimits();
+        this._startBackgroundRoller();
+    }
+
+    _startBackgroundRoller() {
+        // Periodically roll quota windows even without incoming requests,
+        // so providers recover from rate-limit exhaustion without needing a request.
+        this._bgTimer = setInterval(() => {
+            try {
+                const now = Date.now();
+                const providers = this.db.prepare(
+                    `SELECT provider FROM provider_history`
+                ).all();
+                for (const row of providers) {
+                    this._rollWindows(row.provider, false);
+                    this._rollWindows(row.provider, true);
+                }
+            } catch (err) {
+                console.error("[PROVIDER_QUOTA] Background roll error:", err.message);
+            }
+        }, 60000); // every 60s
+    }
+
+    stopBackgroundRoller() {
+        if (this._bgTimer) {
+            clearInterval(this._bgTimer);
+            this._bgTimer = null;
+        }
     }
 
     _loadProviderLimits() {
