@@ -290,6 +290,17 @@ restart_safe() {
   local service_substate=$(run_systemctl show -p SubState --value "$SERVICE" 2>/dev/null || echo "unknown")
   echo "→ Stato servizio: $service_state ($service_substate)"
   
+  # Verifica se il servizio non è partito (inactive/dead)
+  if [ "$service_state" = "inactive" ] || [ "$service_state" = "unknown" ]; then
+    echo "✗ ERRORE: Servizio non partito, stato $service_state ($service_substate)"
+    echo "  systemctl start ha restituito successo ma servizio non è attivo"
+    echo "  Log errori (ultimi 30 righe):"
+    run_journalctl -u "$SERVICE" --since "2 minutes ago" -n 30 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 30 --no-pager 2>/dev/null
+    echo "  Stato dettagliato:"
+    run_systemctl status "$SERVICE" --no-pager 2>/dev/null || true
+    exit 1
+  fi
+  
   # Verifica se il servizio è entrato in stato failed
   if [ "$service_state" = "failed" ]; then
     echo "✗ ERRORE: Servizio entrato in stato FAILED immediatamente dopo start"
@@ -318,7 +329,14 @@ restart_safe() {
   
   # 6. Attendi active
   if ! wait_for_service_active; then
-    echo "⚠ Servizio non segnala active, controllo porta..."
+    echo "⚠ Servizio non segnala active entro 30s"
+    echo "  Verifica stato attuale:"
+    local current_state=$(run_systemctl show -p ActiveState --value "$SERVICE" 2>/dev/null || echo "unknown")
+    local current_substate=$(run_systemctl show -p SubState --value "$SERVICE" 2>/dev/null || echo "unknown")
+    echo "  Stato: $current_state ($current_substate)"
+    echo "  Log recenti (ultime 20 righe):"
+    run_journalctl -u "$SERVICE" --since "1 minute ago" -n 20 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 20 --no-pager 2>/dev/null
+    echo "  Verifica se porta è bindata comunque..."
   fi
   
   # 7. Attendi binding porta
