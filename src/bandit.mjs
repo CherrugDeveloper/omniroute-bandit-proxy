@@ -2143,10 +2143,15 @@ export class DiscountedUCB1Bandit {
     if (DEBUG) console.log(`[BANDIT][DEBUG] selectModel: catalog=${catalogModels.length} db=${dbModels.length} excluded=${excludeSet.size} tokens=${estimatedTokens} tools=${requireTools}`);
     // Combine catalog and db models, preferring db models when there's a conflict
     const modelMap = new Map();
+    // Skip catalog models with falsy id
     for (const model of catalogModels) {
-      modelMap.set(model.id, model);
+      if (model && model.id) {
+        modelMap.set(model.id, model);
+      }
     }
     for (const model of dbModels) {
+      // Skip db models with falsy id
+      if (!model || !model.id) continue;
       const existing = modelMap.get(model.id) || {};
       modelMap.set(model.id, {
         ...existing,
@@ -2169,6 +2174,10 @@ export class DiscountedUCB1Bandit {
     const filterModels = (tierName, opts = {}) => {
       const { ignoreCooldown = false, ignoreTokenLimit = false, ignoreTools = false, ignorePolicies = false, ignoreImageGeneration = false, ignoreVision = false, ignoreAttention = false, ignorePermanent = false, ignoreDegraded = false, ignoreQuota = false, ignoreExcluded = false, ignoreNonChat = false, ignoreDynamicMaxTokens = false } = opts;
       return models.filter(model => {
+        // Defensive guard: skip models with missing id/provider to avoid null dereference
+        if (!model || !model.id) {
+          return false;
+        }
         let rejectionReason = null;
 
         // Skip if excluded
@@ -2377,14 +2386,16 @@ export class DiscountedUCB1Bandit {
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models excluded or unavailable. Picking from all catalog/db models as absolute last resort.`);
       const isImageGenModel = (model) => {
+        if (!model || !model.id) return false;
         const isAihordeModel = model.provider === 'aihorde' || model.id.toLowerCase().startsWith("aihorde/") || model.id.toLowerCase().includes("aihorde");
         return isAihordeModel || (model.supports_image_generation || 0) === 1 ||
           /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(model.id) ||
           /image/i.test(model.id);
       };
       availableModels = requireImageGeneration
-        ? models.filter(m => m.supports_image_generation || 0)
+        ? models.filter(m => m && m.supports_image_generation || 0)
         : models.filter(m => {
+            if (!m || !m.id) return false;
             const lowerId = m.id.toLowerCase();
             const isNonChat = m.supports_chat === 0 || m.capability !== 'chat_completion' || m.supports_image_generation === 1 || m.supports_audio_generation === 1 ||
               isImageGenModel(m) ||
@@ -2394,7 +2405,7 @@ export class DiscountedUCB1Bandit {
               return false;
             }
             return !isNonChat;
-          }).filter(m => !resolvedExcluded.has(m.id) && (!m.cooldown_until || m.cooldown_until <= now));
+          }).filter(m => m && m.id && !resolvedExcluded.has(m.id) && (!m.cooldown_until || m.cooldown_until <= now));
     }
 
     if (availableModels.length === 0) {
