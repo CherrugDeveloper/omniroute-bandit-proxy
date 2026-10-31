@@ -19,8 +19,9 @@ export class DiscountedUCB1Bandit {
         if (exists) {
           return sanitized;
         }
-        // If sanitized model doesn't exist in catalog, return null to reject it
-        return null;
+        // If sanitized model doesn't exist in catalog, return the original modelId
+        // so it can be tracked and banned, rather than rejecting it silently
+        return modelId;
       }
     }
     return modelId;
@@ -460,7 +461,12 @@ export class DiscountedUCB1Bandit {
   }
 
   _registerModelUse(modelId, provider) {
+    const originalModelId = modelId;
     modelId = this._sanitizeModelId(modelId);
+    // If sanitization changed the model id or returned null, use original for tracking
+    if (!modelId || modelId !== originalModelId) {
+      modelId = originalModelId;
+    }
     console.log(`[DEBUG] _registerModelUse modelId=${modelId} provider=${provider}`);
     this.db.prepare(
       `INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
@@ -849,7 +855,8 @@ export class DiscountedUCB1Bandit {
         if (source === 'training' || source === 'prod') {
           if (!success && errorDetails && typeof errorDetails === "object") {
             const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(modelId);
-            const provider = cat?.provider || null;
+            const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(modelId);
+            const provider = cat?.provider || existingModel?.provider || opts.provider || 'unknown';
             if (provider) {
               console.log(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
               const c = this._classifyError(errorDetails, provider);
