@@ -2387,7 +2387,7 @@ export class DiscountedUCB1Bandit {
     // we can still serve requests even if all providers are in cooldown.
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: false, ignoreDynamicMaxTokens: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true, ignoreDynamicMaxTokens: true, ignoreNonChat: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
@@ -2413,7 +2413,7 @@ export class DiscountedUCB1Bandit {
               return false;
             }
             return !isNonChat;
-          }).filter(m => m && m.id && !resolvedExcluded.has(m.id) && (!m.cooldown_until || m.cooldown_until <= now));
+          }).filter(m => m && m.id && (!m.cooldown_until || m.cooldown_until <= now));
     }
 
     if (availableModels.length === 0) {
