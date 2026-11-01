@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.13.6 (2026-11-01)**: Documentation and version update.
+> **v1.13.7 (2026-11-01)**: Documentation and version update.
 
 > Workspace audit and documentation update performed on 2026-10-26. Verified system/service files, production scripts, config files, dashboard UI, and recent cleanup audit findings. No superfluous files found, plans directory already removed, .gitignore validation issue with bandit_state.db documented.
 

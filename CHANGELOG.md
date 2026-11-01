@@ -1,3 +1,9 @@
+## [v1.13.7] - 2026-11-01
+
+- **Chore**: Auto-git workflow execution with repository cleanup and documentation updates.
+
+- **Docs**: Standardized CHANGELOG.md format to consistent bracketed format.
+
 ## [v1.13.6] - 2026-11-01
 
 - **Chore**: Repo cleanup and checks passed.

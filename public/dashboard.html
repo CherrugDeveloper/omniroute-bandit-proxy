@@ -2106,7 +2106,7 @@
             let current = null;
 
             for (const line of lines) {
-                const h2 = line.match(/^##\s+(v[\d.]+|Unreleased)\s*(.*)$/);
+                const h2 = line.match(/^##\s+\[?(v[\d.]+|Unreleased)\]?\s*(.*)$/);
                 if (h2) {
                     if (current) releases.push(current);
                     const rawDate = (h2[2] || '').replace(/^[—–\-·•]+\s*/, '').trim();
