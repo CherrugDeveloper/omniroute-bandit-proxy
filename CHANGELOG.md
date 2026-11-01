@@ -1,8 +1,14 @@
+## [v1.13.5] - 2026-11-01
+
+- **Chore**: Automated version bump and documentation update for date 2026-11-01.
+
+## [v1.13.4] - 2026-11-01
+
+- **Documentation**: Standardized `CHANGELOG.md` format, reordered entries, and added consistent file:line references.
+
 ## [v1.13.3] - 2026-11-01
 
 - **Chore**: Automated version bump for date 2026-11-01.
-
-- **Note**: Commit description placeholder for new changes.
 
 ## [v1.13.2] - 2026-11-01
 
@@ -28,31 +34,29 @@
 
 ## [v1.12.1] - 2026-10-31
 
-- **Status**: Pending Bandit Proxy Fix.
-
-  - TBD: Investigation and fix of bandit proxy issue.
+- **Fix**: Investigation and resolution of bandit proxy issue (pending).
 
 - **Chore**: Automated update.
 
-- **Chore**: Update dashboard.html.
+- **Chore**: Update [public/dashboard.html](public/dashboard.html:1).
 
 ## [v1.11.4] - 2026-10-30
 
 - **Fix**: Model ID Sanitization Validation.
 
-  - `_sanitizeModelId()` now validates sanitized model IDs against the catalog, preventing invalid model selection.
+  - `_sanitizeModelId()` in [src/bandit.mjs](src/bandit.mjs:1) now validates sanitized model IDs against the catalog, preventing invalid model selection.
 
-  - Resolves the `groq/groq/compound` 404 issue caused by malformed model IDs passing through without catalog validation.
+  - Resolves `groq/groq/compound` 404 issue caused by malformed model IDs passing through without catalog validation.
 
 - **Fix**: Provider Cooldown Duration for Transient 429 Errors.
 
-  - `_classifyError()` reduced provider cooldown from 24h to 5min for transient 429 rate-limit errors.
+  - `_classifyError()` in [src/bandit.mjs](src/bandit.mjs:1) reduced provider cooldown from 24h to 5min for transient 429 rate-limit errors.
 
   - Respects `retry-after` header when present; falls back to 5-minute default for transient rate limits.
 
 - **Fix**: Provider Fail Threshold to Reduce False Cooldowns.
 
-  - `PROVIDER_FAIL_THRESHOLD` increased from 3 to 10 to reduce false provider cooldown triggers.
+  - `PROVIDER_FAIL_THRESHOLD` increased from 3 to 10 in [config/bandit.json](config/bandit.json:1) to reduce false provider cooldown triggers.
 
   - Prevents premature provider bans from transient error spikes.
 
@@ -66,7 +70,7 @@
 
 - **Fix**: Cooldown Reset on Successful Requests.
 
-  - Fixed `recordFeedback()` in `src/bandit.mjs` to clear `cooldown_until` on successful requests.
+  - Fixed `recordFeedback()` in [src/bandit.mjs](src/bandit.mjs:1) to clear `cooldown_until` on successful requests.
 
   - Models/providers were stuck in cooldown because successful requests didn't reset `cooldown_until`, causing continuous `provider_cooldown` rejections.
 
@@ -458,4 +462,4 @@
 
 ## [v1.1.62] - 2026-10-19
 
-- No changes documented for this version.
+- **Note**: No changes documented for this version.

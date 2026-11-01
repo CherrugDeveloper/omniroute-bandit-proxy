@@ -44,10 +44,15 @@ export class DiscountedUCB1Bandit {
     }
     this.discountFactor = 0.99;
     this.notifier = null;
-    this.excludePaid = String(process.env.EXCLUDE_PAID || "false").toLowerCase() === "true";
+    // Unify pricing filter into a single enum
+    this.pricingFilter = String(process.env.PRICING_FILTER || "none").toLowerCase();
+    const validFilters = ["none", "free-only", "paid-only", "exclude-paid"];
+    if (!validFilters.includes(this.pricingFilter)) {
+      console.warn(`[BANDIT] Invalid PRICING_FILTER value '${this.pricingFilter}', defaulting to 'none'`);
+      this.pricingFilter = "none";
+    }
     this.exploitOnly = String(process.env.EXPLOIT_ONLY || "false").toLowerCase() === "true";
     this.excludeThinking = String(process.env.EXCLUDE_THINKING || "false").toLowerCase() === "true";
-    this.onlyFree = String(process.env.ONLY_FREE || "false").toLowerCase() === "true";
     this._initDB();
     this._migrateDB();
     this.totalObservations = this._getMeta("totalObservations");
@@ -1878,7 +1883,7 @@ export class DiscountedUCB1Bandit {
       }
 
       // Compute success rate from models table
-      let successRateStats = { modelsWithObservations: 0, modelsAboveThreshold: 0, successfulObservations: 0 };
+      let successRateStats = { modelsWithObservations: 0, modelsAboveThreshold: 0, successfulObservations: 0, totalObservations: 0 };
       try {
         const srRes = this.db.prepare(`
           SELECT
@@ -1890,12 +1895,21 @@ export class DiscountedUCB1Bandit {
       } catch (e) {
         console.warn("[BANDIT] getDashboardStats successRateStats error:", e.message);
       }
-      // Count successful observations from request_logs
+      // Count successful observations from request_logs and total observations
       try {
         const successRes = this.db.prepare(
-          `SELECT COUNT(*) as successfulObservations FROM request_logs WHERE status_code >= 200 AND status_code < 300 AND ended_at IS NOT NULL AND started_at IS NOT NULL`
+          `SELECT
+            SUM(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) as successfulObservations,
+            COUNT(*) as totalObservations
+          FROM request_logs WHERE ended_at IS NOT NULL AND started_at IS NOT NULL`
         ).get();
-        if (successRes) successRateStats.successfulObservations = successRes.successfulObservations;
+        if (successRes) {
+          successRateStats.successfulObservations = successRes.successfulObservations;
+          successRateStats.totalObservations = successRes.totalObservations;
+        } else {
+          successRateStats.successfulObservations = 0;
+          successRateStats.totalObservations = 0;
+        }
       } catch (e) {
         console.warn("[BANDIT] getDashboardStats successfulObservations error:", e.message);
       }
@@ -1924,8 +1938,12 @@ export class DiscountedUCB1Bandit {
         providersBanned,
         providersAttention,
         totalProviders,
-        successRate: (successRateStats && successRateStats.modelsWithObservations > 0)
-          ? (successRateStats.modelsAboveThreshold / successRateStats.modelsWithObservations)
+        modelsAboveThreshold: successRateStats.modelsAboveThreshold || 0,
+        modelsWithObservations: successRateStats.modelsWithObservations || 0,
+        successfulObservations: successRateStats.successfulObservations || 0,
+        totalObservationsFromLogs: successRateStats.totalObservations || 0,
+        successRate: (successRateStats.totalObservations && successRateStats.totalObservations > 0)
+          ? ((successRateStats.successfulObservations || 0) / successRateStats.totalObservations * 100)
           : 0
       };
     } catch (e) {
@@ -2282,13 +2300,13 @@ export class DiscountedUCB1Bandit {
             if (this.excludeThinking && /thinking|reasoning|[-_]r1[-_]|[-_]r1$|^r1[-_]|o1[-_]|o3[-_]|o4[-_]|qwq/i.test(model.id)) {
               rejectionReason = 'exclude_thinking';
             }
-            // Skip if paid model and excludePaid is true
-            else if (this.excludePaid && (model.is_paid === 1 || model.is_paid === true)) {
+            // Apply pricing filter
+            else if (this.pricingFilter === 'free-only' && model.is_free === 0) {
+              rejectionReason = 'free_only';
+            } else if (this.pricingFilter === 'paid-only' && (model.is_paid === 0 || model.is_paid === false)) {
+              rejectionReason = 'paid_only';
+            } else if (this.pricingFilter === 'exclude-paid' && (model.is_paid === 1 || model.is_paid === true)) {
               rejectionReason = 'exclude_paid';
-            }
-            // Skip if onlyFree is true and model is not free
-            else if (this.onlyFree && model.is_free === 0) {
-              rejectionReason = 'only_free';
             }
           }
 
@@ -2910,6 +2928,33 @@ export class DiscountedUCB1Bandit {
       attention_reason: provider.attention_reason,
       modelCount: provider.modelCount
     }));
+  }
+
+  getTrainingStatus() {
+    try {
+      const status = this.db.prepare(`
+        SELECT * FROM models_train ORDER BY last_used_index DESC LIMIT 1
+      `).get();
+      
+      return {
+        isTraining: status ? status.isTraining === 1 : false,
+        executionTime: status ? status.executionTime : 0,
+        calledModels: status ? status.calledModels : 0,
+        okStatus: status ? status.okStatus : 0,
+        errorStatus: status ? status.errorStatus : 0,
+        lastRun: status ? status.last_used_index : null,
+        statusMessage: status ? status.statusMessage : 'Idle'
+      };
+    } catch (e) {
+      console.warn("[BANDIT] getTrainingStatus error:", e.message);
+      return { isTraining: false, executionTime: 0, calledModels: 0, okStatus: 0, errorStatus: 0, lastRun: null, statusMessage: 'Error querying training status' };
+    }
+  }
+
+  setPricingFilter(filter) {
+    const validFilters = ["none", "free-only", "paid-only", "exclude-paid"];
+    if (!validFilters.includes(filter)) throw new Error(`Invalid pricing filter: ${filter}`);
+    this.pricingFilter = filter;
   }
 
   close() {

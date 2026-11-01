@@ -606,7 +606,20 @@ class RingBuffer {
   }
 }
 
-const logBuffer = new RingBuffer(1000);
+const sourceColors = {
+  system: "gray",
+  ban: "red",
+  cooldown: "orange",
+  flag: "yellow",
+  degraded: "purple",
+  training: "blue",
+  debug: "cyan",
+  zoo: "green",
+  proxy: "white"
+};
+
+const logBuffer = []; // Replaced RingBuffer with simple FIFO array
+const MAX_LOG_ENTRIES = 1000;
 
 // ========================================
 // ACTIVE REQUESTS TRACKER
@@ -842,7 +855,16 @@ function createLogEntry(message) {
   // Check for paid-only indicators
   if (/paid-only|is_paid.*1|PAID-ONLY/i.test(message)) is_paid = true;
 
-  return { timestamp, source, type, provider, status, message, is_paid };
+  // Track active state
+  const activeRequests = tracker.getActiveRequestsValues();
+  const active = activeRequests.length > 0;
+  const activeSec = active ? Math.round(activeRequests.reduce((acc, r) => acc + (Date.now() - r.startTime), 0) / 1000) : 0;
+  // This is a rough estimation for elapsedSec based on the newest active request if any
+  const elapsedSec = active ? Math.round((Date.now() - activeRequests[0].startTime) / 1000) : 0;
+  
+  const color = sourceColors[source] || sourceColors.system;
+
+  return Object.freeze({ timestamp, source, type, provider, status, message, is_paid, active, activeSec, elapsedSec, color });
 }
 
 function pushLog(message) {
@@ -857,13 +879,9 @@ function pushLog(message) {
    if (global.lastLogMessage === message && global.lastLogTime && (now - global.lastLogTime) < 5000) {
       // Same message within 5 seconds, increment counter
       global.logMessageCount++;
-      // Update the last entry in logBuffer to show the count
-      const lastEntry = logBuffer.getAll().pop();
-      if (lastEntry && lastEntry.message && lastEntry.message.includes(message)) {
-        // Replace the last entry with grouped version
-        const groupedMessage = `${message} (x${global.logMessageCount + 1})`;
-        logBuffer.replaceLast(createLogEntry(groupedMessage));
-      }
+      // Update the last entry in logBuffer to show the count, but keep immutable history: append new grouped entry
+      const groupedMessage = `${message} (x${global.logMessageCount + 1})`;
+      logBuffer.push(createLogEntry(groupedMessage));
    } else {
       // New message or timeout exceeded, reset counter and log normally
       if (global.logMessageCount > 0) {
@@ -875,6 +893,10 @@ function pushLog(message) {
       global.logMessageCount = 0;
       global.lastLogTime = now;
       logBuffer.push(createLogEntry(message));
+   }
+   // FIFO append with max limit
+   if (logBuffer.length > MAX_LOG_ENTRIES) {
+       logBuffer.shift();
    }
 }
 
@@ -987,22 +1009,30 @@ app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
 
 app.get('/v1/config/status', requireAuth, (req, res) => {
   res.json({
-    excludePaid: bandit.excludePaid,
-    onlyFree: bandit.onlyFree,
+    pricingFilter: bandit.pricingFilter,
     excludeThinking: bandit.excludeThinking,
     exploitOnly: bandit.exploitOnly
   });
 });
 
-app.post('/v1/config/toggle', requireAuth, express.json(), (req, res) => {
+app.post('/v1/config/pricing-filter', requireAuth, express.json(), (req, res) => {
+  const { filter } = req.body;
+  try {
+    bandit.setPricingFilter(filter);
+    console.log(`[CONFIG] pricingFilter set to ${filter}`);
+    res.json({ pricingFilter: bandit.pricingFilter });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/v1/config/toggle-bool', requireAuth, express.json(), (req, res) => {
   const { flag, enabled } = req.body;
   if (typeof enabled !== 'boolean') {
     return res.status(400).json({ error: 'Invalid enabled value' });
   }
 
   switch (flag) {
-    case 'excludePaid': bandit.excludePaid = enabled; break;
-    case 'onlyFree': bandit.onlyFree = enabled; break;
     case 'excludeThinking': bandit.excludeThinking = enabled; break;
     case 'exploitOnly': bandit.exploitOnly = enabled; break;
     default: return res.status(400).json({ error: 'Invalid flag' });
@@ -1010,6 +1040,15 @@ app.post('/v1/config/toggle', requireAuth, express.json(), (req, res) => {
   
   console.log(`[CONFIG] ${flag} set to ${enabled}`);
   res.json({ [flag]: bandit[flag] });
+});
+
+app.get('/v1/training/status', requireAuth, (req, res) => {
+  try {
+    res.json(bandit.getTrainingStatus());
+  } catch (e) {
+    console.error("[API] Errore /v1/training/status:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 app.get('/v1/modes', requireAuth, (req, res) => {
   res.json({ stats: registryStats(), discovered: listDiscovered() });
@@ -1156,7 +1195,7 @@ app.get("/v1/health-check/status", requireAuth, (req, res) => {
 
 app.get("/v1/logs", requireAuth, (req, res) => {
   try {
-    res.json(logBuffer.getAll());
+    res.json(logBuffer);
   } catch (e) {
     console.error("[API] Errore /v1/logs:", e.message);
     res.status(500).json({ error: e.message });

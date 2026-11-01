@@ -1041,8 +1041,9 @@
         <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
             <span style="margin-right:4px;">💰 Pricing Filter:</span>
             <select id="config-pricing-filter" style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:2px 6px; border-radius:4px; font-size:12px;" onchange="updatePricingFilter(this.value)">
-                <option value="all">All Models</option>
-                <option value="free">Only Free</option>
+                <option value="none">None</option>
+                <option value="free-only">Free Only</option>
+                <option value="paid-only">Paid Only</option>
                 <option value="exclude-paid">Exclude Paid</option>
             </select>
         </label>
@@ -1057,6 +1058,10 @@
     </div>
         </div>
         <div class="stats-container">
+            <div class="card" id="training-panel" style="margin-bottom:6px;">
+                <h3 style="margin-bottom:4px;">Training Status</h3>
+                <div id="training-status-content" style="font-size:12px; color:#8b949e;">Loading...</div>
+            </div>
             <div class="stats">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
                     <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Metriche principali</div>
@@ -1710,6 +1715,27 @@
             }
         }
 
+        async function updateTrainingStatus() {
+            const el = document.getElementById('training-status-content');
+            if (!el) return;
+            try {
+                const r = await apiFetch('/v1/training/status');
+                if (!r.ok) {
+                    el.textContent = 'Error: ' + r.status;
+                    return;
+                }
+                const d = await r.json();
+                const statusStr = d.isTraining ? 'Active' : 'Inactive';
+                const elapsed = d.isTraining ? Math.floor(d.executionTime / 60) + 'm ' + (d.executionTime % 60) + 's' : '-';
+                el.innerHTML = `
+                    <div>Status: <strong style="color:${d.isTraining ? '#3fb950' : '#8b949e'}">${statusStr}</strong></div>
+                    <div>Elapsed: ${elapsed} | Models: ${d.calledModels || 0} | OK: <span style="color:#3fb950">${d.okStatus || 0}</span> | Err: <span style="color:#f85149">${d.errorStatus || 0}</span></div>
+                `;
+            } catch (e) {
+                el.textContent = 'Error: ' + e.message;
+            }
+        }
+
         async function toggleDebug(enabled) {
             try {
                 const r = await fetch('/v1/debug/toggle', {
@@ -1772,28 +1798,18 @@
         }
 
         async function updatePricingFilter(value) {
-            if (value === 'all') {
-                await toggleConfig('onlyFree', false);
-                await toggleConfig('excludePaid', false);
-            } else if (value === 'free') {
-                await toggleConfig('onlyFree', true);
-                await toggleConfig('excludePaid', false);
-            } else if (value === 'exclude-paid') {
-                await toggleConfig('excludePaid', true);
-                await toggleConfig('onlyFree', false);
-            }
+            const r = await apiFetch('/v1/config/pricing-filter', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filter: value })
+            });
+            if (!r.ok) alert('Errore aggiornamento filtro: ' + await r.text());
         }
 
         async function syncPricingSelectFromConfig(cfg) {
             const pricingSelect = document.getElementById('config-pricing-filter');
             if (!pricingSelect) return;
-            if (cfg.onlyFree) {
-                pricingSelect.value = 'free';
-            } else if (cfg.excludePaid) {
-                pricingSelect.value = 'exclude-paid';
-            } else {
-                pricingSelect.value = 'all';
-            }
+            pricingSelect.value = cfg.pricingFilter || 'none';
         }
 
         // === TAB MODALITÀ ===
@@ -2977,6 +2993,7 @@
                 const r = await apiFetch('/v1/dashboard/stats');
                 loadDebugStatus();
                 loadConfigStatus();
+                updateTrainingStatus();
                 console.log('[DEBUG dashboard] /v1/dashboard/stats response status:', r.status, 'ok:', r.ok);
                 if (r.status === 401) {
                     show401Banner();
@@ -3352,17 +3369,7 @@
                     const message = entry.message || '-';
 
                     // Determine color class
-                    let colorClass = 'source-other';
-                    if (source === 'zoo') colorClass = 'source-zoo';
-                    else if (source === 'debug') colorClass = 'source-debug';
-                    else if (source === 'training') colorClass = 'source-train';
-                    else if (source === 'system') colorClass = 'source-system';
-                    else if (source === 'ban') colorClass = 'source-ban';
-                    else if (source === 'cooldown') colorClass = 'source-cooldown';
-                    else if (source === 'flag') colorClass = 'source-flag';
-                    else if (source === 'degraded') colorClass = 'source-degraded';
-                    else if (source === 'proxy') colorClass = 'source-proxy';
-                    else if (entry.is_paid) colorClass = 'source-paid-only';
+                    let colorClass = entry.color ? `source-${entry.color}` : 'source-other';
 
                     return `<tr class="log-row ${colorClass}">
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timestamp}</td>
@@ -3389,7 +3396,7 @@
                     const timeStr = dObj.toLocaleTimeString();
                     // Timestamp on the left; elapsed seconds ONLY for active thinking model
                     const timeVal = (kind === 'active')
-                        ? ('<span style="color:#d29922; font-weight:bold;">' + Number(r.elapsedSec || 0).toFixed(1) + 's</span>')
+                        ? ('<span style="color:#d29922; font-weight:bold;">' + Number(r.activeSec || r.elapsedSec || 0).toFixed(1) + 's</span>')
                         : timeStr;
 
                     let model = r.model || r.selectedModel || r.requestedModel || '(selezione...)';
