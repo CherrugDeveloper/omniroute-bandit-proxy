@@ -1,4 +1,6 @@
-## v1.0.0 — 2026-10-31
+## v1.0.0 — 2026-11-01
+- feat(changelog): documentation update for version 1.0.0
+- feat(src): bandit logic updates per recent commits
 - feat(src,docs): update bandit logic
 
 ## v1.1.94 — 2026-10-31
