@@ -542,12 +542,13 @@ export class DiscountedUCB1Bandit {
       }
 
       const insertStmt = this.db.prepare(
-        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools, supports_image_generation, capability, supports_chat, supports_audio_generation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools, supports_vision, supports_image_generation, capability, supports_chat, supports_audio_generation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            provider = excluded.provider,
            max_input_tokens = excluded.max_input_tokens,
            is_free = excluded.is_free,
            supports_tools = excluded.supports_tools,
+           supports_vision = excluded.supports_vision,
            supports_image_generation = excluded.supports_image_generation,
            capability = excluded.capability,
            supports_chat = excluded.supports_chat,
@@ -581,6 +582,7 @@ export class DiscountedUCB1Bandit {
           const isFree = isFreeModel(modelId) ? 1 : 0;
           const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
           const supportsTools = (!isFim && m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
+          const supportsVision = (m && typeof m === "object" && m.capabilities && m.capabilities.vision === true) ? 1 : 0;
 
           const lowerId = modelId.toLowerCase();
           let capability = 'chat_completion';
@@ -619,7 +621,24 @@ export class DiscountedUCB1Bandit {
             supportsImageGeneration = 1;
           }
 
-          insertStmt.run(modelId, provider, maxInput, isFree, supportsTools, supportsImageGeneration, capability, supportsChat, supportsAudioGeneration);
+          // Vision detection fallback by model name patterns when capabilities API doesn't provide it
+          let finalSupportsVision = supportsVision;
+          if (!finalSupportsVision && supportsChat) {
+            const visionPatterns = [
+              /vision/i, /-vl\b/i, /-vl-/i, /gpt-4o/i, /claude-3/i, /claude-4/i, /gemini-1.5/i,
+              /gemini-2.0/i, /gemini-2.5/i, /qwen.*vl/i, /qwen3.*vl/i, /llava/i, /pixtral/i,
+              /moondream/i, /fuyu/i, /cogvlm/i, /internvl/i, /minicpm-v/i, /ovis/i,
+              /capybara/i, /openflamingo/i, /kosmos/i
+            ];
+            for (const pattern of visionPatterns) {
+              if (pattern.test(modelId)) {
+                finalSupportsVision = 1;
+                break;
+              }
+            }
+          }
+
+          insertStmt.run(modelId, provider, maxInput, isFree, supportsTools, finalSupportsVision, supportsImageGeneration, capability, supportsChat, supportsAudioGeneration);
           inserted++;
         }
         return { inserted, skipped, raw };
