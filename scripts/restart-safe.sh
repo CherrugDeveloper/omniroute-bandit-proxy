@@ -2,6 +2,8 @@
 # ============================================================
 # restart-safe.sh - Riavvio sicuro del servizio omniroute-bandit-proxy
 # Evita race condition su porta 8080 e conflitti PID
+# Supporta autenticazione tramite impronta digitale o riconoscimento facciale
+# (configurato in /etc/pam.d/sudo tramite pam_exec face-auth)
 # ============================================================
 # Uso:
 #   ./scripts/restart-safe.sh           # restart sicuro completo
@@ -14,24 +16,36 @@ SERVICE="omniroute-bandit-proxy.service"
 HOST="127.0.0.1"
 PORT="8080"
 
+# Determina se abbiamo bisogno di sudo (utente non root)
+NEED_SUDO=false
+if [ "$(id -u)" -ne 0 ]; then
+  NEED_SUDO=true
+fi
+
 run_systemctl() {
-  if systemctl "$@" 2>/dev/null; then
-    return 0
-  elif systemctl --user "$@" 2>/dev/null; then
-    return 0
+  if [ "$NEED_SUDO" = true ]; then
+    if sudo systemctl "$@" 2>/dev/null; then
+      return 0
+    fi
   else
-    return 1
+    if systemctl "$@" 2>/dev/null; then
+      return 0
+    fi
   fi
+  return 1
 }
 
 run_journalctl() {
-  if journalctl "$@" 2>/dev/null; then
-    return 0
-  elif journalctl --user "$@" 2>/dev/null; then
-    return 0
+  if [ "$NEED_SUDO" = true ]; then
+    if sudo journalctl "$@" 2>/dev/null; then
+      return 0
+    fi
   else
-    return 1
+    if journalctl "$@" 2>/dev/null; then
+      return 0
+    fi
   fi
+  return 1
 }
 
 wait_for_port_release() {
@@ -201,15 +215,25 @@ restart_safe() {
   # Wait for no active restart job
   local job_wait=0
   while [ $job_wait -lt 30 ]; do
-    if ! systemctl list-jobs --no-legend 2>/dev/null | grep -q "$SERVICE"; then
-      break
+    if [ "$NEED_SUDO" = true ]; then
+      if ! sudo systemctl list-jobs --no-legend 2>/dev/null | grep -q "$SERVICE"; then
+        break
+      fi
+    else
+      if ! systemctl list-jobs --no-legend 2>/dev/null | grep -q "$SERVICE"; then
+        break
+      fi
     fi
     sleep 1
     job_wait=$((job_wait + 1))
   done
   
   # 1. Ottieni PID attuale PRIMA dello stop
-  current_pid=$(systemctl show -p MainPID "$SERVICE" 2>/dev/null | cut -d= -f2 || echo "0")
+  if [ "$NEED_SUDO" = true ]; then
+    current_pid=$(sudo systemctl show -p MainPID "$SERVICE" 2>/dev/null | cut -d= -f2 || echo "0")
+  else
+    current_pid=$(systemctl show -p MainPID "$SERVICE" 2>/dev/null | cut -d= -f2 || echo "0")
+  fi
   if [ -n "$current_pid" ] && [ "$current_pid" != "0" ]; then
     echo "→ PID attuale: $current_pid"
   else

@@ -1,8 +1,3 @@
-## v1.0.0 — 2026-11-01
-- feat(changelog): documentation update for version 1.0.0
-- feat(src): bandit logic updates per recent commits
-- feat(src,docs): update bandit logic
-
 ## v1.1.94 — 2026-10-31
 - [Pending] Bandit Proxy Fix:
   - TBD: Investigation and fix of bandit proxy issue.
@@ -247,3 +242,16 @@
   - Enhanced image generation detection heuristics with additional keywords ('visualize', 'render') and regex patterns in [`src/index.mjs`](src/index.mjs:1).
 
 ## v1.1.62 — 2026-10-19
+## v1.0.1 — 2026-11-01
+- **fix(scripts): enhanced restart-safe.sh with sudo and facial recognition support**:
+  - Added NEED_SUDO detection for non-root users
+  - All systemctl/journalctl commands now use sudo when needed
+  - System PAM already configured with pam_exec.so quiet /usr/local/bin/face-auth for biometric authentication (facial recognition / fingerprint)
+  - Verified scripts/restart.sh is obsolete (documented in docs/restart-procedure.md)
+  - Syntax verified with bash -n
+
+## v1.0.0 — 2026-11-01
+- feat(changelog): documentation update for version 1.0.0
+- feat(src): bandit logic updates per recent commits
+- feat(src,docs): update bandit logic
+

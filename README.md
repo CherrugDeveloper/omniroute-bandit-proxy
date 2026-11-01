@@ -1,5 +1,7 @@
 # OmniRoute Bandit Proxy
 
+> **v1.0.1 (2026-11-01)**: fix(scripts): enhanced restart-safe.sh with sudo and facial recognition support — Added NEED_SUDO detection for non-root users, all systemctl/journalctl commands now use sudo when needed, system PAM configured with pam_exec.so quiet /usr/local/bin/face-auth for biometric authentication
+
 > **v1.0.0 (2026-11-01)**: Documentation update — CHANGELOG.md updated with version 1.0.0 entry dated 2026-11-01
 
 > **v1.0.0 (2026-10-30)**: Bug fixes — `_sanitizeModelId()` now validates against catalog (fixes groq/groq/compound 404), `_classifyError()` reduced provider cooldown from 24h to 5min for transient 429, `PROVIDER_FAIL_THRESHOLD` increased from 3 to 10, default error classification now uses `"classification-fallback"` reason.
