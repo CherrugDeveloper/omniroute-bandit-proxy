@@ -2252,11 +2252,10 @@ export class DiscountedUCB1Bandit {
 
           if (!rejectionReason && estimatedTokens > 0) {
             const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
-            // Always respect dynamic_max_tokens (runtime 413/TPM limit) even if ignoreTokenLimit is true
-            // Use getModelMaxInput to respect defensive guard
+            // Check dynamic_max_tokens only if not ignoring token limits
             const dynamicMax = this.getModelMaxInput(model.id) || 0;
             
-            if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
+            if (!ignoreTokenLimit && dynamicMax > 0 && estimatedTokens > dynamicMax) {
               rejectionReason = 'dynamic_max_tokens_exceeded';
             } else if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
               rejectionReason = 'max_input_tokens_exceeded';
