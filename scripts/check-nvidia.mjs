@@ -10,5 +10,7 @@ const catalog = db.prepare("SELECT * FROM catalog WHERE id LIKE '%nvidia%' OR pr
 console.log(JSON.stringify(catalog, null, 2));
 db.close();
 
-const models = db.prepare("SELECT * FROM models WHERE id LIKE '%nvidia%' OR provider LIKE '%nvidia%' LIMIT 20").all();
-console.log(JSON.stringify(models, null, 2));
+const models = new Database(dbPath, { readonly: true });
+const modelList = models.prepare("SELECT * FROM models WHERE id LIKE '%nvidia%' OR provider LIKE '%nvidia%' LIMIT 20").all();
+console.log(JSON.stringify(modelList, null, 2));
+models.close();
