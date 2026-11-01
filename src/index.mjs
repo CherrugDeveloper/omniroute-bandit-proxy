@@ -983,7 +983,7 @@ app.get('/v1/version', (req, res) => {
     } catch {}
     try {
       const changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
-      const m = changelog.match(/^##\s+(v[\d.]+)/m);
+      const m = changelog.match(/^##\s+\[?(v[\d.]+)\]?/m);
       if (m && m[1]) version = m[1];
     } catch {}
     res.json({ version });

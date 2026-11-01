@@ -2084,7 +2084,7 @@
         }
         // === Changelog rendering ===
         function extractFirstVersion(md) {
-            const m = md.match(/^##\s+(v[\d.]+)/m);
+            const m = md.match(/^##\s+\[?(v[\d.]+)\]?/m);
             return m ? m[1] : null;
         }
 

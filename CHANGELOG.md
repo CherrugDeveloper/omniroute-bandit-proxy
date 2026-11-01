@@ -1,3 +1,7 @@
+## [v1.13.6] - 2026-11-01
+
+- **Chore**: Repo cleanup and checks passed.
+
 ## [v1.13.5] - 2026-11-01
 
 - **Chore**: Automated version bump and documentation update for date 2026-11-01.
