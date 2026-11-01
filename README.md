@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.0.1 (2026-11-01)**: fix(scripts): enhanced restart-safe.sh with sudo and facial recognition support — Added NEED_SUDO detection for non-root users, all systemctl/journalctl commands now use sudo when needed, system PAM configured with pam_exec.so quiet /usr/local/bin/face-auth for biometric authentication
+> **v1.0.2 (2026-11-01)**:  fix(scripts): enhanced restart-safe.sh with sudo and facial recognition support — Added NEED_SUDO detection for non-root users, all systemctl/journalctl commands now use sudo when needed, system PAM configured with pam_exec.so quiet /usr/local/bin/face-auth for biometric authentication
 
 > **v1.0.0 (2026-11-01)**: Documentation update — CHANGELOG.md updated with version 1.0.0 entry dated 2026-11-01
 

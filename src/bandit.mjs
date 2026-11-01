@@ -55,6 +55,29 @@ export class DiscountedUCB1Bandit {
     this._rankCache = { at: 0, map: new Map() }; // cache classifica (30s TTL)
     this.totalRequests = this._getMeta("totalRequests");
     this.quota = new ProviderQuota(this.db);
+    this.pruneModels();
+  }
+
+  pruneModels() {
+    try {
+      const thirtyDaysAgo = Date.now() / 1000 - 30 * 24 * 60 * 60;
+      // Get models not in catalog and used > 30 days ago
+      const stmt = this.db.prepare(`
+        DELETE FROM models
+        WHERE id NOT IN (SELECT id FROM catalog)
+        AND id IN (
+          SELECT model FROM request_logs
+          GROUP BY model
+          HAVING MAX(started_at) < ?
+        )
+      `);
+      const result = stmt.run(thirtyDaysAgo);
+      if (result.changes > 0) {
+        console.log(`[BANDIT] Pruned ${result.changes} inactive models.`);
+      }
+    } catch (e) {
+      console.error(`[BANDIT] Error pruning models: ${e.message}`);
+    }
   }
 
   getFallbackModels() {

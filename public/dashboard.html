@@ -1039,12 +1039,12 @@
             <span>🐛 Debug verbose</span>
         </label>
         <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
-            <input type="checkbox" id="config-exclude-paid" onchange="toggleConfig('excludePaid', this.checked)" style="cursor:pointer;">
-            <span>💰 Exclude Paid</span>
-        </label>
-        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
-            <input type="checkbox" id="config-only-free" onchange="toggleConfig('onlyFree', this.checked)" style="cursor:pointer;">
-            <span>🆓 Only Free</span>
+            <span style="margin-right:4px;">💰 Pricing Filter:</span>
+            <select id="config-pricing-filter" style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:2px 6px; border-radius:4px; font-size:12px;" onchange="updatePricingFilter(this.value)">
+                <option value="all">All Models</option>
+                <option value="free">Only Free</option>
+                <option value="exclude-paid">Exclude Paid</option>
+            </select>
         </label>
         <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="config-exclude-thinking" onchange="toggleConfig('excludeThinking', this.checked)" style="cursor:pointer;">
@@ -1733,10 +1733,18 @@
             try {
                 const r = await fetch('/v1/config/status', { headers: { 'x-api-token': API_TOKEN } });
                 const cfg = await r.json();
-                document.getElementById('config-exclude-paid').checked = cfg.excludePaid;
-                document.getElementById('config-only-free').checked = cfg.onlyFree;
                 document.getElementById('config-exclude-thinking').checked = cfg.excludeThinking;
                 document.getElementById('config-exploit-only').checked = cfg.exploitOnly;
+                const pricingSelect = document.getElementById('config-pricing-filter');
+                if (pricingSelect) {
+                    if (cfg.onlyFree) {
+                        pricingSelect.value = 'free';
+                    } else if (cfg.excludePaid) {
+                        pricingSelect.value = 'exclude-paid';
+                    } else {
+                        pricingSelect.value = 'all';
+                    }
+                }
             } catch (e) {
                 console.warn('[CONFIG] load status failed:', e);
             }
@@ -1750,12 +1758,41 @@
                     body: JSON.stringify({ flag, enabled })
                 });
                 const d = await r.json();
-                const cb = document.getElementById(`config-${flag === 'excludePaid' ? 'exclude-paid' : flag === 'onlyFree' ? 'only-free' : flag === 'excludeThinking' ? 'exclude-thinking' : 'exploit-only'}`);
-                if (cb) cb.checked = !!d[flag];
+                if (flag === 'excludePaid' || flag === 'onlyFree') {
+                    await syncPricingSelectFromConfig(d);
+                } else {
+                    const cb = document.getElementById(`config-${flag === 'excludeThinking' ? 'exclude-thinking' : 'exploit-only'}`);
+                    if (cb) cb.checked = !!d[flag];
+                }
             } catch (e) {
                 console.warn(`[CONFIG] toggle ${flag} failed:`, e);
-                const cb = document.getElementById(`config-${flag === 'excludePaid' ? 'exclude-paid' : flag === 'onlyFree' ? 'only-free' : flag === 'excludeThinking' ? 'exclude-thinking' : 'exploit-only'}`);
+                const cb = document.getElementById(`config-${flag === 'excludeThinking' ? 'exclude-thinking' : 'exploit-only'}`);
                 if (cb) cb.checked = !enabled;
+            }
+        }
+
+        async function updatePricingFilter(value) {
+            if (value === 'all') {
+                await toggleConfig('onlyFree', false);
+                await toggleConfig('excludePaid', false);
+            } else if (value === 'free') {
+                await toggleConfig('onlyFree', true);
+                await toggleConfig('excludePaid', false);
+            } else if (value === 'exclude-paid') {
+                await toggleConfig('excludePaid', true);
+                await toggleConfig('onlyFree', false);
+            }
+        }
+
+        async function syncPricingSelectFromConfig(cfg) {
+            const pricingSelect = document.getElementById('config-pricing-filter');
+            if (!pricingSelect) return;
+            if (cfg.onlyFree) {
+                pricingSelect.value = 'free';
+            } else if (cfg.excludePaid) {
+                pricingSelect.value = 'exclude-paid';
+            } else {
+                pricingSelect.value = 'all';
             }
         }
 
@@ -1910,7 +1947,7 @@
             if (document.hidden) return;
             const t = document.querySelector('.tab-content.active');
             if (t && t.id === 'tab-modes') loadModes();
-        }, 10000);
+        }, 5000);
         // === Tabs ===
         document.addEventListener('click', (e) => {
             if (e.target && e.target.id === 'toggle-flat') {
@@ -3656,11 +3693,11 @@
         fetchQuota();
         fetchConsideration();
         const polls = [
-            { fn: refreshAll, interval: 10000, lastRun: 0 },
-            { fn: fetchLogs, interval: 5000, lastRun: 0 },
-            { fn: fetchActive, interval: 5000, lastRun: 0 },
-            { fn: fetchQuota, interval: 30000, lastRun: 0 },
-            { fn: fetchConsideration, interval: 10000, lastRun: 0 }
+            { fn: refreshAll, interval: 5000, lastRun: 0 },
+            { fn: fetchLogs, interval: 2000, lastRun: 0 },
+            { fn: fetchActive, interval: 2000, lastRun: 0 },
+            { fn: fetchQuota, interval: 15000, lastRun: 0 },
+            { fn: fetchConsideration, interval: 5000, lastRun: 0 }
         ];
 
         setInterval(() => {
