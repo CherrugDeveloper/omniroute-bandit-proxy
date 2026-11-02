@@ -120,7 +120,13 @@ export class DiscountedUCB1Bandit {
           provider TEXT NOT NULL,
           N REAL DEFAULT 0,
           sum_reward REAL DEFAULT 0,
-          last_used_index INTEGER DEFAULT 0
+          last_used_index INTEGER DEFAULT 0,
+          isTraining INTEGER DEFAULT 0,
+          executionTime INTEGER DEFAULT 0,
+          calledModels INTEGER DEFAULT 0,
+          okStatus INTEGER DEFAULT 0,
+          errorStatus INTEGER DEFAULT 0,
+          statusMessage TEXT DEFAULT 'Idle'
         );
         CREATE TABLE IF NOT EXISTS provider_history (
           provider TEXT PRIMARY KEY,
@@ -221,6 +227,74 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN max_input_tokens INTEGER DEFAULT 0`);
         } catch (err) {
           console.error("[BANDIT] Errore aggiunta colonna max_input_tokens:", err.message);
+          throw err;
+        }
+      }
+
+      const trainColumns = this.db.pragma("table_info(models_train)");
+      const hasIsTraining = trainColumns.some(col => col.name === "isTraining");
+      const hasExecutionTime = trainColumns.some(col => col.name === "executionTime");
+      const hasCalledModels = trainColumns.some(col => col.name === "calledModels");
+      const hasOkStatus = trainColumns.some(col => col.name === "okStatus");
+      const hasErrorStatus = trainColumns.some(col => col.name === "errorStatus");
+      const hasStatusMessage = trainColumns.some(col => col.name === "statusMessage");
+
+      if (!hasIsTraining) {
+        console.log("[BANDIT] Migrazione: aggiungo isTraining a models_train");
+        try {
+          this.db.exec(`ALTER TABLE models_train ADD COLUMN isTraining INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna isTraining:", err.message);
+          throw err;
+        }
+      }
+
+      if (!hasExecutionTime) {
+        console.log("[BANDIT] Migrazione: aggiungo executionTime a models_train");
+        try {
+          this.db.exec(`ALTER TABLE models_train ADD COLUMN executionTime INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna executionTime:", err.message);
+          throw err;
+        }
+      }
+
+      if (!hasCalledModels) {
+        console.log("[BANDIT] Migrazione: aggiungo calledModels a models_train");
+        try {
+          this.db.exec(`ALTER TABLE models_train ADD COLUMN calledModels INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna calledModels:", err.message);
+          throw err;
+        }
+      }
+
+      if (!hasOkStatus) {
+        console.log("[BANDIT] Migrazione: aggiungo okStatus a models_train");
+        try {
+          this.db.exec(`ALTER TABLE models_train ADD COLUMN okStatus INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna okStatus:", err.message);
+          throw err;
+        }
+      }
+
+      if (!hasErrorStatus) {
+        console.log("[BANDIT] Migrazione: aggiungo errorStatus a models_train");
+        try {
+          this.db.exec(`ALTER TABLE models_train ADD COLUMN errorStatus INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna errorStatus:", err.message);
+          throw err;
+        }
+      }
+
+      if (!hasStatusMessage) {
+        console.log("[BANDIT] Migrazione: aggiungo statusMessage a models_train");
+        try {
+          this.db.exec(`ALTER TABLE models_train ADD COLUMN statusMessage TEXT DEFAULT 'Idle'`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna statusMessage:", err.message);
           throw err;
         }
       }
@@ -2948,6 +3022,26 @@ export class DiscountedUCB1Bandit {
     } catch (e) {
       console.warn("[BANDIT] getTrainingStatus error:", e.message);
       return { isTraining: false, executionTime: 0, calledModels: 0, okStatus: 0, errorStatus: 0, lastRun: null, statusMessage: 'Error querying training status' };
+    }
+  }
+
+  updateTrainingStatus(isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage) {
+    try {
+      const now = Date.now();
+      this.db.prepare(`
+        INSERT INTO models_train (id, provider, sum_reward, N, last_used_index, isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage)
+        VALUES (?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          isTraining = excluded.isTraining,
+          executionTime = excluded.executionTime,
+          calledModels = excluded.calledModels,
+          okStatus = excluded.okStatus,
+          errorStatus = excluded.errorStatus,
+          statusMessage = excluded.statusMessage,
+          last_used_index = last_used_index + 1
+      `).run('train-daemon', 'train-daemon', now, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
+    } catch (e) {
+      console.error("[BANDIT] updateTrainingStatus error:", e.message);
     }
   }
 

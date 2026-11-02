@@ -46,6 +46,10 @@ const TRAIN_EXCLUDE_PROVIDERS = String(process.env.TRAIN_EXCLUDE_PROVIDERS || ""
   .filter(Boolean);
 let running = true;
 let currentModel = null;
+let cycle = 0;
+let cycleStats = { totalOk: 0, totalFail: 0, cycleOk: 0, cycleFail: 0, cycleStart: 0 };
+let lastStatusUpdate = 0;
+const STATUS_UPDATE_INTERVAL = 5000; // Update status every 5 seconds
 
 
 const INFLIGHT_URL = `${PROXY}/v1/inflight`;
@@ -77,6 +81,36 @@ async function waitForZoo() {
 function log(...args) {
   const t = new Date().toLocaleTimeString();
   console.log(`[${t}]`, ...args);
+}
+
+function updateTrainingStatus() {
+  if (!running) return;
+  const now = Date.now();
+  const isTraining = running;
+  const executionTime = cycleStats.cycleStart > 0 ? now - cycleStats.cycleStart : 0;
+  const calledModels = cycleStats.cycleOk + cycleStats.cycleFail;
+  const okStatus = cycleStats.cycleOk;
+  const errorStatus = cycleStats.cycleFail;
+  const statusMessage = isTraining ? `Training - Cycle ${cycle} - OK=${okStatus} FAIL=${errorStatus}` : 'Idle';
+  
+  try {
+    const db = new Database(DB_PATH, { readonly: false });
+    db.prepare(`
+      INSERT INTO models_train (id, provider, sum_reward, N, last_used_index, isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage)
+      VALUES (?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        isTraining = excluded.isTraining,
+        executionTime = excluded.executionTime,
+        calledModels = excluded.calledModels,
+        okStatus = excluded.okStatus,
+        errorStatus = excluded.errorStatus,
+        statusMessage = excluded.statusMessage,
+        last_used_index = last_used_index + 1
+    `).run('train-daemon', 'train-daemon', now, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
+    db.close();
+  } catch (e) {
+    console.error(`[${new Date().toLocaleTimeString()}] Error updating training status:`, e.message);
+  }
 }
 
 function shutdown(signal) {
@@ -209,8 +243,14 @@ async function main() {
   let totalOk = 0, totalFail = 0;
   let consecutive404 = 0;
 
+  // Initial status update
+  updateTrainingStatus();
+
   while (running) {
     cycle++;
+    cycleStats.cycleStart = Date.now();
+    cycleStats.cycleOk = 0;
+    cycleStats.cycleFail = 0;
     const models = loadModels();
     log(`--- Ciclo #${cycle}: ${models.length} modelli da testare ---`);
 
@@ -251,10 +291,14 @@ async function main() {
 
       if (result.ok) {
         ok++; totalOk++;
+        cycleStats.cycleOk++;
+        cycleStats.totalOk++;
         consecutive404 = 0;
         failCountByProvider[provider] = 0;
       } else {
         fail++; totalFail++;
+        cycleStats.cycleFail++;
+        cycleStats.totalFail++;
         // Timeout (0) → skippa il modello E conta verso il provider (3 timeout = skip ciclo)
         if (result.status === 0) {
           skippedProviders.add(model);
@@ -293,16 +337,27 @@ async function main() {
         }
       }
 
+      // Update training status periodically
+      const now = Date.now();
+      if (now - lastStatusUpdate >= STATUS_UPDATE_INTERVAL) {
+        updateTrainingStatus();
+        lastStatusUpdate = now;
+      }
+
       if (running) await sleep(forcedDelay).catch(() => {});
     }
 
     log(`--- Ciclo #${cycle} chiuso: OK=${ok} FAIL=${fail} (totale: OK=${totalOk} FAIL=${totalFail}) ---`);
+    updateTrainingStatus();
     if (running) {
       log(`Pausa ${CYCLE_DELAY}ms prima del prossimo ciclo...`);
       await sleep(CYCLE_DELAY).catch(() => {});
     }
   }
 
+  // Final status update on shutdown
+  running = false;
+  updateTrainingStatus();
   log("=================================================");
   log(`Train daemon terminato. Totale: OK=${totalOk} FAIL=${totalFail}`);
   log("=================================================");

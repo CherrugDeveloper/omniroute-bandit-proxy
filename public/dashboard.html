@@ -734,7 +734,6 @@
         #active-list::-webkit-scrollbar { width: 0; }
         #active-list::-webkit-scrollbar-thumb { background: transparent; border-radius: 0; }
         .active-request {
-            min-height: 1.5em;
             line-height: 1.5em;
         }
         /* Secondi con spazio fisso (no shift 2→3 cifre) */
@@ -3040,7 +3039,9 @@
                 } else {
                     // Use backend-computed successRate (models above threshold / models with observations)
                     // instead of obs/reqs ratio which is not a true success rate
-                    const pct = Math.round((d.successRate || 0) * 100);
+                    // Backend returns successRate as a percentage (0-100), so use directly and clamp to 0-100
+                    const pctRaw = Number(d.successRate) || 0;
+                    const pct = Math.min(100, Math.max(0, Math.round(pctRaw)));
                     rateEl.textContent = pct + '%';
                     rateEl.className = pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'err';
                 }
@@ -3623,13 +3624,13 @@
                 let placeholderHtml = '';
                 for (let i = 0; i < placeholders; i++) {
                     placeholderHtml += `<tr style="border-bottom: 1px solid #21262d; opacity: 0.2;">
-                        <td style="padding: 3px 6px;">-</td>
-                        <td style="padding: 3px 6px;">-</td>
-                        <td style="padding: 3px 6px;">-</td>
-                        <td style="padding: 3px 6px; text-align: center;">-</td>
-                        <td style="padding: 3px 6px;">-</td>
-                        <td style="padding: 3px 6px;">-</td>
-                        <td style="padding: 3px 6px;">-</td>
+                        <td style="padding: 2px 6px;">-</td>
+                        <td style="padding: 2px 6px;">-</td>
+                        <td style="padding: 2px 6px;">-</td>
+                        <td style="padding: 2px 6px; text-align: center;">-</td>
+                        <td style="padding: 2px 6px;">-</td>
+                        <td style="padding: 2px 6px;">-</td>
+                        <td style="padding: 2px 6px;">-</td>
                     </tr>`;
                 }
 

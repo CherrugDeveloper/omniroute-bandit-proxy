@@ -769,19 +769,24 @@ function trackRequestEnd(id) {
 
 function getActiveRequestsSnapshot() {
   const now = Date.now();
-  return tracker.getActiveRequestsValues().map(r => {
-    const info = r.model ? bandit.getModelInfo(r.model) : null;
-    const rank = r.model ? bandit.getModelRank(r.model) : null;
-    return {
-      ...r,
-      elapsedMs: now - r.startTime,
-      elapsedSec: Math.round((now - r.startTime) / 100) / 10,
-      N: info?.N ?? null,
-      avg: info?.avg ?? null,
-      trend: info?.trend ?? 'flat',
-      rank,
-    };
-  }).sort((a, b) => b.startTime - a.startTime);
+  return tracker.getActiveRequestsValues()
+    .filter(r => {
+      if (!r.model) return true;
+      return bandit.isModelAvailable(r.model);
+    })
+    .map(r => {
+      const info = r.model ? bandit.getModelInfo(r.model) : null;
+      const rank = r.model ? bandit.getModelRank(r.model) : null;
+      return {
+        ...r,
+        elapsedMs: now - r.startTime,
+        elapsedSec: Math.round((now - r.startTime) / 100) / 10,
+        N: info?.N ?? null,
+        avg: info?.avg ?? null,
+        trend: info?.trend ?? 'flat',
+        rank,
+      };
+    }).sort((a, b) => b.startTime - a.startTime);
 }
 
 // Ultime richieste completate (per mostrare activity quando idle)
@@ -1210,9 +1215,10 @@ app.get("/v1/inflight", (req, res) => {
 
 app.get("/v1/active", requireAuth, (req, res) => {
   try {
+    const requests = getActiveRequestsSnapshot();
     res.json({
-      count: tracker.getActiveRequestsCount(),
-      requests: getActiveRequestsSnapshot(),
+      count: requests.length,
+      requests,
       recent: recentRequests.getAll().slice(-3)  // ultime 3
     });
   } catch (e) {
