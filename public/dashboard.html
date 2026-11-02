@@ -3610,22 +3610,6 @@
                 btn.textContent = 'Nascondi';
             }
         }
-                            </div>
-                        `;
-                    } else {
-                        messageCell = `<span style="font-family: monospace; font-size: 11px; color: #c9d1d9; white-space: pre-wrap; overflow-wrap: break-word;">${escapeHtml(message)}</span>`;
-                    }
-
-                    return `<tr class="log-row ${colorClass}">
-                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timestamp}</td>
-                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">${escapeHtml(source)}</td>
-                        <td style="padding: 2px 6px; white-space: nowrap; color: #58a6ff; font-weight: 600;">${escapeHtml(provider)}</td>
-                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: #c9d1d9;">${escapeHtml(status)}</span></td>
-                        <td style="padding: 2px 6px;">${messageCell}</td>
-                    </tr>`;
-                }).join('');
-            }
-        }
         async function fetchActive() {
             try {
                 console.debug('[DEBUG Dashboard] fetchActive polling triggered at', Date.now());
