@@ -1,3 +1,7 @@
+## [v1.13.10] - 2026-11-02
+
+- **Chore**: Auto-git workflow execution.
+
 ## [v1.13.9] - 2026-11-02
 
 - **Chore**: Automated version bump.

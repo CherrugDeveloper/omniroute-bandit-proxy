@@ -8,7 +8,6 @@
 
 > **v1.0.0 (2026-10-26)**: Bug fixes & logic improvements — fixed `totalObservations` counter timing, enhanced `resetGlobalCounters()` to clear logs and reset learning state, refined model filtering for chat-capable models (e.g., gpt-4o), added token limit validation.
 
-
 ## Panoramica
 
 OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensione Zoo Code di VS Code e il proxy omniroute. Fornisce funzionalità di gestione dei modelli per Zoo Code, con un algoritmo di selezione dei modelli basato su bandit e un sistema di scoring.
@@ -24,7 +23,7 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 ### 2. Gestione dei Modelli
 - **Catalogo**: Pool completo dei modelli disponibili (ricostruito ad ogni avvio, include flag `supports_tools` e `supports_image_generation`)
 - **Modelli**: Modelli provati almeno una volta (N, sum_reward, fails, cooldown, permanent, degraded)
-- **Modelli training**: Statistiche training (isolate da modelli - non inquinano UCB1 prod)
+- **Modelli training**: Statistiche training (isolate da `models` — non inquinano UCB1 prod)
 - **Provider history**: Stato per provider (fails, cooldown, permanent, needs_attention, pointer)
 
 ### 3. Session Affinity & Image Generation
@@ -45,26 +44,22 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 ### 5. Dashboard
 - **Live Logs**: Streaming aggiornato ogni secondo
 - **Metriche**: Richieste, osservazioni, modelli, provider, errori
-- **Modalità**: Signature attive + discovery in attesa
+- **Modalità**: Signature attive + discovery in attesa con pulsanti Etichetta/Scarta
 - **Specchietto Valutazione Modelli**: Integrazione nel pannello superiore di [`public/dashboard.html`](public/dashboard.html:823) per la visualizzazione in tempo reale delle valutazioni, considerazioni e motivi di scarto dei modelli
 
 ### 6. Comportamento del Bandit
-
 #### Reward
-
-    reward = max(0, 1.0 - durata_sec / 30)
+`reward = max(0, 1.0 - durata_sec / 30)`
 
 Una risposta in 1s → 0.97, in 10s → 0.67, in 30s+ → 0.
 
 #### Aggiornamento UCB1 (con discount)
-
-    N          = N * 0.99 + 1        (successo)
-    sum_reward = sum_reward * 0.99 + reward
+`N = N * 0.99 + 1` (successo)
+`sum_reward = sum_reward * 0.99 + reward`
 
 Il discount factor 0.99 pesa di più le osservazioni recenti.
 
 #### Classificazione errori
-
 | Errore | Azione | Scope |
 |--------|--------|-------|
 | 404 model not found / not supported | Ban permanente | Modello |
@@ -83,7 +78,6 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | input-too-long / stream_early_eof | skip-feedback (nessuna penalità) | — |
 
 #### Circuit breaker
-
 | Trigger | Azione |
 |---------|--------|
 | 3 fail stesso provider **in una richiesta prod** | Cooldown provider 5 min |
@@ -91,11 +85,9 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | 5 errori 5xx stesso provider **nel ciclo di training** | Skip provider per il resto del ciclo |
 
 #### Retry loop
-
 Per ogni richiesta il proxy tenta piu modelli (fino a `providerCount * 4 + 100`, max 500) finche non trova un successo o esaurisce il tempo (`MAX_TOTAL_MS`). Ogni modello che fallisce viene aggiunto a un `excluded` set locale per la richiesta corrente.
 
 #### Timeout streaming
-
 Tre livelli di timeout, per gestire provider lenti o piantati:
 
 | Variabile | Default | Cosa fa |
@@ -107,7 +99,6 @@ Tre livelli di timeout, per gestire provider lenti o piantati:
 **Perché 3 livelli**: un modello reasoning su contesto 160k può streammare attivamente per minuti; l'idle non scatta, ma il hard cap sì.
 
 ### 7. Training isolation
-
 Il training daemon **non inquina** il bandit di produzione:
 
 - I feedback di training scrivono in `models_train` (tabella separata)
@@ -124,8 +115,8 @@ Il training daemon **non inquina** il bandit di produzione:
       ./train-ctl.sh start
 
 ### 8. Health check attivo
-
 Ogni 10 minuti, il proxy testa in batch i modelli "malati":
+
 - `permanent = 1` (bannati)
 - `cooldown_until > now + 1h` (cooldown lunghi)
 - **`degraded = 1`** (score ridotto, altrimenti mai riselezionati)
@@ -146,23 +137,10 @@ Il token viene salvato in `localStorage` per il riuso nelle tab successive.
 - **Modelli** e **Provider**: attivi / in cool / bannati / degraded / totali / in catalogo
 - Tab **Live Logs**: streaming aggiornato ogni secondo
 - Tab **Modelli**: N, avg reward, score UCB1, fails, cooldown, azioni
-- Tab **Modalità**: signature attive + discovery in attesa con pulsanti Etichetta/Scarta
 - **Flat mode sorting**: click su un header → tabella unica ordinata globalmente (bottone Raggruppa per tornare)
 - **Toggle 🐛 Debug verbose** in alto a destra
 
-#### Debug verbose (toggle)
-
-Attiva/disattiva log dettagliati **senza restart**:
-
-- `[SESSION-KEY]` — preview del system prompt e user message
-- `[CONTEXT]` — dettagli autoCompress
-- `[MSGS]` — conteggio tool_results, asst_tc, ultimo tool result
-- `[RESPONSE-STREAM]` — dettagli stream (tool_calls found, names)
-
-**Default**: spento al restart (per non loggare dati utente).
-
 #### Badge di stato
-
 | Badge | Significato |
 |-------|-------------|
 | Attivo | Nel pool, selezionabile |
@@ -180,29 +158,31 @@ File di servizio attuale: [`omniroute-bandit-proxy.service`](omniroute-bandit-pr
 - `Restart=on-failure`, `RestartSec=10`
 
 Crea `/etc/systemd/system/omniroute-bandit-proxy.service`:
+```
+[Unit]
+Description=OmniRoute Bandit Proxy - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
+After=network.target
 
-    [Unit]
-    Description=OmniRoute Bandit Proxy - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
-    After=network.target
+[Service]
+Type=simple
+WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy
+ExecStart=/usr/bin/node /home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
+Restart=on-failure
+RestartSec=10
+EnvironmentFile=-/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/.env
+StandardOutput=journal
+StandardError=journal
 
-    [Service]
-    Type=simple
-    WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy
-    ExecStart=/usr/bin/node /home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
-    Restart=on-failure
-    RestartSec=10
-    EnvironmentFile=-/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/.env
-    StandardOutput=journal
-    StandardError=journal
-
-    [Install]
-    WantedBy=default.target
+[Install]
+WantedBy=default.target
+```
 
 Poi:
-
-    sudo systemctl daemon-reload
-    sudo systemctl enable omniroute-bandit-proxy
-    sudo systemctl start omniroute-bandit-proxy
+```
+sudo systemctl daemon-reload
+sudo systemctl enable omniroute-bandit-proxy
+sudo systemctl start omniroute-bandit-proxy
+```
 
 ### 11. Script di utilità
 
@@ -210,12 +190,10 @@ Produzione e manutenzione scripts in [`scripts/`](scripts/):
 - [`scripts/switch-mode.sh`](scripts/switch-mode.sh) - Cambia modalità prod/train-gentle/train/stop/status
 - [`scripts/train-ctl.sh`](scripts/train-ctl.sh) - Controllo training daemon
 - [`scripts/train-daemon.mjs`](scripts/train-daemon.mjs) - Training round-robin warm-up
-- [`scripts/restart-safe.sh`](scripts/restart-safe.sh) - Restart sicuro (consigliato)
-- [`scripts/free-port-emergency.sh`](scripts/free-port-emergency.sh) - Emergency port release
+- [`scripts/restart-safe.sh`](scripts/restart-safe.sh) - Restart sicuro del servizio
 - [`scripts/free-port-emergency.sh`](scripts/free-port-emergency.sh) - Emergency port release
 - [`scripts/check-db.mjs`](scripts/check-db.mjs) - Diagnostica database
 - [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs) - Ispezione completa DB
-- [`scripts/inspect-bans.mjs`](scripts/inspect-bans.mjs) - Ispezione ban/cooldown
 - [`scripts/fix-db.mjs`](scripts/fix-db.mjs) - Fix database
 - [`scripts/fix-vision.mjs`](scripts/fix-vision.mjs) - Fix vision
 
@@ -241,46 +219,35 @@ Il proxy include [`src/log-throttle.mjs`](src/log-throttle.mjs:1) per ridurre il
 
 Configura queste variabili in `.env` (vedi `.env.example` per i valori di default).
 
-### 14. Struttura del progetto
+### 13. Struttura del progetto
 
-    src/
-      index.mjs            Server Express, proxy handler, endpoint
-      bandit.mjs           Classe DiscountedUCB1Bandit (logica + SQLite)
-      modes-registry.mjs   Registry modalità + soft bias + discovery
-      health-check.mjs     Probe periodici su modelli degradati/bannati
-      notifier.mjs         Webhook Slack/Discord/Telegram
-      log-throttle.mjs     Throttling log, denylist ring buffer, verbose TTL
-      provider-quota.mjs   Quota tracking rolling window per provider
-      request-tracker.mjs  Track active requests
-    public/
-      dashboard.html       Dashboard single-file UI
-      manifest.json        PWA manifest
-      sw.js                Service worker
-      icons/               App icons
-    config/
-      bandit.json          Fallback models chain (6 models)
-      modes.json           Registry 14 modalità (pattern + profile)
-      provider-limits.json Rate limits per provider (RPM/RPD/ITPM)
-    scripts/
-      train-daemon.mjs     Training round-robin warm-up
-      train-ctl.sh         Start/stop/logs daemon
-      switch-mode.sh       Cambio modalità prod/train
-      restart-safe.sh      Restart sicuro del servizio
-      check-db.mjs         Diagnostica database
-      inspect-db.mjs       Ispezione completa database
-
-### 13. Schema SQLite
-
-Sei tabelle, tutte create/migrate automaticamente all'avvio:
-
-| Tabella | Ruolo |
-|---------|-------|
-| `catalog` | Pool completo dei modelli disponibili (ricostruito ad ogni avvio) |
-| `models` | Modelli provati almeno una volta (N, sum_reward, fails, cooldown, permanent, degraded) |
-| `models_train` | Statistiche training (isolate da `models` — non inquinano UCB1 prod) |
-| `provider_history` | Stato per provider (fails, cooldown, permanent, needs_attention, pointer) |
-| `meta` | Contatori globali (totalRequests, totalObservations) |
-| `request_logs` | Ring buffer log richieste (timestamp, model, provider, status, latency_ms, tokens_in, tokens_out, error_type) |
+     src/
+       index.mjs            Server Express, proxy handler, endpoint
+       bandit.mjs           Classe DiscountedUCB1Bandit (logica + SQLite)
+       modes-registry.mjs   Registry modalità + soft bias + discovery
+       health-check.mjs     Probe periodici su modelli degradati/bannati
+       notifier.mjs         Webhook Slack/Discord/Telegram
+       log-throttle.mjs     Throttling log, denylist ring buffer, verbose TTL
+       provider-quota.mjs   Quota tracking rolling window per provider
+       request-tracker.mjs  Track active requests
+     public/
+       dashboard.html       Dashboard single-file UI
+       manifest.json        PWA manifest
+       sw.js                Service worker
+       icons/               App icons
+     config/
+       bandit.json          Fallback models chain (6 models)
+       modes.json           Registry 14 modalità (pattern + profile)
+       provider-limits.json Rate limits per provider (RPM/RPD/ITPM)
+     scripts/
+       train-daemon.mjs     Training round-robin warm-up
+       train-ctl.sh         Start/stop/logs daemon
+       switch-mode.sh       Cambio modalità prod/train
+       restart-safe.sh      Restart sicuro del servizio
+       check-db.mjs         Diagnostica database
+       inspect-db.mjs       Ispezione completa database
+       check-vision.mjs     Diagnostica visione
+       fix-vision.mjs       Fix vision
 
 ### 14. Sviluppo e Build
 
@@ -295,12 +262,6 @@ Environment variables critiche (vedi [` .env.example`]( .env.example)):
 - `EXCLUDE_PAID`, `ONLY_FREE`, `EXCLUDE_THINKING`, `EXPLOIT_ONLY`
 - `HEALTH_CHECK_INTERVAL_MS`, `SESSION_TTL_MS` (default 1800000 = 30min)
 - `UPSTREAM_TIMEOUT_MS` (20000), `STREAM_IDLE_MS` (60000), `STREAM_MAX_MS` (180000)
-
-    # Avvio con auto-reload su modifiche
-    npm run dev
-
-    # Check sintassi di tutti i file JS
-    npm run check
 
 ### 15. Note operative
 
@@ -334,3 +295,17 @@ MIT - vedi [`LICENSE`](LICENSE).
 ### 18. Autore
 
 **Marco** - [@CherrugDeveloper](https://github.com/CherrugDeveloper)
+
+### 19. Filtro UI - Clarificazioni Aggiunte
+
+**Default Filter Selection**: Il filtro predefinito è **"none"** (valore di default in `public/dashboard.html` linea 1815: `cfg.pricingFilter || 'none'`).
+
+**Differenze tra Filtri**:
+- **`free-only`**: Esclude modelli con `is_free = 0` (solo modelli *free* sono ammessi)
+- **`exclude-paid`**: Esclude modelli con `is_paid = 1` (solo modelli *non-pagati* sono ammessi)
+- **`paid-only`**: Esclude modelli con `is_paid = 0` (solo modelli *pagati* sono ammessi)
+- **`none`**: Nessun filtro applicato (default)
+
+**Nota Importante**: `free-only` e `exclude-paid` hanno logica opposta ma effetto simile: entrambi escludono modelli *pagati* (nonostante `free-only` escluda modelli *non-free*). Documentare questa distinzione è cruciale per evitare fraintendimenti.
+
+**Proposta di Semplificazione UI**: Rinomina "Exclude Paid" in **"Exclude Paid Models"** per maggiore chiarezza, o merge con "Paid Only" per ridurre confusione. La logica attuale è corretta ma il nome UI potrebbe essere migliorato.
