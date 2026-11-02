@@ -1179,33 +1179,18 @@
         <div class="log-header">
             <h3>Log Streaming</h3>
             <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end; flex-wrap:wrap;">
-                <div style="position:relative;">
-                    <select id="log-filter-dropdown" style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 24px 4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:220px; appearance:none; cursor:pointer;" onchange="applyLogFilterPreset(this.value)">
-                        <option value="all">🌟 Tutti i log</option>
-                        <option value="errors">⚠️ Solo errori (BAN/COOLDOWN/FLAG/DEGRADED)</option>
-                        <option value="proxy">🔌 Solo PROXY</option>
-                        <option value="system">🏗️ Solo SYSTEM/ZOO/TRAIN/DEBUG</option>
-                        <option value="zoo">🌿 Solo ZOO</option>
-                        <option value="debug">🐛 Solo DEBUG</option>
-                        <option value="train">🏋️ Solo TRAIN</option>
-                        <option value="paid">💳 Solo PAID-ONLY</option>
-                        <option value="active">✅ Solo BAN/COOLDOWN/FLAG</option>
-                        <option value="custom">⚙️ Filtro personalizzato...</option>
-                    </select>
-                    <span style="position:absolute; right:8px; top:50%; transform:translateY(-50%); pointer-events:none; color:#8b949e;">▼</span>
-                </div>
                 <div id="log-source-filters" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                    <button type="button" class="log-source-btn active" data-source="all" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Tutti i log">🌟 Tutti</button>
-                    <button type="button" class="log-source-btn" data-source="proxy" style="background:#30363d; border:1px solid #484f58; color:#f0883e; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Proxy requests">🔌 Proxy</button>
-                    <button type="button" class="log-source-btn" data-source="zoo" style="background:#30363d; border:1px solid #484f58; color:#3fb950; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Zoo events">🌿 ZOO</button>
-                    <button type="button" class="log-source-btn" data-source="train" style="background:#30363d; border:1px solid #484f58; color:#58a6ff; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Training events">🏋️ Train</button>
-                    <button type="button" class="log-source-btn" data-source="debug" style="background:#30363d; border:1px solid #484f58; color:#ff5858; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Debug verbose">🐛 Debug</button>
-                    <button type="button" class="log-source-btn" data-source="system" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="System events">🏗️ System</button>
-                    <button type="button" class="log-source-btn" data-source="ban" style="background:#30363d; border:1px solid #484f58; color:#f85149; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Ban events">🚫 Ban</button>
-                    <button type="button" class="log-source-btn" data-source="cooldown" style="background:#30363d; border:1px solid #484f58; color:#f1c40f; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Cooldown events">⏳ Cooldown</button>
-                    <button type="button" class="log-source-btn" data-source="flag" style="background:#30363d; border:1px solid #484f58; color:#e6ac00; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Flag events">🚩 Flag</button>
-                    <button type="button" class="log-source-btn" data-source="degraded" style="background:#30363d; border:1px solid #484f58; color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Degraded events">⚠️ Degraded</button>
-                    <button type="button" class="log-source-btn" data-source="paid-only" style="background:#30363d; border:1px solid #484f58; color:#9b59b6; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Paid-only events">💳 Paid</button>
+                    <button type="button" class="log-source-btn active" data-source="all" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="Tutti i log">🌟 Tutti</button>
+                    <button type="button" class="log-source-btn" data-source="proxy" style="background:#30363d; border:1px solid #484f58; color:#f0883e; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f0883e;" title="Proxy requests">🔌 Proxy</button>
+                    <button type="button" class="log-source-btn" data-source="zoo" style="background:#30363d; border:1px solid #484f58; color:#3fb950; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #3fb950;" title="Zoo events">🌿 ZOO</button>
+                    <button type="button" class="log-source-btn" data-source="train" style="background:#30363d; border:1px solid #484f58; color:#58a6ff; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #58a6ff;" title="Training events">🏋️ Train</button>
+                    <button type="button" class="log-source-btn" data-source="debug" style="background:#30363d; border:1px solid #484f58; color:#ff5858; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #ff5858;" title="Debug verbose">🐛 Debug</button>
+                    <button type="button" class="log-source-btn" data-source="system" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="System events">🏗️ System</button>
+                    <button type="button" class="log-source-btn" data-source="ban" style="background:#30363d; border:1px solid #484f58; color:#f85149; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f85149;" title="Ban events">🚫 Ban</button>
+                    <button type="button" class="log-source-btn" data-source="cooldown" style="background:#30363d; border:1px solid #484f58; color:#f1c40f; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f1c40f;" title="Cooldown events">⏳ Cooldown</button>
+                    <button type="button" class="log-source-btn" data-source="flag" style="background:#30363d; border:1px solid #484f58; color:#e6ac00; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e6ac00;" title="Flag events">🚩 Flag</button>
+                    <button type="button" class="log-source-btn" data-source="degraded" style="background:#30363d; border:1px solid #484f58; color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e74c3c;" title="Degraded events">⚠️ Degraded</button>
+                    <button type="button" class="log-source-btn" data-source="paid-only" style="background:#30363d; border:1px solid #484f58; color:#9b59b6; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #9b59b6;" title="Paid-only events">💳 Paid</button>
                 </div>
                 <div style="display:none;" id="custom-log-filters">
                     <input type="text" id="log-filter" placeholder="🔍 testo..."
@@ -3373,7 +3358,7 @@
                 const d = await r.json();
                 if (!Array.isArray(d)) return;
                 // Cap logs to prevent unbounded memory growth
-                window.__rawLogs = d.slice(-500);
+                window.__rawLogs = d.slice(-2000);
                 renderFilteredLogs();
             } catch (e) {}
         }
@@ -3572,7 +3557,7 @@
             if (normalized.length === 0) {
                 el.innerHTML = '<tr><td colspan="5" class="empty">Nessun log corrispondente al filtro.</td></tr>';
             } else {
-                el.innerHTML = normalized.map(entry => {
+                el.innerHTML = normalized.map((entry, index) => {
                     const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '-';
                     const source = entry.source || 'system';
                     const provider = entry.provider || '-';
@@ -3582,12 +3567,61 @@
                     // Determine color class
                     let colorClass = entry.color ? `source-${entry.color}` : 'source-other';
 
+                    // Handle long messages with expand/collapse
+                    const MAX_MESSAGE_LENGTH = 200;
+                    const isLongMessage = message.length > MAX_MESSAGE_LENGTH;
+                    const truncatedMessage = isLongMessage ? message.substring(0, MAX_MESSAGE_LENGTH) + '…' : message;
+                    const expandId = `log-msg-${Date.now()}-${index}`;
+
+                    let messageCell;
+                    if (isLongMessage) {
+                        messageCell = `
+                            <div class="log-message-container" style="display: flex; flex-direction: column; gap: 4px;">
+                                <span class="log-message-truncated" id="${expandId}-truncated" style="font-family: monospace; font-size: 11px; color: #c9d1d9; white-space: pre-wrap; overflow-wrap: break-word;">${escapeHtml(truncatedMessage)}</span>
+                                <span class="log-message-full" id="${expandId}-full" style="display: none; font-family: monospace; font-size: 11px; color: #c9d1d9; white-space: pre-wrap; overflow-wrap: break-word;">${escapeHtml(message)}</span>
+                                <button type="button" class="log-expand-btn" onclick="toggleLogMessage('${expandId}')" style="align-self: flex-start; background: none; border: none; color: #58a6ff; font-size: 10px; cursor: pointer; padding: 0; text-decoration: underline;">Mostra tutto (${message.length} caratteri)</button>
+                            </div>
+                        `;
+                    } else {
+                        messageCell = `<span style="font-family: monospace; font-size: 11px; color: #c9d1d9; white-space: pre-wrap; overflow-wrap: break-word;">${escapeHtml(message)}</span>`;
+                    }
+
                     return `<tr class="log-row ${colorClass}">
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timestamp}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">${escapeHtml(source)}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #58a6ff; font-weight: 600;">${escapeHtml(provider)}</td>
                         <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: #c9d1d9;">${escapeHtml(status)}</span></td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 11px; color: #c9d1d9; overflow-wrap: break-word; word-break: break-word; white-space: pre-wrap;">${escapeHtml(message)}</td>
+                        <td style="padding: 2px 6px;">${messageCell}</td>
+                    </tr>`;
+                }).join('');
+            }
+        }
+        function toggleLogMessage(id) {
+            const truncated = document.getElementById(`${id}-truncated`);
+            const full = document.getElementById(`${id}-full`);
+            const btn = event.target;
+            if (truncated.style.display === 'none') {
+                truncated.style.display = 'inline';
+                full.style.display = 'none';
+                btn.textContent = 'Mostra tutto';
+            } else {
+                truncated.style.display = 'none';
+                full.style.display = 'inline';
+                btn.textContent = 'Nascondi';
+            }
+        }
+                            </div>
+                        `;
+                    } else {
+                        messageCell = `<span style="font-family: monospace; font-size: 11px; color: #c9d1d9; white-space: pre-wrap; overflow-wrap: break-word;">${escapeHtml(message)}</span>`;
+                    }
+
+                    return `<tr class="log-row ${colorClass}">
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace;">${timestamp}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 11px;">${escapeHtml(source)}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #58a6ff; font-weight: 600;">${escapeHtml(provider)}</td>
+                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: #c9d1d9;">${escapeHtml(status)}</span></td>
+                        <td style="padding: 2px 6px;">${messageCell}</td>
                     </tr>`;
                 }).join('');
             }

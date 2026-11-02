@@ -1,14 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.13.8 (2026-11-02)**: Dashboard UX improvements — provider percentage metrics, pricing filter redesign, filter tooltips.
-
-> **v1.13.7 (2026-11-01)**: Documentation and version update.
-
-> Workspace audit and documentation update performed on 2026-10-26. Verified system/service files, production scripts, config files, dashboard UI, and recent cleanup audit findings. No superfluous files found, plans directory already removed, .gitignore validation issue with bandit_state.db documented.
-
-> **v1.0.0 (2026-10-28)**: Dashboard overhaul with enhanced metrics, logs, unified history, and controls; fixed syntax errors, structural issues, and API endpoint bugs.
-
-> **v1.0.0 (2026-10-26)**: Bug fixes & logic improvements — fixed `totalObservations` counter timing, enhanced `resetGlobalCounters()` to clear logs and reset learning state, refined model filtering for chat-capable models (e.g., gpt-4o), added token limit validation.
+> **v1.13.11 (2026-11-02)**: Auto-git workflow execution and documentation updates.
 
 ## Panoramica
 
@@ -17,18 +9,21 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 ## Caratteristiche Principali
 
 ### 1. Algoritmo Bandit
+
 - **UCB1 con discount**: Selezione dei modelli con esplorazione-esploitation bilanciata
 - **Aggiornamento con discount**: Dà più peso alle osservazioni recenti (factor 0.99)
 - **Sistema di reward**: `reward = max(0, 1.0 - durata_sec / 30)`
 - **Classificazione errori**: 404, timeout, 5xx, rate limit, ban permanente, ecc.
 
 ### 2. Gestione dei Modelli
+
 - **Catalogo**: Pool completo dei modelli disponibili (ricostruito ad ogni avvio, include flag `supports_tools` e `supports_image_generation`)
 - **Modelli**: Modelli provati almeno una volta (N, sum_reward, fails, cooldown, permanent, degraded)
 - **Modelli training**: Statistiche training (isolate da `models` — non inquinano UCB1 prod)
 - **Provider history**: Stato per provider (fails, cooldown, permanent, needs_attention, pointer)
 
 ### 3. Session Affinity & Image Generation
+
 - **Pin session**: Calcola `sessionKey = md5(system_prompt + primo_user_message)`
 - **TTL 30 min**: Pin valido per 30 minuti
 - **Invalidazione pin**: Se il modello pinnato fallisce (5xx, timeout), il pin viene rimosso
@@ -39,11 +34,13 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
   3. **R3 - intento esplicito**: frasi esplicite (`generate image`, `text to image`, ...) oppure il regex `STRICT_IMAGE_INTENT_RE` che richiede il sostantivo immagine **immediatamente dopo** il verbo (articolo opzionale + fino a 2 aggettivi).
 
 ### 4. Sistema di Modalità
+
 - **14 modalità Zoo Code**: Riconosce le modalità di Zoo Code analizzando il system prompt
 - **Profili soft bias**: Moltiplicatore sullo score UCB1 per ogni profilo
 - **Auto-discovery**: Prompt mai visti → salvati in `config/modes.discovered.json`
 
 ### 5. Dashboard
+
 - **Live Logs**: Streaming aggiornato ogni secondo
 - **Metriche**: Richieste, osservazioni, modelli, provider, errori
 - **Modalità**: Signature attive + discovery in attesa con pulsanti Etichetta/Scarta
@@ -53,18 +50,22 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 - **Tooltips esplicativi**: "Exclude Thinking" (abilitato di default per risposte dirette) e "Exploit Only" (modalità solo exploitation, disabilita esplorazione)
 
 ### 6. Comportamento del Bandit
+
 #### Reward
+
 `reward = max(0, 1.0 - durata_sec / 30)`
 
-Una risposta in 1s → 0.97, in 10s → 0.67, in 30s+ → 0.
+Una risposta in 1s → 0.97, in 10s → 0.67, in 30s+ → 0
 
 #### Aggiornamento UCB1 (con discount)
+
 `N = N * 0.99 + 1` (successo)
 `sum_reward = sum_reward * 0.99 + reward`
 
 Il discount factor 0.99 pesa di più le osservazioni recenti.
 
 #### Classificazione errori
+
 | Errore | Azione | Scope |
 |--------|--------|-------|
 | 404 model not found / not supported | Ban permanente | Modello |
@@ -83,6 +84,7 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | input-too-long / stream_early_eof | skip-feedback (nessuna penalità) | — |
 
 #### Circuit breaker
+
 | Trigger | Azione |
 |---------|--------|
 | 3 fail stesso provider **in una richiesta prod** | Cooldown provider 5 min |
@@ -90,9 +92,11 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | 5 errori 5xx stesso provider **nel ciclo di training** | Skip provider per il resto del ciclo |
 
 #### Retry loop
+
 Per ogni richiesta il proxy tenta più modelli (fino a `providerCount * 4 + 100`, max 500) finché non trova un successo o esaurisce il tempo (`MAX_TOTAL_MS`). Ogni modello che fallisce viene aggiunto a un `excluded` set locale per la richiesta corrente.
 
 #### Timeout streaming
+
 Tre livelli di timeout, per gestire provider lenti o piantati:
 
 | Variabile | Default | Cosa fa |
@@ -104,6 +108,7 @@ Tre livelli di timeout, per gestire provider lenti o piantati:
 **Perché 3 livelli**: un modello reasoning su contesto 160k può streammare attivamente per minuti; l'idle non scatta, ma il hard cap sì.
 
 ### 7. Training isolation
+
 Il training daemon **non inquina** il bandit di produzione:
 
 - I feedback di training scrivono in `models_train` (tabella separata)
@@ -122,6 +127,7 @@ EXCLUDE_PROVIDERS=gemini,felo TIMEOUT_MS=15000 DELAY_MS=5000 \
 ```
 
 ### 8. Health check attivo
+
 Ogni 10 minuti, il proxy testa in batch i modelli "malati":
 
 - `permanent = 1` (bannati)
@@ -140,7 +146,7 @@ http://127.0.0.1:8080/dashboard?token=<DASHBOARD_TOKEN>
 
 Il token viene salvato in `localStorage` per il riuso nelle tab successive.
 
-#### Cosa mostra
+**Cosa mostra**:
 
 - **Richieste** e **Osservazioni** (successi) totali
 - **Modelli** e **Provider**: attivi / in cool / bannati / degraded / totali / in catalogo
@@ -154,6 +160,7 @@ Il token viene salvato in `localStorage` per il riuso nelle tab successive.
 - **Filtri**: Exclude Thinking (default ON), Exploit Only (default OFF)
 
 #### Badge di stato
+
 | Badge | Significato |
 |-------|-------------|
 | Attivo | Nel pool, selezionabile |
@@ -165,12 +172,14 @@ Il token viene salvato in `localStorage` per il riuso nelle tab successive.
 ### 10. Esecuzione come servizio systemd
 
 File di servizio attuale: [`omniroute-bandit-proxy.service`](omniroute-bandit-proxy.service) verifica:
-- `WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy`
+
+- `WorkingDirectory=/home/marco/Workspace_vscode/omniroute-bandit-proxy`
 - `ExecStart=/usr/bin/node .../src/index.mjs`
 - `EnvironmentFile=-.../.env`
 - `Restart=on-failure`, `RestartSec=10`
 
 Crea `/etc/systemd/system/omniroute-bandit-proxy.service`:
+
 ```
 [Unit]
 Description=OmniRoute Bandit Proxy - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
@@ -178,19 +187,18 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy
-ExecStart=/usr/bin/node /home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
+WorkingDirectory=/home/marco/Workspace_vscode/omniroute-bandit-proxy
+ExecStart=/usr/bin/node /home/marco/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
 Restart=on-failure
 RestartSec=10
-EnvironmentFile=-/home/marco/Files/Workspace_vscode/omniroute-bandit-proxy/.env
-StandardOutput=journal
-StandardError=journal
+EnvironmentFile=-/home/marco/Workspace_vscode/omniroute-bandit-proxy/.env
 
 [Install]
 WantedBy=default.target
 ```
 
 Poi:
+
 ```
 sudo systemctl daemon-reload
 sudo systemctl enable omniroute-bandit-proxy
@@ -200,6 +208,7 @@ sudo systemctl start omniroute-bandit-proxy
 ### 11. Script di utilità
 
 Produzione e manutenzione scripts in [`scripts/`](scripts/):
+
 - [`scripts/switch-mode.sh`](scripts/switch-mode.sh) - Cambia modalità prod/train-gentle/train/stop/status
 - [`scripts/train-ctl.sh`](scripts/train-ctl.sh) - Controllo training daemon
 - [`scripts/train-daemon.mjs`](scripts/train-daemon.mjs) - Training round-robin warm-up
@@ -270,20 +279,19 @@ scripts/
   check-catalog.mjs    Diagnostica catalogo
   fix-vision.mjs       Fix vision
   reset-providers.mjs  Reset provider
-  inspect-bans.mjs     Ispezione ban
-  inspect-summary.mjs  Riassunto ispezioni
-  inspect-detailed.mjs Ispezione dettagliata
 ```
 
 ### 14. Sviluppo e Build
 
 Comandi da [`package.json`](package.json):
+
 - `npm start` - Avvia il proxy server su 127.0.0.1:8080
 - `npm run dev` - Avvia con auto-reload (`--watch`)
 - `npm run check` - Valida sintassi TypeScript e JavaScript (`node --check`)
 - `npm test` - Esegue tutti i test via `node --test tests/*.test.mjs __tests__/*.test.mjs`
 
 Environment variables critiche (vedi [` .env.example`]( .env.example)):
+
 - `OMNIROUTE_API_KEY`, `OMNIROUTE_BASE_URL`, `DASHBOARD_TOKEN`
 - `EXCLUDE_PAID`, `ONLY_FREE`, `EXCLUDE_THINKING`, `EXPLOIT_ONLY`
 - `HEALTH_CHECK_INTERVAL_MS`, `SESSION_TTL_MS` (default 1800000 = 30min)
@@ -301,6 +309,7 @@ Environment variables critiche (vedi [` .env.example`]( .env.example)):
 ### 16. Deployment & Configurazione
 
 File di deployment verificati:
+
 - [`omniroute-bandit-proxy.service`](omniroute-bandit-proxy.service) - Systemd service (Restart=on-failure, EnvironmentFile=-.env)
 - [`nginx.conf`](nginx.conf) - Reverse proxy config per dashboard e API
 - [`netlify.toml`](netlify.toml) - Netlify redirects per /v1/* API e SPA fallback
@@ -310,6 +319,7 @@ File di deployment verificati:
 Dashboard UI: [`public/dashboard.html`](public/dashboard.html) single-file con 6 tab, live logs, metriche, modelli, modalità, ecc. Icone in [`public/icons/`](public/icons/).
 
 Cleanup audit 2026-10-26:
+
 - No superfluous files found
 - Plans directory already removed
 - .gitignore validation issue: bandit_state.db tracked despite *.db ignore pattern
@@ -327,6 +337,7 @@ MIT - vedi [`LICENSE`](LICENSE).
 **Default Filter Selection**: Il filtro predefinito è **"none"** (valore di default in `public/dashboard.html`).
 
 **Opzioni Pricing Filter**:
+
 - **`none`**: Nessun filtro applicato (default)
 - **`free-only`**: Include solo modelli con `is_free = 1`
 - **`paid-only`**: Include solo modelli con `is_paid = 1`
@@ -336,3 +347,13 @@ MIT - vedi [`LICENSE`](LICENSE).
 **Exclude Thinking** (default: ON): Esclude i modelli con capacità di ragionamento "thinking" (es. modelli che mostrano il processo di pensiero). Abilitato di default per privilegiare risposte dirette e veloci.
 
 **Exploit Only** (default: OFF): Modalità exploit-only: il bandit seleziona solo il modello con UCB1 score più alto (nessuna esplorazione). Utile in produzione per massimizzare performance note, disabilita la scoperta di modelli migliori.
+
+## Changlog
+
+Le modifiche recenti sono documentate in [CHANGELOG.md](CHANGELOG.md).
+
+- **v1.13.11** - Auto-git workflow execution and documentation updates
+- **v1.13.10** - Auto-git workflow execution
+- **v1.13.9** - Automated version bump
+- **v1.13.8** - Merged Training Status metrics into Top model card, removed standalone panel
+- **v1.13.7** - Documentation and version update

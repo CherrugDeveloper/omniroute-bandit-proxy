@@ -619,7 +619,7 @@ const sourceColors = {
 };
 
 const logBuffer = []; // Replaced RingBuffer with simple FIFO array
-const MAX_LOG_ENTRIES = 1000;
+const MAX_LOG_ENTRIES = 5000;
 
 // ========================================
 // ACTIVE REQUESTS TRACKER
