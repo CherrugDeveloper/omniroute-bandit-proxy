@@ -3473,7 +3473,7 @@
             const filtered = raw.filter(entry => {
                 // Normalize entry to object (backward compat with string entries)
                 if (typeof entry === 'string') {
-                    entry = { message: entry, source: 'system', type: null, provider: null, status: null, is_paid: false };
+                    entry = { message: entry, source: 'system', type: null, provider: null, status: null, is_paid: false, color: 'system' };
                 }
                 // Apply text filter
                 const msg = (entry.message || '').toLowerCase();
@@ -3549,7 +3549,7 @@
             // Normalize entries to objects for rendering
             const normalized = sorted.map(entry => {
                 if (typeof entry === 'string') {
-                    return { timestamp: null, source: 'system', provider: null, status: null, message: entry, is_paid: false };
+                    return { timestamp: null, source: 'system', provider: null, status: null, message: entry, is_paid: false, color: 'system' };
                 }
                 return entry;
             });

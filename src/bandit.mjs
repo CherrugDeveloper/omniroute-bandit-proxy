@@ -2387,7 +2387,7 @@ export class DiscountedUCB1Bandit {
           if (!rejectionReason && estimatedTokens > 0) {
             const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
             // Check dynamic_max_tokens - always respect unless explicitly ignored
-            const dynamicMax = this.getModelMaxInput(model.id) || 0;
+            const dynamicMax = this.getDynamicMaxTokens(model.id) || 0;
             
             if (!ignoreDynamicMaxTokens && dynamicMax > 0 && estimatedTokens > dynamicMax) {
               rejectionReason = 'dynamic_max_tokens_exceeded';
@@ -2543,7 +2543,7 @@ export class DiscountedUCB1Bandit {
             const isNonChat = m.supports_chat === 0 || m.capability !== 'chat_completion' || m.supports_image_generation === 1 || m.supports_audio_generation === 1 ||
               isImageGenModel(m) ||
               /(^|[-_/])(tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerId);
-            const dynamicMax = this.getModelMaxInput(m.id) || 0;
+            const dynamicMax = this.getDynamicMaxTokens(m.id) || 0;
             if (dynamicMax > 0 && estimatedTokens > dynamicMax) {
               return false;
             }
@@ -2655,6 +2655,8 @@ export class DiscountedUCB1Bandit {
   }
 
   getModelMaxInput(modelId) {
+    // Returns the authoritative maximum input tokens from the catalog only.
+    // Does NOT consider dynamic_max_tokens which can be temporarily lowered by transient errors.
     let catMax = 0;
     try {
       const catRow = this.db.prepare(
@@ -2662,7 +2664,13 @@ export class DiscountedUCB1Bandit {
       ).get(modelId);
       if (catRow && catRow.max_input_tokens > 0) catMax = catRow.max_input_tokens;
     } catch (_) {}
+    return catMax;
+  }
 
+  getDynamicMaxTokens(modelId) {
+    // Returns the dynamic_max_tokens value from the models table (if >= 1000).
+    // This is a soft limit that can be temporarily lowered by transient errors.
+    // Should be used as an additional constraint, not as a replacement for catalog max_input_tokens.
     let dynMax = 0;
     try {
       const modelRow = this.db.prepare(
@@ -2673,11 +2681,7 @@ export class DiscountedUCB1Bandit {
       // they don't silently filter out all real requests.
       if (modelRow && modelRow.dynamic_max_tokens >= 1000) dynMax = modelRow.dynamic_max_tokens;
     } catch (_) {}
-
-    if (dynMax > 0 && catMax > 0) {
-      return Math.min(dynMax, catMax);
-    }
-    return dynMax > 0 ? dynMax : catMax;
+    return dynMax;
   }
 
   reviveModel(modelId) {
