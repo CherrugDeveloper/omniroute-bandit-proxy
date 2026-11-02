@@ -1126,20 +1126,6 @@
                     <span>Catalogo: <span id="catalog-providers" class="tabular-nums">0</span></span>
                 </div>
             </div>
-            <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e;">
-                    <span>Provider in salute</span>
-                    <span id="healthy-providers-pct" style="font-weight:600; color:#58a6ff;">-</span>
-                </div>
-                <div id="healthy-providers-content" style="font-size:11px; color:#8b949e; margin-top:2px;"></div>
-            </div>
-            <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e;">
-                    <span>Modelli operativi</span>
-                    <span id="operational-models-pct" style="font-weight:600; color:#58a6ff;">-</span>
-                </div>
-                <div id="operational-models-content" style="font-size:11px; color:#8b949e; margin-top:2px;"></div>
-            </div>
             </div>
 
     <!-- Persistent Unified Panel -->
@@ -1362,6 +1348,23 @@
     <div id="tab-providers" class="tab-content">
         <div class="filter-bar" style="margin-bottom:10px; display:flex; justify-content:flex-end;">
             <button id="providers-reset-all" class="btn btn-danger" data-action="reset-provider">Reset Tutti i Provider</button>
+        </div>
+        <!-- Provider Metrics Section -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:10px;">
+            <div style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
+                    <span>Provider in salute</span>
+                    <span id="healthy-providers-pct-tab" style="font-weight:600; color:#58a6ff;">-</span>
+                </div>
+                <div id="healthy-providers-content-tab" style="font-size:11px; color:#8b949e;"></div>
+            </div>
+            <div style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
+                    <span>Modelli operativi</span>
+                    <span id="operational-models-pct-tab" style="font-weight:600; color:#58a6ff;">-</span>
+                </div>
+                <div id="operational-models-content-tab" style="font-size:11px; color:#8b949e;"></div>
+            </div>
         </div>
         <div class="table-wrapper">
             <table>
@@ -3155,10 +3158,10 @@
                 const healthyProvidersPct = totalProviders > 0 ? ((activeProviders / totalProviders) * 100).toFixed(1) : '—';
                 const operationalModelsPct = totalModels > 0 ? ((activeModels / totalModels) * 100).toFixed(1) : '—';
 
+                // Update main dashboard elements (for backward compatibility)
                 const healthyProvidersEl = document.getElementById('healthy-providers-pct');
                 if (healthyProvidersEl) {
                     healthyProvidersEl.textContent = healthyProvidersPct !== '—' ? healthyProvidersPct + '%' : '—';
-                    // Color coding: green if > 80%, yellow if > 50%, red otherwise
                     if (healthyProvidersPct !== '—') {
                         const pct = parseFloat(healthyProvidersPct);
                         healthyProvidersEl.style.color = pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149';
@@ -3174,7 +3177,7 @@
                     }
                 }
 
-                // Update detail content
+                // Update detail content in main dashboard
                 const healthyContentEl = document.getElementById('healthy-providers-content');
                 if (healthyContentEl) {
                     healthyContentEl.textContent = `${activeProviders} / ${totalProviders} provider attivi`;
@@ -3183,6 +3186,35 @@
                 const operationalContentEl = document.getElementById('operational-models-content');
                 if (operationalContentEl) {
                     operationalContentEl.textContent = `${activeModels} / ${totalModels} modelli attivi`;
+                }
+
+                // Update provider tab elements
+                const healthyProvidersTabEl = document.getElementById('healthy-providers-pct-tab');
+                if (healthyProvidersTabEl) {
+                    healthyProvidersTabEl.textContent = healthyProvidersPct !== '—' ? healthyProvidersPct + '%' : '—';
+                    if (healthyProvidersPct !== '—') {
+                        const pct = parseFloat(healthyProvidersPct);
+                        healthyProvidersTabEl.style.color = pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149';
+                    }
+                }
+
+                const operationalModelsTabEl = document.getElementById('operational-models-pct-tab');
+                if (operationalModelsTabEl) {
+                    operationalModelsTabEl.textContent = operationalModelsPct !== '—' ? operationalModelsPct + '%' : '—';
+                    if (operationalModelsPct !== '—') {
+                        const pct = parseFloat(operationalModelsPct);
+                        operationalModelsTabEl.style.color = pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149';
+                    }
+                }
+
+                const healthyContentTabEl = document.getElementById('healthy-providers-content-tab');
+                if (healthyContentTabEl) {
+                    healthyContentTabEl.textContent = `${activeProviders} / ${totalProviders} provider attivi`;
+                }
+
+                const operationalContentTabEl = document.getElementById('operational-models-content-tab');
+                if (operationalContentTabEl) {
+                    operationalContentTabEl.textContent = `${activeModels} / ${totalModels} modelli attivi`;
                 }
 
                 renderAll();
@@ -3677,23 +3709,8 @@
                 });
 
                 const allHtml = allEvents.map(r => fmtRow(r, r.kind)).join('');
-                
-                const totalRows = allEvents.length;
-                const placeholders = Math.max(0, 4 - totalRows);
-                let placeholderHtml = '';
-                for (let i = 0; i < placeholders; i++) {
-                    placeholderHtml += `<tr style="border-bottom: 1px solid #21262d; opacity: 0.2;">
-                        <td style="padding: 2px 6px;">-</td>
-                        <td style="padding: 2px 6px;">-</td>
-                        <td style="padding: 2px 6px;">-</td>
-                        <td style="padding: 2px 6px; text-align: center;">-</td>
-                        <td style="padding: 2px 6px;">-</td>
-                        <td style="padding: 2px 6px;">-</td>
-                        <td style="padding: 2px 6px;">-</td>
-                    </tr>`;
-                }
 
-                tbody.innerHTML = allHtml + placeholderHtml;
+                tbody.innerHTML = allHtml;
                 console.debug('[DEBUG Dashboard] fetchActive table updated, total events:', allEvents.length);
             } catch (e) {
                 console.error('[DEBUG Dashboard] fetchActive error:', e);

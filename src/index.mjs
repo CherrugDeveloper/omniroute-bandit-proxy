@@ -769,11 +769,30 @@ function trackRequestEnd(id) {
 
 function getActiveRequestsSnapshot() {
   const now = Date.now();
-  return tracker.getActiveRequestsValues()
+  const allRequests = tracker.getActiveRequestsValues()
     .filter(r => {
       if (!r.model) return true;
       return bandit.isModelAvailable(r.model);
-    })
+    });
+
+  // Deduplicate by sessionKey: keep only the latest attempt per session
+  const sessionMap = new Map();
+  const noSessionRequests = [];
+  
+  for (const r of allRequests) {
+    if (r.sessionKey) {
+      const existing = sessionMap.get(r.sessionKey);
+      if (!existing || r.attempt > existing.attempt) {
+        sessionMap.set(r.sessionKey, r);
+      }
+    } else {
+      noSessionRequests.push(r);
+    }
+  }
+
+  const deduplicated = [...sessionMap.values(), ...noSessionRequests];
+
+  return deduplicated
     .map(r => {
       const info = r.model ? bandit.getModelInfo(r.model) : null;
       const rank = r.model ? bandit.getModelRank(r.model) : null;
@@ -1513,7 +1532,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       attempt: 0,
       stream: !!stream,
       status: "starting",
-      clientIp: req.ip || req.connection?.remoteAddress || "?"
+      clientIp: req.ip || req.connection?.remoteAddress || "?",
+      sessionKey
     });
 
     // Cleanup a fine richiesta (success, error, disconnect)
@@ -1998,7 +2018,8 @@ trackRequestUpdate(requestId, {
   model,
   attempt,
   triedModels: Array.from(excluded),
-  selectionHistory: allSelectionHistory
+  selectionHistory: allSelectionHistory,
+  sessionKey
 });
     if (!model) {
       console.warn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, tokens=${estimatedTokens}, excluded=${excluded.size})`);

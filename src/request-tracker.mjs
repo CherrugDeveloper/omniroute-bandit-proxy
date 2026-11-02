@@ -9,6 +9,7 @@ export function trackRequestStart(id, meta) {
     attempt,
     startTime: Date.now(),
     status: 'starting',
+    sessionKey: meta.sessionKey || null,
     ...meta
   });
 }
@@ -31,6 +32,7 @@ export function trackRequestUpdate(id, patch) {
       attempt,
       startTime: Date.now(),
       status: 'fetching',
+      sessionKey: patch.sessionKey || null,
       ...baseMeta
     };
     activeRequests.set(key, r);

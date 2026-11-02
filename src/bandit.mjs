@@ -2386,10 +2386,10 @@ export class DiscountedUCB1Bandit {
 
           if (!rejectionReason && estimatedTokens > 0) {
             const maxInput = this.getModelMaxInput(model.id) || model.max_input_tokens || 0;
-            // Check dynamic_max_tokens only if not ignoring token limits
+            // Check dynamic_max_tokens - always respect unless explicitly ignored
             const dynamicMax = this.getModelMaxInput(model.id) || 0;
             
-            if (!ignoreTokenLimit && dynamicMax > 0 && estimatedTokens > dynamicMax) {
+            if (!ignoreDynamicMaxTokens && dynamicMax > 0 && estimatedTokens > dynamicMax) {
               rejectionReason = 'dynamic_max_tokens_exceeded';
             } else if (!ignoreTokenLimit && maxInput > 0 && estimatedTokens > maxInput) {
               rejectionReason = 'max_input_tokens_exceeded';
@@ -2518,9 +2518,11 @@ export class DiscountedUCB1Bandit {
     // Tier 4: Emergency Relaxation (Ignore Policies/Tools/Token Limits AND Cooldowns)
     // This is the last resort before absolute fallback - ignore all cooldowns to ensure
     // we can still serve requests even if all providers are in cooldown.
+    // Note: We DO NOT ignore dynamic_max_tokens here because they are learned limits from actual 413 errors,
+    // not cooldowns. They should be respected even in emergency mode.
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true, ignoreDynamicMaxTokens: true, ignoreNonChat: true });
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true, ignoreNonChat: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
