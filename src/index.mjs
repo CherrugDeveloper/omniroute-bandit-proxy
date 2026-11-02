@@ -285,6 +285,10 @@ function validateStreamAccumulated(raw, opts = {}) {
         const parsed = JSON.parse(payload);
         const errObj = parsed.error || {};
         innerMessage = errObj.message || "";
+        if (innerMessage && typeof innerMessage.trim !== 'function') {
+           console.error(`[DEBUG SSE ERROR] innerMessage is not a string with trim: ${typeof innerMessage}, value: ${JSON.stringify(innerMessage)}`);
+           innerMessage = String(innerMessage);
+        }
         code = errObj.code || "";
         if (code === "model_shutdown") status = 410;
         else if (code === "model_not_found") status = 400;
@@ -467,6 +471,8 @@ const dashboardStatsLogger = createThrottledLogger("dashboard-stats", DASHBOARD_
 const modelsLogger = createThrottledLogger("models", MODELS_LOG_THROTTLE_MS);
 // R2: the middleware-level [DASHBOARD_STATS_DEBUG] diagnostic line.
 const dashboardStatsDebugLogger = createThrottledLogger("dashboard-stats-debug", DASHBOARD_STATS_LOG_INTERVAL_MS);
+// R7: console throttling
+const consoleThrottler = createThrottledLogger("console", 1000);
 
 // Single entry point: canonical per-request log + optional verbose body inspection
 app.use((req, res, next) => {
@@ -955,9 +961,25 @@ function serializeArgs(args) {
   }).join(" ");
 }
 
-console.log = (...args) => { originalLog(...args); pushLog(serializeArgs(args)); };
-console.error = (...args) => { originalError(...args); pushLog("ERROR: " + serializeArgs(args)); };
-console.warn = (...args) => { originalWarn(...args); pushLog("WARN: " + serializeArgs(args)); };
+console.log = (...args) => {
+  const message = serializeArgs(args);
+  const { log, suppressed } = consoleThrottler.decide(message);
+  if (log) {
+    originalLog(...args);
+    if (suppressed > 0) originalLog(`(suppressed ${suppressed} logs)`);
+  }
+  pushLog(message);
+};
+console.error = (...args) => {
+  const message = serializeArgs(args);
+  originalError(...args);
+  pushLog("ERROR: " + message);
+};
+console.warn = (...args) => {
+  const message = serializeArgs(args);
+  originalWarn(...args);
+  pushLog("WARN: " + message);
+};
 
 // ========================================
 // MIDDLEWARE

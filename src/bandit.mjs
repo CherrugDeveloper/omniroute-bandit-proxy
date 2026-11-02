@@ -971,6 +971,7 @@ export class DiscountedUCB1Bandit {
     console.log(`[DEBUG] recordFeedback: modelId=${modelId}, sanitized=${sanitizedModelId}`);
     console.log(`[BANDIT-RECORD-FEEDBACK] modelId=${modelId} success=${success} reward=${reward} source=${opts.source}`);
     try {
+      console.time(`recordFeedback-${modelId}`);
       const tx = this.db.transaction(() => {
         const now = Date.now();
         const source = opts.source === 'training' ? 'training' : 'prod';
@@ -1120,9 +1121,12 @@ export class DiscountedUCB1Bandit {
           "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).run(Date.now(), statusCode, errorMessage, modelId, provider);
       }
-      return { success, reward, errorDetails };
+      const result = { success, reward, errorDetails };
+      return result;
       });
-      tx();
+      const result = tx();
+      console.timeEnd(`recordFeedback-${modelId}`);
+      return result;
     } catch (err) {
       console.error(`[BANDIT-RECORD-FEEDBACK] ERROR for model=${modelId}:`, err?.message || err);
       console.error(`[BANDIT-RECORD-FEEDBACK] Stack:`, err?.stack || String(err));
