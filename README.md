@@ -1,5 +1,7 @@
 # OmniRoute Bandit Proxy
 
+> **v1.13.8 (2026-11-02)**: Dashboard UX improvements — provider percentage metrics, pricing filter redesign, filter tooltips.
+
 > **v1.13.7 (2026-11-01)**: Documentation and version update.
 
 > Workspace audit and documentation update performed on 2026-10-26. Verified system/service files, production scripts, config files, dashboard UI, and recent cleanup audit findings. No superfluous files found, plans directory already removed, .gitignore validation issue with bandit_state.db documented.
@@ -16,7 +18,7 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 
 ### 1. Algoritmo Bandit
 - **UCB1 con discount**: Selezione dei modelli con esplorazione-esploitation bilanciata
-- **Aggiornamento con discount**: Dà più peso alle osservazioni recenti
+- **Aggiornamento con discount**: Dà più peso alle osservazioni recenti (factor 0.99)
 - **Sistema di reward**: `reward = max(0, 1.0 - durata_sec / 30)`
 - **Classificazione errori**: 404, timeout, 5xx, rate limit, ban permanente, ecc.
 
@@ -30,11 +32,11 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 - **Pin session**: Calcola `sessionKey = md5(system_prompt + primo_user_message)`
 - **TTL 30 min**: Pin valido per 30 minuti
 - **Invalidazione pin**: Se il modello pinnato fallisce (5xx, timeout), il pin viene rimosso
-- **Image Generation Support**: Rilevamento automatico delle richieste di generazione immagini e routing dedicato tramite [`POST /v1/images/generations`](src/index.mjs:1) o conversione trasparente su chat completions.
-- **Rilevamento rigoroso (3 regole)** in [`isImageGenerationRequest()`](src/index.mjs:50) per evitare i falsi positivi `400 Image generation requests are not supported`:
+- **Image Generation Support**: Rilevamento automatico delle richieste di generazione immagini e routing dedicato tramite `POST /v1/images/generations` o conversione trasparente su chat completions.
+- **Rilevamento rigoroso (3 regole)** in `isImageGenerationRequest()` per evitare i falsi positivi `400 Image generation requests are not supported`:
   1. **R1 - model id immagine**: `dall-e`, `stable-diffusion`, `midjourney`, `flux`, `imagen`, `sdxl`, `sd-xl`, `playground`, `aihorde` → sempre richiesta immagine.
   2. **R2 - shape del payload**: `prompt` senza `messages` → richiesta immagine **solo** se presenti `n`/`size`/`response_format` oppure se manca del tutto `model`. Un modello chat (es. `gpt-4o`) con campo `prompt` resta una normale chat completion.
-  3. **R3 - intento esplicito**: frasi esplicite (`generate image`, `text to image`, ...) oppure il regex [`STRICT_IMAGE_INTENT_RE`](src/index.mjs:47) che richiede il sostantivo immagine **immediatamente dopo** il verbo (articolo opzionale + fino a 2 aggettivi).
+  3. **R3 - intento esplicito**: frasi esplicite (`generate image`, `text to image`, ...) oppure il regex `STRICT_IMAGE_INTENT_RE` che richiede il sostantivo immagine **immediatamente dopo** il verbo (articolo opzionale + fino a 2 aggettivi).
 
 ### 4. Sistema di Modalità
 - **14 modalità Zoo Code**: Riconosce le modalità di Zoo Code analizzando il system prompt
@@ -45,7 +47,10 @@ OmniRoute Bandit Proxy è un sistema middleware che funge da proxy tra l'estensi
 - **Live Logs**: Streaming aggiornato ogni secondo
 - **Metriche**: Richieste, osservazioni, modelli, provider, errori
 - **Modalità**: Signature attive + discovery in attesa con pulsanti Etichetta/Scarta
-- **Specchietto Valutazione Modelli**: Integrazione nel pannello superiore di [`public/dashboard.html`](public/dashboard.html:823) per la visualizzazione in tempo reale delle valutazioni, considerazioni e motivi di scarto dei modelli
+- **Specchietto Valutazione Modelli**: Integrazione nel pannello superiore di `public/dashboard.html` per la visualizzazione in tempo reale delle valutazioni, considerazioni e motivi di scarto dei modelli
+- **Provider percentage metrics**: "Provider in salute" (attivi/monitorati %) e "Modelli operativi" (attivi/monitorati %) con color coding
+- **Pricing filter semplificato**: Dropdown con None (default), Free Only, Paid Only — rimossa opzione ridondante "Exclude Paid"
+- **Tooltips esplicativi**: "Exclude Thinking" (abilitato di default per risposte dirette) e "Exploit Only" (modalità solo exploitation, disabilita esplorazione)
 
 ### 6. Comportamento del Bandit
 #### Reward
@@ -71,7 +76,7 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | 429 quota exhausted (account) | Cooldown (durata dal messaggio) | Provider |
 | 402 insufficient funds / billing error | Ban permanente (quota-exhausted) | Provider |
 | Anti-abuse / 418 / captcha | Cooldown 6h | Provider |
-| Auth mancante, Playwright, transport, CLI obsoleto, spawn ENOENT (provider [`zc`](src/bandit.mjs:750), [`cfp`](src/bandit.mjs:931)) | Ban-provider (provider-misconfigured) | Provider |
+| Auth mancante, Playwright, transport, CLI obsoleto, spawn ENOENT (provider `zc`, `cfp`) | Ban-provider (provider-misconfigured) | Provider |
 | **Cloudflare Playground (cfp) 502 "browser session failed"** | **Cooldown 5 min** | **Provider** (transient, non ban permanente) |
 | 403 account banned/suspended | Ban permanente | Provider |
 | **400 "not supported" (image block format mismatch)** | **Ban-model (model-incompatible)** | **Modello** (capability mismatch, non unavailability) |
@@ -85,7 +90,7 @@ Il discount factor 0.99 pesa di più le osservazioni recenti.
 | 5 errori 5xx stesso provider **nel ciclo di training** | Skip provider per il resto del ciclo |
 
 #### Retry loop
-Per ogni richiesta il proxy tenta piu modelli (fino a `providerCount * 4 + 100`, max 500) finche non trova un successo o esaurisce il tempo (`MAX_TOTAL_MS`). Ogni modello che fallisce viene aggiunto a un `excluded` set locale per la richiesta corrente.
+Per ogni richiesta il proxy tenta più modelli (fino a `providerCount * 4 + 100`, max 500) finché non trova un successo o esaurisce il tempo (`MAX_TOTAL_MS`). Ogni modello che fallisce viene aggiunto a un `excluded` set locale per la richiesta corrente.
 
 #### Timeout streaming
 Tre livelli di timeout, per gestire provider lenti o piantati:
@@ -109,10 +114,12 @@ Il training daemon **non inquina** il bandit di produzione:
 
 **Avvio training** (senza toccare modalità prod):
 
-    cd scripts
-    EXCLUDE_PROVIDERS=gemini,felo TIMEOUT_MS=15000 DELAY_MS=5000 \
-      CYCLE_DELAY=60000 SKIP_TESTED=false ZOO_MAX_WAIT_MS=60000 \
-      ./train-ctl.sh start
+```bash
+cd scripts
+EXCLUDE_PROVIDERS=gemini,felo TIMEOUT_MS=15000 DELAY_MS=5000 \
+  CYCLE_DELAY=60000 SKIP_TESTED=false ZOO_MAX_WAIT_MS=60000 \
+  ./train-ctl.sh start
+```
 
 ### 8. Health check attivo
 Ogni 10 minuti, il proxy testa in batch i modelli "malati":
@@ -127,7 +134,9 @@ Se rispondono, vengono riabilitati automaticamente. Silenzioso: log solo su riav
 
 Apri:
 
-    http://127.0.0.1:8080/dashboard?token=<DASHBOARD_TOKEN>
+```
+http://127.0.0.1:8080/dashboard?token=<DASHBOARD_TOKEN>
+```
 
 Il token viene salvato in `localStorage` per il riuso nelle tab successive.
 
@@ -135,10 +144,14 @@ Il token viene salvato in `localStorage` per il riuso nelle tab successive.
 
 - **Richieste** e **Osservazioni** (successi) totali
 - **Modelli** e **Provider**: attivi / in cool / bannati / degraded / totali / in catalogo
+- **Provider in salute**: % provider attivi su monitorati (color-coded: verde ≥80%, giallo ≥50%, rosso <50%)
+- **Modelli operativi**: % modelli attivi su monitorati (stesso color coding)
 - Tab **Live Logs**: streaming aggiornato ogni secondo
 - Tab **Modelli**: N, avg reward, score UCB1, fails, cooldown, azioni
 - **Flat mode sorting**: click su un header → tabella unica ordinata globalmente (bottone Raggruppa per tornare)
 - **Toggle 🐛 Debug verbose** in alto a destra
+- **Pricing Filter**: None (default) / Free Only / Paid Only
+- **Filtri**: Exclude Thinking (default ON), Exploit Only (default OFF)
 
 #### Badge di stato
 | Badge | Significato |
@@ -196,6 +209,12 @@ Produzione e manutenzione scripts in [`scripts/`](scripts/):
 - [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs) - Ispezione completa DB
 - [`scripts/fix-db.mjs`](scripts/fix-db.mjs) - Fix database
 - [`scripts/fix-vision.mjs`](scripts/fix-vision.mjs) - Fix vision
+- [`scripts/check-nvidia.mjs`](scripts/check-nvidia.mjs) - Diagnostica NVIDIA
+- [`scripts/check-catalog.mjs`](scripts/check-catalog.mjs) - Diagnostica catalogo modelli
+- [`scripts/reset-providers.mjs`](scripts/reset-providers.mjs) - Reset provider state
+- [`scripts/inspect-bans.mjs`](scripts/inspect-bans.mjs) - Ispezione ban
+- [`scripts/inspect-summary.mjs`](scripts/inspect-summary.mjs) - Riassunto ispezioni
+- [`scripts/inspect-detailed.mjs`](scripts/inspect-detailed.mjs) - Ispezione dettagliata
 
 | Script | Cosa fa |
 |--------|---------|
@@ -221,33 +240,40 @@ Configura queste variabili in `.env` (vedi `.env.example` per i valori di defaul
 
 ### 13. Struttura del progetto
 
-     src/
-       index.mjs            Server Express, proxy handler, endpoint
-       bandit.mjs           Classe DiscountedUCB1Bandit (logica + SQLite)
-       modes-registry.mjs   Registry modalità + soft bias + discovery
-       health-check.mjs     Probe periodici su modelli degradati/bannati
-       notifier.mjs         Webhook Slack/Discord/Telegram
-       log-throttle.mjs     Throttling log, denylist ring buffer, verbose TTL
-       provider-quota.mjs   Quota tracking rolling window per provider
-       request-tracker.mjs  Track active requests
-     public/
-       dashboard.html       Dashboard single-file UI
-       manifest.json        PWA manifest
-       sw.js                Service worker
-       icons/               App icons
-     config/
-       bandit.json          Fallback models chain (6 models)
-       modes.json           Registry 14 modalità (pattern + profile)
-       provider-limits.json Rate limits per provider (RPM/RPD/ITPM)
-     scripts/
-       train-daemon.mjs     Training round-robin warm-up
-       train-ctl.sh         Start/stop/logs daemon
-       switch-mode.sh       Cambio modalità prod/train
-       restart-safe.sh      Restart sicuro del servizio
-       check-db.mjs         Diagnostica database
-       inspect-db.mjs       Ispezione completa database
-       check-vision.mjs     Diagnostica visione
-       fix-vision.mjs       Fix vision
+```
+src/
+  index.mjs            Server Express, proxy handler, endpoint
+  bandit.mjs           Classe DiscountedUCB1Bandit (logica + SQLite)
+  modes-registry.mjs   Registry modalità + soft bias + discovery
+  health-check.mjs     Probe periodici su modelli degradati/bannati
+  notifier.mjs         Webhook Slack/Discord/Telegram
+  log-throttle.mjs     Throttling log, denylist ring buffer, verbose TTL
+  provider-quota.mjs   Quota tracking rolling window per provider
+  request-tracker.mjs  Track active requests
+public/
+  dashboard.html       Dashboard single-file UI
+  manifest.json        PWA manifest
+  sw.js                Service worker
+  icons/               App icons
+config/
+  bandit.json          Fallback models chain (6 models)
+  modes.json           Registry 14 modalità (pattern + profile)
+  provider-limits.json Rate limits per provider (RPM/RPD/ITPM)
+scripts/
+  train-daemon.mjs     Training round-robin warm-up
+  train-ctl.sh         Start/stop/logs daemon
+  switch-mode.sh       Cambio modalità prod/train
+  restart-safe.sh      Restart sicuro del servizio
+  check-db.mjs         Diagnostica database
+  inspect-db.mjs       Ispezione completa database
+  check-nvidia.mjs     Diagnostica NVIDIA
+  check-catalog.mjs    Diagnostica catalogo
+  fix-vision.mjs       Fix vision
+  reset-providers.mjs  Reset provider
+  inspect-bans.mjs     Ispezione ban
+  inspect-summary.mjs  Riassunto ispezioni
+  inspect-detailed.mjs Ispezione dettagliata
+```
 
 ### 14. Sviluppo e Build
 
@@ -267,7 +293,7 @@ Environment variables critiche (vedi [` .env.example`]( .env.example)):
 
 - Il **catalogo viene ricostruito ad ogni avvio**: se aggiungi/rimuovi modelli in OmniRoute, basta riavviare il proxy.
 - I dati di apprendimento (in `models`) **non vengono toccati** dal resync del catalogo.
-- Il DB `bandit.db` e' persistente. Per ricominciare da zero: cancella `bandit.db` e riavvia.
+- Il DB `bandit.db` è persistente. Per ricominciare da zero: cancella `bandit.db` e riavvia.
 - Il proxy usa `127.0.0.1` come bind: mettilo dietro un reverse proxy (nginx/caddy) se vuoi esporlo in rete.
 - Le signature delle modalità (`config/modes.signatures.json`) sono **machine-specific** e non vanno committate.
 - Il training daemon può girare **in parallelo** al proxy senza toccare la produzione.
@@ -296,16 +322,17 @@ MIT - vedi [`LICENSE`](LICENSE).
 
 **Marco** - [@CherrugDeveloper](https://github.com/CherrugDeveloper)
 
-### 19. Filtro UI - Clarificazioni Aggiunte
+### 19. Filtro UI - Clarificazioni
 
-**Default Filter Selection**: Il filtro predefinito è **"none"** (valore di default in `public/dashboard.html` linea 1815: `cfg.pricingFilter || 'none'`).
+**Default Filter Selection**: Il filtro predefinito è **"none"** (valore di default in `public/dashboard.html`).
 
-**Differenze tra Filtri**:
-- **`free-only`**: Esclude modelli con `is_free = 0` (solo modelli *free* sono ammessi)
-- **`exclude-paid`**: Esclude modelli con `is_paid = 1` (solo modelli *non-pagati* sono ammessi)
-- **`paid-only`**: Esclude modelli con `is_paid = 0` (solo modelli *pagati* sono ammessi)
+**Opzioni Pricing Filter**:
 - **`none`**: Nessun filtro applicato (default)
+- **`free-only`**: Include solo modelli con `is_free = 1`
+- **`paid-only`**: Include solo modelli con `is_paid = 1`
 
-**Nota Importante**: `free-only` e `exclude-paid` hanno logica opposta ma effetto simile: entrambi escludono modelli *pagati* (nonostante `free-only` escluda modelli *non-free*). Documentare questa distinzione è cruciale per evitare fraintendimenti.
+**Nota**: L'opzione ridondante `exclude-paid` (semanticamente identica a `free-only`) è stata rimossa per eliminare ambiguità.
 
-**Proposta di Semplificazione UI**: Rinomina "Exclude Paid" in **"Exclude Paid Models"** per maggiore chiarezza, o merge con "Paid Only" per ridurre confusione. La logica attuale è corretta ma il nome UI potrebbe essere migliorato.
+**Exclude Thinking** (default: ON): Esclude i modelli con capacità di ragionamento "thinking" (es. modelli che mostrano il processo di pensiero). Abilitato di default per privilegiare risposte dirette e veloci.
+
+**Exploit Only** (default: OFF): Modalità exploit-only: il bandit seleziona solo il modello con UCB1 score più alto (nessuna esplorazione). Utile in produzione per massimizzare performance note, disabilita la scoperta di modelli migliori.

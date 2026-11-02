@@ -1040,17 +1040,16 @@
         <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
             <span style="margin-right:4px;">💰 Pricing Filter:</span>
             <select id="config-pricing-filter" style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:2px 6px; border-radius:4px; font-size:12px;" onchange="updatePricingFilter(this.value)">
-                <option value="none">None</option>
+                <option value="none" selected>None</option>
                 <option value="free-only">Free Only</option>
                 <option value="paid-only">Paid Only</option>
-                <option value="exclude-paid">Exclude Paid</option>
             </select>
         </label>
-        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
-            <input type="checkbox" id="config-exclude-thinking" onchange="toggleConfig('excludeThinking', this.checked)" style="cursor:pointer;">
+        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;" title="Esclude i modelli con capacità di ragionamento 'thinking' (es. modelli che mostrano il processo di pensiero). Abilitato di default per privilegiare risposte dirette e veloci.">
+            <input type="checkbox" id="config-exclude-thinking" onchange="toggleConfig('excludeThinking', this.checked)" style="cursor:pointer;" checked>
             <span>🧠 Exclude Thinking</span>
         </label>
-        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;">
+        <label style="font-size:13px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;" title="Modalità exploit-only: il bandit seleziona solo il modello con UCB1 score più alto (nessuna esplorazione). Utile in produzione per massimizzare performance note, disabilita la scoperta di modelli migliori.">
             <input type="checkbox" id="config-exploit-only" onchange="toggleConfig('exploitOnly', this.checked)" style="cursor:pointer;">
             <span>🎯 Exploit Only</span>
         </label>
@@ -1127,7 +1126,21 @@
                     <span>Catalogo: <span id="catalog-providers" class="tabular-nums">0</span></span>
                 </div>
             </div>
-        </div>
+            <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e;">
+                    <span>Provider in salute</span>
+                    <span id="healthy-providers-pct" style="font-weight:600; color:#58a6ff;">-</span>
+                </div>
+                <div id="healthy-providers-content" style="font-size:11px; color:#8b949e; margin-top:2px;"></div>
+            </div>
+            <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e;">
+                    <span>Modelli operativi</span>
+                    <span id="operational-models-pct" style="font-weight:600; color:#58a6ff;">-</span>
+                </div>
+                <div id="operational-models-content" style="font-size:11px; color:#8b949e; margin-top:2px;"></div>
+            </div>
+            </div>
 
     <!-- Persistent Unified Panel -->
     <div class="card" style="margin-bottom:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:6px 10px;">
@@ -1767,11 +1780,11 @@
                 const pricingSelect = document.getElementById('config-pricing-filter');
                 if (pricingSelect) {
                     if (cfg.onlyFree) {
-                        pricingSelect.value = 'free';
+                        pricingSelect.value = 'free-only';
                     } else if (cfg.excludePaid) {
-                        pricingSelect.value = 'exclude-paid';
+                        pricingSelect.value = 'free-only';
                     } else {
-                        pricingSelect.value = 'all';
+                        pricingSelect.value = 'none';
                     }
                 }
             } catch (e) {
@@ -1812,7 +1825,14 @@
         async function syncPricingSelectFromConfig(cfg) {
             const pricingSelect = document.getElementById('config-pricing-filter');
             if (!pricingSelect) return;
-            pricingSelect.value = cfg.pricingFilter || 'none';
+            // Map backend config to frontend dropdown values
+            if (cfg.onlyFree) {
+                pricingSelect.value = 'free-only';
+            } else if (cfg.excludePaid) {
+                pricingSelect.value = 'free-only'; // exclude-paid maps to free-only (semantically identical)
+            } else {
+                pricingSelect.value = 'none';
+            }
         }
 
         // === TAB MODALITÀ ===
@@ -3125,6 +3145,45 @@
                 updateStat('attention-providers', d.providersAttention, 'providersAttention');
                 updateStat('total-providers', d.totalProviders, 'totalProviders');
                 updateStat('catalog-providers', d.catalogProviders, 'catalogProviders');
+
+                // Calculate and update percentage metrics
+                const totalProviders = d.totalProviders || 0;
+                const activeProviders = d.providersActive || 0;
+                const totalModels = d.totalModels || 0;
+                const activeModels = d.modelsActive || 0;
+
+                const healthyProvidersPct = totalProviders > 0 ? ((activeProviders / totalProviders) * 100).toFixed(1) : '—';
+                const operationalModelsPct = totalModels > 0 ? ((activeModels / totalModels) * 100).toFixed(1) : '—';
+
+                const healthyProvidersEl = document.getElementById('healthy-providers-pct');
+                if (healthyProvidersEl) {
+                    healthyProvidersEl.textContent = healthyProvidersPct !== '—' ? healthyProvidersPct + '%' : '—';
+                    // Color coding: green if > 80%, yellow if > 50%, red otherwise
+                    if (healthyProvidersPct !== '—') {
+                        const pct = parseFloat(healthyProvidersPct);
+                        healthyProvidersEl.style.color = pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149';
+                    }
+                }
+
+                const operationalModelsEl = document.getElementById('operational-models-pct');
+                if (operationalModelsEl) {
+                    operationalModelsEl.textContent = operationalModelsPct !== '—' ? operationalModelsPct + '%' : '—';
+                    if (operationalModelsPct !== '—') {
+                        const pct = parseFloat(operationalModelsPct);
+                        operationalModelsEl.style.color = pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149';
+                    }
+                }
+
+                // Update detail content
+                const healthyContentEl = document.getElementById('healthy-providers-content');
+                if (healthyContentEl) {
+                    healthyContentEl.textContent = `${activeProviders} / ${totalProviders} provider attivi`;
+                }
+
+                const operationalContentEl = document.getElementById('operational-models-content');
+                if (operationalContentEl) {
+                    operationalContentEl.textContent = `${activeModels} / ${totalModels} modelli attivi`;
+                }
 
                 renderAll();
             } catch (e) {
