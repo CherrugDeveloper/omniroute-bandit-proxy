@@ -7,6 +7,8 @@ class ProviderQuota {
         this.db = db;
         this.providerLimits = this._loadProviderLimits();
         this._startBackgroundRoller();
+        this._cache = new Map();
+        this._cacheTTL = 5000; // 5 seconds
     }
 
     _startBackgroundRoller() {
@@ -109,9 +111,17 @@ class ProviderQuota {
     }
 
     canCall(provider, isPaid = false) {
+        const cacheKey = `${provider}-${isPaid}`;
+        const now = Date.now();
+        if (this._cache.has(cacheKey)) {
+            const cached = this._cache.get(cacheKey);
+            if (now - cached.ts < this._cacheTTL) {
+                return cached.result;
+            }
+        }
+
         this._rollWindows(provider, isPaid);
 
-        const now = Date.now();
         const group = isPaid ? 'paid' : 'free';
         const minuteCol = `calls_last_minute_${group}`;
         const todayCol = `calls_today_${group}`;
@@ -139,21 +149,24 @@ class ProviderQuota {
 
         if (!providerRow) return true;
 
+        let result = true;
         if ((providerRow[resetCol] && providerRow[resetCol] > now) || (providerRow.quota_resets_at && providerRow.quota_resets_at > now)) {
-            return false;
+            result = false;
+        } else {
+            const providerLimit = this.providerLimits[provider];
+            if (providerLimit) {
+                const groupLimits = providerLimit.groups && providerLimit.groups[group] ? providerLimit.groups[group] : providerLimit;
+                const rpmLimit = groupLimits.rpm || providerLimit.rpm || 100;
+                const rpdLimit = groupLimits.rpd || providerLimit.rpd || 1000;
+
+                if (providerRow[minuteCol] >= rpmLimit || providerRow[todayCol] >= rpdLimit) {
+                    result = false;
+                }
+            }
         }
 
-        const providerLimit = this.providerLimits[provider];
-        if (!providerLimit) return true;
-
-        const groupLimits = providerLimit.groups && providerLimit.groups[group] ? providerLimit.groups[group] : providerLimit;
-        const rpmLimit = groupLimits.rpm || providerLimit.rpm || 100;
-        const rpdLimit = groupLimits.rpd || providerLimit.rpd || 1000;
-
-        if (providerRow[minuteCol] >= rpmLimit) return false;
-        if (providerRow[todayCol] >= rpdLimit) return false;
-
-        return true;
+        this._cache.set(cacheKey, { ts: now, result });
+        return result;
     }
 
     recordCall(provider, isPaid = false) {

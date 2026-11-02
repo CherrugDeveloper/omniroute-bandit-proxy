@@ -1131,10 +1131,10 @@ export class DiscountedUCB1Bandit {
       if (resolvedProvider === 'cfp') {
         // CFP 502 errors are permanent misconfigurations (e.g., missing browser binary, executable doesn't exist)
         // Always ban CFP providers on 502 errors to prevent repeated attempts
-        return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000 };
       }
       if (resolvedProvider === 'zc' || resolvedProvider) {
-        return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000 };
       }
       return { action: "flag-provider", reason: "provider-misconfigured" };
     }
@@ -1145,9 +1145,9 @@ export class DiscountedUCB1Bandit {
       if (isProviderLevel) {
         if (resolvedProvider === 'cfp') {
           // CFP environment errors (missing binary, executable doesn't exist) -> permanent ban
-          return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+          return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000 };
         }
-        return { action: "ban-provider", scope: "provider", reason: "provider-misconfigured" };
+        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000 };
       } else {
         return { action: "ban-model", scope: "model", reason: "environment-error" };
       }
@@ -1239,9 +1239,9 @@ export class DiscountedUCB1Bandit {
       const isNonResetting = /does not reset|never resets|no reset|lifetime|permanent/i.test(message);
       let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (isNonResetting) {
-        return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 24 * 3600 * 1000 };
+        return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 2 * 3600 * 1000 };
       } else if (!cooldownMs || cooldownMs <= 0) {
-        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs: 24 * 3600 * 1000 };
+        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs: 2 * 3600 * 1000 };
       } else {
         return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs };
       }
@@ -1320,15 +1320,16 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 30000 };
     }
 
-    // 402 insufficient funds / billing error -> ban-provider (quota-exhausted)
+    // 402 insufficient funds / billing error -> cooldown-provider (quota-exhausted)
     // Enhanced detection for billing errors including billing_error code, payment_required, credits exhausted
+    // Reduced cooldown from 24h to 1h to allow for faster recovery if credits are topped up
     if (status === 402 && (/insufficient|funds|credit|payment/i.test(message) || /billing_error|payment_required|credits exhausted/i.test(message + " " + (errorDetails.code || "")))) {
-      return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 24 * 3600 * 1000 };
+      return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 1 * 3600 * 1000 };
     }
 
     // 418 anti-abuse -> cooldown-provider 6h
     if (status === 418 && /anti-abuse/i.test(message)) {
-      return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 6 * 3600 * 1000 };
+      return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 1 * 3600 * 1000 };
     }
 
     // Default case: ensure proper reason tracking for unclassified errors
@@ -2052,11 +2053,18 @@ export class DiscountedUCB1Bandit {
   isModelAvailable(modelId, estimatedTokens = 0, requireImageGeneration = false) {
     const now = Date.now();
     const sanitizedModelId = this._sanitizeModelId(modelId);
+    // Optimization: Use a single query to fetch model and catalog data
     const model = this.db.prepare(
-      `SELECT cooldown_until, permanent, degraded, provider FROM models WHERE id = ?`
+      `SELECT m.cooldown_until, m.permanent, m.degraded, m.provider,
+              c.provider as cat_provider, c.max_input_tokens, c.supports_chat,
+              c.supports_image_generation, c.supports_audio_generation, c.capability
+       FROM models m
+       LEFT JOIN catalog c ON m.id = c.id
+       WHERE m.id = ?`
     ).get(sanitizedModelId);
 
-    const catModel = this.db.prepare(
+    // Fallback if model not in models table, try just catalog
+    const catModel = model || this.db.prepare(
       `SELECT provider, max_input_tokens, supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
     ).get(sanitizedModelId);
 
@@ -2077,7 +2085,7 @@ export class DiscountedUCB1Bandit {
 
     const provider = model?.provider || catModel?.provider;
 
-    if (model) {
+    if (model && model.cooldown_until !== undefined) { // Check if it's from models table
       if (model.permanent === 1 || model.degraded === 1) return false;
       if (model.cooldown_until && model.cooldown_until > now) return false;
     }

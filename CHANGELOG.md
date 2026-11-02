@@ -1,3 +1,21 @@
+## [v1.13.13] - 2026-11-02
+
+### Fix
+- **Bandit**: Re-evaluated error classification and punishment system for better reliability
+  - Reduced 402 billing error cooldown from 24h to 1h in `_classifyError()` to allow faster credit recovery
+  - Reduced 403 non-resetting quota cooldown from 24h to 2h for transient key limits
+  - Reduced 418 anti-abuse cooldown from 6h to 1h to prevent prolonged provider outages
+  - Changed 502 misconfiguration/environment errors from `ban-provider` to `cooldown-provider` (30m) enabling auto-recovery
+  - All changes in [src/bandit.mjs](src/bandit.mjs:1111-1343)
+
+### Perf
+- **ProviderQuota**: Added 5-second TTL in-memory caching to `canCall()` eliminating redundant DB queries
+  - Cache key includes provider+group for per-group quota isolation
+  - New `_quotaCache` Map with 5s TTL in [src/provider-quota.mjs](src/provider-quota.mjs:1)
+
+- **Bandit**: Optimized `isModelAvailable()` to use single LEFT JOIN query instead of two separate queries
+  - Fetches both model and catalog data in one DB round-trip in [src/bandit.mjs](src/bandit.mjs:2052-2125)
+
 ## [v1.13.12] - 2026-11-02
 
 ### Fix
