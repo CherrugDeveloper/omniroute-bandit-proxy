@@ -1,3 +1,18 @@
+## [v1.13.12] - 2026-11-02
+
+### Fix
+- **Dashboard**: Updated log row color mapping for source types
+  - Renamed `source-train` to `source-training` in CSS
+  - Changed debug color from `#ff5858` to `#00bcd4`
+  - Changed cooldown color from `#f1c40f` to `#ff9800`
+  - Changed flag color from `#e6ac00` to `#ffeb3b`
+  - Changed degraded color from `#e74c3c` to `#9c27b0`
+  - Changed proxy color from `#f0883e` to `#ffffff`
+
+### Fix
+- **Bandit**: Emergency relaxation filter now correctly ignores `dynamic_max_tokens` instead of `tokenLimit`
+  - Fixed `ignoreTokenLimit` → `ignoreDynamicMaxTokens` in emergency fallback to properly bypass runtime-discovered TPM limits
+
 ## [v1.13.11] - 2026-11-02
 
 ### Chore
