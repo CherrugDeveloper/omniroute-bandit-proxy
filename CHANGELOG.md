@@ -1,3 +1,7 @@
+## [v1.13.9] - 2026-11-02
+
+- **Chore**: Automated version bump.
+
 ## [v1.13.8] - 2026-11-02
 
 - **Feat**: Merged Training Status metrics into Top model card, removed standalone panel.
