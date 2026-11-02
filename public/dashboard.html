@@ -1058,10 +1058,6 @@
     </div>
         </div>
         <div class="stats-container">
-            <div class="card" id="training-panel" style="margin-bottom:6px;">
-                <h3 style="margin-bottom:4px;">Training Status</h3>
-                <div id="training-status-content" style="font-size:12px; color:#8b949e;">Loading...</div>
-            </div>
             <div class="stats">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
                     <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Metriche principali</div>
@@ -1095,6 +1091,13 @@
                         <span><span id="top-model-cooldown" class="muted"></span></span>
                         <span><span id="top-model-n" class="muted"></span></span>
                         <span><span id="top-model-latency" class="muted"></span></span>
+                    </div>
+                    <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
+                        <strong style="font-size:0.9em; color:#58a6ff;">Training Status:</strong>
+                        <div id="training-status-content" style="font-size:11px; color:#8b949e; margin-top:2px;">
+                            <div>Status: <span id="training-status-state" class="muted">Loading...</span></div>
+                            <div>Elapsed: <span id="training-status-elapsed" class="muted">-</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1716,23 +1719,24 @@
         }
 
         async function updateTrainingStatus() {
-            const el = document.getElementById('training-status-content');
-            if (!el) return;
             try {
                 const r = await apiFetch('/v1/training/status');
                 if (!r.ok) {
-                    el.textContent = 'Error: ' + r.status;
+                    document.getElementById('training-status-state').textContent = 'Error';
                     return;
                 }
                 const d = await r.json();
                 const statusStr = d.isTraining ? 'Active' : 'Inactive';
                 const elapsed = d.isTraining ? Math.floor(d.executionTime / 60) + 'm ' + (d.executionTime % 60) + 's' : '-';
-                el.innerHTML = `
-                    <div>Status: <strong style="color:${d.isTraining ? '#3fb950' : '#8b949e'}">${statusStr}</strong></div>
-                    <div>Elapsed: ${elapsed} | Models: ${d.calledModels || 0} | OK: <span style="color:#3fb950">${d.okStatus || 0}</span> | Err: <span style="color:#f85149">${d.errorStatus || 0}</span></div>
-                `;
+                document.getElementById('training-status-state').textContent = statusStr;
+                document.getElementById('training-status-state').style.color = d.isTraining ? '#3fb950' : '#8b949e';
+                document.getElementById('training-status-elapsed').textContent = elapsed;
+                document.getElementById('training-status-models').textContent = d.calledModels || 0;
+                document.getElementById('training-status-ok').textContent = d.okStatus || 0;
+                document.getElementById('training-status-err').textContent = d.errorStatus || 0;
             } catch (e) {
-                el.textContent = 'Error: ' + e.message;
+                const el = document.getElementById('training-status-content');
+                if (el) el.textContent = 'Error: ' + e.message;
             }
         }
 

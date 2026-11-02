@@ -1,3 +1,7 @@
+## [v1.13.8] - 2026-11-02
+
+- **Feat**: Merged Training Status metrics into Top model card, removed standalone panel.
+
 ## [v1.13.7] - 2026-11-01
 
 - **Chore**: Auto-git workflow execution with repository cleanup and documentation updates.
