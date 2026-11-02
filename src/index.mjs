@@ -1525,6 +1525,9 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     const { stream } = req.body || {};
     const requestId = newRequestId();
 
+    // === Session key per affinity (compute early for trackRequestStart) ===
+    let sessionKey = computeSessionKey(req.body?.messages);
+
     trackRequestStart(requestId, {
       source: (req.get("x-source") === "training") ? "training" :
               (req.get("x-source") === "changelog") ? "changelog" : "zoo",
@@ -1634,9 +1637,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // Initialize attempt counter before session affinity code that references it
   let attempt = 0;
   let allSelectionHistory = [];
-    const fallbackTried = new Set();
-    // === Session key per affinity ===
-  let sessionKey = computeSessionKey(req.body?.messages);
+  const fallbackTried = new Set();
+  // === Session key per affinity (already computed earlier for trackRequestStart) ===
   if (sessionKey) {
     const sys = req.body?.messages?.find(m => m.role === "system");
     const usr = req.body?.messages?.find(m => m.role === "user");
@@ -1783,15 +1785,16 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let timeoutHandle = null;
   let retryDelay = 0; // Exponential backoff delay in milliseconds
 
-  const providerCount = bandit.getProviderCount();
-  const maxAttempts = forceModel ? 1 : Math.min(50, providerCount * 2 + 10);
-  const startedAt = Date.now();
-  const MAX_TOTAL_MS = parseInt(process.env.MAX_TOTAL_MS) || 10 * 60 * 1000;
-
+  // Cleanup function - defined early so it's available in all catch blocks
   const cleanup = () => {
     if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
     if (controller) { controller.abort(); controller = null; }
   };
+
+  const providerCount = bandit.getProviderCount();
+  const maxAttempts = forceModel ? 1 : Math.min(50, providerCount * 2 + 10);
+  const startedAt = Date.now();
+  const MAX_TOTAL_MS = parseInt(process.env.MAX_TOTAL_MS) || 10 * 60 * 1000;
   // Circuit breaker: contatore fallimenti per provider in questa richiesta.
   // Al 3° fail, mette in cooldown il provider (5 min) → il while salta i suoi modelli.
   const providerFailCount = new Map();

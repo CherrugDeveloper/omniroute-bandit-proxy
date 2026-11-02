@@ -1125,6 +1125,18 @@
                     <span>Monitorati: <span id="total-providers" class="tabular-nums">0</span></span>
                     <span>Catalogo: <span id="catalog-providers" class="tabular-nums">0</span></span>
                 </div>
+                <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
+                        <span>Provider in salute</span>
+                        <span id="healthy-providers-pct" style="font-weight:600; color:#58a6ff;">—</span>
+                    </div>
+                    <div id="healthy-providers-content" style="font-size:11px; color:#8b949e;"></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-top:4px; margin-bottom:2px;">
+                        <span>Modelli operativi</span>
+                        <span id="operational-models-pct" style="font-weight:600; color:#58a6ff;">—</span>
+                    </div>
+                    <div id="operational-models-content" style="font-size:11px; color:#8b949e;"></div>
+                </div>
             </div>
             </div>
 
@@ -1166,7 +1178,7 @@
     <div id="tab-logs" class="tab-content active">
         <div class="log-header">
             <h3>Log Streaming</h3>
-            <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end;">
+            <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end; flex-wrap:wrap;">
                 <div style="position:relative;">
                     <select id="log-filter-dropdown" style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 24px 4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:220px; appearance:none; cursor:pointer;" onchange="applyLogFilterPreset(this.value)">
                         <option value="all">🌟 Tutti i log</option>
@@ -1181,6 +1193,19 @@
                         <option value="custom">⚙️ Filtro personalizzato...</option>
                     </select>
                     <span style="position:absolute; right:8px; top:50%; transform:translateY(-50%); pointer-events:none; color:#8b949e;">▼</span>
+                </div>
+                <div id="log-source-filters" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                    <button type="button" class="log-source-btn active" data-source="all" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Tutti i log">🌟 Tutti</button>
+                    <button type="button" class="log-source-btn" data-source="proxy" style="background:#30363d; border:1px solid #484f58; color:#f0883e; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Proxy requests">🔌 Proxy</button>
+                    <button type="button" class="log-source-btn" data-source="zoo" style="background:#30363d; border:1px solid #484f58; color:#3fb950; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Zoo events">🌿 ZOO</button>
+                    <button type="button" class="log-source-btn" data-source="train" style="background:#30363d; border:1px solid #484f58; color:#58a6ff; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Training events">🏋️ Train</button>
+                    <button type="button" class="log-source-btn" data-source="debug" style="background:#30363d; border:1px solid #484f58; color:#ff5858; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Debug verbose">🐛 Debug</button>
+                    <button type="button" class="log-source-btn" data-source="system" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="System events">🏗️ System</button>
+                    <button type="button" class="log-source-btn" data-source="ban" style="background:#30363d; border:1px solid #484f58; color:#f85149; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Ban events">🚫 Ban</button>
+                    <button type="button" class="log-source-btn" data-source="cooldown" style="background:#30363d; border:1px solid #484f58; color:#f1c40f; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Cooldown events">⏳ Cooldown</button>
+                    <button type="button" class="log-source-btn" data-source="flag" style="background:#30363d; border:1px solid #484f58; color:#e6ac00; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Flag events">🚩 Flag</button>
+                    <button type="button" class="log-source-btn" data-source="degraded" style="background:#30363d; border:1px solid #484f58; color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Degraded events">⚠️ Degraded</button>
+                    <button type="button" class="log-source-btn" data-source="paid-only" style="background:#30363d; border:1px solid #484f58; color:#9b59b6; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;" title="Paid-only events">💳 Paid</button>
                 </div>
                 <div style="display:none;" id="custom-log-filters">
                     <input type="text" id="log-filter" placeholder="🔍 testo..."
@@ -1348,23 +1373,6 @@
     <div id="tab-providers" class="tab-content">
         <div class="filter-bar" style="margin-bottom:10px; display:flex; justify-content:flex-end;">
             <button id="providers-reset-all" class="btn btn-danger" data-action="reset-provider">Reset Tutti i Provider</button>
-        </div>
-        <!-- Provider Metrics Section -->
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:10px;">
-            <div style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px 12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
-                    <span>Provider in salute</span>
-                    <span id="healthy-providers-pct-tab" style="font-weight:600; color:#58a6ff;">-</span>
-                </div>
-                <div id="healthy-providers-content-tab" style="font-size:11px; color:#8b949e;"></div>
-            </div>
-            <div style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px 12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
-                    <span>Modelli operativi</span>
-                    <span id="operational-models-pct-tab" style="font-weight:600; color:#58a6ff;">-</span>
-                </div>
-                <div id="operational-models-content-tab" style="font-size:11px; color:#8b949e;"></div>
-            </div>
         </div>
         <div class="table-wrapper">
             <table>
@@ -3371,6 +3379,7 @@
         }
         let logFilterPreset = 'all';
         let logFilterText = '';
+        let logSourceFilters = new Set(['all']); // Track active source filters
 
         function applyLogFilterPreset(preset) {
             logFilterPreset = preset;
@@ -3389,12 +3398,91 @@
             renderFilteredLogs();
         }
 
+        function toggleLogSourceFilter(source) {
+            const btn = document.querySelector(`.log-source-btn[data-source="${source}"]`);
+            if (!btn) return;
+            
+            if (source === 'all') {
+                // "All" button: toggle all on/off
+                const allActive = btn.classList.contains('active');
+                document.querySelectorAll('.log-source-btn').forEach(b => {
+                    if (allActive) {
+                        b.classList.remove('active');
+                        b.style.opacity = '0.5';
+                    } else {
+                        b.classList.add('active');
+                        b.style.opacity = '1';
+                    }
+                });
+                logSourceFilters = allActive ? new Set() : new Set(['all']);
+            } else {
+                // Individual source button
+                const allBtn = document.querySelector('.log-source-btn[data-source="all"]');
+                if (btn.classList.contains('active')) {
+                    btn.classList.remove('active');
+                    btn.style.opacity = '0.5';
+                    logSourceFilters.delete(source);
+                } else {
+                    btn.classList.add('active');
+                    btn.style.opacity = '1';
+                    logSourceFilters.add(source);
+                }
+                // Update "All" button state
+                const individualBtns = Array.from(document.querySelectorAll('.log-source-btn[data-source]:not([data-source="all"])'));
+                const allIndividualActive = individualBtns.every(b => b.classList.contains('active'));
+                const anyIndividualActive = individualBtns.some(b => b.classList.contains('active'));
+                if (allBtn) {
+                    if (allIndividualActive) {
+                        allBtn.classList.add('active');
+                        allBtn.style.opacity = '1';
+                        logSourceFilters.add('all');
+                    } else if (!anyIndividualActive) {
+                        allBtn.classList.remove('active');
+                        allBtn.style.opacity = '0.5';
+                        logSourceFilters.delete('all');
+                    } else {
+                        allBtn.classList.remove('active');
+                        allBtn.style.opacity = '1';
+                        logSourceFilters.delete('all');
+                    }
+                }
+            }
+            // If no filters active, default to 'all'
+            if (logSourceFilters.size === 0) {
+                logSourceFilters.add('all');
+                const allBtn = document.querySelector('.log-source-btn[data-source="all"]');
+                if (allBtn) {
+                    allBtn.classList.add('active');
+                    allBtn.style.opacity = '1';
+                }
+            }
+            // Reset preset dropdown to custom when using source filters
+            logFilterPreset = 'custom';
+            const dropdown = document.getElementById('log-filter-dropdown');
+            if (dropdown) dropdown.value = 'custom';
+            renderFilteredLogs();
+        }
+
+        // Initialize log source filter buttons
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.log-source-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    toggleLogSourceFilter(btn.dataset.source);
+                });
+                // Set initial opacity for non-active buttons
+                if (!btn.classList.contains('active')) {
+                    btn.style.opacity = '0.5';
+                }
+            });
+        });
+
         function renderFilteredLogs() {
             const el = document.getElementById('logs-tbody');
             if (!el) return;
             const raw = window.__rawLogs || [];
             const textFilter = (logFilterText || document.getElementById('log-filter')?.value || '').toLowerCase();
             const preset = logFilterPreset;
+            const debugVerbose = document.getElementById('debug-toggle')?.checked || false;
 
             // Filter entries
             const filtered = raw.filter(entry => {
@@ -3406,7 +3494,30 @@
                 const msg = (entry.message || '').toLowerCase();
                 if (textFilter && !msg.includes(textFilter)) return false;
                 
-                // Apply preset filters
+                // Apply source filters (from color-coded buttons)
+                const entrySource = entry.source || 'system';
+                const entryType = entry.type;
+                // Map entry source/type to filter keys
+                let matchesSourceFilter = false;
+                if (logSourceFilters.has('all')) {
+                    matchesSourceFilter = true;
+                } else {
+                    // Check if entry matches any active source filter
+                    if (logSourceFilters.has(entrySource)) {
+                        matchesSourceFilter = true;
+                    }
+                    // Also check type-based filters (ban, cooldown, flag, degraded)
+                    if (entryType && logSourceFilters.has(entryType)) {
+                        matchesSourceFilter = true;
+                    }
+                    // Special case: 'paid-only' filter
+                    if (entry.is_paid && logSourceFilters.has('paid-only')) {
+                        matchesSourceFilter = true;
+                    }
+                }
+                if (!matchesSourceFilter) return false;
+
+                // Apply preset filters (legacy dropdown)
                 switch (preset) {
                     case 'errors':
                         if (!['ban', 'cooldown', 'flag', 'degraded'].includes(entry.type)) return false;
@@ -3421,6 +3532,8 @@
                         if (entry.source !== 'zoo') return false;
                         break;
                     case 'debug':
+                        // Only show debug logs if debug verbose is enabled
+                        if (!debugVerbose) return false;
                         if (entry.source !== 'debug') return false;
                         break;
                     case 'train':
@@ -3438,6 +3551,8 @@
                         // No preset filter
                         break;
                 }
+                // Also hide debug logs if debug verbose is off (regardless of preset)
+                if (!debugVerbose && entry.source === 'debug') return false;
                 return true;
             });
             // Sort filtered entries by timestamp descending (newest first)
