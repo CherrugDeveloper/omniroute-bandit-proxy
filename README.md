@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.14.9 (2026-11-03)**: Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
+> **v1.14.10 (2026-11-03)**: Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
 
 ## Overview
 

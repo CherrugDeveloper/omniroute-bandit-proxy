@@ -4319,16 +4319,25 @@
                 if (which === 'changelog') {
                     const cl = document.getElementById('changelog-content');
                     if (cl && !cl.dataset.loaded) {
-                        fetch('/v1/changelog').then(r => r.json()).then(d => {
-                            cl.innerHTML = renderChangelog(d.changelog || '');
-                            cl.dataset.loaded = '1';
-                            // Marca come letto
-                            const v = extractFirstVersion(d.changelog || '');
-                            if (v) {
-                                localStorage.setItem('changelogLastRead', v);
-                                document.getElementById('dev-fab')?.classList.remove('has-update');
-                            }
-                        }).catch(() => { cl.textContent = 'Errore caricamento changelog.'; });
+                        fetch('/v1/changelog')
+                            .then(async r => {
+                                if (!r.ok) {
+                                    const text = await r.text();
+                                    throw new Error(`HTTP ${r.status}: ${text}`);
+                                }
+                                return r.json();
+                            })
+                            .then(d => {
+                                cl.innerHTML = renderChangelog(d.changelog || '');
+                                cl.dataset.loaded = '1';
+                                // Marca come letto
+                                const v = extractFirstVersion(d.changelog || '');
+                                if (v) {
+                                    localStorage.setItem('changelogLastRead', v);
+                                    document.getElementById('dev-fab')?.classList.remove('has-update');
+                                }
+                            })
+                            .catch(() => { cl.textContent = 'Errore caricamento changelog.'; });
                     } else {
                         // Già caricato: comunque marca come letto
                         const v = cl?.dataset.latestVersion;
@@ -4370,16 +4379,22 @@
             }
         });
         // Badge changelog: check nuovo changelog
-        fetch('/v1/changelog').then(r => r.json()).then(d => {
-            const latest = extractFirstVersion(d.changelog || '');
-            if (!latest) return;
-            const lastRead = localStorage.getItem('changelogLastRead');
-            if (lastRead !== latest) {
-                document.getElementById('dev-fab')?.classList.add('has-update');
-            }
-            const cl = document.getElementById('changelog-content');
-            if (cl) cl.dataset.latestVersion = latest;
-        }).catch(() => {});
+        fetch('/v1/changelog')
+            .then(async r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
+            .then(d => {
+                const latest = extractFirstVersion(d.changelog || '');
+                if (!latest) return;
+                const lastRead = localStorage.getItem('changelogLastRead');
+                if (lastRead !== latest) {
+                    document.getElementById('dev-fab')?.classList.add('has-update');
+                }
+                const cl = document.getElementById('changelog-content');
+                if (cl) cl.dataset.latestVersion = latest;
+            })
+            .catch(() => {});
 
         // Inizializza filtri con localStorage
         function initFilters() {
