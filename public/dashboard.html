@@ -2239,7 +2239,14 @@
         });
 
         // ============= RENDER =============
+        // Debounce flags to prevent concurrent renders
+        let renderAllPending = false;
+        let renderTrainAllPending = false;
+
         function renderAll() {
+            // Debounce: if a render is already pending, skip this call
+            if (renderAllPending) return;
+            
             const activeTab = document.querySelector('.tab-content.active');
             const activeTabId = activeTab ? activeTab.id : '';
             const isModelsTab = activeTabId === 'tab-models';
@@ -2251,6 +2258,8 @@
             if (!isModelsTab) {
                 return;
             }
+
+            renderAllPending = true;
             
             // Get filter values
             const search = document.getElementById('models-filter-search').value.toLowerCase();
@@ -2410,47 +2419,58 @@
                         }
                     }
 
-                    if (html === '') {
                         tbody.innerHTML = '<tr><td colspan="11" class="empty">Nessun risultato</td></tr>';
                     } else {
                         tbody.innerHTML = html;
-                        // Highlight changed model values
-                        setTimeout(() => {
+                        // Highlight changed model values - chunked with requestAnimationFrame
+                        requestAnimationFrame(() => {
                             const rows = tbody.querySelectorAll('tr');
-                            rows.forEach(row => {
-                                const idCell = row.querySelector('td:nth-child(2) b');
-                                if (!idCell) return;
-                                const id = idCell.textContent.trim();
-                                const providerCell = row.querySelector('td:nth-child(3)');
-                                const provider = providerCell ? providerCell.textContent.trim() : '';
-                                const key = provider + '::' + id;
-                                const prev = prevModelStats[key];
-                                if (prev) {
-                                    const nCell = row.querySelector('td:nth-child(4)');
-                                    if (nCell) {
-                                        const nVal = parseFloat(nCell.textContent) || 0;
-                                        if (nVal > prev.N) {
-                                            showStatChange(nCell, `+${(nVal - prev.N).toFixed(1)}`);
-                                            nCell.style.background = '#1f382b';
-                                            setTimeout(() => { nCell.style.background = ''; }, 2000);
+                            let processed = 0;
+                            const batchSize = 20;
+                            
+                            function processBatch() {
+                                const end = Math.min(processed + batchSize, rows.length);
+                                for (let i = processed; i < end; i++) {
+                                    const row = rows[i];
+                                    const idCell = row.querySelector('td:nth-child(2) b');
+                                    if (!idCell) continue;
+                                    const id = idCell.textContent.trim();
+                                    const providerCell = row.querySelector('td:nth-child(3)');
+                                    const provider = providerCell ? providerCell.textContent.trim() : '';
+                                    const key = provider + '::' + id;
+                                    const prev = prevModelStats[key];
+                                    if (prev) {
+                                        const nCell = row.querySelector('td:nth-child(4)');
+                                        if (nCell) {
+                                            const nVal = parseFloat(nCell.textContent) || 0;
+                                            if (nVal > prev.N) {
+                                                showStatChange(nCell, `+${(nVal - prev.N).toFixed(1)}`);
+                                                nCell.style.background = '#1f382b';
+                                                setTimeout(() => { nCell.style.background = ''; }, 2000);
+                                            }
+                                        }
+                                        const avgCell = row.querySelector('td:nth-child(5)');
+                                        if (avgCell) {
+                                            const avgVal = parseFloat(avgCell.textContent) || 0;
+                                            if (avgVal > prev.avg) {
+                                                showStatChange(avgCell, `+${(avgVal - prev.avg).toFixed(3)}`);
+                                                avgCell.style.background = '#1f382b';
+                                                setTimeout(() => { avgCell.style.background = ''; }, 2000);
+                                            }
                                         }
                                     }
-                                    const avgCell = row.querySelector('td:nth-child(5)');
-                                    if (avgCell) {
-                                        const avgVal = parseFloat(avgCell.textContent) || 0;
-                                        if (avgVal > prev.avg) {
-                                            showStatChange(avgCell, `+${(avgVal - prev.avg).toFixed(3)}`);
-                                            avgCell.style.background = '#1f382b';
-                                            setTimeout(() => { avgCell.style.background = ''; }, 2000);
-                                        }
-                                    }
+                                    // Update prev after check
+                                    const nVal = parseFloat(row.querySelector('td:nth-child(4)')?.textContent) || 0;
+                                    const avgVal = parseFloat(row.querySelector('td:nth-child(5)')?.textContent) || 0;
+                                    prevModelStats[key] = { N: nVal, avg: avgVal };
                                 }
-                                // Update prev after check
-                                const nVal = parseFloat(row.querySelector('td:nth-child(4)')?.textContent) || 0;
-                                const avgVal = parseFloat(row.querySelector('td:nth-child(5)')?.textContent) || 0;
-                                prevModelStats[key] = { N: nVal, avg: avgVal };
-                            });
-                        }, 0);
+                                processed = end;
+                                if (processed < rows.length) {
+                                    requestAnimationFrame(processBatch);
+                                }
+                            }
+                            processBatch();
+                        });
                     }
                 })
                 .catch(err => {
@@ -2460,6 +2480,10 @@
         }
         
         function renderTrainAll() {
+            // Debounce to prevent concurrent renders
+            if (window.renderTrainAllPending) return;
+            window.renderTrainAllPending = true;
+            
             const tbody = document.getElementById('train-tbody');
             
             // Get filter values
@@ -2627,6 +2651,9 @@
                 .catch(err => {
                     console.error('Errore fetch modelli train:', err);
                     tbody.innerHTML = '<tr><td colspan="11" class="empty">Errore caricamento dati</td></tr>';
+                })
+                .finally(() => {
+                    window.renderTrainAllPending = false;
                 });
         }
 
@@ -3557,7 +3584,15 @@
             if (normalized.length === 0) {
                 el.innerHTML = '<tr><td colspan="5" class="empty">Nessun log corrispondente al filtro.</td></tr>';
             } else {
-                el.innerHTML = normalized.map((entry, index) => {
+                // Clear tbody first
+                el.innerHTML = '';
+
+                // Render rows in chunks using requestAnimationFrame to avoid blocking main thread
+                let renderedCount = 0;
+                const batchSize = 30; // rows per frame (logs are lighter than active rows)
+
+                // Pre-generate HTML for all rows to avoid re-computing in each frame
+                const rowHtmls = normalized.map((entry, index) => {
                     const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '-';
                     const source = entry.source || 'system';
                     const provider = entry.provider || '-';
@@ -3593,7 +3628,26 @@
                         <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: #c9d1d9;">${escapeHtml(status)}</span></td>
                         <td style="padding: 2px 6px;">${messageCell}</td>
                     </tr>`;
-                }).join('');
+                });
+
+                function renderBatch() {
+                    const end = Math.min(renderedCount + batchSize, rowHtmls.length);
+                    // Build HTML for this batch
+                    let batchHtml = '';
+                    for (let i = renderedCount; i < end; i++) {
+                        batchHtml += rowHtmls[i];
+                    }
+                    // Append to tbody
+                    el.insertAdjacentHTML('beforeend', batchHtml);
+                    renderedCount = end;
+
+                    if (renderedCount < rowHtmls.length) {
+                        requestAnimationFrame(renderBatch);
+                    }
+                }
+
+                // Start chunked rendering
+                requestAnimationFrame(renderBatch);
             }
         }
         function toggleLogMessage(id) {
@@ -3904,6 +3958,9 @@
                 // Build all rows: active requests, recent requests, and expanded selection history
                 const allRows = [];
 
+                // Limit selection history entries per request to prevent row explosion
+                const MAX_SELECTION_HISTORY_PER_REQUEST = 5;
+
                 // Process active requests
                 const activeRequests = filterSrc(d.requests);
                 for (const req of activeRequests) {
@@ -3914,13 +3971,28 @@
                         isSelectionHistory: false
                     });
 
-                    // If selection history expansion is enabled, add each entry as a separate row
+                    // If selection history expansion is enabled, add each entry as a separate row (limited)
                     if (showSelectionHistory && req.selectionHistory && req.selectionHistory.length > 0) {
-                        for (let i = 0; i < req.selectionHistory.length; i++) {
-                            const entry = req.selectionHistory[i];
+                        const historyToShow = req.selectionHistory.slice(-MAX_SELECTION_HISTORY_PER_REQUEST);
+                        for (let i = 0; i < historyToShow.length; i++) {
+                            const entry = historyToShow[i];
                             allRows.push({
                                 html: fmtSelectionHistoryRow(entry, req.timestamp || req.endedAt || Date.now(), 'active', i),
                                 timestamp: req.timestamp || req.endedAt || Date.now() + i * 0.001, // slight offset to preserve order
+                                isSelectionHistory: true
+                            });
+                        }
+                        // If we truncated, add a summary row
+                        if (req.selectionHistory.length > MAX_SELECTION_HISTORY_PER_REQUEST) {
+                            const hiddenCount = req.selectionHistory.length - MAX_SELECTION_HISTORY_PER_REQUEST;
+                            allRows.push({
+                                html: `<tr style="border-bottom: 1px solid #21262d; background: rgba(88, 166, 255, 0.05);">
+                                    <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">...</td>
+                                    <td colspan="6" style="padding: 2px 6px; color: #58a6ff; font-size: 10px;">
+                                        <em>${hiddenCount} more selection history entries hidden. Click checkbox to toggle.</em>
+                                    </td>
+                                </tr>`,
+                                timestamp: req.timestamp || req.endedAt || Date.now() - 0.001,
                                 isSelectionHistory: true
                             });
                         }
@@ -3937,13 +4009,28 @@
                         isSelectionHistory: false
                     });
 
-                    // If selection history expansion is enabled, add each entry as a separate row
+                    // If selection history expansion is enabled, add each entry as a separate row (limited)
                     if (showSelectionHistory && req.selectionHistory && req.selectionHistory.length > 0) {
-                        for (let i = 0; i < req.selectionHistory.length; i++) {
-                            const entry = req.selectionHistory[i];
+                        const historyToShow = req.selectionHistory.slice(-MAX_SELECTION_HISTORY_PER_REQUEST);
+                        for (let i = 0; i < historyToShow.length; i++) {
+                            const entry = historyToShow[i];
                             allRows.push({
                                 html: fmtSelectionHistoryRow(entry, req.timestamp || req.endedAt || Date.now(), 'recent', i),
                                 timestamp: req.timestamp || req.endedAt || Date.now() + i * 0.001,
+                                isSelectionHistory: true
+                            });
+                        }
+                        // If we truncated, add a summary row
+                        if (req.selectionHistory.length > MAX_SELECTION_HISTORY_PER_REQUEST) {
+                            const hiddenCount = req.selectionHistory.length - MAX_SELECTION_HISTORY_PER_REQUEST;
+                            allRows.push({
+                                html: `<tr style="border-bottom: 1px solid #21262d; background: rgba(88, 166, 255, 0.05);">
+                                    <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">...</td>
+                                    <td colspan="6" style="padding: 2px 6px; color: #58a6ff; font-size: 10px;">
+                                        <em>${hiddenCount} more selection history entries hidden. Click checkbox to toggle.</em>
+                                    </td>
+                                </tr>`,
+                                timestamp: req.timestamp || req.endedAt || Date.now() - 0.001,
                                 isSelectionHistory: true
                             });
                         }
@@ -3953,10 +4040,33 @@
                 // Sort all rows by timestamp descending (newest first)
                 allRows.sort((a, b) => b.timestamp - a.timestamp);
 
-                const allHtml = allRows.map(r => r.html).join('');
+                // Clear tbody first
+                tbody.innerHTML = '';
 
-                tbody.innerHTML = allHtml;
-                console.debug('[DEBUG Dashboard] fetchActive table updated, total rows:', allRows.length, '(selection history:', allRows.filter(r => r.isSelectionHistory).length, ')');
+                // Render rows in chunks using requestAnimationFrame to avoid blocking main thread
+                let renderedCount = 0;
+                const batchSize = 25; // rows per frame
+
+                function renderBatch() {
+                    const end = Math.min(renderedCount + batchSize, allRows.length);
+                    // Build HTML for this batch
+                    let batchHtml = '';
+                    for (let i = renderedCount; i < end; i++) {
+                        batchHtml += allRows[i].html;
+                    }
+                    // Append to tbody
+                    tbody.insertAdjacentHTML('beforeend', batchHtml);
+                    renderedCount = end;
+
+                    if (renderedCount < allRows.length) {
+                        requestAnimationFrame(renderBatch);
+                    } else {
+                        console.debug('[DEBUG Dashboard] fetchActive table updated, total rows:', allRows.length, '(selection history:', allRows.filter(r => r.isSelectionHistory).length, ')');
+                    }
+                }
+
+                // Start chunked rendering
+                requestAnimationFrame(renderBatch);
             } catch (e) {
                 console.error('[DEBUG Dashboard] fetchActive error:', e);
             }
@@ -4030,27 +4140,101 @@
         fetchActive();
         fetchQuota();
         fetchConsideration();
-        const polls = [
-            { fn: refreshAll, interval: 5000, lastRun: 0 },
-            { fn: fetchLogs, interval: 2000, lastRun: 0 },
-            { fn: fetchActive, interval: 2000, lastRun: 0 },
-            { fn: fetchQuota, interval: 15000, lastRun: 0 },
-            { fn: fetchConsideration, interval: 5000, lastRun: 0 }
-        ];
+
+        // Poll tracking: when each poll was last run
+        const pollLastRun = {
+            refreshAll: 0,
+            fetchLogs: 0,
+            fetchActive: 0,
+            fetchQuota: 0,
+            fetchConsideration: 0
+        };
+
+        // Tab-aware debounced polling
+        // Only run polls relevant to the currently active tab
+        const pollDebounceTimeouts = {};
 
         setInterval(() => {
             if (document.hidden) return;
-            // Only poll if dashboard tab is visible (not just browser tab)
+
+            // Determine which tab is active
             const activeTab = document.querySelector('.tab-content.active');
-            if (!activeTab) return;
+            const activeTabId = activeTab ? activeTab.id : null;
+
+            // Map tabs to relevant polls
+            const pollsToRun = [];
+            if (activeTabId === 'tab-models' || activeTabId === '') {
+                // Models tab or no tab selected - run refreshAll
+                pollsToRun.push('refreshAll');
+            }
+            if (activeTabId === 'tab-logs' || !activeTabId) {
+                // Logs tab or no tab selected - run fetchLogs
+                pollsToRun.push('fetchLogs');
+            }
+            if (['tab-models', 'tab-train', 'tab-providers', 'tab-scripts', 'tab-consideration'].includes(activeTabId || '')) {
+                // Any dashboard-relevant tab - run fetchActive
+                pollsToRun.push('fetchActive');
+            }
+            if (activeTabId !== 'tab-models') {
+                // Don't run fetchQuota when models tab is active (it's covered by refreshAll)
+                pollsToRun.push('fetchQuota');
+            }
+            if (activeTabId === 'tab-consideration' || !activeTabId) {
+                // Consideration tab or no tab selected - run fetchConsideration
+                pollsToRun.push('fetchConsideration');
+            }
+
+            // Run polls with debounce to prevent concurrent renders
             const now = Date.now();
-            for (const poll of polls) {
-                if (now - poll.lastRun >= poll.interval) {
-                    poll.fn();
-                    poll.lastRun = now;
+            for (const pollName of pollsToRun) {
+                const lastRun = pollLastRun[pollName];
+                const interval = getPollInterval(pollName);
+
+                if (now - lastRun >= interval) {
+                    // Set debounce to prevent multiple runs within the same second
+                    if (pollDebounceTimeouts[pollName]) {
+                        clearTimeout(pollDebounceTimeouts[pollName]);
+                    }
+                    pollDebounceTimeouts[pollName] = setTimeout(() => {
+                        runPoll(pollName);
+                        pollLastRun[pollName] = Date.now();
+                        // Clear debounce timeout after execution
+                        pollDebounceTimeouts[pollName] = null;
+                    }, 10);
                 }
             }
         }, 1000);
+
+        function getPollInterval(pollName) {
+            switch (pollName) {
+                case 'refreshAll': return 5000;
+                case 'fetchLogs': return 2000;
+                case 'fetchActive': return 2000;
+                case 'fetchQuota': return 15000;
+                case 'fetchConsideration': return 5000;
+                default: return 5000;
+            }
+        }
+
+        function runPoll(pollName) {
+            switch (pollName) {
+                case 'refreshAll':
+                    refreshAll();
+                    break;
+                case 'fetchLogs':
+                    fetchLogs();
+                    break;
+                case 'fetchActive':
+                    fetchActive();
+                    break;
+                case 'fetchQuota':
+                    fetchQuota();
+                    break;
+                case 'fetchConsideration':
+                    fetchConsideration();
+                    break;
+            }
+        }
 
         let lastConsiderationData = [];
 
