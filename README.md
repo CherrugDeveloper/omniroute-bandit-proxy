@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.14.8 (2026-11-03)**: Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
+> **v1.14.9 (2026-11-03)**: Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution
 
 ## Overview
 
@@ -13,7 +13,7 @@ OmniRoute Bandit Proxy is a middleware system that acts as a proxy between the Z
 The algorithm uses **Discounted UCB1** with a discount factor of `0.99` applied *per feedback event*, not per timestep. This means reward history decays faster under load.
 
 - **Discounted update**: `N = N * 0.99 + 1` (success), `sum_reward = sum_reward * 0.99 + reward`
-- **Reward function**: `reward = max(0, 1.0 - duration_sec / 30)`
+- **Reward function**: `reward = max(0, 1.0 - duration_sec / 30`
   - 1s response → 0.97, 10s → 0.67, 30s+ → 0
 - **Rank cache**: `_rankCache` with 30s TTL - model rankings are stale up to 30s after feedback
 - **Fallback chain**: 6 models from `config/bandit.json` used without UCB1 scoring when no ranked models are available
@@ -59,8 +59,6 @@ The algorithm uses **Discounted UCB1** with a discount factor of `0.99` applied 
 - **Modes**: Active signatures + pending discovery with Label/Dismiss buttons
 - **Model Evaluation Snapshot**: Integration in top panel of `public/dashboard.html` for real-time display of model evaluations, considerations, and discard reasons
 - **Provider percentage metrics**: "Healthy providers" (active/monitored %) and "Operational models" (active/monitored %) with color coding
-- **Simplified pricing filter**: Dropdown with None (default), Free Only, Paid Only — removed redundant "Exclude Paid" option
-- **Explanatory tooltips**: "Exclude Thinking" (enabled by default for direct, fast responses) and "Exploit Only" (exploitation-only mode, disables exploration)
 - **Unified history table**: Container height 280px, overflow-y: auto. 7 columns with specified widths:
   - Timestamp: 10%
   - Provider: 10%
@@ -92,5 +90,9 @@ The algorithm uses **Discounted UCB1** with a discount factor of `0.99` applied 
 
 #### UCB1 Update (with discount)
 
-`N = N * 0.99 + 1` (success)  
+`N = N * 0.99 + 1` (success)
 `sum_reward = sum_reward * 0.99 + reward`
+
+## Full Change Log
+
+For detailed change history, see the [CHANGELOG.md](CHANGELOG.md) file.

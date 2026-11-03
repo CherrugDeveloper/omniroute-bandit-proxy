@@ -1,3 +1,8 @@
+## [v1.14.9] - 2026-11-03
+
+### Chore
+- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.9` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
+
 ## [v1.14.8] - 2026-11-03
 
 ### Chore
