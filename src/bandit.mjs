@@ -85,17 +85,20 @@ export class DiscountedUCB1Bandit {
     }
   }
 
-  getFallbackModels() {
+  getBanditConfig() {
     try {
       const modulePath = fileURLToPath(import.meta.url);
       const configPath = path.join(path.dirname(modulePath), "..", "config", "bandit.json");
       const configContent = fs.readFileSync(configPath, "utf8");
-      const config = JSON.parse(configContent);
-      return config.fallbackModels || [];
+      return JSON.parse(configContent);
     } catch (err) {
-      console.error("[BANDIT] Error reading fallback config:", err.message);
-      return [];
+      console.error("[BANDIT] Error reading bandit config:", err.message);
+      return { fallbackModels: [], errorConfig: { degradationThreshold: 3, rehabilitationPeriodMs: 3600000, classification: { transientErrors: [], permanentErrors: [] } } };
     }
+  }
+
+  getFallbackModels() {
+    return this.getBanditConfig().fallbackModels || [];
   }
 
   _initDB() {
@@ -113,6 +116,7 @@ export class DiscountedUCB1Bandit {
           consecutive_5xx INTEGER DEFAULT 0,
           degraded INTEGER DEFAULT 0,
           degraded_since REAL DEFAULT 0,
+          banned_since REAL DEFAULT 0,
           is_paid INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS models_train (
@@ -238,6 +242,17 @@ export class DiscountedUCB1Bandit {
       const hasOkStatus = trainColumns.some(col => col.name === "okStatus");
       const hasErrorStatus = trainColumns.some(col => col.name === "errorStatus");
       const hasStatusMessage = trainColumns.some(col => col.name === "statusMessage");
+      const hasBannedSince = modelColumns.some(col => col.name === "banned_since");
+
+      if (!hasBannedSince) {
+        console.log("[BANDIT] Migrazione: aggiungo banned_since a models");
+        try {
+          this.db.exec(`ALTER TABLE models ADD COLUMN banned_since REAL DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna banned_since:", err.message);
+          throw err;
+        }
+      }
 
       if (!hasIsTraining) {
         console.log("[BANDIT] Migrazione: aggiungo isTraining a models_train");
@@ -993,10 +1008,10 @@ export class DiscountedUCB1Bandit {
                   console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
                 }
                 this.db.prepare(
-                  `INSERT INTO models (id, provider, permanent, N, sum_reward, fails, cooldown_until, last_used_index)
-                   VALUES (?, ?, 1, 0, 0, 0, 0, 0)
-                   ON CONFLICT(id) DO UPDATE SET permanent = 1`
-                ).run(sanitizedModelId, provider);
+                  `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index)
+                   VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0)
+                   ON CONFLICT(id) DO UPDATE SET permanent = 1, banned_since = ?`
+                ).run(sanitizedModelId, provider, Date.now(), Date.now());
                 console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
                 break;
               case "cooldown-provider":
@@ -1043,6 +1058,10 @@ export class DiscountedUCB1Bandit {
                   if (modelRow && modelRow.consecutive_5xx >= 3) {
                     this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ?`).run(Date.now(), sanitizedModelId);
                     console.log(`[BANDIT-CONSEQUENCE] degraded | model=${modelId} provider=${provider} reason=consecutive_5xx count=${modelRow.consecutive_5xx} scope=model`);
+                  }
+                  // Also set degraded_since if degraded via config-driven permanent error (category=PERMANENT and scope=model)
+                  if (c.category === "PERMANENT" && c.scope === "model") {
+                    this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ? AND degraded = 0`).run(Date.now(), sanitizedModelId);
                   }
                 }
                 // Apply cooldown to model
@@ -1119,96 +1138,119 @@ export class DiscountedUCB1Bandit {
     // DIAGNOSTIC: log full error details for debugging
     console.log(`[BANDIT-CLASSIFY-DIAG] errorDetails=${JSON.stringify(errorDetails).substring(0, 500)}`);
 
+    // Load config-driven error classification
+    const config = this.getBanditConfig();
+    const errorConfig = config.errorConfig || { degradationThreshold: 3, rehabilitationPeriodMs: 3600000, classification: { transientErrors: [], permanentErrors: [] } };
+    const transientPatterns = errorConfig.classification?.transientErrors || [];
+    const permanentPatterns = errorConfig.classification?.permanentErrors || [];
+
+    // First, check config-driven transient error patterns
+    for (const pattern of transientPatterns) {
+      const regex = new RegExp(pattern.pattern, 'i');
+      if (regex.test(message) || (pattern.status && pattern.status === status)) {
+        console.log(`[BANDIT-CLASSIFY] Matched transient pattern: ${pattern.pattern} -> ${pattern.action}`);
+        return {
+          action: pattern.action || "cooldown-model",
+          scope: pattern.scope || "model",
+          reason: pattern.reason || "transient-error",
+          cooldownMs: pattern.duration || 30000,
+          category: "TRANSIENT"
+        };
+      }
+    }
+
+    // Then, check config-driven permanent error patterns
+    for (const pattern of permanentPatterns) {
+      const regex = new RegExp(pattern.pattern, 'i');
+      if (regex.test(message) || (pattern.status && pattern.status === status)) {
+        console.log(`[BANDIT-CLASSIFY] Matched permanent pattern: ${pattern.pattern} -> ${pattern.action}`);
+        return {
+          action: pattern.action || "ban-model",
+          scope: pattern.scope || "model",
+          reason: pattern.reason || "permanent-error",
+          category: "PERMANENT"
+        };
+      }
+    }
+
+    // Hardcoded fallback classifications (kept for backward compatibility)
     // Tool-calling requirement failure -> ban-model
     if (/no-tool-call-but-required/i.test(message)) {
-      return { action: "ban-model", scope: "model", reason: "no-tool-call-but-required" };
+      return { action: "ban-model", scope: "model", reason: "no-tool-call-but-required", category: "PERMANENT" };
     }
 
-    // Status 502 misconfiguration / gateway errors -> ban-provider if provider-level, else flag-provider
-    // Cloudflare Playground (cfp) 502 "browser session failed" errors are permanent provider misconfigurations
-    // (e.g., "browserType.launch: Executable doesn't exist at <path>")
+    // Status 502 misconfiguration / gateway errors -> cooldown-provider if provider-level, else flag-provider
     if (status === 502 && /No auth provided|Please log in|Playwright is not available|missing url or token|browserType\.launch|Executable doesn't exist|ENOENT/i.test(message)) {
-      if (resolvedProvider === 'cfp') {
-        // CFP 502 errors are permanent misconfigurations (e.g., missing browser binary, executable doesn't exist)
-        // Always ban CFP providers on 502 errors to prevent repeated attempts
-        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000 };
+      if (resolvedProvider === 'cfp' || resolvedProvider === 'zc') {
+        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
       }
-      if (resolvedProvider === 'zc' || resolvedProvider) {
-        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000 };
+      if (resolvedProvider) {
+        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
       }
-      return { action: "flag-provider", reason: "provider-misconfigured" };
+      return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
 
-    // Sandbox, Missing Binary, and Environment Configuration Errors across status codes -> ban-provider for provider-level / cfp / zc
+    // Sandbox, Missing Binary, and Environment Configuration Errors
     if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured|Playwright is not available/i.test(message)) {
       const isProviderLevel = resolvedProvider === 'zc' || resolvedProvider === 'cfp' || !!resolvedProvider || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
       if (isProviderLevel) {
         if (resolvedProvider === 'cfp') {
-          // CFP environment errors (missing binary, executable doesn't exist) -> permanent ban
-          return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000 };
+          return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
         }
-        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000 };
+        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
       } else {
-        return { action: "ban-model", scope: "model", reason: "environment-error" };
+        return { action: "ban-model", scope: "model", reason: "environment-error", category: "PERMANENT" };
       }
     }
 
     // Image generation mismatch / chat incompatibility on 400 -> ban-model
     if (status === 400 && /image generation model|cannot be used for chat|not a chat model|image-only|incompatible/i.test(message)) {
-      return { action: "ban-model", scope: "model", reason: "model-incompatible" };
+      return { action: "ban-model", scope: "model", reason: "model-incompatible", category: "PERMANENT" };
     }
 
-    // 400 unsupported_image_block / devin_agentic_error -> model-incompatible, not model-not-found
+    // 400 unsupported_image_block / devin_agentic_error -> model-incompatible
     if (status === 400 && (/unsupported_image_block/i.test(message) || /devin_agentic_error/i.test(message) || (errorDetails.code && /unsupported_image_block/i.test(errorDetails.code)))) {
-      return { action: "ban-model", scope: "model", reason: "model-incompatible" };
+      return { action: "ban-model", scope: "model", reason: "model-incompatible", category: "PERMANENT" };
     }
 
-    // 400 model non utilizzabile (non supportato, provider sconosciuto, code=model_not_found)
-    // NOTE: "not supported" related to image blocks/format mismatches should NOT be model-not-supported.
-    // Check for "not supported" but EXCLUDE image block related errors.
-    // Image block errors like "Anthropic image blocks are not supported" are capability mismatches,
-    // not model unavailability - they should be handled as model-incompatible or filtered.
+    // 400 model non utilizzabile
     if (status === 400 && /not supported/i.test(message)) {
-      // Exclude errors that are about image block format mismatches
       if (/image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported/i.test(message)) {
-        // This is a capability/format mismatch, not model unavailability
-        return { action: "ban-model", scope: "model", reason: "model-incompatible" };
+        return { action: "ban-model", scope: "model", reason: "model-incompatible", category: "PERMANENT" };
       }
-      // Original check: model not supported, unknown provider for model, model_not_found
       if (/not supported|unknown provider for model|model_not_found/i.test(message)) {
-        return { action: "ban-model", scope: "model", reason: "model-not-supported" };
+        return { action: "ban-model", scope: "model", reason: "model-not-supported", category: "PERMANENT" };
       }
     }
 
-    // Catalog mismatch / unknown model / 404 / 400 model not found / live catalog errors
-    // Avoid classifying 400 image/compatibility errors as model-not-found
+    // Catalog mismatch / unknown model / 404 / 400 model not found
     if ((/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message) || status === 404) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
-      return { action: "ban-model", scope: "model", reason: "model-not-found" };
+      return { action: "ban-model", scope: "model", reason: "model-not-found", category: "PERMANENT" };
     }
     // Upstream bug (Assignment to constant) -> ban-model
     if (/Assignment to constant variable/i.test(message)) {
-      return { action: "ban-model", scope: "model", reason: "upstream-bug" };
+      return { action: "ban-model", scope: "model", reason: "upstream-bug", category: "PERMANENT" };
     }
     // 410 model shutdown (end of life) -> ban-model
     if (status === 410 && /model_shutdown|model is gone|end of life|no longer available|model_shutdown/i.test(message + " " + (errorDetails.code || ""))) {
-      return { action: "ban-model", scope: "model", reason: "model-shutdown" };
+      return { action: "ban-model", scope: "model", reason: "model-shutdown", category: "PERMANENT" };
     }
     // NEW: OpenCode's free tier can only be used from within OpenCode -> ban-model with permission-denied
     if (/OpenCode's free tier can only be used from within OpenCode/i.test(message)) {
-      return { action: "ban-model", scope: "model", reason: "permission-denied" };
+      return { action: "ban-model", scope: "model", reason: "permission-denied", category: "PERMANENT" };
     }
     // NEW: No active credentials for provider (401) -> flag-provider with reason auth-expired and 24h cooldown
     if (status === 401 && /No active credentials|authentication expired/i.test(message)) {
-      return { action: "flag-provider", reason: "auth-expired", cooldownMs: 24 * 3600 * 1000 };
+      return { action: "flag-provider", reason: "auth-expired", cooldownMs: 24 * 3600 * 1000, category: "TRANSIENT" };
     }
     // NEW: authentication expired (401) -> flag-provider with reason auth-expired
     if (status === 401 && /authentication expired/i.test(message)) {
-      return { action: "flag-provider", reason: "auth-expired" };
+      return { action: "flag-provider", reason: "auth-expired", category: "TRANSIENT" };
     }
-    // 413 / TPM / ITPM / tokens per minute / Request too large / context length / token limit -> cooldown-model (not provider, since TPM/context is model-specific)
+    // 413 / TPM / ITPM / tokens per minute / Request too large / context length / token limit -> cooldown-model
     if (status === 413 || /413|ITPM|tokens?\s*per\s*minute|TPM|Request too large|Requested \d+.*Limit \d+|Limit \d+.*Requested \d+|context\s*(?:window|length|exceeded)|token\s*limit|payload\s*too\s*large/i.test(message)) {
       const m = message.match(/reset after (\d+)(s|m|h)/i);
-      let cooldownMs = status === 413 ? 300000 : 30000; // default 5m for 413, 30s for TPM
+      let cooldownMs = status === 413 ? 300000 : 30000;
       if (m) {
         const v = parseInt(m[1], 10);
         const u = m[2].toLowerCase();
@@ -1216,34 +1258,34 @@ export class DiscountedUCB1Bandit {
         else if (u === 'm') cooldownMs = v * 60 * 1000;
         else if (u === 'h') cooldownMs = v * 3600 * 1000;
       }
-      return { action: "cooldown-model", scope: "model", reason: "tpm-exceeded", cooldownMs };
+      return { action: "cooldown-model", scope: "model", reason: "tpm-exceeded", cooldownMs, category: "TRANSIENT" };
     }
     // No auth provided -> flag-provider
     if (status === 502 && /No auth provided|Please log in/i.test(message)) {
-      return { action: "flag-provider", reason: "provider-misconfigured" };
+      return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
     // Playwright not available -> flag-provider
     if (status === 502 && /Playwright is not available/i.test(message)) {
-      return { action: "flag-provider", reason: "provider-misconfigured" };
+      return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
     // CLI / binario mancante o non configurato -> flag-provider
     if (status === 502 && /is not configured|missing url or token/i.test(message)) {
-      return { action: "flag-provider", reason: "provider-misconfigured" };
+      return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
     // 403 banned -> ban-provider
     if (status === 403 && /account disabled|banned/i.test(message)) {
-      return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
+      return { action: "ban-provider", scope: "provider", reason: "provider-banned", category: "PERMANENT" };
     }
-    // Non-Resetting Key/Quota Limits (403, Key limit exceeded, total limit, hard limit, lifetime limit, does not reset)
+    // Non-Resetting Key/Quota Limits
     if (status === 403 || /Key limit exceeded|total limit|hard limit|lifetime limit/i.test(message)) {
       const isNonResetting = /does not reset|never resets|no reset|lifetime|permanent/i.test(message);
       let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (isNonResetting) {
-        return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 2 * 3600 * 1000 };
+        return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 2 * 3600 * 1000, category: "TRANSIENT" };
       } else if (!cooldownMs || cooldownMs <= 0) {
-        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs: 2 * 3600 * 1000 };
+        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs: 2 * 3600 * 1000, category: "TRANSIENT" };
       } else {
-        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs };
+        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs, category: "TRANSIENT" };
       }
     }
 
@@ -1254,15 +1296,15 @@ export class DiscountedUCB1Bandit {
         const retryAfter = errorDetails.retryAfter || errorDetails.retry_after || errorDetails.reset_seconds || 0;
         cooldownMs = retryAfter > 0 ? retryAfter * 1000 : 30000;
       }
-      return { action: "cooldown-model", scope: "model", reason: "rate-limit", cooldownMs };
+      return { action: "cooldown-model", scope: "model", reason: "rate-limit", cooldownMs, category: "TRANSIENT" };
     }
 
-    // Check for permanent ban indicators (even if status is 403 or 429)
+    // Check for permanent ban indicators
     if (/account\s+(?:has\s+been\s+)?(?:disabled|suspended|banned|terminated|closed|deactivated)|organization\s+(?:has\s+been\s+)?(?:disabled|suspended|banned|deleted|deactivated)|project\s+(?:has\s+been\s+)?(?:deleted|disabled|suspended)|workspace\s+(?:has\s+been\s+)?(?:disabled|suspended|deleted)|policy\s+violation|\b(account\s+suspended|provider\s+banned|banned|suspended)\b/i.test(message)) {
-      return { action: "ban-provider", scope: "provider", reason: "provider-banned" };
+      return { action: "ban-provider", scope: "provider", reason: "provider-banned", category: "PERMANENT" };
     }
 
-    // 429 quota exhausted / rate limit -> cooldown-model (not provider)
+    // 429 quota exhausted / rate limit -> cooldown-model
     if (is429 || /rate\s*limit|too\s+many\s+requests|throttled|quota\s*exceeded|exhausted/i.test(message)) {
       let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (!cooldownMs || cooldownMs <= 0) {
@@ -1279,15 +1321,15 @@ export class DiscountedUCB1Bandit {
         return {
           action: "cooldown-model",
           reason: "quota-exhausted",
-          cooldownMs: cooldownMs * cooldownMultiplier
+          cooldownMs: cooldownMs * cooldownMultiplier,
+          category: "TRANSIENT"
         };
       } else {
-        // 429/rate-limit is typically a transient condition (rate limit, not quota exhaustion)
-        // Use a short cooldown (5 min) to avoid hammering the provider while allowing quick retry
         return {
           action: "cooldown-model",
           reason: "rate-limit",
-          cooldownMs: 300000
+          cooldownMs: 300000,
+          category: "TRANSIENT"
         };
       }
     }
@@ -1296,51 +1338,50 @@ export class DiscountedUCB1Bandit {
     if (errorDetails.code === "RATE_LIMIT_QUEUE_TIMEOUT" || /RATE_LIMIT_QUEUE_TIMEOUT|503 queue timeout|queue timeout/i.test(message) || (status === 503 && /queue.*timeout|timeout.*queue/i.test(message))) {
       let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (!cooldownMs || cooldownMs <= 0) {
-        cooldownMs = 45000; // 45s (appropriate cooldown between 30s-60s)
+        cooldownMs = 45000;
       }
-      return { action: "cooldown-model", scope: "model", reason: "queue-timeout", cooldownMs };
+      return { action: "cooldown-model", scope: "model", reason: "queue-timeout", cooldownMs, category: "TRANSIENT" };
     }
 
     // High demand / service unavailable messages -> cooldown-model high-demand
     if (/currently experiencing high demand|service_unavailable|service unavailable|high demand/i.test(message) || errorDetails.code === "service_unavailable") {
       let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (!cooldownMs || cooldownMs <= 0) {
-        cooldownMs = 30000; // 30s (appropriate cooldown)
+        cooldownMs = 30000;
       }
-      return { action: "cooldown-model", scope: "model", reason: "high-demand", cooldownMs };
+      return { action: "cooldown-model", scope: "model", reason: "high-demand", cooldownMs, category: "TRANSIENT" };
     }
 
     // Timeout -> cooldown-model 10m
     if (/fetch timeout|timeout/i.test(message)) {
-      return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000 };
+      return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000, category: "TRANSIENT" };
     }
 
     // 5xx / Stream Errors / Keepalive -> cooldown-model (transient, short cooldown)
     if (status >= 500 && status < 600 || /keepalive|chunk|stream|connection/i.test(message)) {
-      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 15000 };
+      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 15000, category: "TRANSIENT" };
     }
 
-    // 402 insufficient funds / billing error -> cooldown-provider (quota-exhausted)
-    // Enhanced detection for billing errors including billing_error code, payment_required, credits exhausted
-    // Reduced cooldown from 24h to 1h to allow for faster recovery if credits are topped up
+    // 402 insufficient funds / billing error -> flag-provider
     if (status === 402 && (/insufficient|funds|credit|payment/i.test(message) || /billing_error|payment_required|credits exhausted/i.test(message + " " + (errorDetails.code || "")))) {
-      return { action: "flag-provider", reason: "quota-exhausted" };
+      return { action: "flag-provider", reason: "quota-exhausted", category: "TRANSIENT" };
     }
 
-    // 418 anti-abuse -> cooldown-provider 6h
+    // 418 anti-abuse -> cooldown-provider
     if (status === 418 && /anti-abuse/i.test(message)) {
-      return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 1 * 3600 * 1000 };
+      return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 1 * 3600 * 1000, category: "TRANSIENT" };
     }
 
-    // Default case: ensure proper reason tracking for unclassified errors
+    // Default case
     const defaultReason = reason === "unknown" ? "classification-fallback" : reason;
     console.log(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${defaultReason} cooldownMs=30000`);
     return {
       action: "cooldown-model",
       reason: defaultReason,
-      cooldownMs: 30000
+      cooldownMs: 30000,
+      category: "TRANSIENT"
     };
-}
+  }
 
   _parseResetAfter(message, errorDetails = {}) {
     // Helper to parse numeric value (seconds, ms epoch, or seconds epoch)
@@ -1730,8 +1771,24 @@ export class DiscountedUCB1Bandit {
 
   blockModel(modelId) {
     this.db.prepare(
-      `UPDATE models SET permanent = 1 WHERE id = ?`
-    ).run(modelId);
+      `UPDATE models SET permanent = 1, banned_since = ? WHERE id = ?`
+    ).run(Date.now(), modelId);
+  }
+
+  _checkRehabilitation() {
+    const config = this.getBanditConfig();
+    const period = config.errorConfig?.rehabilitationPeriodMs || 3600000;
+    const now = Date.now();
+
+    // Reset degraded models
+    this.db.prepare(
+      `UPDATE models SET degraded = 0, degraded_since = 0, consecutive_5xx = 0 WHERE degraded = 1 AND (? - degraded_since) > ?`
+    ).run(now, period);
+
+    // Reset permanently banned models
+    this.db.prepare(
+      `UPDATE models SET permanent = 0, banned_since = 0 WHERE permanent = 1 AND (? - banned_since) > ?`
+    ).run(now, period);
   }
 
   clearProviderAttention(provider) {

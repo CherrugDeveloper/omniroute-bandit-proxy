@@ -51,8 +51,10 @@ export class HealthChecker {
     this.batchSize = options.batchSize || 20;
     this.timeoutMs = options.timeoutMs || 15000;
     this.verbose = options.verbose || false;
+    this.rehabIntervalMs = options.rehabIntervalMs || 900000; // 15 min default
 
     this.timer = null;
+    this.rehabTimer = null;
     this.running = false;
     this.inFlight = false;
     this.lastProviderCheck = new Map(); // Track last check time per provider
@@ -62,7 +64,9 @@ export class HealthChecker {
       tested: 0,
       revived: 0,
       lastRun: null,
-      lastError: null
+      lastError: null,
+      rehabRuns: 0,
+      lastRehabRun: null
     };
   }
 
@@ -73,8 +77,12 @@ export class HealthChecker {
     // Prima esecuzione dopo 30s (per non sovrapporsi al boot)
     this.timer = setTimeout(() => this._tickAndReschedule(), 30000);
 
+    // Start rehabilitation check timer
+    this.rehabTimer = setInterval(() => this._runRehabilitation(), this.rehabIntervalMs);
+    if (this.rehabTimer.unref) this.rehabTimer.unref();
+
     console.log(
-      `[HEALTH] Health check attivo (intervallo: ${this.intervalMs / 1000}s, batch: ${this.batchSize}, timeout: ${this.timeoutMs / 1000}s)`
+      `[HEALTH] Health check attivo (intervallo: ${this.intervalMs / 1000}s, batch: ${this.batchSize}, timeout: ${this.timeoutMs / 1000}s, rehab intervallo: ${this.rehabIntervalMs / 1000}s)`
     );
   }
 
@@ -84,6 +92,22 @@ export class HealthChecker {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
+    }
+    if (this.rehabTimer) {
+      clearInterval(this.rehabTimer);
+      this.rehabTimer = null;
+    }
+  }
+
+  async _runRehabilitation() {
+    if (!this.running) return;
+    try {
+      this.bandit._checkRehabilitation();
+      this.stats.rehabRuns++;
+      this.stats.lastRehabRun = Date.now();
+      if (this.verbose) console.log("[HEALTH] Rehabilitation check completed");
+    } catch (e) {
+      console.error(`[HEALTH] Errore durante rehabilitation check: ${e.message}`);
     }
   }
 
@@ -163,11 +187,12 @@ export class HealthChecker {
 
         const ok = await this._probe(m.id);
         if (ok) {
-          let stato = "in cooldown";
-          if (Number(m.permanent) === 1) stato = "BANNATO";
-          else if (Number(m.degraded) === 1) stato = "DEGRADED";
+        let stato = "in cooldown";
+        if (Number(m.permanent) === 1) stato = "BANNATO";
+        else if (Number(m.degraded) === 1) stato = "DEGRADED";
 
-          this.bandit.reviveModel(m.id);
+        this.bandit.reviveModel(m.id);
+        // Periodic rehab check runs inside _runRehabilitation which is started in start()
           // Auto-clear needs_attention flag for the provider on successful health check
           try {
             this.bandit.clearProviderAttention(m.provider);

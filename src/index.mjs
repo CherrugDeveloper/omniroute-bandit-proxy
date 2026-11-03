@@ -2237,6 +2237,10 @@ trackRequestUpdate(requestId, {
     });
     const start = Date.now();
     controller = new AbortController();
+    let lastErrorStatus = null;
+    let lastErrorBody = null;
+    let lastErrorModel = null;
+    let lastErrorCategory = null;
 
     timeoutHandle = setTimeout(() => {
       console.warn(`[TIMEOUT] ${model} superato timeout (${upstreamTimeoutMs}ms)`);
@@ -2265,13 +2269,14 @@ trackRequestUpdate(requestId, {
           console.error(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
         }
         console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
-        bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
-        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource}`);
+        const feedback = bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
+        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource} category=${feedback.category || 'UNKNOWN'}`);
 
         // Track last error status for final response
         lastErrorStatus = r.status;
         lastErrorBody = txt;
         lastErrorModel = model;
+        lastErrorCategory = feedback?.category;
 
         // Check if this is a model-not-found error (404 or specific patterns)
         // These errors are NOT retryable - the model simply doesn't exist
@@ -2627,9 +2632,16 @@ trackRequestUpdate(requestId, {
   }
 
   cleanup();
+  // Improve error response using category if available
   const finalStatus = lastErrorStatus || 502;
-  const finalMessage = lastErrorBody ? lastErrorBody.substring(0, 200) : `${attempt - 1} tentativi esauriti su ${maxAttempts}`;
-  res.status(finalStatus).json({ error: { message: finalMessage, status: finalStatus } });
+  let finalMessage = lastErrorBody ? lastErrorBody.substring(0, 200) : `${attempt - 1} tentativi esauriti su ${maxAttempts}`;
+  if (lastErrorCategory === 'TRANSIENT') {
+    finalMessage = `[Temporary Availability Issue] ${finalMessage}`;
+  } else if (lastErrorCategory === 'PERMANENT') {
+    finalMessage = `[Permanent Failure] ${finalMessage}`;
+  }
+
+  res.status(finalStatus).json({ error: { message: finalMessage, status: finalStatus, category: lastErrorCategory } });
     } catch (error) {
       console.error("[ROUTE HANDLER] Unhandled exception in /v1/chat/completions:", error?.message || error);
       console.error("[ROUTE HANDLER] Stack:", error?.stack || String(error));

@@ -1,6 +1,6 @@
 {
   "name": "omniroute-bandit-proxy",
-  "version": "1.14.2",
+  "version": "1.14.3",
   "description": "Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution",
   "main": "src/index.mjs",
   "scripts": {

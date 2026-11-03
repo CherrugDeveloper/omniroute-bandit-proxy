@@ -12,5 +12,40 @@
     "dva/dva-small",
     "xai-oauth/grok-3-mini",
     "xao/grok-3-mini"
-  ]
+  ],
+  "errorConfig": {
+    "degradationThreshold": 3,
+    "rehabilitationPeriodMs": 3600000,
+    "classification": {
+      "transientErrors": [
+        { "pattern": "timeout", "action": "cooldown-model", "duration": 600000 },
+        { "pattern": "5xx|server-error", "action": "cooldown-model", "duration": 30000 },
+        { "pattern": "rate.?limit|too.?many.?requests|throttled|quota.?exceeded|exhausted", "action": "cooldown-model", "duration": 300000 },
+        { "pattern": "429|model_cooldown|cooling down", "action": "cooldown-model", "duration": 300000 },
+        { "pattern": "RATE_LIMIT_QUEUE_TIMEOUT|503 queue timeout|queue timeout", "action": "cooldown-model", "duration": 45000 },
+        { "pattern": "high demand|service.unavailable|service unavailable", "action": "cooldown-model", "duration": 30000 },
+        { "pattern": "413|ITPM|tokens.?per.?minute|TPM|Request too large|context.?(?:window|length|exceeded)|token.?limit|payload.?too.?large", "action": "cooldown-model", "duration": 300000 },
+        { "pattern": "keepalive|chunk|stream|connection", "action": "cooldown-model", "duration": 15000 },
+        { "pattern": "402|insufficient.?funds|credit.?exhausted|payment.?required|billing_error", "action": "flag-provider", "duration": 86400000 },
+        { "pattern": "418|anti.abuse", "action": "cooldown-provider", "duration": 3600000 },
+        { "pattern": "401|authentication expired|No active credentials", "action": "flag-provider", "duration": 86400000 },
+        { "pattern": "502|No auth provided|Please log in|Playwright is not available|is not configured|missing url or token|browserType.launch|Executable doesn't exist", "action": "flag-provider", "duration": 1800000 },
+        { "pattern": "ENOENT|spawn.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured", "action": "cooldown-provider", "duration": 1800000 }
+      ],
+      "permanentErrors": [
+        { "pattern": "account.?(?:disabled|suspended|banned|terminated|closed|deactivated)|organization.?(?:disabled|suspended|banned|deleted|deactivated)|project.?(?:deleted|disabled|suspended)|workspace.?(?:disabled|suspended|deleted)|policy.?violation|provider.?banned|banned|suspended", "action": "ban-provider", "scope": "provider" },
+        { "pattern": "account disabled|banned", "action": "ban-provider", "scope": "provider" },
+        { "pattern": "model_shutdown|model is gone|end of life|model_shutdown", "action": "ban-model", "scope": "model" },
+        { "pattern": "no.tool.call.but.required", "action": "ban-model", "scope": "model" },
+        { "pattern": "image generation model|cannot be used for chat|not a chat model|image.only|incompatible", "action": "ban-model", "scope": "model" },
+        { "pattern": "unsupported_image_block|devin_agentic_error", "action": "ban-model", "scope": "model" },
+        { "pattern": "not supported.*(?:image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported)", "action": "ban-model", "scope": "model" },
+        { "pattern": "not supported|unknown provider for model|model_not_found", "action": "ban-model", "scope": "model" },
+        { "pattern": "catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog", "action": "ban-model", "scope": "model" },
+        { "pattern": "Assignment to constant variable", "action": "ban-model", "scope": "model" },
+        { "pattern": "OpenCode's free tier can only be used from within OpenCode", "action": "ban-model", "scope": "model" },
+        { "pattern": "403|Key limit exceeded|total limit|hard limit|lifetime limit", "action": "cooldown-provider", "scope": "provider", "duration": 7200000 }
+      ]
+    }
+  }
 }
