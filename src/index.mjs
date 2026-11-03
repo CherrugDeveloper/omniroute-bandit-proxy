@@ -886,7 +886,8 @@ function createLogEntry(message) {
   // This is a rough estimation for elapsedSec based on the newest active request if any
   const elapsedSec = active ? Math.round((Date.now() - activeRequests[0].startTime) / 1000) : 0;
   
-  const color = sourceColors[source] || sourceColors.system;
+  // Use source name as color identifier to match frontend CSS classes (e.g., "zoo", "training", "proxy")
+  const color = source;
 
   return Object.freeze({ timestamp, source, type, provider, status, message, is_paid, active, activeSec, elapsedSec, color });
 }
@@ -1262,6 +1263,16 @@ app.post("/v1/block/model/:id", requireAuth, (req, res) => {
     res.json({ ok });
   } catch (e) {
     console.error("[API] Errore block model:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/v1/unblock/model/:id", requireAuth, (req, res) => {
+  try {
+    const ok = bandit.unblockModel(req.params.id);
+    res.json({ ok });
+  } catch (e) {
+    console.error("[API] Errore unblock model:", e.message);
     res.status(500).json({ error: e.message });
   }
 });

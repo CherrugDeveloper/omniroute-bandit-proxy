@@ -1148,7 +1148,7 @@
                 Mostra cronologia selezione
             </label>
         </div>
-        <div style="height: 110px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px;">
+        <div style="height: 110px; overflow-y: auto; scrollbar-width: none; -webkit-scrollbar: none; border: 1px solid #30363d; border-radius: 4px;">
             <table id="unified-table" style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
@@ -1178,30 +1178,27 @@
     </div>
 
     <div id="tab-logs" class="tab-content active">
-        <div class="log-header">
-            <h3>Log Streaming</h3>
-            <div style="display:flex; gap:10px; align-items:center; flex:1; justify-content:flex-end; flex-wrap:wrap;">
-                <div id="log-source-filters" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                    <button type="button" class="log-source-btn active" data-source="all" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="Tutti i log">🌟 Tutti</button>
-                    <button type="button" class="log-source-btn" data-source="proxy" style="background:#30363d; border:1px solid #484f58; color:#f0883e; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f0883e;" title="Proxy requests">🔌 Proxy</button>
-                    <button type="button" class="log-source-btn" data-source="zoo" style="background:#30363d; border:1px solid #484f58; color:#3fb950; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #3fb950;" title="Zoo events">🌿 ZOO</button>
-                    <button type="button" class="log-source-btn" data-source="train" style="background:#30363d; border:1px solid #484f58; color:#58a6ff; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #58a6ff;" title="Training events">🏋️ Train</button>
-                    <button type="button" class="log-source-btn" data-source="debug" style="background:#30363d; border:1px solid #484f58; color:#ff5858; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #ff5858;" title="Debug verbose">🐛 Debug</button>
-                    <button type="button" class="log-source-btn" data-source="system" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="System events">🏗️ System</button>
-                    <button type="button" class="log-source-btn" data-source="ban" style="background:#30363d; border:1px solid #484f58; color:#f85149; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f85149;" title="Ban events">🚫 Ban</button>
-                    <button type="button" class="log-source-btn" data-source="cooldown" style="background:#30363d; border:1px solid #484f58; color:#f1c40f; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f1c40f;" title="Cooldown events">⏳ Cooldown</button>
-                    <button type="button" class="log-source-btn" data-source="flag" style="background:#30363d; border:1px solid #484f58; color:#e6ac00; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e6ac00;" title="Flag events">🚩 Flag</button>
-                    <button type="button" class="log-source-btn" data-source="degraded" style="background:#30363d; border:1px solid #484f58; color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e74c3c;" title="Degraded events">⚠️ Degraded</button>
-                    <button type="button" class="log-source-btn" data-source="paid-only" style="background:#30363d; border:1px solid #484f58; color:#9b59b6; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #9b59b6;" title="Paid-only events">💳 Paid</button>
-                </div>
-                <div style="display:none;" id="custom-log-filters">
-                    <input type="text" id="log-filter" placeholder="🔍 testo..."
-                        autocomplete="off"
-                        style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:120px;"
-                        oninput="logFilterText = this.value; renderFilteredLogs()">
-                </div>
-                <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
+        <div class="log-header" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:4px 0;">
+            <div id="log-source-filters" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:1;">
+                <button type="button" class="log-source-btn active" data-source="all" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="Tutti i log">🌟 Tutti</button>
+                <button type="button" class="log-source-btn" data-source="proxy" style="background:#30363d; border:1px solid #484f58; color:#f0883e; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f0883e;" title="Proxy requests">🔌 Proxy</button>
+                <button type="button" class="log-source-btn" data-source="zoo" style="background:#30363d; border:1px solid #484f58; color:#3fb950; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #3fb950;" title="Zoo events">🌿 ZOO</button>
+                <button type="button" class="log-source-btn" data-source="training" style="background:#30363d; border:1px solid #484f58; color:#58a6ff; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #58a6ff;" title="Training events">🏋️ Train</button>
+                <button type="button" class="log-source-btn" data-source="debug" style="background:#30363d; border:1px solid #484f58; color:#ff5858; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #ff5858;" title="Debug verbose">🐛 Debug</button>
+                <button type="button" class="log-source-btn" data-source="system" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="System events">🏗️ System</button>
+                <button type="button" class="log-source-btn" data-source="ban" style="background:#30363d; border:1px solid #484f58; color:#f85149; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f85149;" title="Ban events">🚫 Ban</button>
+                <button type="button" class="log-source-btn" data-source="cooldown" style="background:#30363d; border:1px solid #484f58; color:#f1c40f; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f1c40f;" title="Cooldown events">⏳ Cooldown</button>
+                <button type="button" class="log-source-btn" data-source="flag" style="background:#30363d; border:1px solid #484f58; color:#e6ac00; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e6ac00;" title="Flag events">🚩 Flag</button>
+                <button type="button" class="log-source-btn" data-source="degraded" style="background:#30363d; border:1px solid #484f58; color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e74c3c;" title="Degraded events">⚠️ Degraded</button>
+                <button type="button" class="log-source-btn" data-source="paid-only" style="background:#30363d; border:1px solid #484f58; color:#9b59b6; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #9b59b6;" title="Paid-only events">💳 Paid</button>
             </div>
+            <div style="display:none;" id="custom-log-filters">
+                <input type="text" id="log-filter" placeholder="🔍 testo..."
+                    autocomplete="off"
+                    style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:120px;"
+                    oninput="logFilterText = this.value; renderFilteredLogs()">
+            </div>
+            <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
         </div>
         <div id="logs-container" style="flex: 1; min-height: 200px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117; display: flex; flex-direction: column;">
             <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed; flex: 1;">
@@ -3524,6 +3521,7 @@
                         if (entry.source !== 'debug') return false;
                         break;
                     case 'train':
+                    case 'training':
                         if (entry.source !== 'training') return false;
                         break;
                     case 'paid':
@@ -3566,8 +3564,8 @@
                     const status = entry.status || '-';
                     const message = entry.message || '-';
 
-                    // Determine color class
-                    let colorClass = entry.color ? `source-${entry.color}` : 'source-other';
+                    // Determine color class - use entry.source to match CSS classes (.log-row.source-zoo, etc.)
+                    let colorClass = entry.source ? `source-${entry.source}` : 'source-other';
 
                     // Handle long messages with expand/collapse
                     const MAX_MESSAGE_LENGTH = 200;

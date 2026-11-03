@@ -127,9 +127,9 @@ describe("ITPM Quota and Error Parsing Test Suite", () => {
       message: "Request too large for model groq/gpt-oss-120b on tokens per minute (TPM): Limit 8000, Requested 17667"
     }, { estimatedTokens: 17667 });
 
-    // Verify getModelMaxInput returns 8000
-    const maxInput = bandit.getModelMaxInput("groq/gpt-oss-120b");
-    assert.equal(maxInput, 8000);
+    // Verify getDynamicMaxTokens returns 8000
+    const dynMax = bandit.getDynamicMaxTokens("groq/gpt-oss-120b");
+    assert.equal(dynMax, 8000);
 
     // Try selecting model with 17667 tokens -> should be filtered out
     const sel2 = await bandit.selectModel(new Set(), 17667, false, false, null, true);

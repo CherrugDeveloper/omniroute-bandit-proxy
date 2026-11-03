@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.14.6 (2026-11-03)**: Auto-git workflow execution and documentation updates.
+> **v1.14.7 (2026-11-03)**: Auto-git workflow execution and documentation updates.
 
 ## Panoramica
 
@@ -175,7 +175,6 @@ File di servizio attuale: [`omniroute-bandit-proxy.service`](omniroute-bandit-pr
 
 - `WorkingDirectory=/home/marco/Workspace_vscode/omniroute-bandit-proxy`
 - `ExecStart=/usr/bin/node .../src/index.mjs`
-- `EnvironmentFile=-.../.env`
 - `Restart=on-failure`, `RestartSec=10`
 
 Crea `/etc/systemd/system/omniroute-bandit-proxy.service`:
@@ -218,9 +217,8 @@ Produzione e manutenzione scripts in [`scripts/`](scripts/):
 - [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs) - Ispezione completa DB
 - [`scripts/fix-db.mjs`](scripts/fix-db.mjs) - Fix database
 - [`scripts/fix-vision.mjs`](scripts/fix-vision.mjs) - Fix vision
-- [`scripts/check-nvidia.mjs`](scripts/check-nvidia.mjs) - Diagnostica NVIDIA
-- [`scripts/check-catalog.mjs`](scripts/check-catalog.mjs) - Diagnostica catalogo modelli
 - [`scripts/reset-providers.mjs`](scripts/reset-providers.mjs) - Reset provider state
+- [`scripts/check-catalog.mjs`](scripts/check-catalog.mjs) - Diagnostica catalogo modelli
 - [`scripts/inspect-bans.mjs`](scripts/inspect-bans.mjs) - Ispezione ban
 - [`scripts/inspect-summary.mjs`](scripts/inspect-summary.mjs) - Riassunto ispezioni
 - [`scripts/inspect-detailed.mjs`](scripts/inspect-detailed.mjs) - Ispezione dettagliata
@@ -346,6 +344,8 @@ MIT - vedi [`LICENSE`](LICENSE).
 
 Le modifiche recenti sono documentate in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.14.7** - Auto-git workflow execution and documentation updates
+- **v1.14.6** - Auto-git workflow execution and documentation updates
 - **v1.14.5** - Repository cleanup and workflow automation
 - **v1.14.4** - Exponential backoff for 5xx/SSE errors and emergency relaxation
 - **v1.14.3** - Emergency relaxation and fallback chain improvements

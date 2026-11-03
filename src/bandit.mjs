@@ -93,7 +93,7 @@ export class DiscountedUCB1Bandit {
       return JSON.parse(configContent);
     } catch (err) {
       console.error("[BANDIT] Error reading bandit config:", err.message);
-      return { fallbackModels: [], errorConfig: { degradationThreshold: 3, rehabilitationPeriodMs: 3600000, classification: { transientErrors: [], permanentErrors: [] } } };
+      return { fallbackModels: [], errorConfig: { degradationThreshold: 3, rehabilitationPeriodMs: 172800000, classification: { transientErrors: [], permanentErrors: [] } } };
     }
   }
 
@@ -833,12 +833,12 @@ export class DiscountedUCB1Bandit {
   }
 
   _getModelCooldownMs(fails) {
-    if (fails >= 4) return null;
+    if (fails >= 4) return null; // 4+ fails = permanent (handled elsewhere)
     const cooldowns = [
       0,
-      30 * 60000,    // 1° fail → 30 min
-      4 * 3600000,   // 2° fail → 4h
-      12 * 3600000   // 3° fail → 12h
+      60 * 60000,    // 1° fail → 1h (was 30 min)
+      8 * 3600000,   // 2° fail → 8h (was 4h)
+      24 * 3600000   // 3° fail → 24h (was 12h)
     ];
     return cooldowns[Math.min(fails, 3)];
   }
@@ -956,12 +956,12 @@ export class DiscountedUCB1Bandit {
   }
 
   _getProviderCooldownMs(fails) {
-    if (fails >= 4) return null;
+    if (fails >= 4) return null; // 4+ fails = permanent (handled elsewhere)
     const cooldowns = [
       0,
-      2 * 3600000,   // 1° fail → 2h
-      8 * 3600000,   // 2° fail → 8h
-      24 * 3600000   // 3° fail → 24h
+      4 * 3600000,   // 1° fail → 4h (was 2h)
+      16 * 3600000,  // 2° fail → 16h (was 8h)
+      48 * 3600000   // 3° fail → 48h (was 24h)
     ];
     return cooldowns[Math.min(fails, 3)];
   }
@@ -1153,11 +1153,21 @@ export class DiscountedUCB1Bandit {
       const regex = new RegExp(pattern.pattern, 'i');
       if (regex.test(message) || (pattern.status && pattern.status === status)) {
         console.log(`[BANDIT-CLASSIFY] Matched transient pattern: ${pattern.pattern} -> ${pattern.action}`);
+        // Parse "reset after Xs/m/h" from message if present (for ITPM/TPM limits)
+        let cooldownMs = pattern.duration || 30000;
+        const resetMatch = message.match(/reset after (\d+)(s|m|h)/i);
+        if (resetMatch) {
+          const v = parseInt(resetMatch[1], 10);
+          const u = resetMatch[2].toLowerCase();
+          if (u === 's') cooldownMs = v * 1000;
+          else if (u === 'm') cooldownMs = v * 60 * 1000;
+          else if (u === 'h') cooldownMs = v * 3600 * 1000;
+        }
         return {
           action: pattern.action || "cooldown-model",
           scope: pattern.scope || "model",
           reason: pattern.reason || "transient-error",
-          cooldownMs: pattern.duration || 30000,
+          cooldownMs,
           category: "TRANSIENT"
         };
       }
@@ -1784,20 +1794,25 @@ export class DiscountedUCB1Bandit {
     ).run(Date.now(), modelId);
   }
 
+  unblockModel(modelId) {
+    this.db.prepare(
+      `UPDATE models SET permanent = 0, banned_since = 0, degraded = 0, degraded_since = 0, consecutive_5xx = 0, cooldown_until = 0 WHERE id = ?`
+    ).run(modelId);
+  }
+
   _checkRehabilitation() {
     const config = this.getBanditConfig();
-    const period = config.errorConfig?.rehabilitationPeriodMs || 3600000;
+    const period = config.errorConfig?.rehabilitationPeriodMs || 172800000; // 48 hours default
     const now = Date.now();
 
-    // Reset degraded models
+    // Reset degraded models (after 48h)
     this.db.prepare(
       `UPDATE models SET degraded = 0, degraded_since = 0, consecutive_5xx = 0 WHERE degraded = 1 AND (? - degraded_since) > ?`
     ).run(now, period);
 
-    // Reset permanently banned models
-    this.db.prepare(
-      `UPDATE models SET permanent = 0, banned_since = 0 WHERE permanent = 1 AND (? - banned_since) > ?`
-    ).run(now, period);
+    // NOTE: Permanent bans are NOT auto-rehabilitated
+    // They require manual intervention via admin API or database
+    // This prevents problematic models from quietly returning to rotation
   }
 
   clearProviderAttention(provider) {
@@ -2592,7 +2607,7 @@ export class DiscountedUCB1Bandit {
     // Tier 4: Emergency Relaxation (Ignore Policies/Tools/Token Limits AND Cooldowns)
     // This is the last resort before absolute fallback - ignore all cooldowns to ensure
     // we can still serve requests even if all providers are in cooldown.
-    // Note: We DO NOT ignore dynamic_max_tokens here because they are learned limits from actual 413 errors,
+    // Note: We respect dynamic_max_tokens here because they are learned limits from actual 413 errors,
     // not cooldowns. They should be respected even in emergency mode.
     // We DO respect provider quota exhaustion to prevent selecting exhausted providers.
     if (availableModels.length === 0) {
@@ -2600,7 +2615,25 @@ export class DiscountedUCB1Bandit {
       // Relax cooldowns, but respect permanent bans and provider quota exhaustion
       // We explicitly ignore degraded status too in emergency to prioritize continuity.
       // But we do NOT ignore quota exhaustion - we handle it at the provider level.
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: false, ignoreDegraded: true, ignoreTokenLimit: true, ignoreDynamicMaxTokens: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: false, ignoreExcluded: true, ignoreNonChat: true });
+      // We respect dynamic_max_tokens - they are learned limits from 413 errors.
+      // Relax cooldowns, but respect permanent bans and provider quota exhaustion
+      // We explicitly ignore degraded status too in emergency to prioritize continuity.
+      // But we do NOT ignore quota exhaustion - we handle it at the provider level.
+      // We respect dynamic_max_tokens - they are learned limits from 413 errors.
+      availableModels = filterModels('emergency', {
+        ignoreCooldown: true,
+        ignorePermanent: false,
+        ignoreDegraded: true,
+        ignoreTokenLimit: true,
+        ignoreDynamicMaxTokens: false, // Respect dynamic_max_tokens
+        ignoreTools: true,
+        ignorePolicies: true,
+        ignoreVision: true,
+        ignoreAttention: true,
+        ignoreQuota: false,
+        ignoreExcluded: true,
+        ignoreNonChat: true
+      });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
