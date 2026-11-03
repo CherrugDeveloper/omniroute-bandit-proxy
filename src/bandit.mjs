@@ -1324,7 +1324,7 @@ export class DiscountedUCB1Bandit {
     // Enhanced detection for billing errors including billing_error code, payment_required, credits exhausted
     // Reduced cooldown from 24h to 1h to allow for faster recovery if credits are topped up
     if (status === 402 && (/insufficient|funds|credit|payment/i.test(message) || /billing_error|payment_required|credits exhausted/i.test(message + " " + (errorDetails.code || "")))) {
-      return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 1 * 3600 * 1000 };
+      return { action: "flag-provider", reason: "quota-exhausted" };
     }
 
     // 418 anti-abuse -> cooldown-provider 6h
@@ -2749,21 +2749,23 @@ export class DiscountedUCB1Bandit {
 
     // Status filter
     if (filters.status) {
-      switch (filters.status) {
-        case "active":
-          conditions.push("(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND m.permanent = 0 AND m.degraded = 0");
-          params.push(now);
-          break;
-        case "cooldown":
-          conditions.push("m.cooldown_until > ?");
-          params.push(now);
-          break;
-        case "degraded":
-          conditions.push("m.degraded = 1");
-          break;
-        case "banned":
-          conditions.push("m.permanent = 1");
-          break;
+      if (source !== "train") {
+        switch (filters.status) {
+          case "active":
+            conditions.push("(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND m.permanent = 0 AND m.degraded = 0");
+            params.push(now);
+            break;
+          case "cooldown":
+            conditions.push("m.cooldown_until > ?");
+            params.push(now);
+            break;
+          case "degraded":
+            conditions.push("m.degraded = 1");
+            break;
+          case "banned":
+            conditions.push("m.permanent = 1");
+            break;
+        }
       }
     }
 

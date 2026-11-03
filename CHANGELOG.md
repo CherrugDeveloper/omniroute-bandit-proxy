@@ -1,5 +1,18 @@
 ## [v1.14.0] - 2026-11-03
 
+### Fix
+- **Bandit**: Changed 402 billing errors from `cooldown-provider` (1h) to `flag-provider` with `quota-exhausted` reason
+  - Prevents exhausted-credential providers from re-entering the rotation after short cooldowns
+  - `flag-provider` sets `needs_attention=1` in provider_history, removing provider from consideration in `isModelAvailable()`
+  - Requires manual clearance via `POST /v1/provider/retry/:provider` or `clearProviderAttention()`
+  - All changes in [src/bandit.mjs](src/bandit.mjs:1324-1328)
+
+- **Bandit**: Fixed log streaming filters for `source=train` in `getModels()`
+  - The `models_train` table lacks `cooldown_until`, `permanent`, `degraded` columns
+  - Status filter conditions (active, cooldown, degraded, banned) were incorrectly applied to training source
+  - Added `source !== "train"` guard around status filter switch statement
+  - All changes in [src/bandit.mjs](src/bandit.mjs:2751-2770)
+
 ### Chore
 - **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
 - **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
