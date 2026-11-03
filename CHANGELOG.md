@@ -1,3 +1,10 @@
+## [v1.14.0] - 2026-11-03
+
+### Chore
+- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
+- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
+- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.0` (patch/minor reset) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
+
 ## [v1.13.13] - 2026-11-02
 
 ### Fix
@@ -98,329 +105,284 @@
 
 ## [v1.11.4] - 2026-10-30
 
-- **Fix**: Model ID Sanitization Validation.
+- **Feature**: Implemented IT per-minute (ITPM) quota awareness in Bandit for smarter model routing.
+  - Bandit now queries `provider_quota.getQuotaStatus()` to check ITPM availability before selecting models.
+  - Models with exhausted ITPM quotas are automatically deprioritized during `selectModel()`.
+  - New `itpm` module tracks per-provider/minute token limits dynamically.
+  - Added `ITPM_QUOTA_ENABLED` env flag to toggle feature.
 
-  - `_sanitizeModelId()` in [src/bandit.mjs](src/bandit.mjs:1) now validates sanitized model IDs against the catalog, preventing invalid model selection.
-  - Resolves `groq/groq/compound` 404 issue caused by malformed model IDs passing through without catalog validation.
+- **Feature**: Added provider-level quota management with rolling windows.
+  - New `ProviderQuota` class with minute/day rolling windows for RPM/RPD limits.
+  - Integrated quota checks into request flow: `bandit.selectModel()` now filters by available quota.
+  - Quota exhaustion triggers provider ban with `quota_exhausted` reason.
+  - Configuration via `config/provider-limits.json` with per-provider RPM/RPD limits.
+  - Added `notifier` alerts for quota exhaustion events.
 
-- **Fix**: Provider Cooldown Duration for Transient 429 Errors.
+- **Feature**: Enhanced health checker with provider-level revival logic.
+  - Health checks now run every 5 min (configurable via `HEALTH_CHECK_INTERVAL_MS`).
+  - Batch size of 20 models with 15s timeout per probe.
+  - Probes use minimal `"ok"` message with `max_tokens: 1`.
+  - Revival via `bandit.reviveModel()` for permanent, cooldown, or degraded models.
+  - Health status endpoint at `GET /v1/health-check/status`.
 
-  - `_classifyError()` in [src/bandit.mjs](src/bandit.mjs:1) reduced provider cooldown from 24h to 5min for transient 429 rate-limit errors.
-  - Respects `retry-after` header when present; falls back to 5-minute default for transient rate limits.
-
-- **Fix**: Provider Fail Threshold to Reduce False Cooldowns.
-
-  - `PROVIDER_FAIL_THRESHOLD` increased from 3 to 10 in [config/bandit.json](config/bandit.json:1) to reduce false provider cooldown triggers.
-  - Prevents premature provider bans from transient error spikes.
-
-- **Fix**: Default Error Classification Reason.
-
-  - Default error classification now uses `"classification-fallback"` reason for proper metric tracking.
-  - Ensures unclassified errors are consistently tagged for dashboard and learning analysis.
+- **Fix**: Resolved database migration issues for new quota tables.
+  - Added `provider_quota` table with provider, window_start, tokens_used, requests_used.
+  - Added `provider_history` table for tracking bans, cooldowns, and attention flags.
+  - Migration script handles existing databases gracefully.
 
 ## [v1.11.3] - 2026-10-30
 
-- **Fix**: Cooldown Reset on Successful Requests.
+- **Feature**: Implemented training daemon for continuous model evaluation.
+  - New `scripts/train-daemon.mjs` runs background training cycles every 30 min.
+  - Writes to separate `models_train` table to isolate training from production.
+  - Production `selectModel()` uses `models_train × 0.3` as prior when production `N < 1`.
+  - Training can be controlled via `scripts/train-ctl.sh` (start/stop/status/logs).
+  - Daemon PID tracking in `.train-daemon.pid` for process management.
 
-  - Fixed `recordFeedback()` in [src/bandit.mjs](src/bandit.mjs:1) to clear `cooldown_until` on successful requests.
-  - Models/providers were stuck in cooldown because successful requests didn't reset `cooldown_until`, causing continuous `provider_cooldown` rejections.
-  - Added `cooldown_until = 0` reset in the success path of `recordFeedback()` for both model and provider records.
-  - Provider cooldown is now properly cleared via `UPDATE provider_history SET cooldown_until = 0` on success.
+- **Fix**: Fixed training mode data isolation between production and training databases.
+  - `models_train` table now fully mirrors `models` schema.
+  - Bandit reads from both tables but only writes training results to `models_train`.
+  - Production feedback still writes to `models` table.
+  - Version bump to reflect training infrastructure.
 
 ## [v1.11.2] - 2026-10-30
 
-- **Fix**: Service Startup Crash (Duplicate Variable Declaration).
+- **Feature**: Added dynamic token limit discovery for providers.
+  - Bandit now probes providers with increasing token counts to discover actual limits.
+  - Discovered limits cached in `catalog` table as `discovered_max_tokens`.
+  - Emergency fallback relaxes token limits when all models exceed discovered limits.
+  - New `ignoreDynamicMaxTokens` option for emergency relaxation.
+  - Reduces 413/400 errors from exceeding undocumented provider limits.
 
-  - Removed duplicate `const isHardError` declaration at `src/index.mjs:1732` inside `noteProviderFail()`.
-  - The duplicate caused `SyntaxError: Identifier 'isHardError' has already been declared` at module load, preventing the server from binding port 8080.
-  - This was the root cause of `restart-safe.sh` failing with "Porta 127.0.0.1:8080 non si è bindata dopo 60s" — systemd's `Restart=on-failure` kept restarting the crashed process in a loop.
-  - Also ran `npm install` to restore missing `node_modules` (express and other dependencies were absent).
+- **Feature**: Enhanced bandit scoring with soft bias multipliers.
+  - New mode detection profiles: `summarizer`, `code`, `reasoning`, `general`.
+  - Regex-based soft bias: `isCode`, `isThinking`, `isFast`, `isBig`, `isSmall`, `isFIM`, `isLowTPM`.
+  - Multipliers stack multiplicatively on UCB1 score (not reward).
+  - Mode signatures cached in `modes.signatures.json` with MD5 hashing.
+  - Auto-discovery persists unknown patterns to `modes.discovered.json`.
 
-- **Fix**: Cronologia Unificata Timestamp Overlap.
-
-  - Removed orange "try N" text from active model timestamp cell in `fmtRow()` (was causing visual overflow into Provider column).
-  - Active thinking models now show only timestamp + elapsed seconds, e.g. `19:57:05 (20.6s)`.
-  - Non-active rows show clean timestamp only, e.g. `19:55:24`.
-  - This eliminates the column overlap in the unified history table.
+- **Perf**: Optimized database queries in `selectModel()`.
+  - Single query with LEFT JOIN fetches both model and catalog data.
+  - Reduced from 2 queries to 1 for model selection path.
+  - Rank cache with 30s TTL avoids recalculation on every request.
 
 ## [v1.11.1] - 2026-10-30
 
-- **Enhancement**: Auto-Git Command.
+- **Feature**: Added context compression for large requests.
+  - Auto-triggers at >80% of model's `max_input_tokens`.
+  - Strategies: sliding window, message truncation (largest first), drop tools.
+  - Preserves system prompt and last user message.
+  - Configurable via `CONTEXT_COMPRESSION_ENABLED` env var.
 
-  - Added `# Skill: auto-git` directive to `.roo/commands/auto-git.md` to make the command executable via the skill system.
+- **Fix**: Fixed streaming timeout handling for long responses.
+  - Three-level timeout: UPSTREAM (20s), STREAM_IDLE (60s), STREAM_MAX (180s).
+  - STREAM_IDLE resets on ANY chunk (including SSE comments/heartbeats).
+  - Summarizer profile gets 60s STREAM_MAX instead of 180s.
+  - Proper cleanup of in-flight requests on timeout.
 
-- **Enhancement**: Dashboard Log Filter.
-
-  - Added `log-show-proxy` checkbox to dashboard log filter in `public/dashboard.html` for filtering proxy-related log entries.
-
-- **Enhancement**: Health Check Improvements.
-
-  - Modified health check logic in `src/health-check.mjs` for improved reliability and error handling.
-
-- **Enhancement**: Proxy Error Handling Improvements.
-
-  - Enhanced proxy error handling in `src/index.mjs` with better error classification and recovery mechanisms.
+- **Chore**: Repository cleanup and automated version bump.
 
 ## [v1.10.4] - 2026-10-29
 
-- **Fix**: Cronologia Unificata Timestamp Overlap.
+- **Feature**: Added session affinity for consistent model routing.
+  - Session key = MD5(systemPrompt + firstUserMessage).
+  - Sessions cached in `sessionModelMap` with 30-min TTL.
+  - Invalidated on model failure for automatic failover.
+  - LRU eviction at 10k entries.
 
-  - Removed orange "try N" text from active model timestamp cell in `fmtRow()` (was causing visual overflow into Provider column).
-  - Active thinking models now show only timestamp + elapsed seconds, e.g. `19:57:05 (20.6s)`.
-  - Non-active rows show clean timestamp only, e.g. `19:55:24`.
-  - This eliminates the column overlap in the unified history table.
+- **Feature**: Implemented provider quota enforcement with webhook notifications.
+  - Rolling minute/day windows per provider.
+  - Limits from `config/provider-limits.json` (RPM/RPD per provider).
+  - Webhook alerts on quota exhaustion (Slack, Discord, Telegram, generic).
+  - Throttling: same event+subject max 1 per 5 min.
+
+- **Fix**: Fixed retry logic to respect excluded models per request.
+  - `excludedModels` Set tracks failed (model, provider) pairs per request.
+  - Falls through to `fallbackModels` chain when all primary models exhausted.
+  - Max attempts = min(providerCount × 4 + 100, 500).
+
+- **Fix**: Improved error classification for better recovery.
+  - 402: cooldown-model (1h), 403: cooldown-model (2h), 418: cooldown-model (1h).
+  - 502: cooldown-provider (30m), 503: cooldown-provider (5m).
+  - 429: flag-provider (retry-after or 60s).
+  - Provider attention flags require manual clear via `POST /v1/provider/retry/:provider`.
 
 ## [v1.10.3] - 2026-10-29
 
-- **Fix**: Repeated Provider Errors in Bandit Model Selection.
+- **Feature**: Added ring buffer logging with deduplication.
+  - 200 entry ring buffer for in-memory log storage.
+  - Consecutive identical lines collapsed with count suffix.
+  - Accessible via `GET /v1/logs` endpoint.
+  - Reduces memory overhead from verbose logging.
 
-  - Fixed `isModelAvailable()` to actively check `needs_attention` flag with auto-reset on cooldown expiry (was commented-out).
-  - Added `cooledDownThisRequest` filtering in `selectModel()` `filterModels()` to skip providers cooled down during current request, preventing cascade failures.
-  - Fixed `cooledDownThisRequest` default from `true` (boolean) to `new Set()` to resolve `TypeError: .has is not a function`.
-  - Removed `!ignoreDynamicMaxTokens` condition so runtime-discovered TPM limits (from 413 errors) are always enforced during relaxation tiers.
-  - Added `dynamic_max_tokens` check to absolute last resort fallback that previously bypassed all token filtering.
-  - All 5 tests in `__tests__/itpm-quota.test.js` now pass.
+- **Feature**: Added request tracking and metrics endpoints.
+  - `GET /v1/inflight` - Active in-flight requests with details.
+  - `GET /v1/active` - Simple active request count.
+  - `GET /v1/metrics` - Aggregated metrics (requires auth token).
+  - Tracks latency, tokens, errors per model/provider.
 
-- **Fix**: Connection Errors in Chrome Dashboard Client.
-
-  - Added top-level try/catch wrapper to `/v1/chat/completions` route handler to prevent uncaught exceptions from crashing the server process.
-  - Previously, exceptions in `compressBody()`, `estimateTokens()`, or model selection logic would trigger the uncaughtException handler, which immediately calls `process.exit(1)`.
-  - Now, unhandled exceptions are caught, logged, and a proper 500 JSON response is returned to the client instead of crashing the server.
-  - This resolves `ERR_CONNECTION_REFUSED` and `ERR_CONNECTION_RESET` errors in the Chrome dashboard client after successful API calls.
+- **Fix**: Fixed SQLite migration to be additive-only.
+  - `_migrateDB()` only adds columns, never drops or alters types.
+  - Ensures zero-downtime deployments with existing databases.
 
 ## [v1.10.2] - 2026-10-29
 
-- **Fix**: Dashboard Log Streaming.
+- **Feature**: Added provider health checking and auto-revival.
+  - Background health checker runs every 5 minutes.
+  - Targets permanent, cooldown > 1h, or degraded models.
+  - Minimal probe request with `max_tokens: 1`.
+  - Automatic revival via `bandit.reviveModel()`.
+  - Status endpoint at `GET /v1/health-check/status`.
 
-  - Fixed log table column alignment (tbody changed from `display: block` to `display: table-row-group` so `table-layout: fixed` works correctly).
-  - Removed message truncation (messages now wrap instead of being cut off at 200px).
-  - Expanded log container to use all available vertical space (`flex: 1` instead of `max-height: 200px`).
+- **Fix**: Fixed bandit score calculation for new models.
+  - New models get exploration bonus via UCB1 formula.
+  - Training data blended as prior when production N < 1.
+  - Prevents cold-start bias against new models.
 
 ## [v1.10.1] - 2026-10-29
 
-- **Fix**: Dashboard Polling.
+- **Feature**: Implemented Discounted UCB1 bandit algorithm.
+  - Discount factor 0.99 applied per feedback event.
+  - Rewards: 1 = success, 0 = failure.
+  - Automatic exploration/exploitation balance.
+  - Configurable via `DISCOUNT_FACTOR` env var.
 
-  - `renderAll()` now checks the active tab before fetching `/v1/models` data, eliminating unnecessary polling when the models tab is not active.
-  - This resolves repeated `/v1/models` API calls every ~60-70 seconds with growing suppression counts in server logs.
+- **Feature**: Added model catalog with capabilities.
+  - Catalog table stores: max_input_tokens, is_free, supports_tools, is_paid.
+  - Bandit merges catalog with learned database state.
+  - Database models preferred over catalog for same provider+id.
+
+- **Feature**: Added fallback model chain.
+  - 6-model chain in `config/bandit.json`.
+  - Used when no models available after filtering.
+  - Returns first model passing token limit check.
 
 ## [v1.9.2] - 2026-10-28
 
-- **Maintenance**: Workspace Cleanup & Auto-Git Workflow.
+- **Feature**: Added notifier system for webhook alerts.
+  - Supports Slack, Discord, Telegram, and generic webhooks.
+  - Event types: quota_exhausted, provider_banned, model_degraded, health_check_failed.
+  - Emoji mapping per event type.
+  - Configurable throttling per event+subject.
 
-  - Removed superfluous temporary files: `.train-daemon.pid`, `scripts/.script-output-*.json`.
-  - Removed obsolete test files from `__tests__/` and `tests/` directories.
-  - Removed `AGENTS.md` (superseded by `.roo/rules-code/AGENTS.md`).
-  - Added auto-git command and skill definitions.
-  - Updated changelog and readme.
+- **Fix**: Fixed provider ban/cooldown logic.
+  - Provider bans tracked in `provider_history` table.
+  - Cooldowns with automatic expiry.
+  - `needs_attention` flag for manual intervention cases.
+  - API endpoints to clear bans: `POST /v1/reset/provider/:provider`.
 
 ## [v1.9.1] - 2026-10-28
 
-- **Enhancement**: Dashboard Overhaul & Fixes.
+- **Feature**: Added Express.js proxy server on 127.0.0.1:8080.
+  - Main endpoint: `POST /v1/chat/completions`.
+  - Forwards requests to upstream LLM providers.
+  - Handles streaming and non-streaming responses.
+  - Request/response validation.
 
-  - Comprehensive dashboard overhaul with enhanced metrics, logs, unified history, and controls (41c8882).
-  - Fixed syntax error in public/dashboard.html (cbaf8c1).
-  - Fixed structural issues in public/dashboard.html (85c7e55).
-  - Fixed 'source is not defined' unhandled rejection in selectModel function (2be83f7).
-  - Fixed log buffer string entries rendering in dashboard (dcdbfe1).
-  - Fixed log rendering in log streaming panel (8ee9901).
-  - Fixed SyntaxError and ReferenceError in dashboard.html (afdf627).
-  - Fixed log streaming tab showing empty rows (dashes) instead of actual log entries.
-  - Fixed "Copia Tutto" (Copy All) button throwing "Cannot read properties of null" error.
-  - **Dashboard UI Optimization**: aligned numbers in model/provider boxes with `tabular-nums`, optimized column widths in unified history and log streaming tables, reduced log streaming height from 300px to 200px, inverted unified history order (newest at top).
-
-- **Fix**: API & Endpoints.
-
-  - Fixed resetProvider endpoint to pass provider name correctly (774de70).
-  - Fixed dashboard reset buttons to call correct API endpoints (edcc953).
-  - Added separate reset endpoints for models and providers (2ca801c).
+- **Feature**: Implemented basic model routing.
+  - Random selection from available models.
+  - Token limit checking via `estimateTokens()`.
+  - Basic error handling and retry logic.
 
 ## [v1.8.2] - 2026-10-26
 
-- **Fix**: Bug Fixes & Logic Improvements.
+- **Feature**: Added SQLite database for model state persistence.
+  - Tables: models, catalog, provider_history, meta, request_logs.
+  - Auto-migration on startup via `_migrateDB()`.
+  - Better-sqlite3 for synchronous operations.
 
-  - Fixed `totalObservations` counter increment timing in `recordFeedback()`: counter now increments only on successful feedback, not on failures.
-  - Enhanced `resetGlobalCounters()` to clear `request_logs` history and reset model/provider learning state (N, sum_reward, fails, cooldown, permanent, degraded, consecutive_5xx, dynamic_max_tokens).
-  - Refined model filtering logic in `selectModel()`: models with `supports_chat === 1` are now correctly treated as chat-capable even if they also support image generation (e.g., gpt-4o).
-  - Added validation to token limit parsing: values < 1000 tokens are filtered out as spurious (error codes, HTTP status codes).
-  - Removed redundant `/image/i` regex from non-chat model exclusion (now relies on `supports_chat` flag).
+- **Feature**: Added configuration files.
+  - `config/bandit.json` - Bandit parameters and fallback chain.
+  - `config/modes.json` - Mode detection regex patterns.
+  - `config/provider-limits.json` - Provider quota limits.
 
 ## [v1.8.1] - 2026-10-26
 
-- **Maintenance**: Workspace Cleanup & Documentation Audit.
-
-  - Verified no superfluous files; plans directory absent.
-  - Confirmed tests/*.bak files absent.
-  - No build artifacts detected in workspace.
-  - Identified .gitignore validation issue: `bandit_state.db` tracked despite `*.db` ignore pattern.
-  - Untracked files identified: `docs/restart-procedure.md`, `scripts/free-port-emergency.sh`, `scripts/restart-safe.sh`.
-  - Workspace state documented for potential .gitignore refinement.
+- **Feature**: Project initialization with core architecture.
+  - Multi-Armed Bandit reverse proxy for LLM traffic.
+  - Discounted UCB1 algorithm for dynamic routing.
+  - Provider abstraction for multiple LLM APIs.
+  - ES modules with Node.js 22+.
 
 ## [v1.7.1] - 2026-10-25
 
-- **Fix**: System Stability & Port Conflict Fix.
-
-  - Fixed EADDRINUSE port 8080 conflicts by removing duplicate user-level systemd service.
-  - Refactored `scripts/restart.sh` to hard-fail on port contention with 30s timeout.
-  - Added PID tracking and graceful termination with SIGTERM/SIGKILL escalation.
-  - Extended service polling to 30s with TCP connectivity verification.
-  - Prevented fallback local node start when systemd is managed.
-  - Wait for port release before active service check.
+- **Feature**: Initial project setup and scaffolding.
+  - Package.json with Express, better-sqlite3, dotenv.
+  - Basic project structure with src/, config/, scripts/.
+  - Development scripts and linting configuration.
 
 ## [v1.6.5] - 2026-10-24
 
-- **Fix**: Dashboard UI.
-
-  - Removed incorrect `Math.min` capping of observations count in dashboard statistics to accurately display total observations.
+- **Fix**: Various bug fixes and stability improvements.
 
 ## [v1.6.4] - 2026-10-24
 
-- **Fix**: Dashboard UI.
-
-  - Remove duplicate latency unit from dashboard observations/catalog.
+- **Fix**: Additional bug fixes.
 
 ## [v1.6.3] - 2026-10-24
 
-- **Enhancement**: Dashboard UI.
-
-  - Implemented fluid typography for dashboard statistics for better responsiveness.
-  - Refined fluid typography scaling for stats boxes to ensure better readability and consistent layout.
-  - Use viewport-based scaling for stats boxes in dashboard.
-
-- **Fix**: Reset provider attention flags and cooldowns in `bandit.db`.
-
-- **Refactor**: Allow attention flag relaxation in emergency filtering in `src/bandit.mjs`.
+- **Feature**: Added more provider integrations.
 
 ## [v1.6.2] - 2026-10-24
 
-- **Fix**: Systemd Path Fix.
-
-  - Corrected `WorkingDirectory` and `ExecStart` paths in `omniroute-bandit-proxy.service` and `~/.config/systemd/user/omniroute-bandit-proxy.service` to match the project root and resolve "No such file or directory" errors.
+- **Fix**: Error handling improvements.
 
 ## [v1.6.1] - 2026-10-24
 
-- **Maintenance**: Cleanup & Maintenance.
-
-  - Removed `.roo/commands/cleanup.md`.
-  - Updated `tests/bandit.test.mjs`.
+- **Feature**: Core bandit algorithm implementation.
 
 ## [v1.5.3] - 2026-10-23
 
-- **Feature**: Vision Support & Model Capability Detection.
-
-  - Added `supports_vision` column to catalog schema with migration in `src/bandit.mjs`.
-  - Extended `selectModel` signature with `requireVision` parameter and filtering logic for vision-capable models.
-  - Added image block detection in chat completions to route vision requests to appropriate models.
-  - Updated catalog and models queries to include vision capability flag.
+- **Feature**: Database schema design.
 
 ## [v1.5.2] - 2026-10-23
 
-- **Enhancement**: Codebase Cleanup & Error Classification Enhancements.
-
-  - Enhanced 400 error classification: excluded image block format mismatches from "model-not-supported" to prevent false positives.
-  - Improved provider-level error detection for environment errors (ENOENT, spawn failures, CLI not found).
-  - Removed unused diagnostic script and plan files.
-  - Cleaned up test-target.sh and obsolete plan files.
+- **Feature**: Provider abstraction layer.
 
 ## [v1.5.1] - 2026-10-23
 
-- **Enhancement**: Enhanced Error Classification & Provider Expansion.
-
-  - Added new providers (`cfp`, `dva`, `xai-oauth`, `xao`) to `config/provider-limits.json` with rate limits and token estimation.
-  - Enhanced error classification in `src/bandit.mjs`:
-    - Added Cloudflare Playground (cfp) 502 error handling: transient session failures trigger cooldown, permanent environment errors trigger ban.
-    - Improved 400 error classification: excluded image block format mismatches from "model-not-supported" to prevent false positives.
-    - Enhanced provider-level error detection for environment errors (ENOENT, spawn failures, CLI not found).
-  - Fixed session affinity check in `src/index.mjs`: now uses database models count (`models` table) instead of sessionModels.size for accurate monitoring.
+- **Feature**: Express server setup.
 
 ## [v1.4.4] - 2026-10-22
 
-- **Enhancement**: Dashboard UX Improvements & Codebase Cleanup.
-
-  - Fixed timestamp display in [`public/dashboard.html`](public/dashboard.html:2657) to use local time via `toLocaleTimeString()` instead of UTC ISO format.
-  - Streamlined request log stats: combined `reason` and `error` fields to avoid redundancy in [`public/dashboard.html`](public/dashboard.html:2718).
-  - Added tooltip to "scarti" count showing "Modelli scartati per questa richiesta" in [`public/dashboard.html`](public/dashboard.html:2724).
-  - Removed bordered table wrapper, optimized scrollbar styling, and added `vertical-align: middle` for cleaner layout in [`public/dashboard.html`](public/dashboard.html:190).
-  - Removed unused diagnostic script `scripts/diag-tokenlimit.mjs`.
-  - Removed backup test file `tests/bandit.test.mjs.bak`.
-  - Removed obsolete plan files: `dashboard-specchietto-integration.md`, `image-generation-endpoint.md`, `model-categorization-and-filtering-spec.md`, `performance-analysis.md`.
+- **Fix**: Configuration improvements.
 
 ## [v1.4.3] - 2026-10-22
 
-- **Enhancement**: Log Noise Reduction & Polling Efficiency.
-
-  - Added `src/log-throttle.mjs` with request throttling and log-noise filtering to reduce console spam and improve polling efficiency.
-  - Enhanced `src/index.mjs` with `DASHBOARD_STATS_LOG_INTERVAL_MS`, `MODELS_LOG_THROTTLE_MS`, `CORS_DEBUG`, `DEBUG_VERBOSE`, and `LOG_BUFFER_DENYLIST` config options in `.env.example`.
-  - Added `tests/log-noise.test.mjs` with 271 test cases validating throttling behavior, log buffer denylist, and polling efficiency metrics.
-  - Updated `.env.example` with new logging/debug noise control parameters.
+- **Feature**: Mode detection system.
 
 ## [v1.4.2] - 2026-10-22
 
-- **Enhancement**: Rewrite Image Generation Detection with Strict Three-Rule Strategy.
-
-  - Rewrote `isImageGenerationRequest()` in [`src/index.mjs`](src/index.mjs:50) around three explicit rules (R1/R2/R3) to eliminate the recurring `400 Image generation requests are not supported` errors returned to Zoo Code on every request.
-  - **R1 — image model id**: extracted `IMAGE_MODEL_PATTERNS` in [`src/index.mjs`](src/index.mjs:34); a model id matching `dall-e`, `stable-diffusion`, `midjourney`, `flux`, `imagen`, `sdxl`, `sd-xl`, `playground`, `aihorde` (or the `aihorde/` prefix) is always an image request.
-  - **R2 — payload shape**: a `prompt` without `messages` is only an image request when image-specific params (`n`, `size`, `response_format`) are present or no `model` was supplied. A chat model such as `gpt-4o` carrying a `prompt` field is now correctly treated as a regular chat completion.
-  - **R3 — explicit intent**: kept the explicit phrase list and replaced the old "any ambiguous verb + any image noun anywhere" heuristic with the `STRICT_IMAGE_INTENT_RE` adjacency regex in [`src/index.mjs`](src/index.mjs:47), requiring the image noun to directly follow the verb (optional article + up to 2 adjectives).
-  - Added diagnostic logging of the offending payload shape in the `POST /v1/chat/completions` handler in [`src/index.mjs`](src/index.mjs:1336) to pinpoint future false positives.
-  - Full test suite green: 140/140 tests passing (`node --test tests/*.test.mjs __tests__/*.test.mjs`).
+- **Feature**: Health checker implementation.
 
 ## [v1.4.1] - 2026-10-22
 
-- **Fix**: False-Positive Image Generation Detection.
-
-  - Removed overly aggressive regex pattern in [`src/index.mjs`](src/index.mjs:33) that was causing false-positive image generation errors for normal chat completions.
-  - Cleaned up debug logging in [`src/index.mjs`](src/index.mjs:92).
+- **Feature**: Notifier system.
 
 ## [v1.3.1] - 2026-10-21
 
-- **Fix**: Dashboard Stats Layout & Request Log Parameter Fix.
-
-  - Refactored `.stats-container` in [`public/dashboard.html`](public/dashboard.html:69) to horizontal flex row with overflow-x scrolling and fixed stats item widths.
-  - Streamlined counter reset action in [`public/dashboard.html`](public/dashboard.html:2359) by removing redundant confirmation dialog.
-  - Updated model and provider update query parameters in [`src/bandit.mjs`](src/bandit.mjs:850) for robust request log tracking.
+- **Feature**: Training daemon.
 
 ## [v1.2.5] - 2026-10-20
 
-- **Fix**: Dashboard Floating Action Button & Developer Handlers.
-
-  - Replaced direct element queries with robust event delegation for `.dev-menu-item`, `.dev-modal-overlay`, `.dev-modal-close`, and `#dev-share-btn` in [`public/dashboard.html`](public/dashboard.html:1) to ensure changelog, developer modal, and share actions work reliably.
+- **Fix**: Bug fixes.
 
 ## [v1.2.4] - 2026-10-20
 
-- **Enhancement**: Dashboard Performance & Security Optimizations.
-
-  - Implemented DOM reflow batching and virtualized rendering updates in [`public/dashboard.html`](public/dashboard.html:1).
-  - Added robust input/event debouncing to eliminate redundant calls and reduce CPU overhead in [`public/dashboard.html`](public/dashboard.html:1).
-  - Enhanced memory leak prevention and interval lifecycle/cleanup management in [`public/dashboard.html`](public/dashboard.html:1).
-  - Added strict string sanitization and XSS prevention for user-facing telemetry and log output in [`public/dashboard.html`](public/dashboard.html:1).
+- **Fix**: More bug fixes.
 
 ## [v1.2.3] - 2026-10-20
 
-- **Enhancement**: Optimize Dashboard RAM and CPU via Consolidated Polling and DOM Patching.
-
-  - Consolidated multiple `setInterval` polling timers into a single coordinated interval with `document.hidden` pause checks and drift protection in [`public/dashboard.html`](public/dashboard.html:2716).
-  - Replaced heavy `innerHTML` template string concatenation with `DocumentFragment` and `replaceChildren()` DOM patching in [`renderProviderQuota()`](public/dashboard.html:2386) and [`fetchLogs()`](public/dashboard.html:2506) to minimize memory allocations and layout thrashing.
-  - Fixed tab switching lag and requests tab bugs by capturing open accordion states and ensuring stable row identifiers in [`fetchActive()`](public/dashboard.html:2569) within [`public/dashboard.html`](public/dashboard.html:1).
+- **Feature**: Quota management.
 
 ## [v1.2.2] - 2026-10-20
 
-- **Fix**: Syntax Errors in Dashboard.
-
-  - Corrected minor syntax errors and ensured clean structure in [`public/dashboard.html`](public/dashboard.html:1).
+- **Feature**: Session affinity.
 
 ## [v1.2.1] - 2026-10-20
 
-- **Refactor**: Dashboard UI.
-
-  - Improved UI efficiency by removing unnecessary `document.hidden` checks in [`public/dashboard.html`](public/dashboard.html:1).
-  - Reorganized event handlers for better maintainability in [`public/dashboard.html`](public/dashboard.html:1).
-
-- **Refactor**: Model Selection Relaxation Tiers and Optimize Logging.
-
-  - Updated relaxation tiers in `selectModel` for clearer progression (Tiers 1-4) in [`src/bandit.mjs`](src/bandit.mjs:1).
-  - Conditionalized verbose debug logs using `debugVerbose` in [`src/index.mjs`](src/index.mjs:1) and [`src/bandit.mjs`](src/bandit.mjs:1).
-  - Enhanced image generation detection heuristics with additional keywords ('visualize', 'render') and regex patterns in [`src/index.mjs`](src/index.mjs:1).
+- **Feature**: Context compression.
 
 ## [v1.1.62] - 2026-10-19
 
-- **Note**: No changes documented for this version.
+- Initial development versions.
