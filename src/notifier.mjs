@@ -19,9 +19,37 @@ export class Notifier {
 
     this._lastSent = new Map();
     this.stats = { sent: 0, throttled: 0, errors: 0 };
+    this._cleanupInterval = null;
+    this._lastCleanup = Date.now();
 
     if (this.enabled) {
       console.log(`[NOTIFIER] Attivo su ${this.urls.length} webhook (throttle ${this.throttleMs / 1000}s)`);
+      this._startCleanupInterval();
+    }
+  }
+
+  _startCleanupInterval() {
+    // Clean up _lastSent entries older than 2x throttle window every 5 minutes
+    this._cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      const maxAge = this.throttleMs * 2;
+      let cleaned = 0;
+      for (const [key, timestamp] of this._lastSent.entries()) {
+        if (now - timestamp > maxAge) {
+          this._lastSent.delete(key);
+          cleaned++;
+        }
+      }
+      if (cleaned > 0) {
+        console.log(`[NOTIFIER] Cleaned ${cleaned} expired throttle entries`);
+      }
+    }, 5 * 60 * 1000).unref();
+  }
+
+  _stopCleanupInterval() {
+    if (this._cleanupInterval) {
+      clearInterval(this._cleanupInterval);
+      this._cleanupInterval = null;
     }
   }
 

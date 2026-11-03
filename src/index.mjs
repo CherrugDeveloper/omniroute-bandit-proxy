@@ -898,6 +898,11 @@ function createLogEntry(message) {
   return Object.freeze({ timestamp, source, type, provider, status, message, is_paid, active, activeSec, elapsedSec, color });
 }
 
+// Module-scoped state for log grouping (replaces global variables to avoid memory leaks)
+let _lastLogMessage = null;
+let _lastLogTime = 0;
+let _logMessageCount = 0;
+
 function pushLog(message) {
    // R6: ring-buffer denylist — low-value polling/debug noise is kept on the
    // terminal but excluded from the ring buffer (unless LOG_BUFFER_DENYLIST overrides).
@@ -907,29 +912,29 @@ function pushLog(message) {
    }
    // Event grouping: if the same message repeats within 5 seconds, increment counter instead of new log entry
    const now = Date.now();
-   if (global.lastLogMessage === message && global.lastLogTime && (now - global.lastLogTime) < 5000) {
+   if (_lastLogMessage === message && _lastLogTime && (now - _lastLogTime) < 5000) {
       // Same message within 5 seconds, increment counter
-      global.logMessageCount++;
+      _logMessageCount++;
       // Update the last entry in logBuffer to show the count, but keep immutable history: append new grouped entry
-      const groupedMessage = `${message} (x${global.logMessageCount + 1})`;
+      const groupedMessage = `${message} (x${_logMessageCount + 1})`;
       logBuffer.push(createLogEntry(groupedMessage));
    } else {
       // New message or timeout exceeded, reset counter and log normally
-      if (global.logMessageCount > 0) {
+      if (_logMessageCount > 0) {
         // If we had a grouped message, add it with its final count
-        const groupedMessage = `${global.lastLogMessage} (x${global.logMessageCount + 1})`;
+        const groupedMessage = `${_lastLogMessage} (x${_logMessageCount + 1})`;
         logBuffer.push(createLogEntry(groupedMessage));
       }
-      global.lastLogMessage = message;
-      global.logMessageCount = 0;
-      global.lastLogTime = now;
+      _lastLogMessage = message;
+      _logMessageCount = 0;
+      _lastLogTime = now;
       logBuffer.push(createLogEntry(message));
    }
    // FIFO append with max limit
    if (logBuffer.length > MAX_LOG_ENTRIES) {
        logBuffer.shift();
    }
-}
+ }
 
 // Consolidated request outcome log
 function logSuccess(model, dur, opts = {}) {
