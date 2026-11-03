@@ -1845,6 +1845,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let lastErrorStatus = null;
   let lastErrorBody = null;
   let lastErrorModel = null;
+  let lastErrorCategory = null;
   while (++attempt <= maxAttempts) {
     if (attempt >= maxAttempts) {
       retriesExhausted = true;
@@ -2237,10 +2238,6 @@ trackRequestUpdate(requestId, {
     });
     const start = Date.now();
     controller = new AbortController();
-    let lastErrorStatus = null;
-    let lastErrorBody = null;
-    let lastErrorModel = null;
-    let lastErrorCategory = null;
 
     timeoutHandle = setTimeout(() => {
       console.warn(`[TIMEOUT] ${model} superato timeout (${upstreamTimeoutMs}ms)`);

@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.14.5 (2026-11-03)**: Auto-git workflow execution and documentation updates.
+> **v1.14.6 (2026-11-03)**: Auto-git workflow execution and documentation updates.
 
 ## Panoramica
 
@@ -346,9 +346,9 @@ MIT - vedi [`LICENSE`](LICENSE).
 
 Le modifiche recenti sono documentate in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.14.5** - Repository cleanup and workflow automation
+- **v1.14.4** - Exponential backoff for 5xx/SSE errors and emergency relaxation
 - **v1.14.3** - Emergency relaxation and fallback chain improvements
 - **v1.14.2** - Optimized bandit error classification and fallback logic
 - **v1.14.1** - Dashboard dynamic providers/models calculation
 - **v1.14.0** - Refined 402/5xx handling in bandit and improved status filtering
-- **v1.13.13** - Error classification and punishment system refinements
-- **v1.13.12** - Updated dashboard log color mapping
