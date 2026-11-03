@@ -1143,8 +1143,12 @@
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
             <strong style="font-size:11px; color:#58a6ff;">Cronologia Unificata</strong>
             <button id="copy-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia tutto">📋 Copia tutto</button>
+            <label style="font-size:11px; color:#8b949e; cursor:pointer; user-select:none; display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="unified-show-selection-history" checked style="width:14px; height:14px; accent-color:#58a6ff;">
+                Mostra cronologia selezione
+            </label>
         </div>
-        <div style="height: 84px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px;">
+        <div style="height: 280px; overflow-y: auto; scrollbar-width: thin; border: 1px solid #30363d; border-radius: 4px;">
             <table id="unified-table" style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
@@ -3617,6 +3621,9 @@
                 const tbody = document.getElementById('unified-cronologia-tbody');
                 if (!tbody) return;
 
+                // Check if selection history expansion is enabled
+                const showSelectionHistory = document.getElementById('unified-show-selection-history')?.checked ?? true;
+
                 function fmtRow(r, kind) {
                     const ts = r.timestamp || r.endedAt || Date.now();
                     const dObj = new Date(ts);
@@ -3820,6 +3827,74 @@
                     </tr>`;
                 }
 
+                // New function to format selection history entries as rows
+                function fmtSelectionHistoryRow(entry, requestTimestamp, requestIndex, entryIndex) {
+                    // entry has: id, provider, status ('rejected'|'selected'), reason, countermeasure, tier, N, sum_reward, avg_reward, avg_latency, score
+                    const ts = requestTimestamp || Date.now();
+                    const dObj = new Date(ts);
+                    const timeStr = dObj.toLocaleTimeString();
+                    
+                    const model = entry.id || '(unknown)';
+                    const provider = entry.provider || '-';
+                    
+                    let statusLabel = '';
+                    let statusColor = '#c9d1d9';
+                    if (entry.status === 'selected') {
+                        statusLabel = 'Selected ✅';
+                        statusColor = '#3fb950';
+                    } else if (entry.status === 'rejected') {
+                        statusLabel = 'Rejected ❌';
+                        statusColor = '#f85149';
+                    } else {
+                        statusLabel = entry.status;
+                    }
+
+                    // Use entry.countermeasure or determine from reason
+                    let countermeasure = entry.countermeasure || '';
+                    if (!countermeasure && entry.reason) {
+                        if (entry.reason.includes('429') || entry.reason.includes('rate') || entry.reason.includes('timeout')) {
+                            countermeasure = 'cooldown-provider';
+                        } else if (entry.reason.includes('400') || entry.reason.includes('context') || entry.reason.includes('length')) {
+                            countermeasure = 'ban-model';
+                        } else if (entry.reason.includes('503') || entry.reason.includes('overload')) {
+                            countermeasure = 'cooldown-model';
+                        } else if (entry.reason.includes('401') || entry.reason.includes('403')) {
+                            countermeasure = 'ban-provider';
+                        } else if (entry.reason.includes('410') || entry.reason.includes('gone')) {
+                            countermeasure = 'ban-model';
+                        }
+                    }
+
+                    let statsParts = [];
+                    if (entry.tier) statsParts.push(`tier: ${entry.tier}`);
+                    if (entry.N != null) statsParts.push(`N=${entry.N}`);
+                    if (entry.avg_reward != null) statsParts.push(`avg_reward=${Number(entry.avg_reward).toFixed(3)}`);
+                    if (entry.avg_latency != null) statsParts.push(`${entry.avg_latency}ms`);
+                    if (entry.score != null) statsParts.push(`score=${Number(entry.score).toFixed(4)}`);
+                    if (entry.reason) statsParts.push(`reason: ${entry.reason}`);
+                    
+                    const statsStr = statsParts.join(' | ') || '-';
+                    const truncatedStats = statsStr.length > 200 ? statsStr.substring(0, 200) + '...' : statsStr;
+
+                    const errorTypeDisplay = entry.countermeasure ? `counter: ${entry.countermeasure}` : (entry.reason ? `reason: ${entry.reason}` : '');
+                    const countermeasureDisplay = countermeasure || '';
+
+                    // Add visual indicator for selection history rows (slightly different style)
+                    const rowStyle = entry.status === 'selected'
+                        ? 'background: rgba(63, 185, 80, 0.08);'
+                        : 'background: rgba(248, 81, 73, 0.05);';
+
+                    return `<tr style="border-bottom: 1px solid #21262d; ${rowStyle}">
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeStr}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px;">${escapeHtml(model)}</td>
+                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(errorTypeDisplay)}">${escapeHtml(errorTypeDisplay) || '-'}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay) || '-'}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #c9d1d9; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(truncatedStats)}">${escapeHtml(truncatedStats)}</td>
+                    </tr>`;
+                }
+
                 const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
                 const showTrain = document.getElementById('log-show-train')?.checked ?? true;
                 const filterSrc = (arr) => (arr || []).filter(item => {
@@ -3828,21 +3903,62 @@
                     return true;
                 });
 
-                // Combine active + recent events, sort by timestamp descending (newest first)
-                const allEvents = [
-                    ...filterSrc(d.requests).map(r => ({ ...r, kind: 'active' })),
-                    ...filterSrc(d.recent).slice(-10).map(r => ({ ...r, kind: 'recent' }))
-                ];
-                allEvents.sort((a, b) => {
-                    const ta = a.timestamp || a.endedAt || Date.now();
-                    const tb = b.timestamp || b.endedAt || Date.now();
-                    return tb - ta; // newest first
-                });
+                // Build all rows: active requests, recent requests, and expanded selection history
+                const allRows = [];
 
-                const allHtml = allEvents.map(r => fmtRow(r, r.kind)).join('');
+                // Process active requests
+                const activeRequests = filterSrc(d.requests);
+                for (const req of activeRequests) {
+                    // Add the main request row
+                    allRows.push({
+                        html: fmtRow({ ...req, kind: 'active' }, 'active'),
+                        timestamp: req.timestamp || req.endedAt || Date.now(),
+                        isSelectionHistory: false
+                    });
+
+                    // If selection history expansion is enabled, add each entry as a separate row
+                    if (showSelectionHistory && req.selectionHistory && req.selectionHistory.length > 0) {
+                        for (let i = 0; i < req.selectionHistory.length; i++) {
+                            const entry = req.selectionHistory[i];
+                            allRows.push({
+                                html: fmtSelectionHistoryRow(entry, req.timestamp || req.endedAt || Date.now(), 'active', i),
+                                timestamp: req.timestamp || req.endedAt || Date.now() + i * 0.001, // slight offset to preserve order
+                                isSelectionHistory: true
+                            });
+                        }
+                    }
+                }
+
+                // Process recent requests (last 10)
+                const recentRequests = filterSrc(d.recent).slice(-10);
+                for (const req of recentRequests) {
+                    // Add the main request row
+                    allRows.push({
+                        html: fmtRow({ ...req, kind: 'recent' }, 'recent'),
+                        timestamp: req.timestamp || req.endedAt || Date.now(),
+                        isSelectionHistory: false
+                    });
+
+                    // If selection history expansion is enabled, add each entry as a separate row
+                    if (showSelectionHistory && req.selectionHistory && req.selectionHistory.length > 0) {
+                        for (let i = 0; i < req.selectionHistory.length; i++) {
+                            const entry = req.selectionHistory[i];
+                            allRows.push({
+                                html: fmtSelectionHistoryRow(entry, req.timestamp || req.endedAt || Date.now(), 'recent', i),
+                                timestamp: req.timestamp || req.endedAt || Date.now() + i * 0.001,
+                                isSelectionHistory: true
+                            });
+                        }
+                    }
+                }
+
+                // Sort all rows by timestamp descending (newest first)
+                allRows.sort((a, b) => b.timestamp - a.timestamp);
+
+                const allHtml = allRows.map(r => r.html).join('');
 
                 tbody.innerHTML = allHtml;
-                console.debug('[DEBUG Dashboard] fetchActive table updated, total events:', allEvents.length);
+                console.debug('[DEBUG Dashboard] fetchActive table updated, total rows:', allRows.length, '(selection history:', allRows.filter(r => r.isSelectionHistory).length, ')');
             } catch (e) {
                 console.error('[DEBUG Dashboard] fetchActive error:', e);
             }
@@ -3854,7 +3970,7 @@
             if (!tbody) return;
             let text = '';
             // header
-            const headers = ['Timestamp','Provider','Model','Status','Reason / Stats'];
+            const headers = ['Timestamp','Provider','Model','Status','Error Type','Countermeasure','Reason / Stats'];
             text += headers.join('\t') + '\n';
             // rows
             const rows = tbody.querySelectorAll('tr');
@@ -3904,6 +4020,11 @@
             if (!confirm('Sei sicuro di voler resettare tutti i provider? Questa azione reimpostera stato cooldown e ban per tutti i provider.')) return;
             await apiFetch('/v1/reset/provider', { method: 'POST' });
             refreshAll();
+        });
+
+        // Event listener for selection history checkbox
+        document.getElementById('unified-show-selection-history')?.addEventListener('change', () => {
+            fetchActive();
         });
 
         // refreshAll(); // Moved to DOMContentLoaded

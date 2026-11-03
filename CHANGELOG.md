@@ -1,3 +1,20 @@
+## [v1.14.6] - 2026-11-03
+
+### Feat
+- **Dashboard**: Enhanced Unified Chronology panel with per-model selection history
+  - Each model considered during bandit selection now occupies its own row with timestamp, provider, model, status, error type, countermeasure, and reason
+  - Increased table height from 84px to 280px with scrollbar to remove empty space below
+  - Added "Mostra cronologia selezione" checkbox to toggle selection history display
+  - Real-time active model info shows duration (e.g., "🟢 ATTIVO 12.3s") with green background
+  - Historical rows show discarded models with rejection reasons (tier_min_score, health, max_retries, etc.) with red background
+  - Visual indicators: ✅ for selected, ❌ for rejected models
+- **Dashboard**: Updated copy button to include Error Type and Countermeasure columns
+
+### Chore
+- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
+- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
+- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.6` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
+
 ## [v1.14.5] - 2026-11-03
 
 ### Chore
