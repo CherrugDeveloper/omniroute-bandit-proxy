@@ -1127,11 +1127,11 @@
                 </div>
                 <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
-                        <span>Provider non attivi </span><span id="non-active-providers-count" style="font-weight:600; color:#58a6ff;"></span>
+                        <span>Provider in salute </span><span id="healthy-providers-pct" style="font-weight:600; color:#58a6ff;"></span>
                     </div>
                     <div id="healthy-providers-content" style="font-size:11px; color:#8b949e;"></div>
                     <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-top:4px; margin-bottom:2px;">
-                        <span>Modelli non operativi </span><span id="non-operational-models-count" style="font-weight:600; color:#58a6ff;"></span>
+                        <span>Modelli operativi </span><span id="operational-models-pct" style="font-weight:600; color:#58a6ff;"></span>
                     </div>
                     <div id="operational-models-content" style="font-size:11px; color:#8b949e;"></div>
                 </div>
@@ -3150,27 +3150,33 @@
                 const operationalModelsPct = totalModels > 0 ? ((activeModels / totalModels) * 100).toFixed(1) : '—';
 
                 // Update main dashboard elements
-                const nonActiveProvidersEl = document.getElementById('non-active-providers-count');
-                if (nonActiveProvidersEl) {
-                    const nonActiveProviders = totalProviders - activeProviders;
-                    nonActiveProvidersEl.textContent = nonActiveProviders;
+                const healthyProvidersEl = document.getElementById('healthy-providers-pct');
+                if (healthyProvidersEl) {
+                    healthyProvidersEl.textContent = healthyProvidersPct !== '—' ? healthyProvidersPct + '%' : '—';
+                    if (healthyProvidersPct !== '—') {
+                        const pct = parseFloat(healthyProvidersPct);
+                        healthyProvidersEl.style.color = pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149';
+                    }
                 }
 
-                const nonOperationalModelsEl = document.getElementById('non-operational-models-count');
-                if (nonOperationalModelsEl) {
-                    const nonOperationalModels = totalModels - activeModels;
-                    nonOperationalModelsEl.textContent = nonOperationalModels;
+                const operationalModelsEl = document.getElementById('operational-models-pct');
+                if (operationalModelsEl) {
+                    operationalModelsEl.textContent = operationalModelsPct !== '—' ? operationalModelsPct + '%' : '—';
+                    if (operationalModelsPct !== '—') {
+                        const pct = parseFloat(operationalModelsPct);
+                        operationalModelsEl.style.color = pct >= 80 ? '#3fb950' : pct >= 50 ? '#d29922' : '#f85149';
+                    }
                 }
 
                 // Update detail content in main dashboard
                 const healthyContentEl = document.getElementById('healthy-providers-content');
                 if (healthyContentEl) {
-                    healthyContentEl.textContent = `${activeProviders} / ${totalProviders} provider attivi`;
+                    healthyContentEl.textContent = `${totalProviders - activeProviders} / ${totalProviders} provider non attivi`;
                 }
 
                 const operationalContentEl = document.getElementById('operational-models-content');
                 if (operationalContentEl) {
-                    operationalContentEl.textContent = `${activeModels} / ${totalModels} modelli attivi`;
+                    operationalContentEl.textContent = `${totalModels - activeModels} / ${totalModels} modelli non operativi`;
                 }
 
                 // Update provider tab elements
