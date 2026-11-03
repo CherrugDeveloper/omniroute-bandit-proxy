@@ -1315,9 +1315,9 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000 };
     }
 
-    // 5xx -> cooldown-model (non provider)
-    if (status >= 500 && status < 600) {
-      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 30000 };
+    // 5xx / Stream Errors / Keepalive -> cooldown-model (transient, short cooldown)
+    if (status >= 500 && status < 600 || /keepalive|chunk|stream|connection/i.test(message)) {
+      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 15000 };
     }
 
     // 402 insufficient funds / billing error -> cooldown-provider (quota-exhausted)
@@ -2050,7 +2050,7 @@ export class DiscountedUCB1Bandit {
     }
   }
 
-  isModelAvailable(modelId, estimatedTokens = 0, requireImageGeneration = false) {
+  isModelAvailable(modelId, estimatedTokens = 0, requireImageGeneration = false, bypassCooldown = false) {
     const now = Date.now();
     const sanitizedModelId = this._sanitizeModelId(modelId);
     // Optimization: Use a single query to fetch model and catalog data
@@ -2085,7 +2085,7 @@ export class DiscountedUCB1Bandit {
 
     const provider = model?.provider || catModel?.provider;
 
-    if (model && model.cooldown_until !== undefined) { // Check if it's from models table
+    if (!bypassCooldown && model && model.cooldown_until !== undefined) { // Check if it's from models table
       if (model.permanent === 1 || model.degraded === 1) return false;
       if (model.cooldown_until && model.cooldown_until > now) return false;
     }
@@ -2097,7 +2097,7 @@ export class DiscountedUCB1Bandit {
 
       if (prov) {
         if (prov.permanent === 1) return false;
-        if (prov.cooldown_until && prov.cooldown_until > now) return false;
+        if (!bypassCooldown && prov.cooldown_until && prov.cooldown_until > now) return false;
         if (prov.quota_resets_at && prov.quota_resets_at > now) return false;
         if (prov.needs_attention === 1) {
           // Auto-reset if cooldown expired OR cooldown is 0 (already cleared)
@@ -2109,7 +2109,7 @@ export class DiscountedUCB1Bandit {
         }
       }
 
-      if (!this.quota.canCall(provider)) {
+      if (!bypassCooldown && !this.quota.canCall(provider)) {
         return false;
       }
     }
@@ -2530,7 +2530,8 @@ export class DiscountedUCB1Bandit {
     // not cooldowns. They should be respected even in emergency mode.
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: true, ignoreDegraded: true, ignoreTokenLimit: true, ignoreDynamicMaxTokens: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true, ignoreNonChat: true });
+      // Relax cooldowns, but respect permanent bans and degraded models
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: false, ignoreDegraded: false, ignoreTokenLimit: true, ignoreDynamicMaxTokens: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true, ignoreNonChat: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
@@ -2556,7 +2557,7 @@ export class DiscountedUCB1Bandit {
               return false;
             }
             return !isNonChat;
-          }).filter(m => m && m.id && (!m.cooldown_until || m.cooldown_until <= now));
+          }); // Don't filter by cooldown in absolute last resort - emergency already tried
     }
 
     if (availableModels.length === 0) {

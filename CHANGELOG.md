@@ -1,3 +1,22 @@
+## [v1.14.2] - 2026-11-03
+
+### Fix
+- **Bandit**: Improved error classification for stream/keepalive/connection errors in `_classifyError()`
+  - Extended 5xx handling to include stream/chunk/keepalive/connection related errors (via message matching)
+  - Reduced cooldown from 30s to 15s for transient stream/server errors
+  - All changes in [src/bandit.mjs](src/bandit.mjs:1315-1324)
+
+- **Bandit**: Added `bypassCooldown` parameter to `isModelAvailable()` for fallback chain reliability
+  - Fallback chain now bypasses cooldown checks while respecting permanent bans and degraded models
+  - Emergency relaxation preserves `ignorePermanent: false` and `ignoreDegraded: false` to avoid routing to broken models
+  - Absolute last resort no longer filters by cooldown since emergency mode already attempted
+  - All changes in [src/bandit.mjs](src/bandit.mjs:2050-2110) and [src/index.mjs](src/index.mjs:1860-2095)
+
+### Chore
+- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
+- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
+- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.2` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
+
 ## [v1.14.1] - 2026-11-03
 
 ### Feat

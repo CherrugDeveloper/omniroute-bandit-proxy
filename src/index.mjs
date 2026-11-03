@@ -1860,7 +1860,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const fallbackModels = bandit.getFallbackModels();
       if (fallbackModels.length > 0) {
         const fallbackModel = fallbackModels[0];
-          if (fallbackTried.has(fallbackModel) || !bandit.isModelAvailable(fallbackModel)) {
+          if (fallbackTried.has(fallbackModel) || !bandit.isModelAvailable(fallbackModel, 0, false, true)) {
             console.error(`[FALLBACK] ${fallbackModel} non disponibile o già tentato → 503`);
             trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available", model });
             cleanup();
@@ -2048,8 +2048,8 @@ trackRequestUpdate(requestId, {
             continue;
           }
 
-          // Check if model is available (passing estimatedTokens for token capacity check)
-          if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) {
+          // Check if model is available (passing estimatedTokens for token capacity check, bypassCooldown=true)
+          if (!bandit.isModelAvailable(fallbackModel, estimatedTokens, false, true)) {
             console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: not available in catalog/status or exceeds token limit`);
             continue;
           }
@@ -2090,7 +2090,7 @@ trackRequestUpdate(requestId, {
           console.log(`[FALLBACK] Pass 2: Relaxing tool requirement for fallback models (requireTools=true)`);
           for (const fallbackModel of fallbackModels) {
             if (fallbackTried.has(fallbackModel)) continue;
-            if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) continue;
+            if (!bandit.isModelAvailable(fallbackModel, estimatedTokens, false, true)) continue;
 
             const modelInfoCap = bandit.db.prepare(
               `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`

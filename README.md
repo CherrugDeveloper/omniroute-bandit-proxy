@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.13.11 (2026-11-02)**: Auto-git workflow execution and documentation updates.
+> **v1.14.2 (2026-11-03)**: Auto-git workflow execution and documentation updates.
 
 ## Panoramica
 
@@ -318,12 +318,6 @@ File di deployment verificati:
 
 Dashboard UI: [`public/dashboard.html`](public/dashboard.html) single-file con 6 tab, live logs, metriche, modelli, modalità, ecc. Icone in [`public/icons/`](public/icons/).
 
-Cleanup audit 2026-10-26:
-
-- No superfluous files found
-- Plans directory already removed
-- .gitignore validation issue: bandit_state.db tracked despite *.db ignore pattern
-
 ### 17. Licenza
 
 MIT - vedi [`LICENSE`](LICENSE).
@@ -352,8 +346,8 @@ MIT - vedi [`LICENSE`](LICENSE).
 
 Le modifiche recenti sono documentate in [CHANGELOG.md](CHANGELOG.md).
 
-- **v1.13.11** - Auto-git workflow execution and documentation updates
-- **v1.13.10** - Auto-git workflow execution
-- **v1.13.9** - Automated version bump
-- **v1.13.8** - Merged Training Status metrics into Top model card, removed standalone panel
-- **v1.13.7** - Documentation and version update
+- **v1.14.2** - Optimized bandit error classification and fallback logic
+- **v1.14.1** - Dashboard dynamic providers/models calculation
+- **v1.14.0** - Refined 402/5xx handling in bandit and improved status filtering
+- **v1.13.13** - Error classification and punishment system refinements
+- **v1.13.12** - Updated dashboard log color mapping
