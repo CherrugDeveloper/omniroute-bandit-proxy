@@ -2420,7 +2420,7 @@ trackRequestUpdate(requestId, {
         let streamStarted = true;
         let firstChunk = false;
         let accumulated = firstChunkText;
-        res.write(firstChunkText);
+        await safeWrite(firstChunkText);
         hardCapTimer = setTimeout(() => {
           console.error(`[TIMEOUT] ${model}: stream superato hard cap ${STREAM_MAX_MS/1000}s → abort`);
           console.error(`[HARDCAP] timer fired, controller.signal.aborted=${controller?.signal?.aborted}, STREAM_MAX_MS=${STREAM_MAX_MS}`);
@@ -2456,6 +2456,41 @@ trackRequestUpdate(requestId, {
         };
         resetIdle();
 
+        // Helper to safely write to response and detect client disconnect
+        const safeWrite = (data) => {
+          if (clientDisconnected || res.writableEnded) {
+            throw new Error('client-disconnected');
+          }
+          const ok = res.write(data);
+          if (!ok) {
+            // Buffer full, wait for drain
+            return new Promise((resolve, reject) => {
+              const onDrain = () => {
+                res.off('drain', onDrain);
+                res.off('error', onError);
+                res.off('close', onClose);
+                resolve(true);
+              };
+              const onError = (err) => {
+                res.off('drain', onDrain);
+                res.off('error', onError);
+                res.off('close', onClose);
+                reject(err);
+              };
+              const onClose = () => {
+                res.off('drain', onDrain);
+                res.off('error', onError);
+                res.off('close', onClose);
+                reject(new Error('client-disconnected'));
+              };
+              res.once('drain', onDrain);
+              res.once('error', onError);
+              res.once('close', onClose);
+            });
+          }
+          return Promise.resolve(true);
+        };
+
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -2473,13 +2508,13 @@ trackRequestUpdate(requestId, {
               if (firstChunk && (chunk.includes('"error"') || chunk.includes('"code"'))) {
                 streamFailed = true;
                 console.error(`[STREAM ERR] ${model}: ${chunk.substring(0, 200)}`);
-                res.write(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`);
+                await safeWrite(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`);
                 break;
               }
               firstChunk = false;
               streamStarted = true;
               accumulated += chunk;
-              res.write(chunk);
+              await safeWrite(chunk);
             }
           }
           if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
@@ -2515,8 +2550,8 @@ trackRequestUpdate(requestId, {
                 // Header già inviati: NON possiamo cambiare modello.
                 // Chiudiamo lo stream con un errore e usciamo.
                 try {
-                  res.write(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + displayMsg } })}\n\n`);
-                  res.write(`data: [DONE]\n\n`);
+                  await safeWrite(`data: ${JSON.stringify({ error: { message: "Stream invalid: " + displayMsg } })}\n\n`);
+                  await safeWrite(`data: [DONE]\n\n`);
                 } catch (_) {}
                 cleanup();
                 try { res.end(); } catch (_) {}

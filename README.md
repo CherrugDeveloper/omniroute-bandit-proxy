@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-> **v1.14.3 (2026-11-03)**: Auto-git workflow execution and documentation updates.
+> **v1.14.5 (2026-11-03)**: Auto-git workflow execution and documentation updates.
 
 ## Panoramica
 

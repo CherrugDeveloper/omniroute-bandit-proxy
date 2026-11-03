@@ -1,3 +1,10 @@
+## [v1.14.5] - 2026-11-03
+
+### Chore
+- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
+- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
+- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.5` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
+
 ## [v1.14.4] - 2026-11-03
 
 ### Fix
