@@ -1,3 +1,20 @@
+## [v1.14.4] - 2026-11-03
+
+### Fix
+- **Bandit**: Implemented exponential backoff for 5xx/SSE errors
+  - Cooldown formula: `min(15s * 2^fails, 5m)` in [src/bandit.mjs](src/bandit.mjs:1364)
+- **Bandit**: Added null guard for error classification to prevent crashes
+  - Validates `_classifyError()` output in [src/bandit.mjs](src/bandit.mjs:996)
+- **Bandit**: Relaxed emergency mode to improve service continuity
+  - Enabled selection of degraded models via `ignoreDegraded: true` in [src/bandit.mjs](src/bandit.mjs:2601)
+- **Bandit**: Enabled provider-level quota checking in emergency mode
+  - Set `ignoreQuota: false` in emergency `selectModel()` tier in [src/bandit.mjs](src/bandit.mjs:2601)
+
+### Chore
+- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
+- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
+- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.4` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
+
 ## [v1.14.3] - 2026-11-03
 
 ### Fix

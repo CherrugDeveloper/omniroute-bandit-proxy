@@ -994,6 +994,10 @@ export class DiscountedUCB1Bandit {
             if (provider) {
               console.log(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
               const c = this._classifyError(errorDetails, provider);
+              if (!c) {
+                console.error(`[BANDIT-ERROR] Failed to classify error for model=${modelId}, provider=${provider}`);
+                return;
+              }
               console.log(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
               switch (c.action) {
               case "ban-provider":
@@ -1357,9 +1361,14 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000, category: "TRANSIENT" };
     }
 
-    // 5xx / Stream Errors / Keepalive -> cooldown-model (transient, short cooldown)
+    // 5xx / Stream Errors / Keepalive -> cooldown-model (transient, exponential backoff)
     if (status >= 500 && status < 600 || /keepalive|chunk|stream|connection/i.test(message)) {
-      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs: 15000, category: "TRANSIENT" };
+      const modelId = errorDetails.modelId || "";
+      const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
+      const fails = model ? model.fails : 0;
+      // Exponential backoff: base 15s, multiplier 2^fails (capped at 5 mins)
+      const cooldownMs = Math.min(15000 * Math.pow(2, fails), 300000);
+      return { action: "cooldown-model", scope: "model", reason: "server-error", cooldownMs, category: "TRANSIENT" };
     }
 
     // 402 insufficient funds / billing error -> flag-provider
@@ -2585,10 +2594,13 @@ export class DiscountedUCB1Bandit {
     // we can still serve requests even if all providers are in cooldown.
     // Note: We DO NOT ignore dynamic_max_tokens here because they are learned limits from actual 413 errors,
     // not cooldowns. They should be respected even in emergency mode.
+    // We DO respect provider quota exhaustion to prevent selecting exhausted providers.
     if (availableModels.length === 0) {
       console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      // Relax cooldowns, but respect permanent bans and degraded models
-      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: false, ignoreDegraded: false, ignoreTokenLimit: true, ignoreDynamicMaxTokens: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: true, ignoreExcluded: true, ignoreNonChat: true });
+      // Relax cooldowns, but respect permanent bans and provider quota exhaustion
+      // We explicitly ignore degraded status too in emergency to prioritize continuity.
+      // But we do NOT ignore quota exhaustion - we handle it at the provider level.
+      availableModels = filterModels('emergency', { ignoreCooldown: true, ignorePermanent: false, ignoreDegraded: true, ignoreTokenLimit: true, ignoreDynamicMaxTokens: true, ignoreTools: true, ignorePolicies: true, ignoreVision: true, ignoreAttention: true, ignoreQuota: false, ignoreExcluded: true, ignoreNonChat: true });
     }
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
