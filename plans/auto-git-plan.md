@@ -26,10 +26,14 @@ This plan automates the git commit-and-push workflow for the OmniRoute Bandit Pr
   - Delegate to `documentation-writer` to update version and reflect current project state.
 
 ## 4. Staging & Commit
-- [ ] Stage all changes (`git add -A`).
+- [ ] **Stage critical project utilities explicitly** (ensures they are tracked):
+  - `git add rebase-script.sh`
+  - `git add .roo/commands/`
+- [ ] Stage all remaining changes (`git add -A`).
+- [ ] **Verify critical files are staged**: `git status --porcelain | grep -E '(rebase-script\.sh|\.roo/commands/)'`
 - [ ] Generate conventional commit message:
   - `chore(repo): auto-git workflow execution v1.13.14`
-  - Body: Repository cleanup, version bump, and documentation updates.
+  - Body: Repository cleanup, version bump, documentation updates, and project utilities tracking.
 - [ ] Commit changes.
 
 ## 5. History Optimization
