@@ -4,6 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
+User=marco
+Group=marco
 WorkingDirectory=/home/marco/Workspace_vscode/omniroute-bandit-proxy
 ExecStart=/usr/bin/node /home/marco/Workspace_vscode/omniroute-bandit-proxy/src/index.mjs
 Restart=on-failure
