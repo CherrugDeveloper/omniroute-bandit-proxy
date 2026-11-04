@@ -26,6 +26,14 @@ Il formato segue lo standard [Keep a Changelog](https://keepachangelog.com/it/1.
 
 ### Fix
 
+- **Proxy**: Aggiunte verifiche `supports_vision` nei percorsi di fallback model selection [src/index.mjs:2007-2040,2123-2133,2161-2170,2194-2204,2230-2240]
+  - Session affinity pinning: controlla vision support prima di usare model pinnati
+  - Fallback Pass 1: filtra modelli non-vision quando richiesto
+  - Fallback Pass 2: mantiene check vision anche rilasciando i requisiti tool
+  - Fallback Pass 3: check vision nell'emergency tier
+  - Fallback Pass 4: check vision nell'absolute last resort
+  - Aggiornato logging errori per includere flag `requireVision`
+
 - **Dashboard**: Aggiustate dimensioni tabelle Unified Chronology e larghezze colonne
   - Altezza tabella: 110px → 114px con line-height: 1.2 per miglior leggibilità
   - Larghezze colonne: Error Type 8%→12%, Countermeasure 8%→14%, Reason 40%→30%

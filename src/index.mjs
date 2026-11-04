@@ -2002,49 +2002,64 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   }
 
   const pinnedMaxInput = pinnedEntry ? bandit.getModelMaxInput(pinnedEntry.model) : 0;
-  const pinnedTokenCapacityValid = !pinnedEntry || pinnedMaxInput <= 0 || estimatedTokens <= pinnedMaxInput;
-
-  const pinnedValid = pinnedEntry
-    && !excluded.has(pinnedEntry.model)
-    && bandit.isModelAvailable(pinnedEntry.model)
-    && pinnedTokenCapacityValid;
-
-  if (pinnedValid) {
-    model = pinnedEntry.model;
-    pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
-    console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
-  } else {
-    if (pinnedEntry && !pinnedTokenCapacityValid) {
-      console.log(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (token capacity insufficient: tokens=${estimatedTokens} > max=${pinnedMaxInput})`);
-      sessionModels.delete(sessionKey);
-      excluded.add(pinnedEntry.model);
+    const pinnedTokenCapacityValid = !pinnedEntry || pinnedMaxInput <= 0 || estimatedTokens <= pinnedMaxInput;
+  
+    // Check if pinned model supports vision when required (need to verify before using pinned model)
+    let pinnedSupportsVision = true;
+    if (pinnedEntry && requireVision) {
+      const visionInfo = bandit.db.prepare(
+        `SELECT supports_vision FROM catalog WHERE id = ?`
+      ).get(pinnedEntry.model);
+      pinnedSupportsVision = visionInfo && visionInfo.supports_vision === 1;
     }
-    if (requireVision) {
-      console.log(`[VISION] Richiesta con image blocks → solo modelli vision-capable`);
-    }
-    const selResult = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, requireVision, profile, cooledDownThisRequest);
-    model = selResult;
-    if (selResult && bandit.lastSelectionHistory) {
-      allSelectionHistory.push(...bandit.lastSelectionHistory);
-    }
-
-    // FIX: skip models that are in cooldown / banned / failed in this request
-    if (model && !bandit.isModelAvailable(model, estimatedTokens)) {
-      console.log(`[BANDIT] Attempt ${attempt}: Model ${model} not available (cooldown/banned) → exclude and continue`);
-      excluded.add(model);
-      continue;
-    }
-    if (model && sessionKey) {
-      sessionModels.set(sessionKey, { model, ts: Date.now() });
-      if (sessionModels.size > 10000) {
-        const firstKey = sessionModels.keys().next().value;
-        sessionModels.delete(firstKey);
-        sessionBlacklist.delete(firstKey);
+  
+    const pinnedValid = pinnedEntry
+      && !excluded.has(pinnedEntry.model)
+      && bandit.isModelAvailable(pinnedEntry.model)
+      && pinnedTokenCapacityValid
+      && pinnedSupportsVision;
+  
+    if (pinnedValid) {
+      model = pinnedEntry.model;
+      pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
+      console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
+    } else {
+      if (pinnedEntry && requireVision && !pinnedSupportsVision) {
+        console.log(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (vision required but model lacks vision support)`);
+        sessionModels.delete(sessionKey);
+        excluded.add(pinnedEntry.model);
       }
-      console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
+      if (pinnedEntry && !pinnedTokenCapacityValid) {
+        console.log(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (token capacity insufficient: tokens=${estimatedTokens} > max=${pinnedMaxInput})`);
+        sessionModels.delete(sessionKey);
+        excluded.add(pinnedEntry.model);
+      }
+      if (requireVision) {
+        console.log(`[VISION] Richiesta con image blocks → solo modelli vision-capable`);
+      }
+      const selResult = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, requireVision, profile, cooledDownThisRequest);
+      model = selResult;
+      if (selResult && bandit.lastSelectionHistory) {
+        allSelectionHistory.push(...bandit.lastSelectionHistory);
+      }
+  
+      // FIX: skip models that are in cooldown / banned / failed in this request
+      if (model && !bandit.isModelAvailable(model, estimatedTokens)) {
+        console.log(`[BANDIT] Attempt ${attempt}: Model ${model} not available (cooldown/banned) → exclude and continue`);
+        excluded.add(model);
+        continue;
+      }
+      if (model && sessionKey) {
+        sessionModels.set(sessionKey, { model, ts: Date.now() });
+        if (sessionModels.size > 10000) {
+          const firstKey = sessionModels.keys().next().value;
+          sessionModels.delete(firstKey);
+          sessionBlacklist.delete(firstKey);
+        }
+        console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
+      }
     }
   }
-}
 
 // Record started_at AFTER model selection to exclude selection time from latency
 if (model) {
@@ -2064,7 +2079,7 @@ trackRequestUpdate(requestId, {
   sessionKey
 });
     if (!model) {
-      console.warn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, tokens=${estimatedTokens}, excluded=${excluded.size})`);
+      console.warn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, requireVision=${requireVision}, tokens=${estimatedTokens}, excluded=${excluded.size})`);
       try {
         await notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
           estimatedTokens,
@@ -2080,126 +2095,173 @@ trackRequestUpdate(requestId, {
         let selectedFallbackModel = null;
 
         // Pass 1: standard check (available with tokens, tools if required, not image gen, not tried)
-        for (const fallbackModel of fallbackModels) {
-          // Skip if already tried
-          if (fallbackTried.has(fallbackModel)) {
-            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: already tried`);
-            continue;
-          }
-
-          // Check if model is available (passing estimatedTokens for token capacity check, bypassCooldown=true)
-          if (!bandit.isModelAvailable(fallbackModel, estimatedTokens, false, true)) {
-            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: not available in catalog/status or exceeds token limit`);
-            continue;
-          }
-
-          // Check if model supports tools when required
-          if (requireTools) {
-            const modelInfo = bandit.db.prepare(
-              `SELECT supports_tools FROM catalog WHERE id = ?`
-            ).get(fallbackModel);
-
-            if (!modelInfo || modelInfo.supports_tools !== 1) {
-              console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: does not support tools (required)`);
-              continue;
-            }
-          }
-
-          // Check if model supports chat and is not an image/audio/embedding/non-chat model
-          const modelInfoCap = bandit.db.prepare(
-            `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
-          ).get(fallbackModel);
-          const lowerFallbackId = fallbackModel.toLowerCase();
-          const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
-            lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
-            /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
-            /image/i.test(lowerFallbackId);
-          if (isNonChatFallback) {
-            console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: non-chat / image / audio / embedding model`);
-            continue;
-          }
-
-          // Model passes all checks
-          selectedFallbackModel = fallbackModel;
-          break;
-        }
+                for (const fallbackModel of fallbackModels) {
+                  // Skip if already tried
+                  if (fallbackTried.has(fallbackModel)) {
+                    console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: already tried`);
+                    continue;
+                  }
+        
+                  // Check if model is available (passing estimatedTokens for token capacity check, bypassCooldown=true)
+                  if (!bandit.isModelAvailable(fallbackModel, estimatedTokens, false, true)) {
+                    console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: not available in catalog/status or exceeds token limit`);
+                    continue;
+                  }
+        
+                  // Check if model supports tools when required
+                  if (requireTools) {
+                    const modelInfo = bandit.db.prepare(
+                      `SELECT supports_tools FROM catalog WHERE id = ?`
+                    ).get(fallbackModel);
+        
+                    if (!modelInfo || modelInfo.supports_tools !== 1) {
+                      console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: does not support tools (required)`);
+                      continue;
+                    }
+                  }
+        
+                  // Check if model supports vision when required
+                  if (requireVision) {
+                    const modelInfoVision = bandit.db.prepare(
+                      `SELECT supports_vision FROM catalog WHERE id = ?`
+                    ).get(fallbackModel);
+        
+                    if (!modelInfoVision || modelInfoVision.supports_vision !== 1) {
+                      console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: does not support vision (required)`);
+                      continue;
+                    }
+                  }
+        
+                  // Check if model supports chat and is not an image/audio/embedding/non-chat model
+                  const modelInfoCap = bandit.db.prepare(
+                    `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
+                  ).get(fallbackModel);
+                  const lowerFallbackId = fallbackModel.toLowerCase();
+                  const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
+                    lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
+                    /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
+                    /image/i.test(lowerFallbackId);
+                  if (isNonChatFallback) {
+                    console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: non-chat / image / audio / embedding model`);
+                    continue;
+                  }
+        
+                  // Model passes all checks
+                  selectedFallbackModel = fallbackModel;
+                  break;
+                }
 
         // Pass 2: if requireTools=true and Pass 1 found nothing, relax tool requirement for fallback models
-        if (!selectedFallbackModel && requireTools) {
-          console.log(`[FALLBACK] Pass 2: Relaxing tool requirement for fallback models (requireTools=true)`);
-          for (const fallbackModel of fallbackModels) {
-            if (fallbackTried.has(fallbackModel)) continue;
-            if (!bandit.isModelAvailable(fallbackModel, estimatedTokens, false, true)) continue;
-
-            const modelInfoCap = bandit.db.prepare(
-              `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
-            ).get(fallbackModel);
-            const lowerFallbackId = fallbackModel.toLowerCase();
-            const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
-              lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
-              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
-              /image/i.test(lowerFallbackId);
-            if (isNonChatFallback) continue;
-
-            console.warn(`[FALLBACK] Emergency relaxation: bypassing tool requirement for fallback model ${fallbackModel}`);
-            selectedFallbackModel = fallbackModel;
-            break;
-          }
-        }
+                if (!selectedFallbackModel && requireTools) {
+                  console.log(`[FALLBACK] Pass 2: Relaxing tool requirement for fallback models (requireTools=true)`);
+                  for (const fallbackModel of fallbackModels) {
+                    if (fallbackTried.has(fallbackModel)) continue;
+                    if (!bandit.isModelAvailable(fallbackModel, estimatedTokens, false, true)) continue;
+        
+                    // Check if model supports vision when required
+                    if (requireVision) {
+                      const modelInfoVision = bandit.db.prepare(
+                        `SELECT supports_vision FROM catalog WHERE id = ?`
+                      ).get(fallbackModel);
+        
+                      if (!modelInfoVision || modelInfoVision.supports_vision !== 1) {
+                        continue;
+                      }
+                    }
+        
+                    const modelInfoCap = bandit.db.prepare(
+                      `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
+                    ).get(fallbackModel);
+                    const lowerFallbackId = fallbackModel.toLowerCase();
+                    const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
+                      lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
+                      /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
+                      /image/i.test(lowerFallbackId);
+                    if (isNonChatFallback) continue;
+        
+                    console.warn(`[FALLBACK] Emergency relaxation: bypassing tool requirement for fallback model ${fallbackModel}`);
+                    selectedFallbackModel = fallbackModel;
+                    break;
+                  }
+                }
 
         // Pass 3: Final emergency fallback tier across all fallback models (ignoring token limits and tool requirements, but strictly excluding image/non-chat models)
-        if (!selectedFallbackModel) {
-          console.warn(`[FALLBACK] Pass 3: Final emergency fallback tier across all fallback models`);
-          for (const fallbackModel of fallbackModels) {
-            if (fallbackTried.has(fallbackModel)) continue;
-
-            const modelInfoCap = bandit.db.prepare(
-              `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
-            ).get(fallbackModel);
-            const lowerFallbackId = fallbackModel.toLowerCase();
-            const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
-              lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
-              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
-              /image/i.test(lowerFallbackId);
-            if (isNonChatFallback) {
-              console.log(`[FALLBACK] Pass 3: Skipping non-chat/image fallback model ${fallbackModel}`);
-              continue;
-            }
-
-            console.warn(`[FALLBACK] Final emergency fallback tier: picking fallback model ${fallbackModel}`);
-            selectedFallbackModel = fallbackModel;
-            break;
-          }
-        }
+                if (!selectedFallbackModel) {
+                  console.warn(`[FALLBACK] Pass 3: Final emergency fallback tier across all fallback models`);
+                  for (const fallbackModel of fallbackModels) {
+                    if (fallbackTried.has(fallbackModel)) continue;
+        
+                    // Check if model supports vision when required
+                    if (requireVision) {
+                      const modelInfoVision = bandit.db.prepare(
+                        `SELECT supports_vision FROM catalog WHERE id = ?`
+                      ).get(fallbackModel);
+        
+                      if (!modelInfoVision || modelInfoVision.supports_vision !== 1) {
+                        console.log(`[FALLBACK] Pass 3: Skipping fallback model ${fallbackModel}: no vision support (required)`);
+                        continue;
+                      }
+                    }
+        
+                    const modelInfoCap = bandit.db.prepare(
+                      `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
+                    ).get(fallbackModel);
+                    const lowerFallbackId = fallbackModel.toLowerCase();
+                    const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
+                      lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
+                      /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
+                      /image/i.test(lowerFallbackId);
+                    if (isNonChatFallback) {
+                      console.log(`[FALLBACK] Pass 3: Skipping non-chat/image fallback model ${fallbackModel}`);
+                      continue;
+                    }
+        
+                    console.warn(`[FALLBACK] Final emergency fallback tier: picking fallback model ${fallbackModel}`);
+                    selectedFallbackModel = fallbackModel;
+                    break;
+                  }
+                }
 
         // Pass 4: Absolute last resort fallback (reset fallbackTried and pick first non-chat fallback model)
-        if (!selectedFallbackModel && fallbackModels.length > 0) {
-          console.warn(`[FALLBACK] Pass 4: Resetting fallbackTried and picking suitable non-chat fallback model`);
-          fallbackTried.clear();
-          for (const fallbackModel of fallbackModels) {
-            const modelInfoCap = bandit.db.prepare(
-              `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
-            ).get(fallbackModel);
-            const lowerFallbackId = fallbackModel.toLowerCase();
-            const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
-              lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
-              /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
-              /image/i.test(lowerFallbackId);
-            if (isNonChatFallback) {
-              console.log(`[FALLBACK] Pass 4: Skipping non-chat/image fallback model ${fallbackModel}`);
-              continue;
-            }
-            selectedFallbackModel = fallbackModel;
-            break;
-          }
-        }
+                if (!selectedFallbackModel && fallbackModels.length > 0) {
+                  console.warn(`[FALLBACK] Pass 4: Resetting fallbackTried and picking suitable non-chat fallback model`);
+                  fallbackTried.clear();
+                  for (const fallbackModel of fallbackModels) {
+                    // Check if model supports vision when required
+                    if (requireVision) {
+                      const modelInfoVision = bandit.db.prepare(
+                        `SELECT supports_vision FROM catalog WHERE id = ?`
+                      ).get(fallbackModel);
+        
+                      if (!modelInfoVision || modelInfoVision.supports_vision !== 1) {
+                        console.log(`[FALLBACK] Pass 4: Skipping fallback model ${fallbackModel}: no vision support (required)`);
+                        continue;
+                      }
+                    }
+        
+                    const modelInfoCap = bandit.db.prepare(
+                      `SELECT supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
+                    ).get(fallbackModel);
+                    const lowerFallbackId = fallbackModel.toLowerCase();
+                    const isNonChatFallback = (modelInfoCap && (modelInfoCap.supports_chat === 0 || modelInfoCap.capability !== 'chat_completion' || modelInfoCap.supports_image_generation === 1 || modelInfoCap.supports_audio_generation === 1)) ||
+                      lowerFallbackId.startsWith('aihorde/') || lowerFallbackId.includes('aihorde') ||
+                      /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
+                      /image/i.test(lowerFallbackId);
+                    if (isNonChatFallback) {
+                      console.log(`[FALLBACK] Pass 4: Skipping non-chat/image fallback model ${fallbackModel}`);
+                      continue;
+                    }
+                    selectedFallbackModel = fallbackModel;
+                    break;
+                  }
+                }
 
         if (selectedFallbackModel) {
           fallbackTried.add(selectedFallbackModel);
           console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${selectedFallbackModel} due to no available models (filtering exhausted all models)`);
           model = selectedFallbackModel;
         } else {
-          console.error(`[FALLBACK] Attempt ${attempt}: All fallback options are exhausted / no suitable fallback models found (requireTools=${requireTools}, tried=${Array.from(fallbackTried).join(', ')})`);
+          console.error(`[FALLBACK] Attempt ${attempt}: All fallback options are exhausted / no suitable fallback models found (requireTools=${requireTools}, requireVision=${requireVision}, tried=${Array.from(fallbackTried).join(', ')})`);
           trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available (filtering exhausted all models, fallback options exhausted)", model });
           cleanup();
           return res.status(503).json({ error: { message: "No models available (filtering exhausted all models, fallback options exhausted)", status: 503 } });
