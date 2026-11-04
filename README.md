@@ -134,6 +134,7 @@ npm install
 - `npm run dev` - Start development server with watch mode
 - `npm run check` - Syntax check all source files
 - `npm run test` - Run tests
+- `npm run auto-git` - Automated Git versioning, changelog generation, and documentation updates
 
 ## Dashboard
 
@@ -161,6 +162,11 @@ The system handles 5 classification scopes for error management:
 
 - **SESSION_TTL_MS**: 30 minutes
 - **STREAM_IDLE_MS**: 60 seconds (reset on any chunk/heartbeat)
+
+## References
+
+- [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/)
+- [Conventional Commits v1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
 
 ## Full Change Log
 

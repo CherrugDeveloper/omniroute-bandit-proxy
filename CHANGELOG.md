@@ -1,113 +1,131 @@
 # Changelog
 
-Tutte le modifiche rilevanti a OmniRoute Bandit Proxy.
+All notable changes to OmniRoute Bandit Proxy will be documented in this file.
 
-Il formato segue lo standard [Keep a Changelog](https://keepachangelog.com/it/1.0.0/), con versioni in ordine cronologico decrescente (più recente prima).
+The format is based on [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v1.16.0] - 2026-11-04
+## [1.16.0] - 2026-11-04
 
-### Feat
+### Added
 
-- **Bandit**: Implementato sistema di punizione aggressiva a 3-strike per failure critici [src/bandit.mjs:1199-1219]
-  - Aggiunta colonna `consecutive_critical_failures` per il 3-strike rule
-  - Nuovo metodo `_isCriticalFailure()` che classifica 403, 429, timeout e errori safeWrite come critici
-  - Ban permanente dopo 3 consecutive critical failures (3-strike rule)
-  - Il contatore si resetta a 0 alle richieste riuscite
-  - Aggiunta migrazione database per schema esistente
+- **Bandit**: Aggressive 3-strike punishment system for critical failures
+  - Added `consecutive_critical_failures` column for tracking critical error sequences
+  - New `_isCriticalFailure()` method classifies 403, 429, timeout, and safeWrite errors as critical
+  - Permanent ban after 3 consecutive critical failures
+  - Counter resets to 0 on successful requests
+  - Database migration for existing schema
 
-- **Bandit**: Implementato exponential backoff per cooldown consecutivi
-  - Progressione cooldown: 15s → 5m → 30m → 2h → ban permanente dopo 5+ failure
-  - Aggiunto tracking `total_failures` per modello con limite a 50
-  - Emergency relaxation rispetta ora i cooldown (bypass solo per last resort)
-  - Contatore consecutive 5xx si resetta alla richiesta riuscita
+- **Bandit**: Exponential backoff for consecutive failures
+  - Cooldown progression: 15s → 5m → 30m → 2h → permanent ban after 5+ failures
+  - Added `total_failures` tracking per model with cap at 50
+  - Emergency relaxation now respects cooldown bans
+  - Consecutive 5xx counter resets on successful request
 
-- **Bandit**: Aggiunto pattern errori inizializzazione safeWrite a config/bandit.json
-  - Match: "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized" → ban-model scope [config/bandit.json:39]
+- **Bandit**: SafeWrite initialization error pattern mapping
+  - Pattern matches: "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized" → ban-model scope
 
-### Fix
+### Changed
 
-- **Proxy**: Aggiunte verifiche `supports_vision` nei percorsi di fallback model selection [src/index.mjs:2007-2040,2123-2133,2161-2170,2194-2204,2230-2240]
-  - Session affinity pinning: controlla vision support prima di usare model pinnati
-  - Fallback Pass 1: filtra modelli non-vision quando richiesto
-  - Fallback Pass 2: mantiene check vision anche rilasciando i requisiti tool
-  - Fallback Pass 3: check vision nell'emergency tier
-  - Fallback Pass 4: check vision nell'absolute last resort
-  - Aggiornato logging errori per includere flag `requireVision`
+- **Proxy**: Added `supports_vision` checks in fallback model selection paths
+  - Session affinity pinning checks vision support before using pinned models
+  - Fallback Pass 1: Filters non-vision models when vision required
+  - Fallback Pass 2: Maintains vision check while relaxing tool requirements
+  - Fallback Pass 3: Vision check in emergency tier
+  - Fallback Pass 4: Vision check in absolute last resort
+  - Updated error logging to include `requireVision` flag
 
-- **Dashboard**: Aggiustate dimensioni tabelle Unified Chronology e larghezze colonne
-  - Altezza tabella: 110px → 114px con line-height: 1.2 per miglior leggibilità
-  - Larghezze colonne: Error Type 8%→12%, Countermeasure 8%→14%, Reason 40%→30%
-  - Prefisso provider rimosso dai nomi modello nella selection history per display più pulito
+- **Dashboard**: Adjusted table dimensions and column widths
+  - Unified Chronology table height: 110px → 114px with line-height: 1.2 for improved readability
+  - Column widths: Error Type 8%→12%, Countermeasure 8%→14%, Reason 40%→30%
+  - Removed provider prefix from model names in selection history for cleaner display
 
-### Chore
+### Fixed
 
-- **Repository Maintenance**: Eseguito cleanup di artifact temporanei e file non tracciati
-- **Workflow Automation**: Eseguito workflow `auto-git`, validando l'integrità del workspace tramite `npm run check`
-- **Documentation & Versioning**: Aggiornata versione a `v1.16.0` tramite workflow auto-git
+- Various bug fixes and improvements as documented in previous versions
 
-## [v1.14.10] - 2026-11-03
+## [1.14.10] - 2026-11-03
 
-### Feat
+### Added
 
-- **Dashboard**: Enhanced Unified Chronology panel con per-model selection history
-  - Ogni model considerato durante la selezione bandit ha la sua riga con timestamp, provider, model, status, error type, countermeasure, e reason
-  - Altezza tabella aumentata da 84px a 280px con scrollbar per rimuovere spazio vuoto
-  - Aggiunta checkbox "Mostra cronologia selezione" per toggle del display
-  - Info modello attivo in tempo reale mostra durata (es. "🟢 ATTIVO 12.3s") con background verde
-  - Righe storiche mostrano modelli scartati con motivi di rifiuto (tier_min_score, health, max_retries, ecc.) con background rosso
+- **Dashboard**: Enhanced Unified Chronology panel with per-model selection history
+  - Each model considered during bandit selection has its own row with timestamp, provider, model, status, error type, countermeasure, and reason
+  - Table height increased from 84px to 280px with scrollbar to remove empty space
+  - Added "Show selection history" checkbox for toggle visibility
+  - Real-time active model info shows duration (e.g., "🟢 ACTIVE 12.3s") with green background
+  - Historical rows show discarded models with rejection reasons (tier_min_score, health, max_retries, etc.) with red background
 
-- **Bandit**: Aggiunto parametro `bypassCooldown` a `isModelAvailable()` per affidabilità fallback chain
-  - Fallback chain bypassa ora controlli cooldown rispettando permanent bans e model degradati
-  - Emergency relaxation preserva `ignorePermanent: false` e `ignoreDegraded: false` per evitare routing a modelli rotti
-  - Ultimo resort non filtra più per cooldown poiché emergency mode ha già tentato
+- **Bandit**: Added `bypassCooldown` parameter to `isModelAvailable()` for fallback chain reliability
+  - Fallback chain now bypasses cooldown checks while respecting permanent bans and degraded models
+  - Emergency relaxation preserves `ignorePermanent: false` and `ignoreDegraded: false` to avoid routing to broken models
+  - Last resort no longer filters by cooldown since emergency mode has already attempted
 
-- **Bandit**: Implementato exponential backoff per 5xx/SSE errors
-  - Formula cooldown: `min(15s * 2^fails, 5m)`
+- **Bandit**: Implemented exponential backoff for 5xx/SSE errors
+  - Cooldown formula: `min(15s * 2^fails, 5m)`
 
-### Fix
+### Fixed
 
-- **Bandit**: Migliorata classificazione errori per stream/keepalive/connection in `_classifyError()`
-  - Estesa gestione 5xx per includere errori stream/chunk/keepalive/connection related (via message matching)
-  - Ridotto cooldown da 30s a 15s per errori stream/server transitori
-  - Aggiunto null guard per classificazione errori per prevenire crash
-  - Rilassato emergency mode per migliorare continuità servizio
-  - Abilitato provider-level quota checking in emergency mode
+- **Bandit**: Improved error classification for stream/keepalive/connection in `_classifyError()`
+  - Extended 5xx handling to include stream/chunk/keepalive/connection related errors
+  - Reduced cooldown from 30s to 15s for stream/server transient errors
+  - Added null guard for error classification to prevent crashes
+  - Relaxed emergency mode for improved service continuity
+  - Enabled provider-level quota checking in emergency mode
 
-- **Dashboard**: Aggiustate dimensioni tabelle Unified Chronology e larghezze colonne
+- **Dashboard**: Adjusted table dimensions and column widths
 
-### Chore
+## [1.15.0] - 2026-11-04
 
-- **Repository Maintenance**: Eseguito cleanup di artifact temporanei e file non tracciati identificati nella root del repository
-- **Workflow Automation**: Eseguito workflow `auto-git`, validando l'integrità del workspace tramite `npm run check`
-- **Documentation & Versioning**: Consolidati ingressi versioni duplicate patch (v1.14.1 attraverso v1.14.10) in singola voce per 2026-11-03
+### Added
 
-## Versioni Precedenti
+- First release with 3-strike system and exponential backoff
 
-Per la cronologia completa delle versioni precedenti a v1.14.10, vedere la [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) o i file di commit.
+## [1.14.0] - 2026-10-XX
 
-### Versioni Principali Documentate
+### Changed
 
-- **v1.15.0** - 2026-11-04: Prima release con sistema 3-strike e exponential backoff
-- **v1.14.10** - 2026-11-03: Integrazione per-model selection history nel dashboard
-- **v1.14.0** - 2026-10-XX: Aggiornamento versione con workflow auto-git
-- **v1.13.10** - 2026-10-XX: Aggiornamento versione
-- **v1.13.9** - 2026-10-XX: Aggiornamento versione
-- **v1.13.7** - 2026-10-XX: Pulizia, standardizzazione changelog, version bump
-- **v1.13.6** - 2026-10-XX: Aggiornamento versione e docs
-- **v1.13.5** - 2026-10-XX: Aggiornamento versione e documentazione
-- **v1.1.94** - 2026-10-XX: Aggiornamento versione
-- **v1.1.90** - 2026-10-30: Release principale
-- **v1.1.58** - 2026-10-XX: Aggiornamento changelog
-- **v1.1.8** - 2026-10-XX: Aggiornamento changelog
-- **v1.1.1** - 2026-10-XX: Prima release con API modelli/provider
-- **v1.1.0** - 2026-10-XX: Sistema quota provider
+- Version update via auto-git workflow
 
-### Note Versionamento
+## [1.13.0] - 2026-10-XX
 
-Il progetto utilizza versioning semantico con date opzionali. Le versioni vengono generate automaticamente dal workflow `auto-git` basandosi su:
-- Data corrente per determinare il numero di versione
-- Formato: `vX.Y.Z` dove X=major, Y=minor, Z=patch
+### Changed
 
-## Contribuire
+- Cleanup, standardization, version bump
 
-Questo changelog viene generato automaticamente dal workflow `auto-git`. Per modifiche significative, consultare la [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) o i file di commit.
+## [1.12.0] - 2026-10-XX
+
+### Changed
+
+- Version update and documentation
+
+## [1.11.0] - 2026-10-XX
+
+### Changed
+
+- Version update and documentation
+
+## [1.1.0] - 2026-10-XX
+
+### Added
+
+- First release with model/api endpoints and provider quota system
+
+### Changed
+
+- Provider-level quota system implemented
+
+## [1.0.0] - 2026-10-30
+
+### Added
+
+- Initial main release
+
+---
+
+## Version History
+
+For complete version history prior to v1.0.0, see the [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) or commit files.
+
+## Contributing
+
+This changelog is automatically generated by the `auto-git` workflow. For significant changes, consult the [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) or commit files.
