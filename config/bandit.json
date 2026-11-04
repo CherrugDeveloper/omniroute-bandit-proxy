@@ -41,8 +41,7 @@
         { "pattern": "image generation model|cannot be used for chat|not a chat model|image.only|incompatible", "action": "ban-model", "scope": "model" },
         { "pattern": "unsupported_image_block|devin_agentic_error", "action": "ban-model", "scope": "model" },
         { "pattern": "not supported.*(?:image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported)", "action": "ban-model", "scope": "model" },
-        { "pattern": "not supported|unknown provider for model|model_not_found", "action": "ban-model", "scope": "model" },
-        { "pattern": "catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog", "action": "ban-model", "scope": "model" },
+        { "pattern": "catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|model is unavailable|model not a valid model ID|invalid model|not available in active live catalog", "action": "ban-model", "scope": "model" },
         { "pattern": "Assignment to constant variable", "action": "ban-model", "scope": "model" },
         { "pattern": "OpenCode's free tier can only be used from within OpenCode", "action": "ban-model", "scope": "model" },
         { "pattern": "403|Key limit exceeded|total limit|hard limit|lifetime limit", "action": "cooldown-provider", "scope": "provider", "duration": 7200000 }
