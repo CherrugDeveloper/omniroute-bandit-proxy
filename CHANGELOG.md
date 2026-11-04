@@ -1,6 +1,12 @@
-## [v1.15.0] - 2026-11-04
+## [v1.16.0] - 2026-11-04
 
 ### Feat
+- **Bandit**: Implemented 3-strike aggressive punishment system for critical failures
+  - Added `consecutive_critical_failures` tracking column for 3-strike rule
+  - New `_isCriticalFailure()` method classifying 403, 429, timeout, and safeWrite errors as critical
+  - Permanent ban after 3 consecutive critical failures (3-strike rule)
+  - Counter resets to 0 on successful requests
+  - Added database migration for existing schemas
 - **Bandit**: Implemented exponential backoff cooldowns for consecutive failures
   - Cooldown progression: 15s → 5m → 30m → 2h → permanent ban after 5+ failures
   - Added `total_failures` tracking per model with cap at 50
@@ -18,7 +24,7 @@
 ### Chore
 - **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files
 - **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.15.0` (minor) based on `2026-11-04` date
+- **Documentation & Versioning**: Updated version to `v1.16.0` via auto-git workflow
 
 ## [v1.14.10] - 2026-11-03
 

@@ -115,6 +115,7 @@ export class DiscountedUCB1Bandit {
           permanent INTEGER DEFAULT 0,
           last_used_index INTEGER DEFAULT 0,
           consecutive_5xx INTEGER DEFAULT 0,
+          consecutive_critical_failures INTEGER DEFAULT 0,
           degraded INTEGER DEFAULT 0,
           degraded_since REAL DEFAULT 0,
           banned_since REAL DEFAULT 0,
@@ -549,6 +550,18 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE models ADD COLUMN degraded_since REAL DEFAULT 0`);
         } catch (err) {
           console.error("[BANDIT] Errore aggiunta colonne degraded:", err.message);
+          throw err;
+        }
+      }
+
+      // Add consecutive_critical_failures column for 3-strike aggressive punishment
+      const hasConsecutiveCriticalFailures = modelColumns.some(col => col.name === "consecutive_critical_failures");
+      if (!hasConsecutiveCriticalFailures) {
+        console.log("[BANDIT] Migrazione: aggiungo consecutive_critical_failures a models");
+        try {
+          this.db.exec(`ALTER TABLE models ADD COLUMN consecutive_critical_failures INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna consecutive_critical_failures:", err.message);
           throw err;
         }
       }
@@ -1142,11 +1155,12 @@ export class DiscountedUCB1Bandit {
       if (success) {
         this.totalObservations++;
         this._setMeta("totalObservations", this.totalObservations);
-        // On success: reset consecutive fails (fails) and cooldown, but keep total_failures for escalation tracking
+        // On success: reset all consecutive failure counters and cooldown, but keep total_failures for escalation tracking
         this.db.prepare(
-          `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0, cooldown_until = 0
+          `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0, consecutive_critical_failures = 0, cooldown_until = 0
            WHERE id = ?`
         ).run(reward, sanitizedModelId);
+        console.log(`[BANDIT-3STRIKE] RESET | model=${modelId} | consecutive_critical_failures reset to 0 | reason=success`);
         this.db.prepare(
           "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).run(Date.now(), 200, null, sanitizedModelId, provider);
@@ -1167,8 +1181,40 @@ export class DiscountedUCB1Bandit {
         ).run(sanitizedModelId);
         
         // Get updated total_failures for cooldown calculation
-        const modelRow = this.db.prepare("SELECT total_failures FROM models WHERE id = ?").get(sanitizedModelId);
+        const modelRow = this.db.prepare("SELECT total_failures, consecutive_critical_failures FROM models WHERE id = ?").get(sanitizedModelId);
         const totalFailures = modelRow ? modelRow.total_failures : 1;
+        const currentConsecutiveCritical = modelRow ? modelRow.consecutive_critical_failures : 0;
+        
+        // Determine if this is a critical failure (403, 429, timeout, safeWrite errors, etc.)
+        const statusCode = errorDetails?.status || 500;
+        const errorMessage = errorDetails?.message || errorDetails?.error || String(errorDetails) || "Unknown error";
+        const isCriticalFailure = this._isCriticalFailure(statusCode, errorMessage, errorDetails);
+        
+        // Track consecutive critical failures for 3-strike rule
+        if (isCriticalFailure) {
+          const newConsecutiveCritical = currentConsecutiveCritical + 1;
+          console.log(`[BANDIT-3STRIKE] INCREMENT | model=${modelId} | consecutive_critical_failures: ${currentConsecutiveCritical} -> ${newConsecutiveCritical} | status=${statusCode} | reason=${errorDetails?.reason || 'unknown'}`);
+          
+          // Check for 3-strike rule: permanent ban after 3 consecutive critical failures
+          if (newConsecutiveCritical >= 3) {
+            this.db.prepare(
+              `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index, consecutive_critical_failures)
+               VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0, ?)
+               ON CONFLICT(id) DO UPDATE SET permanent = 1, banned_since = ?, consecutive_critical_failures = ?, cooldown_until = 0`
+            ).run(sanitizedModelId, provider, Date.now(), newConsecutiveCritical, Date.now(), newConsecutiveCritical);
+            console.log(`[BANDIT-3STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 3 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=3-strike-rule | STATUS_CODE=${statusCode}`);
+          } else {
+            // Just increment the counter, don't ban yet
+            this.db.prepare(`UPDATE models SET consecutive_critical_failures = ? WHERE id = ?`).run(newConsecutiveCritical, sanitizedModelId);
+            console.log(`[BANDIT-3STRIKE] COUNT | model=${modelId} | consecutive_critical_failures=${newConsecutiveCritical}/3 | STATUS_CODE=${statusCode} | not yet permanent ban`);
+          }
+        } else {
+          // Non-critical failure: reset consecutive_critical_failures counter
+          if (currentConsecutiveCritical > 0) {
+            console.log(`[BANDIT-3STRIKE] RESET | model=${modelId} | consecutive_critical_failures reset to 0 | reason=non-critical-failure | status=${statusCode}`);
+          }
+          this.db.prepare(`UPDATE models SET consecutive_critical_failures = 0 WHERE id = ?`).run(sanitizedModelId);
+        }
         
         // Apply escalating cooldown based on total_failures
         const cooldownMs = this._getModelCooldownMs(totalFailures);
@@ -1176,15 +1222,16 @@ export class DiscountedUCB1Bandit {
           this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
           console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} cooldownMs=${cooldownMs} scope=model`);
         } else if (cooldownMs === null) {
-          // Permanent ban at 5+ total failures
-          this.db.prepare(
-            `UPDATE models SET permanent = 1, banned_since = ? WHERE id = ?`
-          ).run(Date.now(), sanitizedModelId);
-          console.log(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
+          // Permanent ban at 5+ total failures (if not already banned by 3-strike rule)
+          const currentModel = this.db.prepare("SELECT permanent FROM models WHERE id = ?").get(sanitizedModelId);
+          if (!currentModel || currentModel.permanent !== 1) {
+            this.db.prepare(
+              `UPDATE models SET permanent = 1, banned_since = ? WHERE id = ?`
+            ).run(Date.now(), sanitizedModelId);
+            console.log(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
+          }
         }
         
-        const statusCode = errorDetails?.status || 500;
-        const errorMessage = errorDetails?.message || errorDetails?.error || String(errorDetails) || "Unknown error";
         this.db.prepare(
           "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).run(Date.now(), statusCode, errorMessage, sanitizedModelId, provider);
@@ -1472,6 +1519,92 @@ export class DiscountedUCB1Bandit {
       cooldownMs: 30000,
       category: "TRANSIENT"
     };
+  }
+
+  /**
+   * Determines if an error constitutes a "critical failure" for aggressive 3-strike punishment.
+   * Critical failures are severe errors that indicate fundamental issues with the model/provider,
+   * not transient network issues.
+   *
+   * Critical failures include:
+   * - 403 Forbidden (especially "banned", "account disabled", "key limit exceeded" with no reset)
+   * - 429 Rate Limit (repeated rate limiting indicates abuse/premium usage issues)
+   * - Timeout errors (persistent timeouts indicate fundamental availability issues)
+   * - safeWrite errors (OpenCode-specific critical errors)
+   * - Other severe errors that suggest permanent issues
+   *
+   * @param {number} statusCode - HTTP status code
+   * @param {string} errorMessage - Error message
+   * @param {object} errorDetails - Full error details object
+   * @returns {boolean} - True if this is a critical failure
+   */
+  _isCriticalFailure(statusCode, errorMessage, errorDetails = {}) {
+    const message = errorMessage || errorDetails?.message || "";
+    const status = statusCode || errorDetails?.status || 0;
+    
+    // 403 Forbidden - key indicators of critical failures
+    if (status === 403) {
+      // Account disabled, banned, suspended - permanent issues
+      if (/account disabled|banned|suspended|terminated|deactivated|policy violation/i.test(message)) {
+        return true;
+      }
+      // Key limit exceeded / hard limit - non-resetting quota issues
+      if (/Key limit exceeded|total limit|hard limit|lifetime limit|does not reset|never resets/i.test(message)) {
+        return true;
+      }
+      // Permission denied for specific features
+      if (/OpenCode's free tier can only be used from within OpenCode/i.test(message)) {
+        return true;
+      }
+    }
+    
+    // 429 Rate Limit - repeated rate limiting is critical
+    if (status === 429) {
+      // model_cooldown code indicates repeated rate limiting on specific model
+      if (errorDetails?.code === "model_cooldown" || /model_cooldown/i.test(message)) {
+        return true;
+      }
+      // cooling down pattern suggests aggressive rate limiting
+      if (/cooling down/i.test(message)) {
+        return true;
+      }
+      // If this is a repeated 429 (fails >= 2), it's critical
+      const sanitizedId = this._sanitizeModelId(errorDetails?.modelId || "");
+      if (sanitizedId) {
+        const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(sanitizedId);
+        if (model && model.fails >= 2) {
+          return true;
+        }
+      }
+    }
+    
+    // Timeout - persistent timeouts indicate fundamental availability issues
+    if (/fetch timeout|timeout/i.test(message)) {
+      return true;
+    }
+    
+    // safeWrite errors (OpenCode-specific)
+    if (/safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized/i.test(message)) {
+      return true;
+    }
+    
+    // Environment errors that are model-specific (not provider-level)
+    if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured|Executable doesn't exist/i.test(message)) {
+      // These are provider-level in most cases, but if they appear model-specific, count as critical
+      const resolvedProvider = errorDetails?.provider || (errorDetails?.modelId?.split('/')[0] || '');
+      if (resolvedProvider && !['zc', 'cfp', 'openai', 'anthropic', 'google'].includes(resolvedProvider.toLowerCase())) {
+        return true;
+      }
+    }
+    
+    // 402 Payment/Funding issues - non-resetting
+    if (status === 402) {
+      if (/insufficient|funds|credit|payment|billing_error|credits exhausted/i.test(message)) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   _parseResetAfter(message, errorDetails = {}) {
