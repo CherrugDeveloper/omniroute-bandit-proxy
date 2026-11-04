@@ -16,3 +16,10 @@
 ### 3. Cross-Domain Task Execution Rules
 - **Database Concurrency**: Coordinate any manual db scripts [`scripts/check-db.mjs`](scripts/check-db.mjs:1) / [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs:1) to avoid lock contention with running proxy or training daemon.
 - **Environment Configuration**: Ensure required variables (e.g. `OMNIROUTE_API_KEY`, `DASHBOARD_TOKEN`) are properly configured from [`.env.example`](.env.example:1) before deployment or testing.
+- **Recent Changes**: Exponential backoff cooldowns now respect configured limits; `total_failures` tracking affects cooldown decisions.
+
+### 4. Security & Error Pattern Updates
+- **Error Pattern**: `config/bandit.json` now maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to ban-model
+
+### 5. Dashboard Updates
+- **Table Dimensions**: `public/dashboard.html` table height adjusted to 114px; column widths modified (Error Type 12%, Countermeasure 14%, Reason 30%); model names stripped of provider prefix

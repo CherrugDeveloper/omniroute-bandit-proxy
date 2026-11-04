@@ -9,3 +9,6 @@
 - **Soft Bias**: `profileMultiplier` (multipliers stack) applies to UCB1 score.
 - **Testing**: `node:test` + in-memory `:memory:` DB.
 - **Gotcha**: Fallback chain in `config/bandit.json` bypasses UCB1.
+- **Recent Changes**: Exponential backoff cooldowns (15s->5m->30m->2h->permanent); `total_failures` tracking; emergency relaxation now respects cooldowns; consecutive fails reset on success
+- **Error Pattern**: `config/bandit.json` now maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to ban-model
+- **Dashboard**: `public/dashboard.html` - table dimension changes, column width adjustments, model name prefix stripping

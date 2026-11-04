@@ -13,3 +13,6 @@
 ### 3. Data Protection & Logging
 - **Database Security**: SQLite via `better-sqlite3` stores interaction logs (`request_logs`), provider states, and training metrics locally. Ensure proper file system permissions on database files.
 - **Log Deduplication**: Ring buffer (`GET /v1/logs`) collapses consecutive identical log lines with a count suffix to prevent log flooding / denial of service via logging.
+
+### 4. Error Pattern Security
+- **New Error Classification**: `config/bandit.json` now maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to ban-model, providing additional protection against unsafe write operations.
