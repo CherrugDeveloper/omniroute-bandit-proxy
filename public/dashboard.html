@@ -3746,10 +3746,6 @@
                     if (provider && provider !== '-' && model.includes(provider)) {
                         model = model.replace(new RegExp('^' + escapeRegex(provider) + '/'), '');
                     }
-                    
-                    function escapeRegex(s) {
-                        return s.replace(/[\^$.|?*+()]/g, '\\$&');
-                    }
 
                     let statusLabel = '';
                     let statusColor = '#c9d1d9';
@@ -3889,15 +3885,25 @@
                     </tr>`;
                 }
 
+                // Helper function to escape regex special characters
+                function escapeRegex(s) {
+                    return s.replace(/[\^$.|?*+()]/g, '\\$&');
+                }
+
                 // New function to format selection history entries as rows
                 function fmtSelectionHistoryRow(entry, requestTimestamp, requestIndex, entryIndex) {
                     // entry has: id, provider, status ('rejected'|'selected'), reason, countermeasure, tier, N, sum_reward, avg_reward, avg_latency, score
                     const ts = requestTimestamp || Date.now();
                     const dObj = new Date(ts);
                     const timeStr = dObj.toLocaleTimeString();
-                    
-                    const model = entry.id || '(unknown)';
-                    const provider = entry.provider || '-';
+
+                    let model = entry.id || '(unknown)';
+                    let provider = entry.provider || '-';
+
+                    // Strip provider prefix from model display (e.g., "openrouter/gpt-4" -> "gpt-4" when provider is "openrouter")
+                    if (provider && provider !== '-' && model.includes(provider)) {
+                        model = model.replace(new RegExp('^' + escapeRegex(provider) + '/'), '');
+                    }
                     
                     let statusLabel = '';
                     let statusColor = '#c9d1d9';
