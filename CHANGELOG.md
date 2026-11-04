@@ -22,28 +22,6 @@
 
 ## [v1.14.10] - 2026-11-03
 
-### Chore
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.10` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.9] - 2026-11-03
-
-### Chore
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.9` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.8] - 2026-11-03
-
-### Chore
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.8` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.7] - 2026-11-03
-
-### Chore
-- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
-- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.7` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.6] - 2026-11-03
-
 ### Feat
 - **Dashboard**: Enhanced Unified Chronology panel with per-model selection history
   - Each model considered during bandit selection now occupies its own row with timestamp, provider, model, status, error type, countermeasure, and reason
@@ -53,22 +31,27 @@
   - Historical rows show discarded models with rejection reasons (tier_min_score, health, max_retries, etc.) with red background
   - Visual indicators: ✅ for selected, ❌ for rejected models
 - **Dashboard**: Updated copy button to include Error Type and Countermeasure columns
-
-### Chore
-- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
-- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.6` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.5] - 2026-11-03
-
-### Chore
-- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
-- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.5` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.4] - 2026-11-03
+- **Dashboard**: Added dynamic calculation for non-active providers and non-operational models
+  - Displays "Provider non attivi" and "Modelli non operativi" con conteggi in tempo reale
+  - Sostituisce placeholder hardcoded con aggiornamenti UI dinamici in `public/dashboard.html`
+- **Dashboard**: Enhanced UI with CSS badges for status numbers
+  - Colorati "Monitorati" e "Catalog" provider stats using `.badge-monitorati` e `.badge-catalog` classes
+  - Aggiornato `public/dashboard.html` per migliorare la coerenza visiva
 
 ### Fix
+- **Bandit**: Improved error classification for stream/keepalive/connection errors in `_classifyError()`
+  - Extended 5xx handling to include stream/chunk/keepalive/connection related errors (via message matching)
+  - Reduced cooldown from 30s to 15s for transient stream/server errors
+  - All changes in [src/bandit.mjs](src/bandit.mjs:1315-1324)
+- **Bandit**: Added `bypassCooldown` parameter to `isModelAvailable()` for fallback chain reliability
+  - Fallback chain now bypasses cooldown checks while respecting permanent bans and degraded models
+  - Emergency relaxation preserves `ignorePermanent: false` and `ignoreDegraded: false` to avoid routing to broken models
+  - Absolute last resort no longer filters by cooldown since emergency mode already attempted
+  - All changes in [src/bandit.mjs](src/bandit.mjs:2050-2110) e [src/index.mjs](src/index.mjs:1860-2095)
+- **Bandit**: Emergency relaxation and fallback chain improvements
+  - Added `bypassCooldown` parameter to `isModelAvailable()` for fallback chain reliability
+  - Emergency relaxation preserves `ignorePermanent: false` and `ignoreDegraded: false` to avoid routing to broken models
+  - Absolute last resort no longer filters by cooldown since emergency mode already attempted
 - **Bandit**: Implemented exponential backoff for 5xx/SSE errors
   - Cooldown formula: `min(15s * 2^fails, 5m)` in [src/bandit.mjs](src/bandit.mjs:1364)
 - **Bandit**: Added null guard for error classification to prevent crashes
@@ -79,48 +62,6 @@
   - Set `ignoreQuota: false` in emergency `selectModel()` tier in [src/bandit.mjs](src/bandit.mjs:2601)
 
 ### Chore
-- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
-- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.4` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.3] - 2026-11-03
-
-### Fix
-- **Bandit**: Emergency relaxation and fallback chain improvements
-  - Added `bypassCooldown` parameter to `isModelAvailable()` for fallback chain reliability
-  - Emergency relaxation preserves `ignorePermanent: false` and `ignoreDegraded: false` to avoid routing to broken models
-  - Absolute last resort no longer filters by cooldown since emergency mode already attempted
-
-### Chore
-- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
-- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.3` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.2] - 2026-11-03
-
-### Fix
-- **Bandit**: Improved error classification for stream/keepalive/connection errors in `_classifyError()`
-  - Extended 5xx handling to include stream/chunk/keepalive/connection related errors (via message matching)
-  - Reduced cooldown from 30s to 15s for transient stream/server errors
-  - All changes in [src/bandit.mjs](src/bandit.mjs:1315-1324)
-
-- **Bandit**: Added `bypassCooldown` parameter to `isModelAvailable()` for fallback chain reliability
-  - Fallback chain now bypasses cooldown checks while respecting permanent bans and degraded models
-  - Emergency relaxation preserves `ignorePermanent: false` and `ignoreDegraded: false` to avoid routing to broken models
-  - Absolute last resort no longer filters by cooldown since emergency mode already attempted
-  - All changes in [src/bandit.mjs](src/bandit.mjs:2050-2110) and [src/index.mjs](src/index.mjs:1860-2095)
-
-### Chore
-- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root.
-- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`.
-- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.14.2` (patch) based on `2026-11-03` date. Updated `CHANGELOG.md` to ensure structural consistency and chronological ordering.
-
-## [v1.14.1] - 2026-11-03
-
-### Feat
-- **Dashboard**: Added dynamic calculation for non-active providers and non-operational models
-  - Displays "Provider non attivi" and "Modelli non operativi" with real-time counts
-  - Replaces hard-coded placeholders with dynamic UI updates in `public/dashboard.html`
-- **Dashboard**: Enhanced UI with CSS badges for status numbers
-  - Colorized "Monitorati" and "Catalog" provider stats using `.badge-monitorati` and `.badge-catalog` classes
-  - Updated `public/dashboard.html` to improve visual consistency
+- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files identified in the repository root (multiple runs consolidated)
+- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check` (multiple runs consolidated)
+- **Documentation & Versioning**: Consolidated duplicate patch versions (v1.14.1 through v1.14.10) into single entry for 2026-11-03
