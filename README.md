@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-**v1.15.0 (2026-11-04)** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management
+**v1.16.0 (2026-11-04)** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management and aggressive punishment system
 
 ## Overview
 
@@ -105,6 +105,14 @@ The algorithm uses **Discounted UCB1** with a discount factor of `0.99` applied 
 - **Emergency relaxation** now respects cooldown bans (only bypasses for last resort)
 - **Consecutive 5xx counter resets** on successful request
 - **safeWrite initialization error pattern**: Added to `config/bandit.json` matching "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized" → ban-model scope
+
+#### Aggressive 3-Strike Punishment System
+
+- **`consecutive_critical_failures`**: New counter tracking critical error sequences
+- **Critical failures** include: HTTP 403 (banned accounts, key limits), HTTP 429 (repeated rate limiting), timeouts, `safeWrite` errors, and payment/funding issues
+- **3-strike rule**: Permanent ban after 3 consecutive critical failures
+- **Counter reset**: `consecutive_critical_failures` resets to 0 on successful requests
+- **Database migration**: Automatic schema migration adds the tracking column to existing databases
 
 ## Development
 
