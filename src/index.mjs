@@ -2451,6 +2451,41 @@ trackRequestUpdate(requestId, {
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
 
+        // Helper to safely write to response and detect client disconnect
+        const safeWrite = (data) => {
+          if (clientDisconnected || res.writableEnded) {
+            throw new Error('client-disconnected');
+          }
+          const ok = res.write(data);
+          if (!ok) {
+            // Buffer full, wait for drain
+            return new Promise((resolve, reject) => {
+              const onDrain = () => {
+                res.off('drain', onDrain);
+                res.off('error', onError);
+                res.off('close', onClose);
+                resolve(true);
+              };
+              const onError = (err) => {
+                res.off('drain', onDrain);
+                res.off('error', onError);
+                res.off('close', onClose);
+                reject(err);
+              };
+              const onClose = () => {
+                res.off('drain', onDrain);
+                res.off('error', onError);
+                res.off('close', onClose);
+                reject(new Error('client-disconnected'));
+              };
+              res.once('drain', onDrain);
+              res.once('error', onError);
+              res.once('close', onClose);
+            });
+          }
+          return Promise.resolve(true);
+        };
+
         let streamFailed = false;
         let streamStarted = true;
         let firstChunk = false;
@@ -2490,41 +2525,6 @@ trackRequestUpdate(requestId, {
           return stripped.length > 0;
         };
         resetIdle();
-
-        // Helper to safely write to response and detect client disconnect
-        const safeWrite = (data) => {
-          if (clientDisconnected || res.writableEnded) {
-            throw new Error('client-disconnected');
-          }
-          const ok = res.write(data);
-          if (!ok) {
-            // Buffer full, wait for drain
-            return new Promise((resolve, reject) => {
-              const onDrain = () => {
-                res.off('drain', onDrain);
-                res.off('error', onError);
-                res.off('close', onClose);
-                resolve(true);
-              };
-              const onError = (err) => {
-                res.off('drain', onDrain);
-                res.off('error', onError);
-                res.off('close', onClose);
-                reject(err);
-              };
-              const onClose = () => {
-                res.off('drain', onDrain);
-                res.off('error', onError);
-                res.off('close', onClose);
-                reject(new Error('client-disconnected'));
-              };
-              res.once('drain', onDrain);
-              res.once('error', onError);
-              res.once('close', onClose);
-            });
-          }
-          return Promise.resolve(true);
-        };
 
         try {
           while (true) {
