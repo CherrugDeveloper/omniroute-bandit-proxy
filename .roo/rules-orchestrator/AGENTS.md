@@ -23,3 +23,9 @@
 
 ### 5. Dashboard Updates
 - **Table Dimensions**: `public/dashboard.html` table height adjusted to 114px; column widths modified (Error Type 12%, Countermeasure 14%, Reason 30%); model names stripped of provider prefix
+
+### 6. 3-Strike Aggressive Punishment System
+- **Critical Failures**: 403 forbidden, 429 rate limit, timeout, safeWrite errors trigger aggressive tracking
+- **Temporary Tracking**: `consecutive_critical_failures` column tracks streak
+- **Permanent Ban**: After 3 consecutive critical failures, model is permanently banned
+- **Reset on Success**: Counter resets to 0 on successful requests
