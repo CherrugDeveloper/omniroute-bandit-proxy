@@ -1,3 +1,25 @@
+## [v1.15.0] - 2026-11-04
+
+### Feat
+- **Bandit**: Implemented exponential backoff cooldowns for consecutive failures
+  - Cooldown progression: 15s → 5m → 30m → 2h → permanent ban after 5+ failures
+  - Added `total_failures` tracking per model with cap at 50
+  - Emergency relaxation now respects cooldown bans (only bypasses for last resort)
+  - Consecutive 5xx counter resets on successful request
+- **Bandit**: Added safeWrite initialization error pattern to config/bandit.json
+  - Matches "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized" → ban-model scope
+
+### Fix
+- **Dashboard**: Adjusted Unified Chronology table dimensions and column widths
+  - Table height: 110px → 114px with line-height: 1.2 for better readability
+  - Column widths: Error Type 8%→12%, Countermeasure 8%→14%, Reason 40%→30%
+  - Provider prefix stripped from model names in selection history for cleaner display
+
+### Chore
+- **Repository Maintenance**: Executed cleanup of temporary artifacts and untracked files
+- **Workflow Automation**: Ran `auto-git` workflow, validating workspace integrity via `npm run check`
+- **Documentation & Versioning**: Performed date-based semantic version increment to `v1.15.0` (minor) based on `2026-11-04` date
+
 ## [v1.14.10] - 2026-11-03
 
 ### Chore

@@ -110,6 +110,7 @@ export class DiscountedUCB1Bandit {
           N REAL DEFAULT 0,
           sum_reward REAL DEFAULT 0,
           fails INTEGER DEFAULT 0,
+          total_failures INTEGER DEFAULT 0,
           cooldown_until REAL DEFAULT 0,
           permanent INTEGER DEFAULT 0,
           last_used_index INTEGER DEFAULT 0,
@@ -243,6 +244,19 @@ export class DiscountedUCB1Bandit {
       const hasErrorStatus = trainColumns.some(col => col.name === "errorStatus");
       const hasStatusMessage = trainColumns.some(col => col.name === "statusMessage");
       const hasBannedSince = modelColumns.some(col => col.name === "banned_since");
+
+      // Add total_failures column for progressive escalation
+      const hasTotalFailures = modelColumns.some(col => col.name === "total_failures");
+
+      if (!hasTotalFailures) {
+        console.log("[BANDIT] Migrazione: aggiungo total_failures a models");
+        try {
+          this.db.exec(`ALTER TABLE models ADD COLUMN total_failures INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna total_failures:", err.message);
+          throw err;
+        }
+      }
 
       if (!hasBannedSince) {
         console.log("[BANDIT] Migrazione: aggiungo banned_since a models");
@@ -832,15 +846,18 @@ export class DiscountedUCB1Bandit {
     return this._lastReward.get(modelId) ?? null;
   }
 
-  _getModelCooldownMs(fails) {
-    if (fails >= 4) return null; // 4+ fails = permanent (handled elsewhere)
+  _getModelCooldownMs(totalFailures) {
+    // Exponential backoff: 30s → 5min → 30min → 2hr → permanent
+    // totalFailures is the cumulative failure count across restarts
+    if (totalFailures >= 5) return null; // 5+ fails = permanent ban
     const cooldowns = [
-      0,
-      60 * 60000,    // 1° fail → 1h (was 30 min)
-      8 * 3600000,   // 2° fail → 8h (was 4h)
-      24 * 3600000   // 3° fail → 24h (was 12h)
+      0,                    // 0 failures - no cooldown
+      30 * 1000,            // 1st failure → 30 seconds
+      5 * 60 * 1000,        // 2nd failure → 5 minutes
+      30 * 60 * 1000,       // 3rd failure → 30 minutes
+      2 * 60 * 60 * 1000    // 4th failure → 2 hours
     ];
-    return cooldowns[Math.min(fails, 3)];
+    return cooldowns[Math.min(totalFailures, 4)];
   }
 
   async resolveModelPrefix(modelId) {
@@ -1094,6 +1111,7 @@ export class DiscountedUCB1Bandit {
       if (success) {
         this.totalObservations++;
         this._setMeta("totalObservations", this.totalObservations);
+        // On success: reset consecutive fails (fails) and cooldown, but keep total_failures for escalation tracking
         this.db.prepare(
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0, cooldown_until = 0
            WHERE id = ?`
@@ -1111,10 +1129,29 @@ export class DiscountedUCB1Bandit {
         // Belt-and-suspenders: clear model cooldown on success
         this.db.prepare(`UPDATE models SET cooldown_until = 0 WHERE id = ?`).run(modelId);
       } else {
+        // On failure: increment both fails (consecutive) and total_failures (cumulative for escalation)
         this.db.prepare(
-          `UPDATE models SET fails = fails + 1, last_used_index = last_used_index + 1
+          `UPDATE models SET fails = fails + 1, total_failures = total_failures + 1, last_used_index = last_used_index + 1
            WHERE id = ?`
         ).run(modelId);
+        
+        // Get updated total_failures for cooldown calculation
+        const modelRow = this.db.prepare("SELECT total_failures FROM models WHERE id = ?").get(modelId);
+        const totalFailures = modelRow ? modelRow.total_failures : 1;
+        
+        // Apply escalating cooldown based on total_failures
+        const cooldownMs = this._getModelCooldownMs(totalFailures);
+        if (cooldownMs && cooldownMs > 0) {
+          this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, modelId);
+          console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} cooldownMs=${cooldownMs} scope=model`);
+        } else if (cooldownMs === null) {
+          // Permanent ban at 5+ total failures
+          this.db.prepare(
+            `UPDATE models SET permanent = 1, banned_since = ? WHERE id = ?`
+          ).run(Date.now(), modelId);
+          console.log(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
+        }
+        
         const statusCode = errorDetails?.status || 500;
         const errorMessage = errorDetails?.message || errorDetails?.error || String(errorDetails) || "Unknown error";
         this.db.prepare(
@@ -2608,24 +2645,20 @@ export class DiscountedUCB1Bandit {
       availableModels = filterModels('tier3', { ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 
-    // Tier 4: Emergency Relaxation (Ignore Policies/Tools/Token Limits AND Cooldowns)
-    // This is the last resort before absolute fallback - ignore all cooldowns to ensure
-    // we can still serve requests even if all providers are in cooldown.
-    // Note: We respect dynamic_max_tokens here because they are learned limits from actual 413 errors,
-    // not cooldowns. They should be respected even in emergency mode.
+    // Tier 4: Emergency Relaxation (Ignore Policies/Tools/Token Limits, RESPECT Cooldowns)
+    // With exponential backoff (30s → 5min → 30min → 2hr → permanent), cooldowns are now
+    // aggressive enough that we should respect them. This tier relaxes capability/policy/token
+    // constraints but respects cooldowns to enforce progressive punishment.
+    // Note: We respect dynamic_max_tokens here because they are learned limits from actual 413 errors.
     // We DO respect provider quota exhaustion to prevent selecting exhausted providers.
     if (availableModels.length === 0) {
-      console.warn(`[BANDIT] Warning: All models filtered. Applying emergency cooldown relaxation.`);
-      // Relax cooldowns, but respect permanent bans and provider quota exhaustion
-      // We explicitly ignore degraded status too in emergency to prioritize continuity.
-      // But we do NOT ignore quota exhaustion - we handle it at the provider level.
-      // We respect dynamic_max_tokens - they are learned limits from 413 errors.
-      // Relax cooldowns, but respect permanent bans and provider quota exhaustion
+      console.warn(`[BANDIT] Warning: All models filtered. Applying emergency relaxation (respecting cooldowns).`);
+      // Relax policies/tools/token limits, but respect cooldowns and permanent bans
       // We explicitly ignore degraded status too in emergency to prioritize continuity.
       // But we do NOT ignore quota exhaustion - we handle it at the provider level.
       // We respect dynamic_max_tokens - they are learned limits from 413 errors.
       availableModels = filterModels('emergency', {
-        ignoreCooldown: true,
+        ignoreCooldown: false,  // RESPECT cooldowns with new exponential backoff
         ignorePermanent: false,
         ignoreDegraded: true,
         ignoreTokenLimit: true,

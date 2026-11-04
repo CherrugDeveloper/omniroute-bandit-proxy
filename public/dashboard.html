@@ -1148,17 +1148,17 @@
                 Mostra cronologia selezione
             </label>
         </div>
-        <div style="height: 110px; overflow-y: auto; scrollbar-width: none; -webkit-scrollbar: none; border: 1px solid #30363d; border-radius: 4px;">
-            <table id="unified-table" style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
+        <div style="height: 114px; overflow-y: auto; scrollbar-width: none; -webkit-scrollbar: none; border: 1px solid #30363d; border-radius: 4px;">
+            <table id="unified-table" style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed; line-height: 1.2;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
                         <th style="padding: 2px 6px; text-align: left; width: 10%;">Timestamp</th>
                         <th style="padding: 2px 6px; text-align: left; width: 10%;">Provider</th>
                         <th style="padding: 2px 6px; text-align: left; width: 16%;">Model</th>
                         <th style="padding: 2px 6px; text-align: center; white-space: nowrap; width: 8%;">Status</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 8%;">Error Type</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 8%;">Countermeasure</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 40%;">Reason / Stats</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 12%;">Error Type</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 14%;">Countermeasure</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 30%;">Reason / Stats</th>
                     </tr>
                 </thead>
                 <tbody id="unified-cronologia-tbody">
@@ -3742,6 +3742,15 @@
                         }
                     }
 
+                    // Strip provider prefix from model display (e.g., "openrouter/gpt-4" -> "gpt-4" when provider is "openrouter")
+                    if (provider && provider !== '-' && model.includes(provider)) {
+                        model = model.replace(new RegExp('^' + escapeRegex(provider) + '/'), '');
+                    }
+                    
+                    function escapeRegex(s) {
+                        return s.replace(/[\^$.|?*+()]/g, '\\$&');
+                    }
+
                     let statusLabel = '';
                     let statusColor = '#c9d1d9';
                     if (kind === 'active') {
@@ -3863,7 +3872,7 @@
                     const truncatedStatsStr = statsStr.length > 200 ? statsStr.substring(0, 200) + '...' : statsStr;
 
                     // Separate error type from stats for dedicated columns
-                    const errorTypeDisplay = r.errorType ? `err: ${r.errorType}` : (errorDisplay || '');
+                    const errorTypeDisplay = r.errorType ? r.errorType : (errorDisplay || '');
                     const countermeasureDisplay = countermeasure || '';
                     // Remaining stats (excluding errorType which is now in its own column)
                     const statsWithoutErrorType = statsParts.filter(p => !p.startsWith('err: ') && p !== `counter: ${countermeasure}`).join(' | ') || '-';
@@ -3874,9 +3883,9 @@
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
                         <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px;">${escapeHtml(model)}</td>
                         <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(errorTypeDisplay)}">${escapeHtml(errorTypeDisplay) || '-'}</td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay) || '-'}</td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #c9d1d9; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(truncatedStats)}">${escapeHtml(truncatedStats)}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(errorTypeDisplay)}">${escapeHtml(errorTypeDisplay) || '-'}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay) || '-'}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #c9d1d9; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(truncatedStats)}">${escapeHtml(truncatedStats)}</td>
                     </tr>`;
                 }
 
@@ -3942,9 +3951,9 @@
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
                         <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px;">${escapeHtml(model)}</td>
                         <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(errorTypeDisplay)}">${escapeHtml(errorTypeDisplay) || '-'}</td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay) || '-'}</td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #c9d1d9; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(truncatedStats)}">${escapeHtml(truncatedStats)}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(errorTypeDisplay)}">${escapeHtml(errorTypeDisplay) || '-'}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay) || '-'}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #c9d1d9; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(truncatedStats)}">${escapeHtml(truncatedStats)}</td>
                     </tr>`;
                 }
 

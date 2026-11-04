@@ -36,6 +36,7 @@
         { "pattern": "account.?(?:disabled|suspended|banned|terminated|closed|deactivated)|organization.?(?:disabled|suspended|banned|deleted|deactivated)|project.?(?:deleted|disabled|suspended)|workspace.?(?:disabled|suspended|deleted)|policy.?violation|provider.?banned|banned|suspended", "action": "ban-provider", "scope": "provider" },
         { "pattern": "account disabled|banned", "action": "ban-provider", "scope": "provider" },
         { "pattern": "model_shutdown|model is gone|end of life|model_shutdown", "action": "ban-model", "scope": "model" },
+        { "pattern": "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized", "action": "ban-model", "scope": "model", "reason": "safeWrite-init-error" },
         { "pattern": "no.tool.call.but.required", "action": "ban-model", "scope": "model" },
         { "pattern": "image generation model|cannot be used for chat|not a chat model|image.only|incompatible", "action": "ban-model", "scope": "model" },
         { "pattern": "unsupported_image_block|devin_agentic_error", "action": "ban-model", "scope": "model" },
