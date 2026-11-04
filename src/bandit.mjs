@@ -565,6 +565,37 @@ export class DiscountedUCB1Bandit {
         }
       }
 
+      // Migrazione: total_failures e punishment_log per provider_history
+      const hasTotalFailuresProv = providerCols.some(col => col.name === "total_failures");
+      if (!hasTotalFailuresProv) {
+        console.log("[BANDIT] Migrazione: aggiungo total_failures a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN total_failures INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna total_failures:", err.message);
+        }
+      }
+
+      const hasPunishmentLog = providerCols.some(col => col.name === "punishment_log");
+      if (!hasPunishmentLog) {
+        console.log("[BANDIT] Migrazione: aggiungo punishment_log a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN punishment_log TEXT DEFAULT '[]'`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna punishment_log:", err.message);
+        }
+      }
+
+      const hasLastPunishment = providerCols.some(col => col.name === "last_punishment");
+      if (!hasLastPunishment) {
+        console.log("[BANDIT] Migrazione: aggiungo last_punishment a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN last_punishment TEXT`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna last_punishment:", err.message);
+        }
+      }
+
       console.log("[BANDIT] Migrazione database completata");
     } catch (err) {
       console.error("[BANDIT] Errore durante migrazione:", err.message);
@@ -3201,16 +3232,167 @@ export class DiscountedUCB1Bandit {
     }
   }
 
-  setPricingFilter(filter) {
-    const validFilters = ["none", "free-only", "paid-only", "exclude-paid"];
-    if (!validFilters.includes(filter)) throw new Error(`Invalid pricing filter: ${filter}`);
-    this.pricingFilter = filter;
-  }
-
   close() {
     if (this.db) {
       this.db.close();
     }
   }
 }
-// Test comment added to bandit.mjs for auto-git test
+
+// Exported helper functions for testing
+/**
+ * Applies punishment to a provider based on action type
+ * Implements exponential backoff cooldowns
+ * @param {object} db - SQLite database connection
+ * @param {string} provider - Provider name
+ * @param {string} actionType - Type of punishment action
+ * @param {string} error - Error message/details
+ */
+export async function applyPunishment(db, provider, actionType, error) {
+  if (!db || !provider) return;
+  
+  const now = Date.now();
+  
+  // Get current provider state with locking
+  const providerRow = db.prepare(
+    'SELECT total_failures, circuit_breaker_until FROM provider_history WHERE provider = ?'
+  ).get(provider);
+  
+  // If no row exists, insert it
+  if (!providerRow) {
+    db.prepare(
+      'INSERT INTO provider_history (provider, total_failures, circuit_breaker_until) VALUES (?, 0, 0)'
+    ).run(provider);
+  }
+  
+  const res = db.prepare(
+    'SELECT total_failures, circuit_breaker_until FROM provider_history WHERE provider = ?'
+  ).get(provider);
+  
+  const currentFailures = res ? res.total_failures || 0 : 0;
+  const newFailures = currentFailures + 1;
+  
+  // Calculate exponential backoff: 15s -> 5m -> 30m -> 2h -> permanent
+  const cooldownMs = calculateCooldown(newFailures, error);
+  
+  // Update records atomically
+  db.prepare(`
+    UPDATE provider_history
+    SET total_failures = ?,
+        circuit_breaker_until = ?,
+        last_punishment = ?,
+        punishment_log = json_insert(
+          COALESCE(punishment_log, '[]'),
+          '$',
+          json_object(
+            'timestamp', ?,
+            'failures', ?,
+            'action', ?,
+            'error', ?
+          )
+        )
+    WHERE provider = ?
+  `).run(newFailures, now + cooldownMs, actionType, now, newFailures, actionType, error, provider);
+  
+  // Apply permanent ban if threshold exceeded (10 failures)
+  if (newFailures >= 10) {
+    db.prepare(`
+      UPDATE provider_history
+      SET circuit_breaker_until = 999999999999999
+      WHERE provider = ?
+    `).run(provider);
+  }
+}
+
+/**
+ * Calculates cooldown time based on failure count (exponential backoff)
+ * 1st failure: 15s, 2nd: 30s, 3rd: 1min, 4th: 2min, 5th: 4min,
+ * 6th: 8min, 7th: 16min, 8th: 32min, 9th: 1hr, 10th: permanent
+ */
+function calculateCooldown(failureCount, error) {
+  const baseMs = 15000; // 15 seconds
+  const maxMs = 5 * 60 * 1000; // 5 minutes cap
+  
+  // Parse reset time from error message if present
+  const resetMatch = error?.match?.(/reset after (\d+)(s|m|h)/i);
+  if (resetMatch) {
+    const v = parseInt(resetMatch[1], 10);
+    const u = resetMatch[2].toLowerCase();
+    if (u === 's') return v * 1000;
+    if (u === 'm') return v * 60 * 1000;
+    if (u === 'h') return v * 3600 * 1000;
+  }
+  
+  // Exponential: 15s * 2^(n-1), capped at max
+  const cooldown = baseMs * Math.pow(2, Math.min(failureCount - 1, 8));
+  return Math.max(Math.min(cooldown, maxMs), baseMs);
+}
+
+/**
+ * Resets failures gradually (decrements by 1)
+ * @param {object} db - SQLite database connection
+ * @param {string} provider - Provider name
+ */
+export async function resetFailuresGradually(db, provider) {
+  if (!db || !provider) return;
+  
+  db.prepare(`
+    UPDATE provider_history
+    SET total_failures = MAX(total_failures - 1, 0)
+    WHERE provider = ?
+  `).run(provider);
+}
+
+/**
+ * Classifies an error based on config patterns (public wrapper)
+ * @param {object} config - Bandit configuration with patterns
+ * @param {string} error - Error message to classify
+ * @returns {object} Classification result with action, reason, etc.
+ */
+export function classifyError(config, error) {
+  if (!config || !error) {
+    return { action: 'cooldown-provider', reason: 'unknown' };
+  }
+  
+  const message = typeof error === 'string' ? error : String(error);
+  const patterns = config.patterns || {};
+  const fallbackAction = getFallbackAction(config);
+  
+  for (const [patternKey, actionConfig] of Object.entries(patterns)) {
+    const regex = new RegExp(patternKey, 'i');
+    if (regex.test(message)) {
+      return {
+        action: actionConfig.action || fallbackAction,
+        reason: actionConfig.reason,
+        severity: actionConfig.severity,
+        cooldownMs: actionConfig.duration,
+        scope: actionConfig.scope || 'model'
+      };
+    }
+  }
+  
+  return {
+    action: fallbackAction,
+    reason: undefined
+  };
+}
+
+/**
+ * Gets the fallback action from config
+ * @param {object} config - Bandit configuration
+ * @returns {string} Fallback action
+ */
+export function getFallbackAction(config) {
+  return config?.fallback_action || 'cooldown-provider';
+}
+
+/**
+ * Gets action for a specific pattern key
+ * @param {object} config - Bandit configuration with patterns
+ * @param {string} patternKey - The pattern key to look up
+ * @returns {object|null} Action configuration or null
+ */
+export function getPatternAction(config, patternKey) {
+  if (!config?.patterns || !patternKey) return null;
+  return config.patterns[patternKey] || null;
+}
