@@ -10,7 +10,7 @@ import { fileURLToPath } from "url";
 import { DiscountedUCB1Bandit } from "./bandit.mjs";
 import { HealthChecker, sanitizeBaseUrl, buildEndpointUrl } from "./health-check.mjs";
 import { Notifier } from "./notifier.mjs";
-import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered } from './modes-registry.mjs';
+import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered, profileMultiplier } from './modes-registry.mjs';
 import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebugEnabled, isDebugVerboseEnabled, readDebugVerboseTtlMs, createTtlFlag, isPollingPath } from "./log-throttle.mjs";
 import fs from "node:fs";
 EventEmitter.defaultMaxListeners = 50;
@@ -199,6 +199,40 @@ export function convertImageGenerationToChatCompletion(imageGenResponse) {
       total_tokens: imageGenResponse.usage?.total_tokens || 0
     }
   };
+}
+
+// ========================================
+// UCB1 SCORE HELPER
+// ========================================
+/**
+ * Compute the UCB1 score for a model (without random tie-breaker).
+ * Used for pinned models where we don't want the random noise.
+ */
+function computeUCB1Score(modelId, bandit, totalObservations) {
+  const modelInfo = bandit.getModelInfo(modelId);
+  if (!modelInfo) return 0;
+  
+  const N = modelInfo.N || 0;
+  const sum_reward = modelInfo.sum_reward || 0;
+  const avgReward = N > 0 ? sum_reward / N : 1.0;
+  const avgLatency = modelInfo.avg_latency || 250;
+  const baselineLatency = 500;
+  const latencyFactor = baselineLatency / Math.max(avgLatency, 100);
+  const qualitySpeedScore = avgReward * latencyFactor;
+  
+  let ucbScore;
+  if (N === 0) {
+    // Prioritize untested models (N = 0) with high optimistic bonus
+    ucbScore = 2.0 * qualitySpeedScore + 0.8 * Math.sqrt(Math.log(totalObservations + 1) / 1);
+  } else {
+    const explorationBonus = 0.5 * Math.sqrt(Math.log(totalObservations + 1) / N);
+    ucbScore = (avgReward + explorationBonus) * qualitySpeedScore;
+  }
+  
+  // Apply profile multiplier (no random tie-breaker for deterministic pinned model scoring)
+  const profile = detectProfile();
+  const mult = profileMultiplier(profile, modelId);
+  return ucbScore * mult;
 }
 
 // ========================================
@@ -804,6 +838,7 @@ function getActiveRequestsSnapshot() {
       const rank = r.model ? bandit.getModelRank(r.model) : null;
       return {
         ...r,
+        selectionHistory: r.selectionHistory || [],
         elapsedMs: now - r.startTime,
         elapsedSec: Math.round((now - r.startTime) / 100) / 10,
         N: info?.N ?? null,
@@ -2020,10 +2055,41 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       && pinnedSupportsVision;
   
     if (pinnedValid) {
-      model = pinnedEntry.model;
-      pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
-      console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
-    } else {
+        model = pinnedEntry.model;
+        pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
+        console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
+        // Populate selection history for pinned model to show in dashboard unified table
+        // The pinned model is "selected" via session affinity, so record it as such
+        if (model) {
+          try {
+            const modelInfo = bandit.getModelInfo(model);
+            const provider = bandit._getProvider(model);
+            // Use totalObservations from bandit for consistent scoring (matches selectModel logic)
+            const totalObs = bandit._getMeta("totalObservations") || 0;
+            const computedScore = computeUCB1Score(model, bandit, totalObs);
+            allSelectionHistory.push({
+              id: model,
+              provider: provider,
+              status: 'selected',
+              reason: 'session_affinity',
+              tier: 'session',
+              N: modelInfo?.N || 0,
+              sum_reward: modelInfo?.sum_reward || 0,
+              avg_reward: modelInfo?.avg_reward || 0,
+              avg_latency: modelInfo?.avg_latency || 250,
+              score: computedScore
+            });
+          } catch (e) {
+            // If we can't get model info, still record the selection
+            allSelectionHistory.push({
+              id: model,
+              provider: 'session-pinned',
+              status: 'selected',
+              reason: 'session_affinity'
+            });
+          }
+        }
+      } else {
       if (pinnedEntry && requireVision && !pinnedSupportsVision) {
         console.log(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (vision required but model lacks vision support)`);
         sessionModels.delete(sessionKey);

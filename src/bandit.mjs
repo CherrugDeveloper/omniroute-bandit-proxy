@@ -1197,11 +1197,21 @@ export class DiscountedUCB1Bandit {
           
           // Check for 3-strike rule: permanent ban after 3 consecutive critical failures
           if (newConsecutiveCritical >= 3) {
-            this.db.prepare(
-              `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index, consecutive_critical_failures)
-               VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0, ?)
-               ON CONFLICT(id) DO UPDATE SET permanent = 1, banned_since = ?, consecutive_critical_failures = ?, cooldown_until = 0`
-            ).run(sanitizedModelId, provider, Date.now(), newConsecutiveCritical, Date.now(), newConsecutiveCritical);
+            // Use INSERT OR REPLACE for new models, UPDATE preserves metrics for existing models
+            // Metrics (N, sum_reward, fails, total_failures, last_used_index) must remain unchanged
+            const existing = this.db.prepare("SELECT id FROM models WHERE id = ?").get(sanitizedModelId);
+            if (!existing) {
+              // New model: insert with default metrics (N=0, sum_reward=0, fails=0, etc.)
+              this.db.prepare(
+                `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index, consecutive_critical_failures, total_failures, consecutive_5xx, degraded, is_paid)
+                 VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0, 0)`
+              ).run(sanitizedModelId, provider, Date.now(), newConsecutiveCritical);
+            } else {
+              // Existing model: only update ban-related columns, preserve all metrics
+              this.db.prepare(
+                `UPDATE models SET permanent = 1, banned_since = ?, consecutive_critical_failures = ?, cooldown_until = 0 WHERE id = ?`
+              ).run(Date.now(), newConsecutiveCritical, sanitizedModelId);
+            }
             console.log(`[BANDIT-3STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 3 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=3-strike-rule | STATUS_CODE=${statusCode}`);
           } else {
             // Just increment the counter, don't ban yet

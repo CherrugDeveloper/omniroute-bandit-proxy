@@ -8,7 +8,7 @@ Il formato segue lo standard [Keep a Changelog](https://keepachangelog.com/it/1.
 
 ### Feat
 
-- **Bandit**: Implementato sistema di punizione aggressiva a 3-strike per failure critici [src/bandit.mjs:3384]
+- **Bandit**: Implementato sistema di punizione aggressiva a 3-strike per failure critici [src/bandit.mjs:1199-1219]
   - Aggiunta colonna `consecutive_critical_failures` per il 3-strike rule
   - Nuovo metodo `_isCriticalFailure()` che classifica 403, 429, timeout e errori safeWrite come critici
   - Ban permanente dopo 3 consecutive critical failures (3-strike rule)
