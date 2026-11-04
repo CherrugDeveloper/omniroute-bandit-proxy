@@ -91,6 +91,7 @@ The algorithm uses **Discounted UCB1** with a discount factor of `0.99` applied 
 #### UCB1 Update (with discount)
 
 `N = N * 0.99 + 1` (success)
+
 `sum_reward = sum_reward * 0.99 + reward`
 
 #### Enhanced Cooldown Management
@@ -137,6 +138,29 @@ npm install
 ## Dashboard
 
 Access the web dashboard at `http://localhost:8080/dashboard.html` when the server is running. The dashboard provides real-time metrics, logs, and model management capabilities.
+
+## Database
+
+The project uses `better-sqlite3` for SQLite database operations. Schema migrations only support `ADD COLUMN` operations for adding new columns to existing tables.
+
+## Error Classification
+
+The system handles 5 classification scopes for error management:
+1. **ban** - Permanent exclusion from rotation
+2. **cooldown** - Temporary exclusion with exponential backoff
+3. **flag** - Mark for review (monitoring only)
+4. **degraded** - Reduced score due to transient errors
+5. **ignored** - Manually disabled or permanently banned
+
+## Quota System
+
+- **Provider-level quotas** (not model-level): Atomic checks of minute/day windows
+- Quota violations trigger `cooldown-model` with 5-minute duration
+
+## Session Management
+
+- **SESSION_TTL_MS**: 30 minutes
+- **STREAM_IDLE_MS**: 60 seconds (reset on any chunk/heartbeat)
 
 ## Full Change Log
 

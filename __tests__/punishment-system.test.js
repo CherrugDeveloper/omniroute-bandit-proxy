@@ -121,6 +121,7 @@ function setupSchema(db) {
             provider TEXT PRIMARY KEY,
             total_failures INTEGER DEFAULT 0,
             circuit_breaker_until REAL DEFAULT 0,
+            permanent INTEGER DEFAULT 0,
             last_punishment TEXT,
             punishment_log TEXT DEFAULT '[]'
         );

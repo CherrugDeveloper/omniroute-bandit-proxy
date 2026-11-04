@@ -3386,6 +3386,53 @@ export async function applyPunishment(db, provider, actionType, error) {
   
   const now = Date.now();
   
+  if (actionType === 'ban-provider' || actionType === 'ban-model') {
+    // Get current provider state
+    const providerRow = db.prepare(
+      'SELECT total_failures, circuit_breaker_until FROM provider_history WHERE provider = ?'
+    ).get(provider);
+    
+    const currentFailures = providerRow ? providerRow.total_failures || 0 : 0;
+    const newFailures = currentFailures + 1;
+    
+    // If no row exists, insert it with permanent ban
+    if (!providerRow) {
+      db.prepare(`
+        INSERT INTO provider_history
+          (provider, total_failures, circuit_breaker_until, permanent, last_punishment, punishment_log)
+        VALUES (?, ?, 999999999999999, 1, ?, json_object(
+          'timestamp', ?,
+          'failures', ?,
+          'action', ?,
+          'error', ?
+        ))
+      `).run(provider, newFailures, now, now, newFailures, actionType, error);
+      return;
+    }
+    
+    // Update records atomically with permanent ban (999999999999999 is ~unlimited timestamp)
+    db.prepare(`
+      UPDATE provider_history
+      SET total_failures = ?,
+        circuit_breaker_until = 999999999999999,
+        permanent = 1,
+        last_punishment = ?,
+        punishment_log = json_insert(
+          COALESCE(punishment_log, '[]'),
+          '$',
+          json_object(
+            'timestamp', ?,
+            'failures', ?,
+            'action', ?,
+            'error', ?
+          )
+        )
+      WHERE provider = ?
+    `).run(newFailures, now, now, newFailures, actionType, error, provider);
+    
+    return;
+  }
+  
   // Get current provider state with locking
   const providerRow = db.prepare(
     'SELECT total_failures, circuit_breaker_until FROM provider_history WHERE provider = ?'
@@ -3431,7 +3478,8 @@ export async function applyPunishment(db, provider, actionType, error) {
   if (newFailures >= 10) {
     db.prepare(`
       UPDATE provider_history
-      SET circuit_breaker_until = 999999999999999
+      SET circuit_breaker_until = 999999999999999,
+          permanent = 1
       WHERE provider = ?
     `).run(provider);
   }
