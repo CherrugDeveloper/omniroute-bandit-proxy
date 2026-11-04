@@ -1093,11 +1093,11 @@ export class DiscountedUCB1Bandit {
                 } else if (isTransient) {
                   // For transient errors (server-error, timeout, unknown), set a default cooldown
                   // Use the model's cooldown based on its current fail count
-                  const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
+                  const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(sanitizedModelId);
                   const failCount = model ? model.fails : 0;
                   const cooldownMs = this._getModelCooldownMs(failCount + 1);
                   if (cooldownMs && cooldownMs > 0) {
-                    this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, modelId);
+                    this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
                     console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model (default)`);
                   }
                 }
@@ -1115,10 +1115,10 @@ export class DiscountedUCB1Bandit {
         this.db.prepare(
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0, cooldown_until = 0
            WHERE id = ?`
-        ).run(reward, modelId);
+        ).run(reward, sanitizedModelId);
         this.db.prepare(
           "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
-        ).run(Date.now(), 200, null, modelId, provider);
+        ).run(Date.now(), 200, null, sanitizedModelId, provider);
         this._lastReward.set(modelId, reward);
         // Reset consecutive provider failures on success
         if (provider && provider !== 'unknown') {
@@ -1127,28 +1127,28 @@ export class DiscountedUCB1Bandit {
           ).run(Date.now(), provider);
         }
         // Belt-and-suspenders: clear model cooldown on success
-        this.db.prepare(`UPDATE models SET cooldown_until = 0 WHERE id = ?`).run(modelId);
+        this.db.prepare(`UPDATE models SET cooldown_until = 0 WHERE id = ?`).run(sanitizedModelId);
       } else {
         // On failure: increment both fails (consecutive) and total_failures (cumulative for escalation)
         this.db.prepare(
           `UPDATE models SET fails = fails + 1, total_failures = total_failures + 1, last_used_index = last_used_index + 1
            WHERE id = ?`
-        ).run(modelId);
+        ).run(sanitizedModelId);
         
         // Get updated total_failures for cooldown calculation
-        const modelRow = this.db.prepare("SELECT total_failures FROM models WHERE id = ?").get(modelId);
+        const modelRow = this.db.prepare("SELECT total_failures FROM models WHERE id = ?").get(sanitizedModelId);
         const totalFailures = modelRow ? modelRow.total_failures : 1;
         
         // Apply escalating cooldown based on total_failures
         const cooldownMs = this._getModelCooldownMs(totalFailures);
         if (cooldownMs && cooldownMs > 0) {
-          this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, modelId);
+          this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
           console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} cooldownMs=${cooldownMs} scope=model`);
         } else if (cooldownMs === null) {
           // Permanent ban at 5+ total failures
           this.db.prepare(
             `UPDATE models SET permanent = 1, banned_since = ? WHERE id = ?`
-          ).run(Date.now(), modelId);
+          ).run(Date.now(), sanitizedModelId);
           console.log(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
         }
         
@@ -1156,7 +1156,7 @@ export class DiscountedUCB1Bandit {
         const errorMessage = errorDetails?.message || errorDetails?.error || String(errorDetails) || "Unknown error";
         this.db.prepare(
           "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
-        ).run(Date.now(), statusCode, errorMessage, modelId, provider);
+        ).run(Date.now(), statusCode, errorMessage, sanitizedModelId, provider);
       }
       const result = { success, reward, errorDetails };
       return result;
@@ -1367,7 +1367,7 @@ export class DiscountedUCB1Bandit {
         cooldownMs = retryAfter > 0 ? retryAfter * 1000 : 30 * 60 * 1000;
       }
 
-      const modelId = errorDetails.modelId || "";
+      const modelId = this._sanitizeModelId(errorDetails.modelId) || "";
       const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
       const repeated429 = model && model.fails >= 2;
 
@@ -1414,7 +1414,7 @@ export class DiscountedUCB1Bandit {
 
     // 5xx / Stream Errors / Keepalive -> cooldown-model (transient, exponential backoff)
     if (status >= 500 && status < 600 || /keepalive|chunk|stream|connection/i.test(message)) {
-      const modelId = errorDetails.modelId || "";
+      const modelId = this._sanitizeModelId(errorDetails.modelId) || "";
       const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
       const fails = model ? model.fails : 0;
       // Exponential backoff: base 15s, multiplier 2^fails (capped at 5 mins)
