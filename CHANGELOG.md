@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation: Updated [`../../.roo/commands/auto-git.md`](../../.roo/commands/auto-git.md:1) to follow Keep a Changelog 1.1.0 and cover full project history
 
 ### Fixed
+- Bandit: Fixed `totalObservations is not defined` error in `getDashboardStats()` [`src/bandit.mjs:2304`](src/bandit.mjs:2304)
 - Dashboard: Accurate model and provider metrics calculation and display [`public/dashboard.html`](public/dashboard.html:1058)
 - Dashboard: Train tab status and Top model display [`public/dashboard.html`](public/dashboard.html:1318)
 - Dashboard: Modalità signatures and discovery active state rendering [`public/dashboard.html`](public/dashboard.html:1367)
