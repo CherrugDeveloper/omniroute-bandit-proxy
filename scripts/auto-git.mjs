@@ -6,7 +6,7 @@
  * This script MUST be executed unconditionally after task completion.
  */
 
-import { execSync, spawn } from 'child_process';
+import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -200,7 +200,7 @@ function getTagsSorted() {
   return [];
 }
 
-// Get commits between two tags
+// Get commits between two refs
 function getCommitsBetween(fromRef, toRef) {
   try {
     const commitsOutput = runCommand(`git log ${fromRef}..${toRef} --format="%s" 2>/dev/null || echo ""`, { silent: true });
@@ -217,12 +217,13 @@ function parseCommitType(commit) {
   if (lower.startsWith('feat:')) return 'feat';
   if (lower.startsWith('fix:')) return 'fix';
   if (lower.startsWith('feat(') || lower.startsWith('fix(')) return 'feat'; // with scope
+  if (lower.startsWith('feat(') || lower.startsWith('fix(')) return 'feat'; // with scope
   return 'other';
 }
 
-// Generate entries for a version
+// Generate entries for a version - returns array of strings
 function generateVersionEntries(version, tag, commits, date) {
-  const entries = [];
+  const lines = [];
   const added = [];
   const changed = [];
   const fixed = [];
@@ -231,7 +232,11 @@ function generateVersionEntries(version, tag, commits, date) {
   const security = [];
   
   for (const commit of commits) {
-    const type = parseCommitType(commit);
+    const lower = commit.toLowerCase();
+    const type = lower.startsWith('feat:') ? 'feat' : 
+                 lower.startsWith('fix:') ? 'fix' : 
+                 lower.startsWith('feat(') || lower.startsWith('fix(') ? 'feat' : 'other';
+    
     // Extract description (remove type prefix and BREAKING CHANGE)
     let desc = commit.replace(/^(feat|fix|feat\([^)]+\)|fix\([^)]+\)):\s*/i, '');
     if (desc.includes('BREAKING CHANGE:')) {
@@ -242,117 +247,133 @@ function generateVersionEntries(version, tag, commits, date) {
       added.push(desc);
     } else if (type === 'fix') {
       fixed.push(desc);
-    } else if (commit.toLowerCase().includes('security')) {
+    } else if (lower.includes('security')) {
       security.push(desc);
-    } else if (commit.toLowerCase().includes('deprecated')) {
+    } else if (lower.includes('deprecated')) {
       deprecated.push(desc);
-    } else if (commit.toLowerCase().includes('remove')) {
+    } else if (lower.includes('remove')) {
       removed.push(desc);
     } else {
       changed.push(desc);
     }
   }
   
-  if (added.length > 0) entries.push(['### Added'], '', ...added.map(d => `- ${d}`), '');
-  if (changed.length > 0) entries.push(['### Changed'], '', ...changed.map(d => `- ${d}`), '');
-  if (deprecated.length > 0) entries.push(['### Deprecated'], '', ...deprecated.map(d => `- ${d}`), '');
-  if (removed.length > 0) entries.push(['### Removed'], '', ...removed.map(d => `- ${d}`), '');
-  if (fixed.length > 0) entries.push(['### Fixed'], '', ...fixed.map(d => `- ${d}`), '');
-  if (security.length > 0) entries.push(['### Security'], '', ...security.map(d => `- ${d}`), '');
+  if (added.length > 0) {
+    lines.push('### Added');
+    lines.push('');
+    for (const d of added) lines.push(`- ${d}`);
+    lines.push('');
+  }
+  if (changed.length > 0) {
+    lines.push('### Changed');
+    lines.push('');
+    for (const d of changed) lines.push(`- ${d}`);
+    lines.push('');
+  }
+  if (deprecated.length > 0) {
+    lines.push('### Deprecated');
+    lines.push('');
+    for (const d of deprecated) lines.push(`- ${d}`);
+    lines.push('');
+  }
+  if (removed.length > 0) {
+    lines.push('### Removed');
+    lines.push('');
+    for (const d of removed) lines.push(`- ${d}`);
+    lines.push('');
+  }
+  if (fixed.length > 0) {
+    lines.push('### Fixed');
+    lines.push('');
+    for (const d of fixed) lines.push(`- ${d}`);
+    lines.push('');
+  }
+  if (security.length > 0) {
+    lines.push('### Security');
+    lines.push('');
+    for (const d of security) lines.push(`- ${d}`);
+    lines.push('');
+  }
   
-  return entries;
+  return lines;
 }
 
 // Build changelog from full git history
-function buildChangelogFromHistory(tags) {
-  const lines = [
-    '# Changelog',
-    '',
-    'All notable changes to this project will be documented in this file.',
-    '',
-    'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),',
-    'and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).',
-    ''
-  ];
+function buildChangelogFromHistory(tags, unreleasedCommits) {
+  const result = [];
   
-  if (tags.length === 0) {
-    // No tags - get all commits
-    const allCommits = getCommitsBetween('4b817f1 HEAD~0', 'HEAD~0');
-    if (allCommits.length > 0) {
-      lines.push('## [Unreleased]');
-      lines.push('');
-      const entries = generateVersionEntries('unreleased', 'HEAD', allCommits, today);
-      for (const entry of entries) {
-        for (const line of entry) {
-          lines.push(line);
-        }
-      }
-      lines.push('');
-    }
+  result.push('# Changelog');
+  result.push('');
+  result.push('All notable changes to this project will be documented in this file.');
+  result.push('');
+  result.push('The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),');
+  result.push('and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).');
+  result.push('');
+  
+  // Add Unreleased section if there are commits since last tag
+  if (unreleasedCommits.length > 0) {
+    result.push('## [Unreleased]');
+    result.push('');
+    const entries = generateVersionEntries('unreleased', 'HEAD', unreleasedCommits, today);
+    result.push(...entries);
   } else {
-    // Add [Unreleased] section for commits since last tag
-    const commitsSinceLatest = getCommitsBetween(tags[0], 'HEAD');
-    if (commitsSinceLatest.length > 0) {
-      lines.push('## [Unreleased]');
-      lines.push('');
-      const entries = generateVersionEntries('unreleased', 'HEAD', commitsSinceLatest, today);
-      for (const entry of entries) {
-        for (const line of entry) {
-          lines.push(line);
-        }
-      }
-      lines.push('');
-    }
+    result.push('## [Unreleased]');
+    result.push('');
+  }
+  
+  // Process each tagged version
+  for (let i = 0; i < tags.length; i++) {
+    const tag = tags[i];
+    const version = tag.replace(/^v/, '');
     
-    // Process each tagged version
-    for (let i = 0; i < tags.length; i++) {
-      const tag = tags[i];
-      const version = tag.replace(/^v/, '');
-      
-      // Get commits for this version
-      const fromRef = i === 0 ? tag : tags[i-1];
-      const toRef = tag;
-      const commits = getCommitsBetween(fromRef, toRef);
-      
-      // Try to get date from git tag
-      let versionDate = today;
-      try {
-        const dateOutput = runCommand(`git log -1 --format="%ad" --date=short ${tag} 2>/dev/null || echo "${today}"`, { silent: true });
-        if (dateOutput && dateOutput.trim()) {
-          versionDate = dateOutput.trim().split('\n')[0];
-        }
-      } catch (e) {}
-      
-      // Format version display (strip 'v' prefix in section)
-      lines.push(`## [${version}] - ${versionDate}`);
-      lines.push('');
-      
-      const entries = generateVersionEntries(version, tag, commits, versionDate);
-      for (const entry of entries) {
-        for (const line of entry) {
-          lines.push(line);
-        }
+    // Get commits for this version
+    const fromRef = i === 0 ? tag : tags[i-1];
+    const toRef = tag;
+    const commits = getCommitsBetween(fromRef, toRef);
+    
+    // Try to get date from git tag
+    let versionDate = today;
+    try {
+      const dateOutput = runCommand(`git log -1 --format="%ad" --date=short ${tag} 2>/dev/null || echo "${today}"`, { silent: true });
+      if (dateOutput && dateOutput.trim()) {
+        versionDate = dateOutput.trim().split('\n')[0];
       }
-      lines.push('');
-    }
+    } catch (e) {}
+    
+    // Format version display
+    result.push(`## [${version}] - ${versionDate}`);
+    result.push('');
+    
+    const entries = generateVersionEntries(version, tag, commits, versionDate);
+    result.push(...entries);
   }
   
   // End marker
-  lines.push('<!-- Version History -->');
-  lines.push('');
-  lines.push('## Version History');
-  lines.push('');
-  lines.push('For complete version history prior to the latest version, see the [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) or commit files.');
-  lines.push('');
+  result.push('<!-- Version History -->');
+  result.push('');
+  result.push('## Version History');
+  result.push('');
+  result.push('For complete version history prior to the latest version, see the [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) or commit files.');
+  result.push('');
   
-  return lines.join('\n');
+  return result.join('\n');
 }
 
 // Get all version tags
 const allTags = getTagsSorted();
 
+// Get commits since latest tag for unreleased section
+const unreleasedCommits = getCommitsBetween(allTags.length > 0 ? allTags[0] : 'HEAD~1', 'HEAD');
+
+// Handle case where no commits since tag - use current version commits
+let finalCommits = unreleasedCommits;
+if (finalCommits.length === 0 && latestTag) {
+  // If we're at a tagged version, there's nothing new since tag
+  finalCommits = [];
+}
+
 // Generate fresh changelog from git history
-const newChangelog = buildChangelogFromHistory(allTags);
+const newChangelog = buildChangelogFromHistory(allTags, finalCommits);
 writeFileSync(changelogPath, newChangelog, 'utf-8');
 log(`Generated CHANGELOG.md from ${allTags.length} version tags`, 'green');
 
@@ -462,7 +483,7 @@ if (!pushSuccess) {
 log('\n=== Verifying remote sync ===', 'blue');
 try {
   const localCommit = runCommand('git rev-parse HEAD');
-  const remoteCommit = runCommand(`git rev-parse origin/${branch}`);
+  const remoteCommit = runCommand(`git rev-parse refs/remotes/origin/${branch}`);
   
   if (localCommit === remoteCommit) {
     log('Remote synchronization verified - local and remote are in sync', 'green');
