@@ -1573,7 +1573,7 @@ app.post("/v1/images/generations", async (req, res) => {
   bandit._incrMeta("totalRequests");
 
   try {
-    const selected = await bandit.selectModel(new Set(), 0, false, true, false);
+    const selected = await bandit.selectModel(new Set(), 0, false, true, true); // FIX: requireImageGeneration=true
     // Record started_at AFTER model selection to exclude selection time from latency
     bandit.recordRequestStarted(selected, bandit._getProvider(selected));
 

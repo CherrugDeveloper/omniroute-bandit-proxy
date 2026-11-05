@@ -1197,22 +1197,35 @@ export class DiscountedUCB1Bandit {
           
           // Check for 3-strike rule: permanent ban after 3 consecutive critical failures
           if (newConsecutiveCritical >= 3) {
-            // Use INSERT OR REPLACE for new models, UPDATE preserves metrics for existing models
-            // Metrics (N, sum_reward, fails, total_failures, last_used_index) must remain unchanged
-            const existing = this.db.prepare("SELECT id FROM models WHERE id = ?").get(sanitizedModelId);
-            if (!existing) {
-              // New model: insert with default metrics (N=0, sum_reward=0, fails=0, etc.)
+            // Check if this is a paid model - if so, punish the entire paid sub-group for that provider
+            const modelRow = this.db.prepare("SELECT is_paid FROM models WHERE id = ?").get(sanitizedModelId);
+            const isPaidModel = modelRow && modelRow.is_paid === 1;
+            
+            if (isPaidModel) {
+              // PUNISH ENTIRE PAID SUB-GROUP: Ban all paid models from this provider
               this.db.prepare(
-                `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index, consecutive_critical_failures, total_failures, consecutive_5xx, degraded, is_paid)
-                 VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0, 0)`
-              ).run(sanitizedModelId, provider, Date.now(), newConsecutiveCritical);
+                `UPDATE models SET permanent = 1, banned_since = ?, cooldown_until = 0, consecutive_critical_failures = ?
+                 WHERE provider = ? AND is_paid = 1`
+              ).run(Date.now(), newConsecutiveCritical, provider);
+              console.log(`[BANDIT-3STRIKE] PAID-GROUP-BAN | provider=${provider} | 3 consecutive critical failures on paid model=${modelId} | permanent ban applied to ALL paid models in provider | total_critical=${newConsecutiveCritical} | STATUS_CODE=${statusCode}`);
             } else {
-              // Existing model: only update ban-related columns, preserve all metrics
-              this.db.prepare(
-                `UPDATE models SET permanent = 1, banned_since = ?, consecutive_critical_failures = ?, cooldown_until = 0 WHERE id = ?`
-              ).run(Date.now(), newConsecutiveCritical, sanitizedModelId);
+              // Non-paid model: just ban the individual model
+              // Use INSERT OR REPLACE for new models, UPDATE preserves metrics for existing models
+              const existing = this.db.prepare("SELECT id FROM models WHERE id = ?").get(sanitizedModelId);
+              if (!existing) {
+                // New model: insert with default metrics (N=0, sum_reward=0, fails=0, etc.)
+                this.db.prepare(
+                  `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index, consecutive_critical_failures, total_failures, consecutive_5xx, degraded, is_paid)
+                   VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0, 0)`
+                ).run(sanitizedModelId, provider, Date.now(), newConsecutiveCritical);
+              } else {
+                // Existing model: only update ban-related columns, preserve all metrics
+                this.db.prepare(
+                  `UPDATE models SET permanent = 1, banned_since = ?, consecutive_critical_failures = ?, cooldown_until = 0 WHERE id = ?`
+                ).run(Date.now(), newConsecutiveCritical, sanitizedModelId);
+              }
+              console.log(`[BANDIT-3STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 3 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=3-strike-rule | STATUS_CODE=${statusCode}`);
             }
-            console.log(`[BANDIT-3STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 3 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=3-strike-rule | STATUS_CODE=${statusCode}`);
           } else {
             // Just increment the counter, don't ban yet
             this.db.prepare(`UPDATE models SET consecutive_critical_failures = ? WHERE id = ?`).run(newConsecutiveCritical, sanitizedModelId);
@@ -2864,9 +2877,10 @@ export class DiscountedUCB1Bandit {
           /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde)([-_/]|$)/i.test(model.id) ||
           /image/i.test(model.id);
       };
+      // FIX: Correct operator precedence - must check (supports_image_generation || 0) === 1
       availableModels = requireImageGeneration
-        ? models.filter(m => m && m.supports_image_generation || 0)
-        : models.filter(m => {
+          ? models.filter(m => m && (m.supports_image_generation || 0) === 1)
+          : models.filter(m => {
             if (!m || !m.id) return false;
             const lowerId = m.id.toLowerCase();
             const isNonChat = m.supports_chat === 0 || m.capability !== 'chat_completion' || m.supports_image_generation === 1 || m.supports_audio_generation === 1 ||
