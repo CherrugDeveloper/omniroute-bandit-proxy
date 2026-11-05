@@ -8,8 +8,7 @@
     "start": "node src/index.mjs",
     "dev": "node --watch src/index.mjs",
     "check": "node --check src/index.mjs && node --check src/bandit.mjs",
-    "test": "node --test __tests__/*.test.js",
-    "auto-git": "node scripts/auto-git.mjs"
+    "test": "node --test __tests__/*.test.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.5.0",
