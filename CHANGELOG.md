@@ -9,18 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- chore: update CHANGELOG, README, and version to v1.19.6
-- chore: update CHANGELOG, README, and version to v1.19.5
-- chore: update CHANGELOG, README, and version to v1.19.4
-- refactor(auto-git): improve changelog generation to follow Keep a Changelog v1.1.0
-- chore: update CHANGELOG, README, and version to v1.19.3
-- chore: update CHANGELOG, README, and version to v1.19.2
-
-## [1.20.0] - 2026-11-05
-
-## [1.19.0] - 2026-11-05
-
-## [1.18.0] - 2026-11-05
+- chore: update CHANGELOG, README, and version to v1.19.7
 
 <!-- Version History -->
 
