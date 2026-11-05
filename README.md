@@ -1,4 +1,9 @@
+**v1.19.2 - 2026-11-v1.19.3 - 2026-11-v1.19.4 - 2026-11-v1.19.5 - 2026-11-v1.19.6 - 2026-11-v1.19.7 - 2026-11-v1.19.8 - 2026-11-05)** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management and aggressive punishment system=======
 # OmniRoute Bandit Proxy
+
+**v1.20.0 - 2026-11-05** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management and aggressive punishment system
+
+## Overview
 
 **v1.19.2 - 2026-11-v1.19.3 - 2026-11-v1.19.4 - 2026-11-v1.19.5 - 2026-11-v1.19.6 - 2026-11-v1.19.7 - 2026-11-v1.19.8 - 2026-11-05)** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management and aggressive punishment system
 
