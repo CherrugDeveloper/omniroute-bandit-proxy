@@ -8,7 +8,7 @@ OmniRoute Bandit Proxy is a middleware system that acts as a proxy between the Z
 
 ## Key Features
 
-### 1. Bandit Algorithm (Discounted UCB1)
+### 1. Bandit Algorithm (Discounted UCBv1.21.0 - 2026-11-05)
 
 The algorithm uses **Discounted UCB1** with a discount factor of `0.99` applied *per feedback event*, not per timestep. This means reward history decays faster under load.
 

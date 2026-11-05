@@ -13,8 +13,12 @@ import { Notifier } from "./notifier.mjs";
 import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered, profileMultiplier } from './modes-registry.mjs';
 import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebugEnabled, isDebugVerboseEnabled, readDebugVerboseTtlMs, createTtlFlag, isPollingPath } from "./log-throttle.mjs";
 import fs from "node:fs";
-import WebSocket from "ws";
+import * as WebSocket from "ws";
 EventEmitter.defaultMaxListeners = 50;
+// Define ES module __dirname and __filename at the top (before they are used)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 // WebSocket server instance and connection tracking
 let wss = null;
@@ -38,15 +42,13 @@ function broadcastScriptOutput(pid, data) {
   const clients = scriptOutputClients.get(pid);
   if (clients) {
     for (const ws of clients) {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.readyState === WebSocket.WebSocket.OPEN) {
         ws.send(JSON.stringify(data));
       }
     }
   }
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 let server;
 const app = express();
@@ -3091,7 +3093,7 @@ async function startServer(attempt = 1) {
     });
   
     // Initialize WebSocket server for real-time script output streaming
-    wss = new WebSocket.Server({ noServer: true });
+    wss = new WebSocket.WebSocketServer({ noServer: true });
     wss.on("connection", (ws, req) => {
       const pid = req.url?.split("/")[1];
       if (pid) {
