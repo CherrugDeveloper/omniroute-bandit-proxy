@@ -3215,21 +3215,21 @@ export class DiscountedUCB1Bandit {
   getModelsSummary(source = "prod") {
     const now = Date.now();
 
-    // Base query for counting models
+    // Use catalog as base so ALL catalog models (even uninitialized in models table) are counted
     let baseQuery = `
-      FROM models m
-      LEFT JOIN catalog c ON m.id = c.id
+      FROM catalog c
+      LEFT JOIN models m ON c.id = m.id
     `;
 
-    let activeCondition = "(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND m.permanent = 0 AND m.degraded = 0";
+    let activeCondition = "(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND (m.permanent IS NULL OR m.permanent = 0) AND (m.degraded IS NULL OR m.degraded = 0)";
     let cooldownCondition = "m.cooldown_until > ?";
     let degradedCondition = "m.degraded = 1";
     let bannedCondition = "m.permanent = 1";
 
     if (source === "train") {
       baseQuery = `
-        FROM models_train m
-        LEFT JOIN catalog c ON m.id = c.id
+        FROM catalog c
+        LEFT JOIN models_train m ON c.id = m.id
       `;
       activeCondition = "1 = 1";
       cooldownCondition = "0 = 1";
@@ -3243,7 +3243,7 @@ export class DiscountedUCB1Bandit {
 
     // Exclude paid models if configured
     if (this.excludePaid) {
-      conditions.push("m.is_paid = 0");
+      conditions.push("(c.is_free = 1)");
     }
 
     // Only free models if configured
@@ -3253,7 +3253,7 @@ export class DiscountedUCB1Bandit {
 
     // Exclude thinking models if configured
     if (this.excludeThinking) {
-      conditions.push("m.id NOT REGEXP ?");
+      conditions.push("c.id NOT REGEXP ?");
       params.push("thinking|reasoning|[-_]r1[-_]|[-_]r1$|^r1[-_]|o1[-_]|o3[-_]|o4[-_]|qwq");
     }
 
@@ -3301,11 +3301,11 @@ export class DiscountedUCB1Bandit {
     // Get counts by provider
     const providerStmt = this.db.prepare(`
       SELECT
-        m.provider,
+        c.provider,
         COUNT(*) AS count
       ${baseQuery}
       ${whereClause}
-      GROUP BY m.provider
+      GROUP BY c.provider
     `);
     const providerResult = providerStmt.all(...params);
     const byProvider = {};
@@ -3326,18 +3326,20 @@ export class DiscountedUCB1Bandit {
   getProviders() {
     const now = Date.now();
 
+    // Use catalog distinct providers as base so all providers present in catalog (even without history) are included
     const query = `
       SELECT
-        ph.provider,
-        ph.fails,
-        ph.cooldown_until,
-        ph.permanent,
-        ph.needs_attention,
+        cp.provider,
+        COALESCE(ph.fails, 0) AS fails,
+        COALESCE(ph.cooldown_until, 0) AS cooldown_until,
+        COALESCE(ph.permanent, 0) AS permanent,
+        COALESCE(ph.needs_attention, 0) AS needs_attention,
         ph.attention_reason,
-        COUNT(m.id) AS modelCount
-      FROM provider_history ph
-      LEFT JOIN models m ON m.provider = ph.provider
-      GROUP BY ph.provider
+        COUNT(c.id) AS modelCount
+      FROM (SELECT DISTINCT provider FROM catalog) cp
+      LEFT JOIN provider_history ph ON cp.provider = ph.provider
+      LEFT JOIN catalog c ON c.provider = cp.provider
+      GROUP BY cp.provider
     `;
 
     const stmt = this.db.prepare(query);
