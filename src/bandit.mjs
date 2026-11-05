@@ -2301,7 +2301,7 @@ export class DiscountedUCB1Bandit {
 
       return {
         totalRequests,
-        totalObservations: successRateStats.totalObservations || totalObservations,
+        totalObservations: successRateStats.totalObservations || 0,
         avgReward: (stats && stats.avgReward !== null) ? stats.avgReward : 0,
         avgLatencySec: (latency.avgLatency || 0) / 1000,
         freeActive: freeActive.count || 0,
