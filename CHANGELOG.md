@@ -8,72 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
--
- 
-c
-h
-o
-r
-e
-:
- 
-u
-p
-d
-a
-t
-e
- 
-C
-H
-A
-N
-G
-E
-L
-O
-G
-,
- 
-R
-E
-A
-D
-M
-E
-,
- 
-a
-n
-d
- 
-v
-e
-r
-s
-i
-o
-n
- 
-t
-o
- 
-v
-1
-.
-1
-9
-.
-2
+
+- refactor(auto-git): improve changelog generation to follow Keep a Changelog v1.1.0
+- chore: update CHANGELOG, README, and version to v1.19.3
+- chore: update CHANGELOG, README, and version to v1.19.2
 
 ## [1.20.0] - 2026-11-05
 
-
 ## [1.19.0] - 2026-11-05
 
-
 ## [1.18.0] - 2026-11-05
-
 
 <!-- Version History -->
 
