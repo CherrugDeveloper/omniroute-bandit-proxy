@@ -2024,6 +2024,9 @@
             if (btn) btn.classList.add('active');
             if (content) content.classList.add('active');
 
+            // Persist tab selection to localStorage
+            localStorage.setItem('dashboard.activeTab', tabName);
+
             if (updateHistory) {
                 if (location.hash !== '#' + tabName) {
                     history.pushState({ tab: tabName }, '', '#' + tabName);
@@ -2065,6 +2068,10 @@
         });
 
         function getInitialTab() {
+            // Check localStorage first for persisted tab
+            const storedTab = localStorage.getItem('dashboard.activeTab');
+            if (storedTab && validTabs.includes(storedTab)) return storedTab;
+            
             if (location.hash) {
                 const hashTab = location.hash.replace('#', '');
                 if (validTabs.includes(hashTab)) return hashTab;
@@ -4750,6 +4757,236 @@
         // ========================================
         // SCRIPTS MANAGER FUNCTIONALITY
         // ========================================
+        
+        // WebSocket connection for real-time script output streaming
+        let scriptOutputWebSocket = null;
+        let currentScriptPid = null;
+        let wsReconnectAttempts = 0;
+        const MAX_WS_RECONNECT_ATTEMPTS = 3;
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function connectScriptOutputWS(pid) {
+            if (scriptOutputWebSocket && scriptOutputWebSocket.readyState !== WebSocket.CLOSED) {
+                scriptOutputWebSocket.close();
+            }
+            
+            currentScriptPid = pid;
+            wsReconnectAttempts = 0;
+            
+            if (!WebSocket) {
+                console.log('[WS] WebSocket not supported, falling back to polling');
+                return false;
+            }
+            
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            scriptOutputWebSocket = new WebSocket(`${protocol}//${location.host}/v1/scripts/output/${pid}`);
+            
+            scriptOutputWebSocket.onopen = () => {
+                console.log('[WS] Connected to script output for PID:', pid);
+                wsReconnectAttempts = 0;
+            };
+            
+            scriptOutputWebSocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleScriptOutputData(data, pid);
+                } catch (e) {
+                    console.error('[WS] Error parsing WebSocket message:', e);
+                }
+            };
+            
+            scriptOutputWebSocket.onclose = (event) => {
+                console.log('[WS] Connection closed for PID:', pid, 'Reason:', event.reason || 'unknown');
+            };
+            
+            scriptOutputWebSocket.onerror = (error) => {
+                console.error('[WS] WebSocket error for PID:', pid, error);
+            };
+            
+            return true;
+        }
+        
+        function handleScriptOutputData(data, pid) {
+            const outputDiv = document.getElementById('script-output');
+            const statusDiv = document.getElementById('script-output-status');
+            const progressContainer = document.getElementById('script-progress-container');
+            const progressBar = document.getElementById('script-progress-bar');
+            const progressPct = document.getElementById('script-progress-pct');
+            
+            if (!outputDiv || !statusDiv) return;
+            
+            let liveText = '';
+            if (data.stdout) liveText += `=== STDOUT ===\n${data.stdout}\n`;
+            if (data.stderr) liveText += `=== STDERR ===\n${data.stderr}\n`;
+            
+            if (liveText) {
+                outputDiv.textContent = liveText;
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            }
+            
+            if (data.status === 'completed') {
+                if (progressBar) progressBar.style.width = '100%';
+                if (progressPct) progressPct.textContent = '100%';
+                
+                const exitCode = data.exitCode;
+                const color = exitCode === 0 ? '#3fb950' : '#f85149';
+                const icon = exitCode === 0 ? '✓' : '✗';
+                
+                statusDiv.innerHTML = `<span style="color:${color};">${icon} Completato (exit code: ${exitCode}, ${data.duration}ms)</span>`;
+                
+                let outText = '';
+                if (data.stdout) outText += `=== STDOUT ===\n${data.stdout}\n`;
+                if (data.stderr) outText += `=== STDERR ===\n${data.stderr}\n`;
+                if (!outText) outText = '(nessun output)';
+                
+                outputDiv.textContent = outText;
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            } else if (data.status === 'running') {
+                const elapsed = data.startTime ? Math.floor((Date.now() - data.startTime) / 1000) : 0;
+                statusDiv.innerHTML = `<span style="color:#58a6ff;">⏳ In esecuzione continua... (${elapsed}s)</span>`;
+                if (progressBar) progressBar.style.width = '100%';
+                if (progressPct) progressPct.textContent = `${elapsed}s`;
+            }
+        }
+        
+        async function pollScriptOutput(pid) {
+            const statusDiv = document.getElementById('script-output-status');
+            const outputDiv = document.getElementById('script-output');
+            const progressBar = document.getElementById('script-progress-bar');
+            const progressPct = document.getElementById('script-progress-pct');
+            
+            // Try WebSocket first for real-time updates
+            const wsSupported = WebSocket && connectScriptOutputWS(pid);
+            
+            if (wsSupported) {
+                statusDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Connessione WebSocket in corso...</span>';
+                
+                // Fallback to polling after 5 seconds if WebSocket doesn't complete
+                let wsFallbackTimeout = setTimeout(() => {
+                    console.log('[WS] Fallback to polling after 5s');
+                    startPollingFallback(pid);
+                }, 5000);
+                
+                // Return promise that resolves when WebSocket notifies completion
+                return new Promise((resolve) => {
+                    // Set up completion listener
+                    const checkInterval = setInterval(() => {
+                        const s = document.getElementById('script-output-status');
+                        if (s && s.innerHTML.includes('Completato')) {
+                            clearTimeout(wsFallbackTimeout);
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 500);
+                });
+            }
+            
+            // Fallback to polling for older browsers
+            startPollingFallback(pid);
+        }
+        
+        function startPollingFallback(pid) {
+            const status = document.getElementById('script-output-status');
+            const output = document.getElementById('script-output');
+            const progressBar = document.getElementById('script-progress-bar');
+            const progressPct = document.getElementById('script-progress-pct');
+            
+            let isStopped = false;
+            let idleCount = 0;
+            let pollInterval;
+            
+            pollInterval = setInterval(async () => {
+                if (isStopped) {
+                    clearInterval(pollInterval);
+                    return;
+                }
+                
+                try {
+                    const res = await fetch(`/v1/scripts/output/${pid}`, { headers: authHeaders() });
+                    if (res.status === 401) {
+                        handleUnauthorized();
+                        isStopped = true;
+                        clearInterval(pollInterval);
+                        if (status) status.innerHTML = '<span style="color:#f85149;">✗ Non autorizzato</span>';
+                        return;
+                    }
+                    if (!res.ok) {
+                        idleCount++;
+                        if (idleCount > 15) {
+                            if (status) status.innerHTML = '<span style="color:#f85149;">⚠ Script terminato (errore polling)</span>';
+                            isStopped = true;
+                            clearInterval(pollInterval);
+                            return;
+                        }
+                        return;
+                    }
+                    
+                    const text = await res.text();
+                    let data;
+                    try {
+                        data = text ? JSON.parse(text) : {};
+                    } catch (err) {
+                        idleCount++;
+                        return;
+                    }
+                    
+                    idleCount = 0;
+                    
+                    let liveText = '';
+                    if (data.stdout) liveText += `=== STDOUT ===\n${data.stdout}\n`;
+                    if (data.stderr) liveText += `=== STDERR ===\n${data.stderr}\n`;
+                    if (liveText) {
+                        if (output) output.textContent = liveText;
+                        if (output) output.scrollTop = output.scrollHeight;
+                    }
+                    
+                    if (data.status === 'completed') {
+                        if (progressBar) progressBar.style.width = '100%';
+                        if (progressPct) progressPct.textContent = '100%';
+                        
+                        const exitCode = data.exitCode;
+                        const color = exitCode === 0 ? '#3fb950' : '#f85149';
+                        const icon = exitCode === 0 ? '✓' : '✗';
+                        
+                        if (status) status.innerHTML = `<span style="color:${color};">${icon} Completato (exit code: ${exitCode}, ${data.duration}ms)</span>`;
+                        
+                        let outText = '';
+                        if (data.stdout) outText += `=== STDOUT ===\n${data.stdout}\n`;
+                        if (data.stderr) outText += `=== STDERR ===\n${data.stderr}\n`;
+                        if (!outText) outText = '(nessun output)';
+                        
+                        if (output) output.textContent = outText;
+                        if (output) output.scrollTop = output.scrollHeight;
+                        isStopped = true;
+                        clearInterval(pollInterval);
+                    } else if (data.status === 'running') {
+                        const elapsed = data.startTime ? Math.floor((Date.now() - data.startTime) / 1000) : 0;
+                        if (status) status.innerHTML = `<span style="color:#58a6ff;">⏳ In esecuzione continua... (${elapsed}s)</span>`;
+                        if (progressBar) progressBar.style.width = '100%';
+                        if (progressPct) progressPct.textContent = `${elapsed}s`;
+                    }
+                } catch (e) {
+                    // Ignore polling errors
+                }
+            }, 2000);
+            
+            // Final timeout to stop polling after 60 seconds
+            setTimeout(() => {
+                if (!isStopped) {
+                    isStopped = true;
+                    clearInterval(pollInterval);
+                    if (progressBar) progressBar.style.width = '100%';
+                    if (progressBar) progressBar.style.background = '#f85149';
+                    if (progressPct) progressPct.textContent = 'Interrotto';
+                    if (status) status.innerHTML = '<span style="color:#f85149;">⏹ Polling interrotto</span>';
+                }
+            }, 60000);
+        }
         
         let scriptsData = [];
         

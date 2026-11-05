@@ -13,7 +13,37 @@ import { Notifier } from "./notifier.mjs";
 import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered, profileMultiplier } from './modes-registry.mjs';
 import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebugEnabled, isDebugVerboseEnabled, readDebugVerboseTtlMs, createTtlFlag, isPollingPath } from "./log-throttle.mjs";
 import fs from "node:fs";
+import WebSocket from "ws";
 EventEmitter.defaultMaxListeners = 50;
+
+// WebSocket server instance and connection tracking
+let wss = null;
+const scriptOutputClients = new Map(); // pid -> Set of WebSocket connections
+
+// Centralized audit logger for script executions
+const auditLogPath = path.join(__dirname, "../scripts/audit.log");
+const auditLogger = {
+  write: (entry) => {
+    const logLine = `[${new Date().toISOString()}] ${JSON.stringify(entry)}\n`;
+    try {
+      fs.appendFileSync(auditLogPath, logLine);
+    } catch (e) {
+      console.error("[AUDIT] Failed to write audit log:", e.message);
+    }
+  }
+};
+
+// Broadcast script output to WebSocket clients
+function broadcastScriptOutput(pid, data) {
+  const clients = scriptOutputClients.get(pid);
+  if (clients) {
+    for (const ws of clients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(data));
+      }
+    }
+  }
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,7 +60,12 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-token");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
   if (req.method === "OPTIONS") {
+    // Allow WebSocket upgrade requests
+    if (req.headers.upgrade && req.headers.upgrade.toLowerCase() === "websocket") {
+      return res.sendStatus(204);
+    }
     return res.sendStatus(204);
   }
   next();
@@ -1467,66 +1502,99 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
     }
 
     const child = spawn(command, [absolutePath, ...args], {
-      cwd: scriptsDir,
-      stdio: ["pipe", "pipe", "pipe"],
-      ...options
-    });
-
-    const output = {
-      pid: child.pid,
-      command: `${command} ${absolutePath} ${args.join(' ')}`,
-      startTime: Date.now(),
-      status: "running"
-    };
-
-    let stdoutData = "";
-    let stderrData = "";
-
-    const writeOutputFile = () => {
-      const outputFile = path.join(scriptsDir, `.script-output-${child.pid}.json`);
-      const currentOutput = {
-        ...output,
-        stdout: stdoutData,
-        stderr: stderrData,
-        endTime: output.endTime || Date.now(),
-        duration: (output.endTime || Date.now()) - output.startTime
-      };
-      try {
-        fs.writeFileSync(outputFile, JSON.stringify(currentOutput, null, 2));
-      } catch (err) {
-        console.error("[API] Errore scrittura output script in tempo reale:", err.message);
+          cwd: scriptsDir,
+          stdio: ["pipe", "pipe", "pipe"],
+          ...options
+        });
+    
+        const output = {
+          pid: child.pid,
+          command: `${command} ${absolutePath} ${args.join(' ')}`,
+          startTime: Date.now(),
+          status: "running"
+        };
+    
+        // Audit log: script execution started
+        auditLogger.write({
+          action: "script_execute_start",
+          scriptPath: absolutePath,
+          args,
+          pid: child.pid,
+          user: req.user || req.ip
+        });
+    
+        let stdoutData = "";
+        let stderrData = "";
+    
+        const writeOutputFile = () => {
+          const outputFile = path.join(scriptsDir, `.script-output-${child.pid}.json`);
+          const currentOutput = {
+            ...output,
+            stdout: stdoutData,
+            stderr: stderrData,
+            endTime: output.endTime || Date.now(),
+            duration: (output.endTime || Date.now()) - output.startTime
+          };
+          try {
+            fs.writeFileSync(outputFile, JSON.stringify(currentOutput, null, 2));
+            // Broadcast via WebSocket
+            broadcastScriptOutput(child.pid, { type: "output", data: currentOutput });
+          } catch (err) {
+            console.error("[API] Errore scrittura output script in tempo reale:", err.message);
+          }
+        };
+    
+        child.stdout?.on("data", (data) => {
+          stdoutData += data.toString();
+          writeOutputFile();
+        });
+    
+        child.stderr?.on("data", (data) => {
+          stderrData += data.toString();
+          writeOutputFile();
+        });
+    
+        child.on("close", (code) => {
+          output.status = "completed";
+          output.exitCode = code;
+          output.stdout = stdoutData;
+          output.stderr = stderrData;
+          output.endTime = Date.now();
+          output.duration = output.endTime - output.startTime;
+    
+          // Salva l'output in un file per riferimento
+          const outputFile = path.join(scriptsDir, `.script-output-${child.pid}.json`);
+          fs.writeFileSync(outputFile, JSON.stringify(output, null, 2));
+    
+          // Audit log: script execution completed
+          auditLogger.write({
+            action: "script_execute_complete",
+            scriptPath: absolutePath,
+            pid: child.pid,
+            exitCode: code,
+            duration: output.duration
+          });
+    
+          // Final broadcast via WebSocket
+          broadcastScriptOutput(child.pid, { type: "complete", data: output });
+        });
+    
+        res.json(output);
+      } catch (e) {
+        console.error("[API] Errore esecuzione script:", e.message);
+    
+        // Audit log: script execution failed
+        auditLogger.write({
+          action: "script_execute_error",
+          scriptPath,
+          args,
+          error: e.message,
+          user: req.user || req.ip
+        });
+    
+        res.status(500).json({ error: e.message });
       }
-    };
-
-    child.stdout?.on("data", (data) => {
-      stdoutData += data.toString();
-      writeOutputFile();
     });
-
-    child.stderr?.on("data", (data) => {
-      stderrData += data.toString();
-      writeOutputFile();
-    });
-
-    child.on("close", (code) => {
-      output.status = "completed";
-      output.exitCode = code;
-      output.stdout = stdoutData;
-      output.stderr = stderrData;
-      output.endTime = Date.now();
-      output.duration = output.endTime - output.startTime;
-
-      // Salva l'output in un file per riferimento
-      const outputFile = path.join(scriptsDir, `.script-output-${child.pid}.json`);
-      fs.writeFileSync(outputFile, JSON.stringify(output, null, 2));
-    });
-
-    res.json(output);
-  } catch (e) {
-    console.error("[API] Errore esecuzione script:", e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
 
 app.get("/v1/scripts/output/:pid", requireAuth, (req, res) => {
   try {
@@ -2861,6 +2929,17 @@ trackRequestUpdate(requestId, {
 // Serve static files from public directory (manifest, icons, etc.)
 app.use(express.static(path.join(__dirname, "../public")));
 
+// WebSocket upgrade handler - must be registered on the HTTP server
+export function handleUpgrade(request, socket, head) {
+  if (request.headers.upgrade && request.headers.upgrade.toLowerCase() === "websocket") {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+}
+
 // SPA fallback for non-API routes (e.g. dashboard tab refresh)
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/v1/")) {
@@ -3002,16 +3081,47 @@ async function startServer(attempt = 1) {
   });
 
   server.on("error", (err) => {
-    if (err.code === "EADDRINUSE") {
-      console.error(`[FATAL] Porta ${PORT} già in uso. Un'altra istanza è probabilmente ancora attiva.`);
-      process.exit(1);
-    } else {
-      console.error("[FATAL] Errore server:", err);
-      process.exit(1);
-    }
-  });
-
-  console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
+      if (err.code === "EADDRINUSE") {
+        console.error(`[FATAL] Porta ${PORT} già in uso. Un'altra istanza è probabilmente ancora attiva.`);
+        process.exit(1);
+      } else {
+        console.error("[FATAL] Errore server:", err);
+        process.exit(1);
+      }
+    });
+  
+    // Initialize WebSocket server for real-time script output streaming
+    wss = new WebSocket.Server({ noServer: true });
+    wss.on("connection", (ws, req) => {
+      const pid = req.url?.split("/")[1];
+      if (pid) {
+        if (!scriptOutputClients.has(pid)) {
+          scriptOutputClients.set(pid, new Set());
+        }
+        scriptOutputClients.get(pid).add(ws);
+        console.log(`[WS] Client connesso per script PID ${pid} (totale: ${scriptOutputClients.get(pid).size})`);
+  
+        ws.on("close", () => {
+          if (scriptOutputClients.has(pid)) {
+            scriptOutputClients.get(pid).delete(ws);
+            if (scriptOutputClients.get(pid).size === 0) {
+              scriptOutputClients.delete(pid);
+            }
+            console.log(`[WS] Client disconnesso per script PID ${pid}`);
+          }
+        });
+  
+        ws.on("error", (err) => {
+          console.error(`[WS] Errore connessione per PID ${pid}:`, err.message);
+        });
+      }
+    });
+  
+    // Register WebSocket upgrade handler
+    server.on("upgrade", handleUpgrade);
+  
+    console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
+    console.log(`[WebSocket] ✓ WebSocket server attivo su ws://127.0.0.1:${PORT}/ws`);
   console.log(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
   if (!REQUIRE_AUTH) {
     console.warn("[SECURITY] DASHBOARD_TOKEN non configurato: le API di controllo sono esposte senza autenticazione");
