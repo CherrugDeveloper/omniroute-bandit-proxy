@@ -1598,6 +1598,11 @@ export class DiscountedUCB1Bandit {
       return true;
     }
     
+    // SSE errors (stream errors indicate persistent issues with the model provider)
+    if (/SSE contains error|SSE chunk error|stream error/i.test(message)) {
+      return true;
+    }
+    
     // Environment errors that are model-specific (not provider-level)
     if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured|Executable doesn't exist/i.test(message)) {
       // These are provider-level in most cases, but if they appear model-specific, count as critical

@@ -1,3 +1,13 @@
+## [1.19.0] - 2026-11-05
+
+### Feat
+
+- **Bandit**: Add SSE stream error handling as critical failures
+  - SSE errors (stream errors indicate persistent issues with the model provider) now classified as critical failures in `_isCriticalFailure()` [src/bandit.mjs:1601]
+  - Added error pattern `SSE contains error|SSE chunk error|stream error` to permanent error classifications for ban-model scope [config/bandit.json:39]
+- **Config**: Refine stream/connection error patterns
+  - Removed generic `chunk` from keepalive pattern to avoid false positives [config/bandit.json:28]
+
 ## [1.18.0] - 2026-11-05
 ### Feat
 - implement aggressive 3-strike punishment system and exponential backoff
