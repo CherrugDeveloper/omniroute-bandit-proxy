@@ -445,6 +445,49 @@
         #tab-scripts .table-wrapper th:nth-child(3), #tab-scripts .table-wrapper td:nth-child(3) { width: 10%; }
         #tab-scripts .table-wrapper th:nth-child(4), #tab-scripts .table-wrapper td:nth-child(4) { width: 24%; }
         #tab-scripts .table-wrapper th:nth-child(5), #tab-scripts .table-wrapper td:nth-child(5) { width: 16%; }
+
+        /* Larghezze colonne specifiche per la tab Models (#tab-models) - 11 colonne */
+        #tab-models .table-wrapper th:nth-child(1), #tab-models .table-wrapper td:nth-child(1) { width: 50px; }
+        #tab-models .table-wrapper th:nth-child(2), #tab-models .table-wrapper td:nth-child(2) { width: 200px; }
+        #tab-models .table-wrapper th:nth-child(3), #tab-models .table-wrapper td:nth-child(3) { width: 120px; }
+        #tab-models .table-wrapper th:nth-child(4), #tab-models .table-wrapper td:nth-child(4) { width: 40px; }
+        #tab-models .table-wrapper th:nth-child(5), #tab-models .table-wrapper td:nth-child(5) { width: 80px; }
+        #tab-models .table-wrapper th:nth-child(6), #tab-models .table-wrapper td:nth-child(6) { width: 50px; }
+        #tab-models .table-wrapper th:nth-child(7), #tab-models .table-wrapper td:nth-child(7) { width: 100px; }
+        #tab-models .table-wrapper th:nth-child(8), #tab-models .table-wrapper td:nth-child(8) { width: 50px; }
+        #tab-models .table-wrapper th:nth-child(9), #tab-models .table-wrapper td:nth-child(9) { width: 50px; }
+        #tab-models .table-wrapper th:nth-child(10), #tab-models .table-wrapper td:nth-child(10) { width: 60px; }
+        #tab-models .table-wrapper th:nth-child(11), #tab-models .table-wrapper td:nth-child(11) { width: 120px; }
+
+        /* Media query per responsive Models tab - schermi piccoli */
+        @media (max-width: 900px) {
+            #tab-models .table-wrapper th:nth-child(1), #tab-models .table-wrapper td:nth-child(1) { width: 40px; }
+            #tab-models .table-wrapper th:nth-child(2), #tab-models .table-wrapper td:nth-child(2) { width: 140px; }
+            #tab-models .table-wrapper th:nth-child(3), #tab-models .table-wrapper td:nth-child(3) { width: 80px; }
+            #tab-models .table-wrapper th:nth-child(4), #tab-models .table-wrapper td:nth-child(4) { width: 35px; }
+            #tab-models .table-wrapper th:nth-child(5), #tab-models .table-wrapper td:nth-child(5) { width: 60px; }
+            #tab-models .table-wrapper th:nth-child(6), #tab-models .table-wrapper td:nth-child(6) { width: 40px; }
+            #tab-models .table-wrapper th:nth-child(7), #tab-models .table-wrapper td:nth-child(7) { width: 80px; }
+            #tab-models .table-wrapper th:nth-child(8), #tab-models .table-wrapper td:nth-child(8) { width: 40px; }
+            #tab-models .table-wrapper th:nth-child(9), #tab-models .table-wrapper td:nth-child(9) { width: 40px; }
+            #tab-models .table-wrapper th:nth-child(10), #tab-models .table-wrapper td:nth-child(10) { width: 50px; }
+            #tab-models .table-wrapper th:nth-child(11), #tab-models .table-wrapper td:nth-child(11) { width: 90px; }
+        }
+
+        @media (max-width: 600px) {
+            #tab-models .table-wrapper th:nth-child(1), #tab-models .table-wrapper td:nth-child(1) { width: 30px; }
+            #tab-models .table-wrapper th:nth-child(2), #tab-models .table-wrapper td:nth-child(2) { width: 100px; }
+            #tab-models .table-wrapper th:nth-child(3), #tab-models .table-wrapper td:nth-child(3) { width: 60px; }
+            #tab-models .table-wrapper th:nth-child(4), #tab-models .table-wrapper td:nth-child(4) { width: 30px; }
+            #tab-models .table-wrapper th:nth-child(5), #tab-models .table-wrapper td:nth-child(5) { width: 50px; }
+            #tab-models .table-wrapper th:nth-child(6), #tab-models .table-wrapper td:nth-child(6) { width: 35px; }
+            #tab-models .table-wrapper th:nth-child(7), #tab-models .table-wrapper td:nth-child(7) { width: 70px; }
+            #tab-models .table-wrapper th:nth-child(8), #tab-models .table-wrapper td:nth-child(8) { width: 35px; }
+            #tab-models .table-wrapper th:nth-child(9), #tab-models .table-wrapper td:nth-child(9) { width: 35px; }
+            #tab-models .table-wrapper th:nth-child(10), #tab-models .table-wrapper td:nth-child(10) { width: 40px; }
+            #tab-models .table-wrapper th:nth-child(11), #tab-models .table-wrapper td:nth-child(11) { width: 70px; }
+        }
+
         table { width: 100%; border-collapse: collapse; }
         #unified-table td, #unified-table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         th, td { padding: 5px 8px; text-align: left; vertical-align: middle; font-size: 12px; }
@@ -629,7 +672,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin: 0;
             flex-shrink: 0;
         }
         /* Pannello richieste attive */
@@ -749,7 +792,7 @@
         /* Rank in evidenza */
         .active-request .attempt { color: #8b949e; }
         .active-request .status { color: #7ee787; }
-                /* Provider header */
+        /* Provider header */
         .provider-header {
             background: #1c2128 !important;
             cursor: pointer;
@@ -764,33 +807,48 @@
             border-bottom: 1px solid #30363d;
         }
         .provider-header .header-content {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    min-width: 0;
+                    flex: 1;
+                    flex-wrap: nowrap;
+                }
+                .provider-header .arrow {
+                    display: inline-block;
+                    width: 14px;
+                    color: #58a6ff;
+                    transition: transform 0.15s;
+                }
+                .provider-header.collapsed .arrow {
+                    transform: rotate(90deg);
+                }
+                .provider-header:not(.collapsed) .arrow {
+                    transform: rotate(0deg);
+                }
+                .provider-header .provider-name {
+                    color: #58a6ff;
+                    font-weight: 600;
+                    min-width: 0;
+                    flex-shrink: 1;
+                }
+                .provider-header .model-count {
+                    color: #8b949e;
+                    font-weight: normal;
+                    font-size: 11px;
+                }
+                .provider-header .actions {
+                    margin-left: auto;
+                    display: flex;
+                    gap: 4px;
+                }
+        /* Hide model rows under collapsed provider headers - scoped to Models tab */
+        #tab-models .provider-header.collapsed ~ tr {
+            display: none !important;
         }
-        .provider-header .arrow {
-            display: inline-block;
-            width: 14px;
-            color: #58a6ff;
-            transition: transform 0.15s;
-        }
-        .provider-header.collapsed .arrow {
-            transform: rotate(-90deg);
-        }
-        .provider-header .provider-name {
-            color: #58a6ff;
-            font-weight: 600;
-        }
-        .provider-header .model-count {
-            color: #8b949e;
-            font-weight: normal;
-            font-size: 11px;
-        }
-        .provider-header .actions {
-            margin-left: auto;
-            display: flex;
-            gap: 4px;
+        /* Show collapsed rows that belong to expanded providers */
+        #tab-models .table-wrapper tbody tr {
+            display: table-row !important;
         }
         /* Scroll invisibile globale: mantiene lo scroll ma nasconde la barra ovunque */
         * {
@@ -1178,7 +1236,7 @@
     </div>
 
     <div id="tab-logs" class="tab-content active">
-            <div class="log-header" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:4px 0; margin-bottom:0;">
+            <div class="log-header" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:0; margin:0;">
                 <div id="log-source-filters" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:1;">
                     <button type="button" class="log-source-btn active" data-source="all" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="Tutti i log">🌟 Tutti</button>
                     <button type="button" class="log-source-btn" data-source="proxy" style="background:#30363d; border:1px solid #484f58; color:#f0883e; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f0883e;" title="Proxy requests">🔌 Proxy</button>
@@ -1200,29 +1258,28 @@
                 </div>
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
-    
-            <script-output-container style="display:none; margin-top:20px;">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <h3 id="script-output-title">Output Script</h3>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn btn-copy" id="script-output-copy" style="font-size:12px; padding:4px 10px;">📋 Copia Log</button>
-                        <button class="btn btn-danger" id="script-output-close" style="font-size:12px; padding:4px 10px;">✕ Chiudi</button>
+            <div id="script-output-container" style="display:none;">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h3 id="script-output-title">Output Script</h3>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-copy" id="script-output-copy" style="font-size:12px; padding:4px 10px;">📋 Copia Log</button>
+                            <button class="btn btn-danger" id="script-output-close" style="font-size:12px; padding:4px 10px;">✕ Chiudi</button>
+                        </div>
                     </div>
+                    <div id="script-output-status" style="margin-bottom:10px;"></div>
+                    <div id="script-progress-container" style="margin-bottom:12px; display:none;">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; color:#8b949e; margin-bottom:4px;">
+                            <span id="script-progress-label">Avanzamento esecuzione</span>
+                            <span id="script-progress-pct">0%</span>
+                        </div>
+                        <div style="width:100%; background:#21262d; border-radius:4px; height:8px; overflow:hidden; border:1px solid #30363d;">
+                            <div id="script-progress-bar" style="width:0%; height:100%; background:#58a6ff; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                    <pre id="script-output" style="background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:400px; font-size:12px; white-space:pre-wrap; word-wrap:break-word;"></pre>
                 </div>
-                <div id="script-output-status" style="margin-bottom:10px;"></div>
-                <div id="script-progress-container" style="margin-bottom:12px; display:none;">
-                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#8b949e; margin-bottom:4px;">
-                        <span id="script-progress-label">Avanzamento esecuzione</span>
-                        <span id="script-progress-pct">0%</span>
-                    </div>
-                    <div style="width:100%; background:#21262d; border-radius:4px; height:8px; overflow:hidden; border:1px solid #30363d;">
-                        <div id="script-progress-bar" style="width:0%; height:100%; background:#58a6ff; transition: width 0.3s ease;"></div>
-                    </div>
-                </div>
-                <pre id="script-output" style="background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:400px; font-size:12px; white-space:pre-wrap; word-wrap:break-word;"></pre>
             </div>
-        </div>
         <div id="logs-container" style="flex: 1; min-height: 200px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117; display: flex; flex-direction: column;">
             <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed; flex: 1;">
                 <thead>
@@ -1240,7 +1297,7 @@
             </table>
         </div>
         <!-- Quick Actions -->
-        <div class="card" style="margin-top:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:10px 12px;">
+        <div class="card" style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:10px 12px;">
             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
                 <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "start")' title="Avvia il daemon di training">▶ Start Daemon</button>
                 <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "stop")' title="Ferma il daemon di training">⏹ Stop Daemon</button>
@@ -1263,17 +1320,59 @@
             .log-row.source-proxy { color: #ffffff; }
             .log-row.source-paid-only { color: #9b59b6; }
             .log-row.source-other { color: #c9d1d9; }
+            /* Models tab responsive columns - both header and body cells */
+            @media (max-width: 900px) {
+                #tab-models .table-wrapper table thead tr th:nth-child(1),
+                #tab-models .table-wrapper table tbody tr td:nth-child(1) { width: 30px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(2),
+                #tab-models .table-wrapper table tbody tr td:nth-child(2) { width: 140px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(3),
+                #tab-models .table-wrapper table tbody tr td:nth-child(3) { width: 100px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(4),
+                #tab-models .table-wrapper table tbody tr td:nth-child(4) { width: 50px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(5),
+                #tab-models .table-wrapper table tbody tr td:nth-child(5) { width: 70px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(6),
+                #tab-models .table-wrapper table tbody tr td:nth-child(6) { width: 55px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(7),
+                #tab-models .table-wrapper table tbody tr td:nth-child(7) { width: 75px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(8),
+                #tab-models .table-wrapper table tbody tr td:nth-child(8) { width: 45px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(9),
+                #tab-models .table-wrapper table tbody tr td:nth-child(9) { width: 45px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(10),
+                #tab-models .table-wrapper table tbody tr td:nth-child(10) { width: 55px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(11),
+                #tab-models .table-wrapper table tbody tr td:nth-child(11) { width: 120px !important; }
+            }
+            @media (max-width: 600px) {
+                #tab-models .table-wrapper table thead tr th:nth-child(1),
+                #tab-models .table-wrapper table tbody tr td:nth-child(1) { width: 25px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(2),
+                #tab-models .table-wrapper table tbody tr td:nth-child(2) { width: 90px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(3),
+                #tab-models .table-wrapper table tbody tr td:nth-child(3) { width: 55px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(4),
+                #tab-models .table-wrapper table thead tr th:nth-child(5),
+                #tab-models .table-wrapper table thead tr th:nth-child(6),
+                #tab-models .table-wrapper table tbody tr td:nth-child(4),
+                #tab-models .table-wrapper table tbody tr td:nth-child(5),
+                #tab-models .table-wrapper table tbody tr td:nth-child(6) { display: none !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(7),
+                #tab-models .table-wrapper table tbody tr td:nth-child(7) { width: 50px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(8),
+                #tab-models .table-wrapper table tbody tr td:nth-child(8) { width: 50px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(9),
+                #tab-models .table-wrapper table tbody tr td:nth-child(9) { width: 50px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(10),
+                #tab-models .table-wrapper table tbody tr td:nth-child(10) { width: 50px !important; }
+                #tab-models .table-wrapper table thead tr th:nth-child(11),
+                #tab-models .table-wrapper table tbody tr td:nth-child(11) { width: 60px !important; }
+            }
         </style>
     </div>
 
     <div id="tab-models" class="tab-content">
-        <div class="metrics-bar" style="display:flex; gap:20px; margin-bottom:10px; padding:8px; background:#0d1117; border:1px solid #30363d; border-radius:6px;">
-            <span><strong>Total:</strong> <span id="models-count-total">0</span></span>
-            <span><strong>Attivi:</strong> <span id="models-count-active">0</span></span>
-            <span><strong>In cooldown:</strong> <span id="models-count-cooldown">0</span></span>
-            <span><strong>Degradati:</strong> <span id="models-count-degraded">0</span></span>
-            <span><strong>Bannati:</strong> <span id="models-count-banned">0</span></span>
-        </div>
         <div class="filter-bar" id="models-filter-form">
             <input type="text" class="filter-input" id="models-filter-search" placeholder="🔍 Cerca per ID modello (es. llama3...)">
             <select class="filter-input" id="models-filter-provider">
@@ -1291,27 +1390,28 @@
             <input type="number" class="filter-input" id="models-filter-minAvg" min="0" step="0.05" placeholder="avg ≥" value="0" style="width:70px">
             <button id="models-reset-filters" class="btn">Reset filtri</button>
             <button id="models-reset-all" class="btn btn-danger" style="margin-left:10px;" data-action="reset-model">Reset Tutti i Modelli</button>
+            <button id="models-toggle-view" class="btn" title="Alterna vista gruppi/piatte" style="margin-left:8px;">📊</button>
         </div>
         <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th data-sort="rank" style="width: 50px;">Rank</th>
-                        <th data-sort="id" style="width: 200px;">ID modello</th>
-                        <th data-sort="provider" style="width: 120px;">Provider</th>
-                        <th data-sort="N" class="mono" style="width: 40px;">N</th>
-                        <th data-sort="avg" class="mono" style="width: 80px;">Avg Reward</th>
-                        <th data-sort="fails" style="width: 50px;">Fails</th>
-                        <th style="width: 100px;">Stato</th>
-                        <th style="width: 50px;">Free</th>
-                        <th style="width: 50px;">Paid</th>
-                        <th style="width: 60px;">Strumenti</th>
-                        <th style="width: 120px;">Azioni</th>
-                    </tr>
-                </thead>
-                <tbody id="models-tbody"></tbody>
-            </table>
-        </div>
+           <table style="table-layout: fixed; width: 100%;">
+               <thead>
+                   <tr>
+                       <th data-sort="rank" style="width: 50px;">Rank</th>
+                       <th data-sort="id" style="width: 200px;">ID modello</th>
+                       <th data-sort="provider" style="width: 120px;">Provider</th>
+                       <th data-sort="N" class="mono" style="width: 40px;">N</th>
+                       <th data-sort="avg" class="mono" style="width: 80px;">Avg Reward</th>
+                       <th data-sort="fails" style="width: 50px;">Fails</th>
+                       <th style="width: 100px;">Stato</th>
+                       <th style="width: 50px;">Free</th>
+                       <th style="width: 50px;">Paid</th>
+                       <th style="width: 60px;">Strumenti</th>
+                       <th style="width: 120px;">Azioni</th>
+                   </tr>
+               </thead>
+               <tbody id="models-tbody"></tbody>
+           </table>
+       </div>
     </div>
     <div id="tab-train" class="tab-content">
         <div class="metrics-bar" style="display:flex; gap:20px; margin-bottom:10px; padding:8px; background:#0d1117; border:1px solid #30363d; border-radius:6px;">
@@ -1513,7 +1613,10 @@
         let trainSortDir = 'asc';
         let flatMode = false;
         let trainFlatMode = false;
-        const collapsedProviders = new Set(['openrouter', 'anthropic', 'google']);
+        // Load expanded providers from localStorage
+        // Empty set = all providers collapsed by default
+        // Non-empty set = those providers are expanded
+        const expandedProviders = new Set(JSON.parse(localStorage.getItem('dashboard.expandedProviders') || '[]'));
         const trainCollapsedProviders = new Set();
         let prevStats = {};
         let prevModelStats = {};
@@ -1996,11 +2099,30 @@
         }, 5000);
         // === Tabs ===
         document.addEventListener('click', (e) => {
-            if (e.target && e.target.id === 'toggle-flat') {
-                flatMode = false;
+            if (e.target && e.target.id === 'toggle-btn') {
+                // Toggle between flat and grouped mode
+                flatMode = !flatMode;
                 sortCol = null;
                 sortDir = 'asc';
                 document.querySelectorAll('th[data-sort]').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
+                // Update button text/icon
+                const btn = document.getElementById('toggle-btn');
+                if (btn) btn.textContent = flatMode ? '📊' : '📈';
+                renderAll();
+            }
+        });
+        
+        // === Models Tab Toggle ===
+        document.addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'models-toggle-view') {
+                // Toggle between flat and grouped mode for models tab
+                flatMode = !flatMode;
+                sortCol = null;
+                sortDir = 'asc';
+                document.querySelectorAll('th[data-sort]').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
+                // Update button text/icon
+                const btn = document.getElementById('models-toggle-view');
+                if (btn) btn.textContent = flatMode ? '📈' : '📊';
                 renderAll();
             }
         });
@@ -2424,7 +2546,11 @@
                             
                             if (search && !provider.toLowerCase().includes(search) && avgFiltered.length === 0) continue;
 
-                            const isCollapsed = !forceExpand && collapsedProviders.has(provider);
+                            // Collapse logic:
+                            // - If searching (forceExpand), show all expanded
+                            // - If expanded (in set), show expanded
+                            // - Otherwise, collapse by default
+                            const isCollapsed = !forceExpand && !expandedProviders.has(provider);
                             const modelsToShow = (forceExpand && !provider.toLowerCase().includes(search)) ? avgFiltered : avgFiltered;
 
                             html += renderProviderHeader(provider, info, models.length, isCollapsed);
@@ -2648,7 +2774,7 @@
                             
                             if (search && !provider.toLowerCase().includes(search) && avgFiltered.length === 0) continue;
 
-                            const isCollapsed = !forceExpand && trainCollapsedProviders.has(provider);
+                            const isCollapsed = !forceExpand && !expandedProviders.has(provider);
                             const modelsToShow = (forceExpand && !provider.toLowerCase().includes(search)) ? avgFiltered : avgFiltered;
 
                             html += renderProviderHeader(provider, info, models.length, isCollapsed);
@@ -2709,17 +2835,17 @@
                 statusBadge = '<span class="muted">(non ancora usato)</span>';
             }
 
-            return '<tr class="provider-header' + (isCollapsed ? ' collapsed' : '') + '" data-action="toggle-provider" data-name="' + safe + '">' +
-                '<td colspan="11">' +
-                    '<div class="header-content">' +
-                        '<span class="arrow">▼</span>' +
-                        '<span class="provider-name">' + safe + '</span>' +
-                        statusBadge +
-                        '<span class="model-count">(' + modelCount + ' modelli)</span>' +
-                        '<span class="actions">' + actions + '</span>' +
-                    '</div>' +
-                '</td>' +
-            '</tr>';
+           return '<tr class="provider-header' + (isCollapsed ? ' collapsed' : '') + '" data-action="toggle-provider" data-name="' + safe + '">' +
+                           '<td colspan="11" style="padding:6px 8px;">' +
+                               '<span class="header-content">' +
+                                   '<span class="arrow">▼</span> ' +
+                                   '<span class="provider-name">' + safe + '</span> ' +
+                                   '<span class="model-count">(' + modelCount + ' modelli)</span> ' +
+                                   '<span class="status-badge">' + statusBadge + '</span>' +
+                                   '<span class="actions">' + actions + '</span>' +
+                               '</span>' +
+                           '</td>' +
+                       '</tr>';
         }
 
         function renderModelRow(m) {
@@ -3044,8 +3170,12 @@
             }
             else if (a === 'toggle-provider') {
                 const name = btn.dataset.name;
-                if (collapsedProviders.has(name)) collapsedProviders.delete(name);
-                else collapsedProviders.add(name);
+                // Toggle the provider's expanded state
+                // When user clicks, if provider is in expandedProviders, collapse it (remove); otherwise expand it (add)
+                if (expandedProviders.has(name)) expandedProviders.delete(name);
+                else expandedProviders.add(name);
+                // Save to localStorage
+                localStorage.setItem('dashboard.expandedProviders', JSON.stringify(Array.from(expandedProviders)));
                 renderAll();
             }
         });
