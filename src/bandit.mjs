@@ -2122,7 +2122,10 @@ export class DiscountedUCB1Bandit {
     try {
       const totalRequests = this._getMeta("totalRequests") || 0;
       if (typeof DEBUG !== 'undefined' && DEBUG) console.log(`[DEBUG DashboardStats Validation] totalRequests from meta: ${totalRequests}`);
-      const totalObservations = this._getMeta("totalObservations") || 0;
+      // Note: totalObservations (from meta) is used by the bandit algorithm for UCB1 calculations.
+      // For dashboard display, we use totalObservationsFromLogs which comes from request_logs table
+      // and represents the actual count of completed requests.
+      // The meta table totalObservations tracks cumulative successful observations in the bandit.
 
       let stats = { totalN: 0, totalReward: 0, avgReward: 0 };
       try {
@@ -2292,8 +2295,7 @@ export class DiscountedUCB1Bandit {
 
       return {
         totalRequests,
-        totalObservations,
-        successfulObservations: successRateStats.successfulObservations || 0,
+        totalObservations: successRateStats.totalObservations || totalObservations,
         avgReward: (stats && stats.avgReward !== null) ? stats.avgReward : 0,
         avgLatencySec: (latency.avgLatency || 0) / 1000,
         freeActive: freeActive.count || 0,
