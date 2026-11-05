@@ -1178,43 +1178,30 @@
     </div>
 
     <div id="tab-logs" class="tab-content active">
-        <!-- Quick Actions -->
-        <div class="card" style="margin-bottom:15px; background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:10px 12px;">
-            <h4 style="margin:0 0 8px 0; color:#58a6ff; font-size:13px; display:flex; align-items:center; gap:6px;">⚡ Quick Actions</h4>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "start")' title="Avvia il daemon di training">▶ Start Daemon</button>
-                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "stop")' title="Ferma il daemon di training">⏹ Stop Daemon</button>
-                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "status")' title="Visualizza stato del daemon">📊 Status</button>
-                <span style="width:1px; height:24px; background:#30363d; margin:0 4px;"></span>
-                <button class="btn btn-sm" onclick='quickAction("restart-safe.sh")' title="Riavvia il servizio proxy">🔄 Restart Service</button>
-                <button class="btn btn-sm" onclick='quickAction("switch-mode.sh", "prod")' title="Cambia modalità prod">🏭 Mode: Prod</button>
+            <div class="log-header" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:4px 0; margin-bottom:0;">
+                <div id="log-source-filters" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:1;">
+                    <button type="button" class="log-source-btn active" data-source="all" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="Tutti i log">🌟 Tutti</button>
+                    <button type="button" class="log-source-btn" data-source="proxy" style="background:#30363d; border:1px solid #484f58; color:#f0883e; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f0883e;" title="Proxy requests">🔌 Proxy</button>
+                    <button type="button" class="log-source-btn" data-source="zoo" style="background:#30363d; border:1px solid #484f58; color:#3fb950; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #3fb950;" title="Zoo events">🌿 ZOO</button>
+                    <button type="button" class="log-source-btn" data-source="training" style="background:#30363d; border:1px solid #484f58; color:#58a6ff; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #58a6ff;" title="Training events">🏋️ Train</button>
+                    <button type="button" class="log-source-btn" data-source="debug" style="background:#30363d; border:1px solid #484f58; color:#ff5858; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #ff5858;" title="Debug verbose">🐛 Debug</button>
+                    <button type="button" class="log-source-btn" data-source="system" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="System events">🏗️ System</button>
+                    <button type="button" class="log-source-btn" data-source="ban" style="background:#30363d; border:1px solid #484f58; color:#f85149; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f85149;" title="Ban events">🚫 Ban</button>
+                    <button type="button" class="log-source-btn" data-source="cooldown" style="background:#30363d; border:1px solid #484f58; color:#f1c40f; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f1c40f;" title="Cooldown events">⏳ Cooldown</button>
+                    <button type="button" class="log-source-btn" data-source="flag" style="background:#30363d; border:1px solid #484f58; color:#e6ac00; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e6ac00;" title="Flag events">🚩 Flag</button>
+                    <button type="button" class="log-source-btn" data-source="degraded" style="background:#30363d; border:1px solid #484f58; color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e74c3c;" title="Degraded events">⚠️ Degraded</button>
+                    <button type="button" class="log-source-btn" data-source="paid-only" style="background:#30363d; border:1px solid #484f58; color:#9b59b6; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #9b59b6;" title="Paid-only events">💳 Paid</button>
+                </div>
+                <div style="display:none;" id="custom-log-filters">
+                    <input type="text" id="log-filter" placeholder="🔍 testo..."
+                        autocomplete="off"
+                        style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:120px;"
+                        oninput="logFilterText = this.value; renderFilteredLogs()">
+                </div>
+                <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
-        </div>
-
-        <div class="log-header" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:4px 0;">
-            <div id="log-source-filters" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:1;">
-                <button type="button" class="log-source-btn active" data-source="all" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="Tutti i log">🌟 Tutti</button>
-                <button type="button" class="log-source-btn" data-source="proxy" style="background:#30363d; border:1px solid #484f58; color:#f0883e; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f0883e;" title="Proxy requests">🔌 Proxy</button>
-                <button type="button" class="log-source-btn" data-source="zoo" style="background:#30363d; border:1px solid #484f58; color:#3fb950; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #3fb950;" title="Zoo events">🌿 ZOO</button>
-                <button type="button" class="log-source-btn" data-source="training" style="background:#30363d; border:1px solid #484f58; color:#58a6ff; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #58a6ff;" title="Training events">🏋️ Train</button>
-                <button type="button" class="log-source-btn" data-source="debug" style="background:#30363d; border:1px solid #484f58; color:#ff5858; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #ff5858;" title="Debug verbose">🐛 Debug</button>
-                <button type="button" class="log-source-btn" data-source="system" style="background:#30363d; border:1px solid #484f58; color:#c9d1d9; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #c9d1d9;" title="System events">🏗️ System</button>
-                <button type="button" class="log-source-btn" data-source="ban" style="background:#30363d; border:1px solid #484f58; color:#f85149; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f85149;" title="Ban events">🚫 Ban</button>
-                <button type="button" class="log-source-btn" data-source="cooldown" style="background:#30363d; border:1px solid #484f58; color:#f1c40f; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #f1c40f;" title="Cooldown events">⏳ Cooldown</button>
-                <button type="button" class="log-source-btn" data-source="flag" style="background:#30363d; border:1px solid #484f58; color:#e6ac00; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e6ac00;" title="Flag events">🚩 Flag</button>
-                <button type="button" class="log-source-btn" data-source="degraded" style="background:#30363d; border:1px solid #484f58; color:#e74c3c; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #e74c3c;" title="Degraded events">⚠️ Degraded</button>
-                <button type="button" class="log-source-btn" data-source="paid-only" style="background:#30363d; border:1px solid #484f58; color:#9b59b6; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; border-left: 4px solid #9b59b6;" title="Paid-only events">💳 Paid</button>
-            </div>
-            <div style="display:none;" id="custom-log-filters">
-                <input type="text" id="log-filter" placeholder="🔍 testo..."
-                    autocomplete="off"
-                    style="background:#0d1117; border:1px solid #30363d; color:#c9d1d9; padding:4px 8px; border-radius:4px; font-size:12px; font-family:inherit; width:120px;"
-                    oninput="logFilterText = this.value; renderFilteredLogs()">
-            </div>
-            <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
-        </div>
-
-        <script-output-container style="display:none; margin-top:20px;">
+    
+            <script-output-container style="display:none; margin-top:20px;">
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <h3 id="script-output-title">Output Script</h3>
@@ -1251,6 +1238,17 @@
                     <!-- populated dynamically -->
                 </tbody>
             </table>
+        </div>
+        <!-- Quick Actions -->
+        <div class="card" style="margin-top:10px; background:#161b22; border:1px solid #30363d; border-radius:6px; padding:10px 12px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "start")' title="Avvia il daemon di training">▶ Start Daemon</button>
+                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "stop")' title="Ferma il daemon di training">⏹ Stop Daemon</button>
+                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "status")' title="Visualizza stato del daemon">📊 Status</button>
+                <span style="width:1px; height:24px; background:#30363d; margin:0 4px;"></span>
+                <button class="btn btn-sm" onclick='quickAction("restart-safe.sh")' title="Riavvia il servizio proxy">🔄 Restart Service</button>
+                <button class="btn btn-sm" onclick='quickAction("switch-mode.sh", "prod")' title="Cambia modalità prod">🏭 Mode: Prod</button>
+            </div>
         </div>
         <style>
             .log-row { padding: 1px 6px; border-bottom: 1px solid #21262d; }
