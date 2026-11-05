@@ -1,40 +1,6 @@
-  "name": "omniroute-bandit-proxy",
-  "version": "1.19.8",
-  "description": "Multi-Armed Bandit reverse proxy for LLM traffic",
-  "main": "src/index.mjs",
-  "type": "module",
-  "scripts": {
-    "start": "node src/index.mjs",
-    "dev": "node --watch src/index.mjs",
-    "check": "node --check src/index.mjs && node --check src/bandit.mjs",
-    "test": "node --test __tests__/*.test.js",
-    "auto-git": "node scripts/auto-git.mjs"
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.5.0",
-    "ws": "^8.22.1"
-  }
-}=======
 {
   "name": "omniroute-bandit-proxy",
   "version": "1.20.0",
-  "description": "Multi-Armed Bandit reverse proxy for LLM traffic",
-  "main": "src/index.mjs",
-  "type": "module",
-  "scripts": {
-    "start": "node src/index.mjs",
-    "dev": "node --watch src/index.mjs",
-    "check": "node --check src/index.mjs && node --check src/bandit.mjs",
-    "test": "node --test __tests__/*.test.js",
-    "auto-git": "node scripts/auto-git.mjs"
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.5.0",
-    "ws": "^8.22.1"
-  }
-}
-  "name": "omniroute-bandit-proxy",
-  "version": "1.19.8",
   "description": "Multi-Armed Bandit reverse proxy for LLM traffic",
   "main": "src/index.mjs",
   "type": "module",
