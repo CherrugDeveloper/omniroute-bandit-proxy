@@ -1,11 +1,6 @@
-**v1.19.2 - 2026-11-v1.19.3 - 2026-11-v1.19.4 - 2026-11-v1.19.5 - 2026-11-v1.19.6 - 2026-11-v1.19.7 - 2026-11-v1.19.8 - 2026-11-05)** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management and aggressive punishment system=======
 # OmniRoute Bandit Proxy
 
 **v1.20.0 - 2026-11-05** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management and aggressive punishment system
-
-## Overview
-
-**v1.19.2 - 2026-11-v1.19.3 - 2026-11-v1.19.4 - 2026-11-v1.19.5 - 2026-11-v1.19.6 - 2026-11-v1.19.7 - 2026-11-v1.19.8 - 2026-11-05)** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management and aggressive punishment system
 
 ## Overview
 
@@ -74,6 +69,7 @@ The algorithm uses **Discounted UCB1** with a discount factor of `0.99` applied 
   - Reason / Stats: 30%
 - **Unified History panel**: Persistent panel with "Show selection history" checkbox and "📋 Copy all" button
 - **Filters**: Exclude Thinking (default ON), Exploit Only (default OFF)
+- **WebSocket Real-time Streaming**: Real-time script output via WebSocket connections
 
 #### Status Badges
 
