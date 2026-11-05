@@ -2233,23 +2233,16 @@ export class DiscountedUCB1Bandit {
         console.warn("[BANDIT] getDashboardStats catalogCounts query error:", e.message);
       }
 
-      let totalModels = { count: 0 };
-      try {
-        const tmRes = this.db.prepare(`
-          SELECT COUNT(*) as count
-          FROM models
-        `).get();
-        if (tmRes) totalModels = tmRes;
-      } catch (e) {
-        console.warn("[BANDIT] getDashboardStats totalModels query error:", e.message);
-      }
-
-      let modelsSummary = { active: 0, cooldown: 0, banned: 0, degraded: 0 };
-      try {
-        modelsSummary = this.getModelsSummary("prod") || modelsSummary;
-      } catch (e) {
-        console.warn("[BANDIT] getDashboardStats getModelsSummary error:", e.message);
-      }
+      let modelsSummary = { total: 0, active: 0, cooldown: 0, banned: 0, degraded: 0, attention: 0 };
+            try {
+              modelsSummary = this.getModelsSummary("prod") || modelsSummary;
+            } catch (e) {
+              console.warn("[BANDIT] getDashboardStats getModelsSummary error:", e.message);
+            }
+            // Ensure totalModels uses modelsSummary.total for consistent counting from catalog
+            // This fixes the discrepancy where totalModels counted only initialized models (from models table)
+            // while other counts used catalog LEFT JOIN (all catalog entries)
+            const totalModels = { count: modelsSummary.total || 0 };
 
       let providersList = [];
       try {

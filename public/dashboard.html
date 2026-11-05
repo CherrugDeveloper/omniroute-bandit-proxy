@@ -4191,8 +4191,8 @@
                 // Any dashboard-relevant tab - run fetchActive
                 pollsToRun.push('fetchActive');
             }
-            if (activeTabId !== 'tab-models') {
-                // Don't run fetchQuota when models tab is active (it's covered by refreshAll)
+            if (activeTabId === 'tab-providers') {
+                // Run fetchQuota only when providers tab is active (quotas are displayed there)
                 pollsToRun.push('fetchQuota');
             }
             if (activeTabId === 'tab-consideration' || !activeTabId) {

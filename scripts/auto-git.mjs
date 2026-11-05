@@ -185,73 +185,176 @@ if (versionBump === 'minor') {
 log(`Version bump: ${versionBump}`, 'yellow');
 log(`New version: v${newVersion}`, 'green');
 
-// Step 8: Generate/update CHANGELOG.md
+// Step 8: Generate/update CHANGELOG.md following Keep a Changelog v1.1.0
 const changelogPath = join(ROOT_DIR, 'CHANGELOG.md');
 const today = new Date().toISOString().split('T')[0];
 
-let changelogContent = '';
-if (existsSync(changelogPath)) {
-  changelogContent = readFileSync(changelogPath, 'utf-8');
-} else {
-  changelogContent = '# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n';
+// Get all tags sorted by version (most recent first)
+function getTagsSorted() {
+  try {
+    const tagOutput = runCommand('git tag --sort=-v:refname', { silent: true });
+    if (tagOutput && tagOutput.trim()) {
+      return tagOutput.trim().split('\n').filter(t => t.trim().startsWith('v'));
+    }
+  } catch (e) {}
+  return [];
 }
 
-// Parse existing changelog to check if this version exists
-if (!changelogContent.includes(`## [v${newVersion}]`)) {
-  // Build changelog entry
-  let entry = `## [v${newVersion}] - ${today}\n\n`;
-  
-  const featCommits = [];
-  const fixCommits = [];
-  const otherCommits = [];
-  
-  for (const commit of commitsSinceTag) {
-    if (commit.toLowerCase().startsWith('feat:')) {
-      featCommits.push(commit);
-    } else if (commit.toLowerCase().startsWith('fix:')) {
-      fixCommits.push(commit);
-    } else {
-      otherCommits.push(commit);
+// Get commits between two tags
+function getCommitsBetween(fromRef, toRef) {
+  try {
+    const commitsOutput = runCommand(`git log ${fromRef}..${toRef} --format="%s" 2>/dev/null || echo ""`, { silent: true });
+    if (commitsOutput && commitsOutput.trim()) {
+      return commitsOutput.trim().split('\n').filter(c => c.trim());
     }
-  }
-  
-  if (featCommits.length > 0) {
-    entry += '### Feat\n';
-    for (const c of featCommits) {
-      entry += `- ${c}\n`;
-    }
-    entry += '\n';
-  }
-  
-  if (fixCommits.length > 0) {
-    entry += '### Fix\n';
-    for (const c of fixCommits) {
-      entry += `- ${c}\n`;
-    }
-    entry += '\n';
-  }
-  
-  if (otherCommits.length > 0) {
-    entry += '### Changed\n';
-    for (const c of otherCommits) {
-      entry += `- ${c}\n`;
-    }
-    entry += '\n';
-  }
-  
-  // Insert at the beginning (after header)
-  const headerMatch = changelogContent.match(/(# Changelog\s*\n[\s\S]*?\n)/);
-  if (headerMatch) {
-    changelogContent = changelogContent.replace(headerMatch[1], headerMatch[1] + entry);
-  } else {
-    changelogContent = entry + changelogContent;
-  }
-  
-  writeFileSync(changelogPath, changelogContent, 'utf-8');
-  log(`Updated CHANGELOG.md with version v${newVersion}`, 'green');
-} else {
-  log(`Version v${newVersion} already in CHANGELOG.md`, 'yellow');
+  } catch (e) {}
+  return [];
 }
+
+// Parse commit type from conventional commit message
+function parseCommitType(commit) {
+  const lower = commit.toLowerCase();
+  if (lower.startsWith('feat:')) return 'feat';
+  if (lower.startsWith('fix:')) return 'fix';
+  if (lower.startsWith('feat(') || lower.startsWith('fix(')) return 'feat'; // with scope
+  return 'other';
+}
+
+// Generate entries for a version
+function generateVersionEntries(version, tag, commits, date) {
+  const entries = [];
+  const added = [];
+  const changed = [];
+  const fixed = [];
+  const deprecated = [];
+  const removed = [];
+  const security = [];
+  
+  for (const commit of commits) {
+    const type = parseCommitType(commit);
+    // Extract description (remove type prefix and BREAKING CHANGE)
+    let desc = commit.replace(/^(feat|fix|feat\([^)]+\)|fix\([^)]+\)):\s*/i, '');
+    if (desc.includes('BREAKING CHANGE:')) {
+      desc = desc.replace(/\(BREAKING CHANGE:[^)]*\)/i, '(BREAKING CHANGE)');
+    }
+    
+    if (type === 'feat') {
+      added.push(desc);
+    } else if (type === 'fix') {
+      fixed.push(desc);
+    } else if (commit.toLowerCase().includes('security')) {
+      security.push(desc);
+    } else if (commit.toLowerCase().includes('deprecated')) {
+      deprecated.push(desc);
+    } else if (commit.toLowerCase().includes('remove')) {
+      removed.push(desc);
+    } else {
+      changed.push(desc);
+    }
+  }
+  
+  if (added.length > 0) entries.push(['### Added'], '', ...added.map(d => `- ${d}`), '');
+  if (changed.length > 0) entries.push(['### Changed'], '', ...changed.map(d => `- ${d}`), '');
+  if (deprecated.length > 0) entries.push(['### Deprecated'], '', ...deprecated.map(d => `- ${d}`), '');
+  if (removed.length > 0) entries.push(['### Removed'], '', ...removed.map(d => `- ${d}`), '');
+  if (fixed.length > 0) entries.push(['### Fixed'], '', ...fixed.map(d => `- ${d}`), '');
+  if (security.length > 0) entries.push(['### Security'], '', ...security.map(d => `- ${d}`), '');
+  
+  return entries;
+}
+
+// Build changelog from full git history
+function buildChangelogFromHistory(tags) {
+  const lines = [
+    '# Changelog',
+    '',
+    'All notable changes to this project will be documented in this file.',
+    '',
+    'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),',
+    'and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).',
+    ''
+  ];
+  
+  if (tags.length === 0) {
+    // No tags - get all commits
+    const allCommits = getCommitsBetween('4b817f1 HEAD~0', 'HEAD~0');
+    if (allCommits.length > 0) {
+      lines.push('## [Unreleased]');
+      lines.push('');
+      const entries = generateVersionEntries('unreleased', 'HEAD', allCommits, today);
+      for (const entry of entries) {
+        for (const line of entry) {
+          lines.push(line);
+        }
+      }
+      lines.push('');
+    }
+  } else {
+    // Add [Unreleased] section for commits since last tag
+    const commitsSinceLatest = getCommitsBetween(tags[0], 'HEAD');
+    if (commitsSinceLatest.length > 0) {
+      lines.push('## [Unreleased]');
+      lines.push('');
+      const entries = generateVersionEntries('unreleased', 'HEAD', commitsSinceLatest, today);
+      for (const entry of entries) {
+        for (const line of entry) {
+          lines.push(line);
+        }
+      }
+      lines.push('');
+    }
+    
+    // Process each tagged version
+    for (let i = 0; i < tags.length; i++) {
+      const tag = tags[i];
+      const version = tag.replace(/^v/, '');
+      
+      // Get commits for this version
+      const fromRef = i === 0 ? tag : tags[i-1];
+      const toRef = tag;
+      const commits = getCommitsBetween(fromRef, toRef);
+      
+      // Try to get date from git tag
+      let versionDate = today;
+      try {
+        const dateOutput = runCommand(`git log -1 --format="%ad" --date=short ${tag} 2>/dev/null || echo "${today}"`, { silent: true });
+        if (dateOutput && dateOutput.trim()) {
+          versionDate = dateOutput.trim().split('\n')[0];
+        }
+      } catch (e) {}
+      
+      // Format version display (strip 'v' prefix in section)
+      lines.push(`## [${version}] - ${versionDate}`);
+      lines.push('');
+      
+      const entries = generateVersionEntries(version, tag, commits, versionDate);
+      for (const entry of entries) {
+        for (const line of entry) {
+          lines.push(line);
+        }
+      }
+      lines.push('');
+    }
+  }
+  
+  // End marker
+  lines.push('<!-- Version History -->');
+  lines.push('');
+  lines.push('## Version History');
+  lines.push('');
+  lines.push('For complete version history prior to the latest version, see the [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) or commit files.');
+  lines.push('');
+  
+  return lines.join('\n');
+}
+
+// Get all version tags
+const allTags = getTagsSorted();
+
+// Generate fresh changelog from git history
+const newChangelog = buildChangelogFromHistory(allTags);
+writeFileSync(changelogPath, newChangelog, 'utf-8');
+log(`Generated CHANGELOG.md from ${allTags.length} version tags`, 'green');
 
 // Step 9: Update README.md
 const readmePath = join(ROOT_DIR, 'README.md');
