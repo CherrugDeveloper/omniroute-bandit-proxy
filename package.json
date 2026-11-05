@@ -1,6 +1,6 @@
 {
   "name": "omniroute-bandit-proxy",
-  "version": "1.19.1",
+  "version": "1.19.2",
   "description": "Multi-Armed Bandit reverse proxy for LLM traffic",
   "main": "src/index.mjs",
   "type": "module",
@@ -8,7 +8,8 @@
     "start": "node src/index.mjs",
     "dev": "node --watch src/index.mjs",
     "check": "node --check src/index.mjs && node --check src/bandit.mjs",
-    "test": "node --test __tests__/*.test.js"
+    "test": "node --test __tests__/*.test.js",
+    "auto-git": "node scripts/auto-git.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.5.0"

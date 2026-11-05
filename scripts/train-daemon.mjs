@@ -106,7 +106,7 @@ function updateTrainingStatus() {
         errorStatus = excluded.errorStatus,
         statusMessage = excluded.statusMessage,
         last_used_index = last_used_index + 1
-    `).run('train-daemon', 'train-daemon', now, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
+    `).run('train-daemon', 'train-daemon', 0, 0, now, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
     db.close();
   } catch (e) {
     console.error(`[${new Date().toLocaleTimeString()}] Error updating training status:`, e.message);

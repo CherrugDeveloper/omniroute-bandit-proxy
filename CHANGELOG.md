@@ -1,3 +1,3107 @@
+## [v1.19.2] - 2026-11-05
+
+### Changed
+- commit df22ad0ab0a1346036681d3f8be760e76ef0d6f7
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Nov 5 13:09:08 2026 +0100
+-     chore: update CHANGELOG, README, and version to 1.20.0
+-     - Remove scripts/auto-git.sh (integrated into .roo/commands/auto-git.md)
+-     - Update package.json version to 1.20.0
+-     - Update CHANGELOG.md with version 1.20.0 entry
+-     - Update README.md with version 1.20.0 header
+- commit 51aff4060d70cc79075b5a143069daeb1fbf1070
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Nov 5 06:47:11 2026 +0100
+-     chore: update CHANGELOG, README, and version to 1.19.0
+- commit e3cd21f3db235a8f68bf69ca7eeb2e22998024dc
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Nov 5 06:19:20 2026 +0100
+-     chore: update CHANGELOG, README, and version to 1.19.0
+- commit a4b03d7220d9177642cfa29088922219908f6b51
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Nov 5 06:00:26 2026 +0100
+-     chore: bump version to v1.19.0 and update CHANGELOG, README
+-     - Add SSE stream error handling as critical failures in bandit
+-     - Add SSE error pattern to permanent error classifications for ban-model scope
+-     - Refine stream/connection error patterns in config/bandit.json
+-     - Update version to 1.19.0 in package.json, CHANGELOG.md, and README.md
+- commit 7ee8106283f4681df9a62044b0b6bc85cb2a887a
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Nov 5 05:31:02 2026 +0100
+-     chore: update CHANGELOG, README, and version to 1.18.0
+- commit efd2205578355cb803635204d8704efcb9f58695
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 23:50:18 2026 +0100
+-     chore: remove project-level auto-git.md, use global version
+-     - Delete .roo/commands/auto-git.md from project
+-     - Global /home/marco/.roo/commands/auto-git.md now contains improved documentation
+-     - Updated with project-specific conventions, npm script integration, and enhanced workflow
+-     - Includes Bandit algorithm details, DB migration patterns, quota system, and error handling specs
+- commit 48b5b97b60b44cf01448914dfe630dba3c07b5c5
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 23:39:03 2026 +0100
+-     docs: create enhanced auto-git.md, update CHANGELOG and README
+-     - Create .roo/commands/auto-git.md with improved documentation
+-       following Keep a Changelog and Conventional Commits standards
+-     - Update CHANGELOG.md to follow Keep a Changelog v1.1.0 format
+-     - Enhance README.md with comprehensive project documentation
+-     - Add references to versioning standards in documentation
+-     Refs: https://keepachangelog.com/en/1.1.0/
+-     Refs: https://www.conventionalcommits.org/en/v1.0.0/
+- commit a55b802f8f9c032af718432ea67dc5b9d17c2443
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 23:26:54 2026 +0100
+-     fix(docs): update CHANGELOG.md line references to match actual source
+-     - Update source file references from line 3384 to 1199-1219 for 3-strike system
+-     - Ensure changelog accurately reflects implementation locations
+-     Refs: https://keepachangelog.com/en/1.1.0/, https://www.conventionalcommits.org/en/v1.0.0/
+- commit 4d9b9cca97bc1f49e27db4735b708f882a08f631
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 20:08:07 2026 +0100
+-     fix(proxy): add supports_vision checks in fallback model selection
+-     - Session affinity pinning: check vision support before using pinned models
+-     - Fallback Pass 1-4: filter non-vision models when vision required
+-     - Updated error logging to include requireVision flag
+-     Fixes issue where vision requests could be routed to non-vision models
+-     during fallback selection.
+- commit 182256abee704a2f6ff8c70cb959049ef5072a19
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 19:14:44 2026 +0100
+-     feat(bandit): implement aggressive 3-strike punishment system and exponential backoff
+-     - Added ban-provider/ban-model handling with permanent ban timestamp (999999999999999)
+-     - Added permanent flag setting in applyPunishment for critical failures [src/bandit.mjs:3384]
+-     - Implemented exponential backoff cooldown progression: 15s → 5m → 30m → 2h → permanent
+-     - Added total_failures tracking per model with cap at 50
+-     - Updated config/bandit.json key-limit-exceeded pattern to ban-provider [config/bandit.json:47]
+-     - Updated README.md documentation with new punishment system details
+-     - Added punishment-system.test.js with race condition and integration tests
+- commit 88387449284116dded713ef293db879eecca3c1b
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 18:06:08 2026 +0100
+-     docs: update all mode-specific AGENTS.md with 3-strike system documentation
+-     - Updated .roo/rules-code/AGENTS.md with 3-strike aggressive punishment system
+-     - Updated .roo/rules-ask/AGENTS.md with 3-strike system and recent changes
+-     - Updated .roo/rules-debug/AGENTS.md with 3-strike system and recent changes
+-     - Updated .roo/rules-architect/AGENTS.md with 3-strike system and dashboard notes
+-     - Updated .roo/rules-orchestrator/AGENTS.md with 3-strike system section
+- commit 1e5079c7c94b9a7be8b42a4a8020decae038a7db
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 18:04:43 2026 +0100
+-     docs: update README and AGENTS.md with v1.16.0 and 3-strike system
+-     - Updated README.md version to v1.16.0
+-     - Added documentation for 3-strike aggressive punishment system
+-     - Updated AGENTS.md with 3-strike system and recent changes
+-     - Referenced source files for new bandit features
+- commit 87fd3460ee7d205695d9e4ff51d9b851a182dd29
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 18:02:49 2026 +0100
+-     feat(bandit): implement 3-strike aggressive punishment system for critical failures
+-     - Added consecutive_critical_failures column for tracking critical error chains
+-     - Implemented _isCriticalFailure() method classifying 403, 429, timeout, safeWrite errors as critical
+-     - Added permanent ban after 3 consecutive critical failures (3-strike rule)
+-     - Reset consecutive_critical_failures counter on successful requests
+-     - Added migration for existing database schema
+- commit d8ba7c566b48a43d6b5fe755ea7383580fc947d1
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 14:59:02 2026 +0100
+-     fix(dashboard): strip provider prefix from selection history model names
+-     - Added escapeRegex helper function for safe regex pattern escaping
+-     - Added provider prefix stripping logic to fmtSelectionHistoryRow()
+-     - Removed redundant escapeRegex definition from fmtRow()
+-     - Fixes duplicate provider display in unified history selection rows
+-     Previously displayed: [openrouter] openrouter/gpt-4
+-     Now displays: [openrouter] gpt-4
+- commit ce529eae96861e8fb9547c24f62ef6c060e1f16f
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 04:41:39 2026 +0100
+-     feat(bandit): implement exponential backoff cooldown system with punishment tracking
+-     - Added 5-stage cooldown progression: 15s → 5m → 30m → 2h → permanent ban after 5+ failures
+-     - Introduced total_failures tracking per model with cap at 50
+-     - Emergency relaxation now respects cooldown bans for safety
+-     - Consecutive 5xx counter resets on successful requests
+-     - Added applyPunishment() helper function for punishment management
+-     - Added database migrations: total_failures, punishment_log, last_punishment columns
+-     - Removed unused rebase-script.sh cleanup file
+-     - Added comprehensive test suite for bandit configuration, monitoring, quota, and punishment system
+- commit b70bea675cff920d9c8fcea6de5ba0cb4a045bc1
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 04:05:57 2026 +0100
+-     chore(service): add User/Group configuration for systemd service
+-     - Added User=marco and Group=marco to ensure proper service execution
+-       under the correct user context for development environment
+-     This ensures the bandit proxy service runs with appropriate permissions.
+- commit fa480e11490c927c1761a188a50763f5ffa9f388
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 04:00:35 2026 +0100
+-     fix(bandit): use sanitizedModelId for proper error punishment
+-     - Fixed model ID sanitization in recordFeedback() failure/success paths
+-     - Fixed model ID sanitization in _classifyError() for 429 and 5xx errors
+-     - Ensures punishment/escalation tracking works correctly with provider prefix normalization
+-     Ogni modello selezionato che non risponde o risponde con un errore DEVE essere punito.
+- commit ac2d667a08cff51cb1afac7fd148b3fccb52a5b8
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 03:05:56 2026 +0100
+-     fix(config): improve error pattern matching for model errors
+-     - Add 'model is unavailable' to permanent error patterns
+-     - Add 'model not a valid model ID' to permanent error patterns
+-     - Remove duplicate pattern entry
+- commit a18b5dcff6dc7ef3af92a190ef4793021d889df6
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 02:50:44 2026 +0100
+-     fix(streaming): resolve safeWrite initialization order error
+-     - Moved safeWrite function definition before first invocation (line 2454)
+-     - This fixes 'Cannot access safeWrite before initialization' errors for streaming models
+-     - Resolves openrouter model failures caused by temporal dead zone violation
+-     - Removes duplicate function definition after its use
+-     The bug occurred because const function expressions are not hoisted in JavaScript,
+-     causing safeWrite to be called before its declaration in the stream handling code.
+- commit 56634e6befde478a9e6abc54d62d3258113ac538
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 02:25:24 2026 +0100
+-     chore(repo): cleanup and documentation update for v1.15.0
+-     - Removed obsolete plans/auto-git-plan.md file
+-     - Cleaned up duplicate changelog entries, consolidated v1.14.1-v1.14.10
+-     - Added new v1.15.0 changelog entry with exponential backoff cooldowns
+-     - Removed temporary backup file CHANGELOG.md.backup
+-     - Fixed duplicate content in README.md, added proper structure and sections
+-     - Documented new bandit features: exponential backoff, total_failures tracking
+- commit 7e1172f17cb3c5df5ac1f84efda3d53afa9f4af8
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 01:37:50 2026 +0100
+-     docs: update AGENTS.md files with recent changes - exponential backoff, total_failures, error patterns, dashboard updates
+- commit cf6a1eb6f87f57b7142375777dab9395c1f57cb3
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 01:34:12 2026 +0100
+-     feat(bandit): implemented exponential backoff cooldowns and total_failures tracking for consecutive 5xx errors
+-     - Added escalating cooldown progression: 15s → 5m → 30m → 2h → permanent ban after 5+ failures
+-     - Introduced total_failures cumulative tracking per model (capped at 50) for escalation-based punishment
+-     - Emergency relaxation now respects cooldown bans instead of ignoring all cooldowns
+-     - Consecutive 5xx counter resets on successful request, maintaining cooldown state
+-     - Added safeWrite initialization error pattern to config/bandit.json → ban-model scope
+-     - Dashboard table dimensions adjusted: height 110px→114px, column widths updated (Error Type 8%→12%, Countermeasure 8%→14%, Reason 40%→30%)
+-     - Provider prefix stripped from model names in selection history for cleaner display
+-     - Package version bumped to v1.15.0 (minor increment for 2026-11-04 date)
+-     - CHANGELOG.md updated with v1.15.0 entry documenting all changes
+-     - README.md delegated to documentation-writer mode with updated version and feature documentation
+- commit fa8ad6a097f0a0e4accee63f3dc3fe07b0e5a7a9
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 00:52:17 2026 +0100
+-     fix(dashboard): fix syntax error in renderAll() if/else structure
+-     - Fixed malformed if/else block around lines 2420-2425
+-     - The chunked rendering logic was incorrectly placed outside the if/else structure
+-     - Now properly structured: if (html === '') { ... } else { ... requestAnimationFrame(...) }
+- commit 1c9cb1a6bafbfb87b54d2b0e9de8ae06cf08903f
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 00:45:57 2026 +0100
+-     fix(dashboard): resolve 'page not responding' with chunked rendering and debounced polling
+-     - Implement chunked rendering with requestAnimationFrame for fetchActive(), renderFilteredLogs(), and renderAll() highlighting (25-30 rows per frame)
+-     - Add tab-aware debounced polling system to only run relevant API calls for active tab
+-     - Cap selection history expansion to 5 entries per request with summary row for overflow
+-     - Add debounce flags to prevent concurrent renders in renderAll() and renderTrainAll()
+-     - These changes prevent main thread blocking >16ms/frame, eliminating Chrome 'page not responding' popup
+- commit 447dccfced6162763fb6a1eb166779fe75b87b69
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Nov 4 00:15:55 2026 +0100
+-     chore(repo): squash consecutive generic commits v1.14.7 to v1.14.10
+-     - Bump version from v1.14.7 to v1.14.10 with date-based semantic versioning
+-     - Consolidate CHANGELOG.md entries and remove redundant version blocks
+-     - Update README.md to reflect new version and project structure
+-     - Update package.json version to 1.14.10
+-     - Enhance Unified Chronology dashboard with per-model selection history
+-     - Add model selection tracking with timestamp, provider, model, status, error type
+-     - Improve bandit error classification with exponential backoff for 5xx/SSE errors
+-     - Reduce cooldown from 30s to 15s for transient stream/server errors
+-     - Add null guard for error classification to prevent crashes
+-     - Implement emergency relaxation improvements with bypassCooldown parameter
+-     - Add provider-level quota checking in emergency mode
+-     - Clean up temporary files and planning artifacts
+-     - Auto-git workflow execution for repository maintenance and documentation updates
+-     - Consolidate provider metrics and documentation references
+-     - Update bandit model pruning and README references
+-     - Clean up expired throttle entries in notifier
+-     Co-Authored-By: auto-bot <auto-bot@example.com>
+- commit fd3dbcc3ccae1cbb9024d3ad51d1209bfa17d669
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 23:25:55 2026 +0100
+-     chore(version): bump to v1.14.10 and update documentation\n\n- Updated CHANGELOG.md with new version entry v1.14.10\n- Updated README.md to reflect v1.14.10\n- Updated package.json version to 1.14.10
+- commit f2146ae6fab813c16d29c747ea64f90fe0ed5571
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 23:08:39 2026 +0100
+-     chore: optimize git history and consolidate automation commits
+-     - Squash consecutive generic/automated commits (v1.13.6 to v1.13.7 workflow)
+-     - Update documentation structure and changelog formatting
+-     - Consolidate auto-git workflow updates and version bumps
+-     - Update dashboard configuration and project rules
+-     - Clean up temporary files and planning artifacts
+-     - Update bandit model pruning and README references
+-     - Consolidate provider metrics and documentation updates
+- commit 5e652ecd4044a14e8ccaae511e2bd343efa76c02
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 22:55:14 2026 +0100
+-     chore(repo): auto-git workflow execution v1.13.14
+-     Repository cleanup, version bump, documentation updates, and project utilities tracking
+- commit ea56a6e09a67ea624af4dabbbd04ead357c58469
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 22:48:04 2026 +0100
+-     fix(dashboard,bandit): update log colors and emergency relaxation filter
+-     - Dashboard: Updated log row color mapping for source types
+-       - Renamed source-train to source-training in CSS
+-       - Changed debug color from #ff5858 to #00bcd4
+-       - Changed cooldown color from #f1c40f to #ff9800
+-       - Changed flag color from #e6ac00 to #ffeb3b
+-       - Changed degraded color from #e74c3c to #9c27b0
+-       - Changed proxy color from #f0883e to #ffffff
+-     - Bandit: Emergency relaxation filter now correctly ignores dynamic_max_tokens instead of tokenLimit
+-       - Fixed ignoreTokenLimit to ignoreDynamicMaxTokens in emergency fallback to properly bypass runtime-discovered TPM limits
+-     - Updated CHANGELOG.md and package.json to v1.13.12
+-     - Repository cleanup (removed inspect-output.txt)
+-     fix(bandit): re-evaluate error classification and punishment system
+-     - Reduce 402 billing error cooldown from 24h to 1h for faster credit recovery
+-     - Reduce 403 non-resetting quota cooldown from 24h to 2h for transient key limits
+-     - Reduce 418 anti-abuse cooldown from 6h to 1h to prevent prolonged provider outages
+-     - Change 502 misconfiguration/environment errors from ban-provider to cooldown-provider (30m) enabling auto-recovery
+-     - Add 5-second TTL in-memory caching to ProviderQuota.canCall() eliminating redundant DB queries
+-     - Optimize isModelAvailable() to use single LEFT JOIN query instead of two separate queries
+-     All changes in src/bandit.mjs:1111-1343 and src/provider-quota.mjs
+-     chore(repo): update version to 1.14.0 and CHANGELOG.md with auto-git workflow documentation
+-     - Bump version to 1.14.0 in package.json
+-     - Add v1.14.0 entry to CHANGELOG.md documenting auto-git workflow execution
+-     - Repository cleanup and workspace validation
+-     - Minor CSS fix in dashboard.html height adjustment
+-     feat(proxy): stop failure spiral for exhausted provider credentials
+-     - bandit: update 402 error classification to flag provider instead of cooldown
+-     - bandit: fix log streaming filters for training source queries
+-     - chore: repository cleanup and version update
+-     feat(dashboard): add dynamic non-active stats and colorize badges
+-     - Replace hard-coded placeholder sums with dynamic calculations for non-active providers and non-operational models
+-     - Apply  and  CSS classes for consistent colorization in the provider section
+-     feat(dashboard): fix - show x/y non-active counts in detail lines, restore percentage display
+-     - Restore 'Provider in salute' and 'Modelli operativi' percentage display (dynamic calculation)
+-     - Update detail content lines to show 'x/y non attivi' instead of 'x/y attivi'
+-     - Keep dynamic badge colorization for Monitorati/Catalogo in provider section
+-     fix(bandit): optimize error classification and fallback chain reliability
+-     - Extended 5xx handling in _classifyError() to include stream/keepalive/connection errors via message matching; reduced cooldown from 30s to 15s
+-     - Added bypassCooldown parameter to isModelAvailable() for fallback chain to bypass cooldown checks while respecting permanent bans and degraded models
+-     - Emergency relaxation now preserves ignorePermanent: false and ignoreDegraded: false to avoid routing to broken models
+-     - Fallback chain in index.mjs now uses bypassCooldown=true for all availability checks
+-     feat(bandit): emergency relaxation and fallback chain improvements
+-     - Added bypassCooldown parameter to isModelAvailable() for fallback chain reliability
+-     - Emergency relaxation preserves ignorePermanent/ignoreDegraded to avoid broken models
+-     - Absolute last resort no longer filters by cooldown after emergency mode attempted
+-     - Extended 5xx handling to include stream/chunk/keepalive/connection errors in _classifyError()
+-     - Reduced cooldown from 30s to 15s for transient stream/server errors
+-     fix(health-check): added periodic rehabilitation check for degraded/banned models
+-     - New rehabTimer runs _runRehabilitation() at configurable interval
+-     - Auto-clears needs_attention flag on successful health check
+-     fix(proxy): enhanced error responses with category classification
+-     - Track lastErrorCategory (TRANSIENT/PERMANENT) for final error response
+-     - Improved error messaging with [Temporary Availability Issue] / [Permanent Failure] prefixes
+-     chore(docs): version bump to v1.14.3 with CHANGELOG and README updates
+-     - Date-based semantic version increment for 2026-11-03 (patch)
+-     - Updated CHANGELOG.md with new version entry
+-     - Updated README.md version string and changelog summary
+-     fix(bandit): improve continuity with exponential backoff and emergency relaxation
+-     - Implement exponential backoff for 5xx/SSE errors (15s * 2^fails, capped at 5m)
+-     - Add null guard for error classification to prevent crashes on undefined category
+-     - Relax emergency mode to allow degraded models (ignoreDegraded: true)
+-     - Enable provider quota checking in emergency mode (ignoreQuota: false)
+-     All changes in src/bandit.mjs
+-     fix(streaming): add safeWrite helper for client disconnect handling and buffer management
+-     - Add safeWrite helper in src/index.mjs to safely write SSE chunks and detect client disconnects
+-     - Handle backpressure with drain event when buffer is full
+-     - Prevent crashes when client disconnects mid-stream
+-     - Replace direct res.write() calls with await safeWrite() in streaming path
+-     docs(changelog): add v1.14.5 entry for 2026-11-03
+-     - Document auto-git workflow execution and version bump
+-     chore(version): bump package.json to v1.14.5
+-     chore(build): deduplicate CHANGELOG.md entries and update project version
+-     - Deduplicated duplicate entries in CHANGELOG.md and re-ordered chronologically
+-     - Bumped version to v1.14.6 in package.json and README.md
+-     - Refactored lastErrorCategory handling in src/index.mjs
+-     feat(dashboard): enhance Unified Chronology with per-model selection history
+-     - Each model considered during bandit selection now occupies its own row with timestamp, provider, model, status, error type, countermeasure, and reason
+-     - Increased table height from 84px to 280px with scrollbar to remove empty space below table
+-     - Added 'Mostra cronologia selezione' checkbox to toggle selection history display
+-     - Real-time active model info shows duration (e.g., '🟢 ATTIVO 12.3s') with green background
+-     - Historical rows show discarded models with rejection reasons (tier_min_score, health, max_retries, etc.) with red background
+-     - Visual indicators: ✅ for selected, ❌ for rejected models
+-     - Updated copy button to include Error Type and Countermeasure columns
+-     fix(dashboard): reduce unified chronology table height and remove bottom margin
+-     - Changed table height from 280px to 110px (just one extra row as requested)
+-     - Removed margin-bottom:10px from the card to eliminate space between chronology panel and tabs below
+-     chore(repo): auto-git workflow v1.14.7 - repository maintenance and documentation updates
+-     - Update CHANGELOG.md with v1.14.7 entry (date-based semantic versioning)
+-     - Update package.json version to 1.14.7
+-     - Update README.md version badge and changelog references
+-     - Add /v1/unblock/model/:id admin endpoint in src/index.mjs
+-     - Add unblockModel() method in src/bandit.mjs for manual model unblocking
+-     - Change rehabilitation period from 1h to 48h in config/bandit.json and src/bandit.mjs
+-     - Make permanent bans non-auto-rehabilitating (require manual intervention)
+-     - Respect dynamic_max_tokens in emergency mode (learned 413 limits)
+-     - Fix log entry color mapping to use source name for frontend CSS matching
+-     - Update ITPM quota test to use getDynamicMaxTokens
+-     - Add TPM-exceeded reason to error classification pattern
+-     - Dashboard HTML improvements and cleanup
+-     - Remove backup file CHANGELOG.md.backup.20261103 from tracking
+-     chore(repo): clean up temporary files
+-     chore(release): v1.14.8
+-     - Update changelog and readme versions
+-     - Add script to clear all provider attention flags
+-     - Add performance logging to recordFeedback in bandit
+-     - Improve stream error handling robustness in index
+-     - Throttle console logging to prevent spam in index
+- commit 2e324ad754b71be4a7c76b466008571d15d628c1
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 19:41:50 2026 +0100
+-     chore(repo): clean up temporary files
+- commit 1e52730299374f0870c0fdb2f042f18af47b6df4
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 19:41:28 2026 +0100
+-     chore(repo): auto-git workflow v1.14.7 - repository maintenance and documentation updates
+-     - Update CHANGELOG.md with v1.14.7 entry (date-based semantic versioning)
+-     - Update package.json version to 1.14.7
+-     - Update README.md version badge and changelog references
+-     - Add /v1/unblock/model/:id admin endpoint in src/index.mjs
+-     - Add unblockModel() method in src/bandit.mjs for manual model unblocking
+-     - Change rehabilitation period from 1h to 48h in config/bandit.json and src/bandit.mjs
+-     - Make permanent bans non-auto-rehabilitating (require manual intervention)
+-     - Respect dynamic_max_tokens in emergency mode (learned 413 limits)
+-     - Fix log entry color mapping to use source name for frontend CSS matching
+-     - Update ITPM quota test to use getDynamicMaxTokens
+-     - Add TPM-exceeded reason to error classification pattern
+-     - Dashboard HTML improvements and cleanup
+-     - Remove backup file CHANGELOG.md.backup.20261103 from tracking
+- commit 4816a769cfc7add6982772c9a476e8f3b25a5587
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 17:53:36 2026 +0100
+-     fix(dashboard): reduce unified chronology table height and remove bottom margin
+-     - Changed table height from 280px to 110px (just one extra row as requested)
+-     - Removed margin-bottom:10px from the card to eliminate space between chronology panel and tabs below
+- commit 5311f3aeef32bb5acea4df76407941b95e731e9c
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 17:49:37 2026 +0100
+-     feat(dashboard): enhance Unified Chronology with per-model selection history
+-     - Each model considered during bandit selection now occupies its own row with timestamp, provider, model, status, error type, countermeasure, and reason
+-     - Increased table height from 84px to 280px with scrollbar to remove empty space below table
+-     - Added 'Mostra cronologia selezione' checkbox to toggle selection history display
+-     - Real-time active model info shows duration (e.g., '🟢 ATTIVO 12.3s') with green background
+-     - Historical rows show discarded models with rejection reasons (tier_min_score, health, max_retries, etc.) with red background
+-     - Visual indicators: ✅ for selected, ❌ for rejected models
+-     - Updated copy button to include Error Type and Countermeasure columns
+- commit f9b6733dd1cc02dfd83f6b3504860e75046a1fa8
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 17:05:06 2026 +0100
+-     chore(build): deduplicate CHANGELOG.md entries and update project version
+-     - Deduplicated duplicate entries in CHANGELOG.md and re-ordered chronologically
+-     - Bumped version to v1.14.6 in package.json and README.md
+-     - Refactored lastErrorCategory handling in src/index.mjs
+- commit 1ef4ed65940a42a04f87674c111d4dcc74574fb9
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 14:59:21 2026 +0100
+-     fix(streaming): add safeWrite helper for client disconnect handling and buffer management
+-     - Add safeWrite helper in src/index.mjs to safely write SSE chunks and detect client disconnects
+-     - Handle backpressure with drain event when buffer is full
+-     - Prevent crashes when client disconnects mid-stream
+-     - Replace direct res.write() calls with await safeWrite() in streaming path
+-     docs(changelog): add v1.14.5 entry for 2026-11-03
+-     - Document auto-git workflow execution and version bump
+-     chore(version): bump package.json to v1.14.5
+- commit dad204da1c4aa7bad2fea32fb69dc57d42dc4f3b
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 14:40:51 2026 +0100
+-     fix(bandit): improve continuity with exponential backoff and emergency relaxation
+-     - Implement exponential backoff for 5xx/SSE errors (15s * 2^fails, capped at 5m)
+-     - Add null guard for error classification to prevent crashes on undefined category
+-     - Relax emergency mode to allow degraded models (ignoreDegraded: true)
+-     - Enable provider quota checking in emergency mode (ignoreQuota: false)
+-     All changes in src/bandit.mjs
+- commit 3f6c4542aa2ea4609903c87c39334a01291f486e
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 13:20:00 2026 +0100
+-     feat(bandit): emergency relaxation and fallback chain improvements
+-     - Added bypassCooldown parameter to isModelAvailable() for fallback chain reliability
+-     - Emergency relaxation preserves ignorePermanent/ignoreDegraded to avoid broken models
+-     - Absolute last resort no longer filters by cooldown after emergency mode attempted
+-     - Extended 5xx handling to include stream/chunk/keepalive/connection errors in _classifyError()
+-     - Reduced cooldown from 30s to 15s for transient stream/server errors
+-     fix(health-check): added periodic rehabilitation check for degraded/banned models
+-     - New rehabTimer runs _runRehabilitation() at configurable interval
+-     - Auto-clears needs_attention flag on successful health check
+-     fix(proxy): enhanced error responses with category classification
+-     - Track lastErrorCategory (TRANSIENT/PERMANENT) for final error response
+-     - Improved error messaging with [Temporary Availability Issue] / [Permanent Failure] prefixes
+-     chore(docs): version bump to v1.14.3 with CHANGELOG and README updates
+-     - Date-based semantic version increment for 2026-11-03 (patch)
+-     - Updated CHANGELOG.md with new version entry
+-     - Updated README.md version string and changelog summary
+- commit 18adc0c7f470a78b73041a36d3b79869f41a3813
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 02:56:41 2026 +0100
+-     fix(bandit): optimize error classification and fallback chain reliability
+-     - Extended 5xx handling in _classifyError() to include stream/keepalive/connection errors via message matching; reduced cooldown from 30s to 15s
+-     - Added bypassCooldown parameter to isModelAvailable() for fallback chain to bypass cooldown checks while respecting permanent bans and degraded models
+-     - Emergency relaxation now preserves ignorePermanent: false and ignoreDegraded: false to avoid routing to broken models
+-     - Fallback chain in index.mjs now uses bypassCooldown=true for all availability checks
+- commit 19b9449745a4e1004caa0a4b8c9fab623838b0eb
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 02:23:21 2026 +0100
+-     feat(dashboard): fix - show x/y non-active counts in detail lines, restore percentage display
+-     - Restore 'Provider in salute' and 'Modelli operativi' percentage display (dynamic calculation)
+-     - Update detail content lines to show 'x/y non attivi' instead of 'x/y attivi'
+-     - Keep dynamic badge colorization for Monitorati/Catalogo in provider section
+- commit 91058dec2dd878fc3754ec5e376f35b359a482db
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 02:18:04 2026 +0100
+-     feat(dashboard): add dynamic non-active stats and colorize badges
+-     - Replace hard-coded placeholder sums with dynamic calculations for non-active providers and non-operational models
+-     - Apply  and  CSS classes for consistent colorization in the provider section
+- commit c7e2ca0ac540331deec42c8866c9a5c8cce10ec8
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 02:07:19 2026 +0100
+-     feat(proxy): stop failure spiral for exhausted provider credentials
+-     - bandit: update 402 error classification to flag provider instead of cooldown
+-     - bandit: fix log streaming filters for training source queries
+-     - chore: repository cleanup and version update
+- commit f2e2e4f0459701df7af576859df4de7e20c43205
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Nov 3 01:16:25 2026 +0100
+-     chore(repo): update version to 1.14.0 and CHANGELOG.md with auto-git workflow documentation
+-     - Bump version to 1.14.0 in package.json
+-     - Add v1.14.0 entry to CHANGELOG.md documenting auto-git workflow execution
+-     - Repository cleanup and workspace validation
+-     - Minor CSS fix in dashboard.html height adjustment
+- commit 042f4c02695a43074a2dc055e9207fcf7bc94d8a
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 23:34:10 2026 +0100
+-     fix(bandit): re-evaluate error classification and punishment system
+-     - Reduce 402 billing error cooldown from 24h to 1h for faster credit recovery
+-     - Reduce 403 non-resetting quota cooldown from 24h to 2h for transient key limits
+-     - Reduce 418 anti-abuse cooldown from 6h to 1h to prevent prolonged provider outages
+-     - Change 502 misconfiguration/environment errors from ban-provider to cooldown-provider (30m) enabling auto-recovery
+-     - Add 5-second TTL in-memory caching to ProviderQuota.canCall() eliminating redundant DB queries
+-     - Optimize isModelAvailable() to use single LEFT JOIN query instead of two separate queries
+-     All changes in src/bandit.mjs:1111-1343 and src/provider-quota.mjs
+- commit f5e98dd3e5536db43417a0d5713348a5fa20136a
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 22:48:04 2026 +0100
+-     fix(dashboard,bandit): update log colors and emergency relaxation filter
+-     - Dashboard: Updated log row color mapping for source types
+-       - Renamed source-train to source-training in CSS
+-       - Changed debug color from #ff5858 to #00bcd4
+-       - Changed cooldown color from #f1c40f to #ff9800
+-       - Changed flag color from #e6ac00 to #ffeb3b
+-       - Changed degraded color from #e74c3c to #9c27b0
+-       - Changed proxy color from #f0883e to #ffffff
+-     - Bandit: Emergency relaxation filter now correctly ignores dynamic_max_tokens instead of tokenLimit
+-       - Fixed ignoreTokenLimit to ignoreDynamicMaxTokens in emergency fallback to properly bypass runtime-discovered TPM limits
+-     - Updated CHANGELOG.md and package.json to v1.13.12
+-     - Repository cleanup (removed inspect-output.txt)
+- commit 856bb2a16db017e254f1f006151fbd2f059fe2b1
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 21:31:52 2026 +0100
+-     fix(ui): resolve syntax error in dashboard logs
+- commit abf8bef7055bff9abb3f68b18c501d29be241cc1
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 21:31:52 2026 +0100
+-     fix(ui): resolve syntax error in dashboard logs
+- commit 2ad72fa3f8917e385cfd15d142d843b22699fe3d
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 21:20:27 2026 +0100
+-     feat(ui): add log message expansion to dashboard
+-     chore: update changelog, readme, and log capacity
+- commit c3805b9c8581b1cf748488c1fff4feb86e856ebb
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 20:13:15 2026 +0100
+-     feat(dashboard,proxy): move provider metrics to provider box, add color-coded log filters, fix session dedup and TDZ errors
+-     - Move 'Provider in salute' and 'Modelli operativi' metrics from tab-providers to provider box (4th stats box)
+-     - Add 11 color-coded filter buttons in Live Logs tab (Proxy, ZOO, Train, Debug, System, Ban, Cooldown, Flag, Degraded, Paid, All)
+-     - Debug logs now respect 'Debug verbose' toggle (hidden when off regardless of preset)
+-     - Fix TDZ 'Cannot access sessionKey before initialization' by computing sessionKey before trackRequestStart
+-     - Fix 'cleanup is not defined' unhandled rejection by moving cleanup() definition before catch blocks
+-     - Session deduplication in getActiveRequestsSnapshot(): keep only latest attempt per sessionKey
+-     - Quantize unified history table: removed placeholder/incomplete rows
+-     - Remove ignoreDynamicMaxTokens from emergency relaxation tier (fixes ITPM test)
+- commit ceb474e1d9e8ad21be7b1bf6d9fad5c01dcee569
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 19:02:50 2026 +0100
+-     feat: move provider metrics to providers tab, quantize unified history, fix session deduplication, fix ITPM emergency tier
+-     - Move 'Provider in salute' and 'Modelli operativi' metrics from main stats container to tab-providers
+-     - Remove placeholder/incomplete rows from unified history table (quantization)
+-     - Fix multiple 'active' entries per session by deduplicating active requests by sessionKey in getActiveRequestsSnapshot()
+-     - Add sessionKey tracking to request-tracker for session affinity
+-     - Fix ITPM test failure: remove ignoreDynamicMaxTokens from emergency relaxation tier (dynamic_max_tokens are learned limits from actual 413 errors, not cooldowns)
+-     Files modified:
+-     - public/dashboard.html: Add metrics to providers tab, update refreshAll(), remove placeholder rows
+-     - src/request-tracker.mjs: Add sessionKey field to tracked requests
+-     - src/index.mjs: Pass sessionKey to trackRequestStart/trackRequestUpdate, deduplicate by sessionKey in getActiveRequestsSnapshot()
+-     - src/bandit.mjs: Remove ignoreDynamicMaxTokens from emergency tier options
+- commit c726bdbd329a7a9944024c599b00f0780b0d98b7
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 15:19:30 2026 +0100
+-     docs: rewrite README.md to reflect actual project capabilities; dashboard: add provider % metrics, redesign pricing filter, add filter tooltips
+- commit c40f6c50dc0ab272a62db6f1cadc0c71825a27db
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 14:30:02 2026 +0100
+-     chore: auto-git workflow execution with version bump to v1.13.10
+- commit 25da083596b674d606ee3b4f793f9dad7f777ac2
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 10:27:49 2026 +0100
+-     feat: active events display, metric percentages, unified history row height, and train-daemon functionality
+-     - Fix active events display filtering
+-     - Correct metric percentages calculation
+-     - Unified history row height optimization
+-     - Enhance train-daemon with training status tracking
+- commit d73ff8c775503e6fe6903b71bc82d67071f7e17c
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 02:04:15 2026 +0100
+-     chore: bump version to 1.13.9 and update changelog
+- commit 8350dba20aede6f17023767e940bb6bc4342307e
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 01:02:27 2026 +0100
+-     feat: merge training status into top model card
+- commit 1bad5d1f668ed585262de1888d355b8271f7201b
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 00:27:44 2026 +0100
+-     chore(docs): auto-git workflow v1.13.7 - cleanup, changelog standardization, version bump
+-     - Standardized CHANGELOG.md format to consistent bracketed version headings
+-     - Added new version entry v1.13.7 for 2026-11-01 with auto-git execution details
+-     - Updated package.json version to 1.13.7
+-     - Updated README.md version reference to v1.13.7
+-     - Repository cleanup completed successfully
+-     - All validation checks passed
+- commit 13c13e9b112bc5bbe6372ca1e6e4496c454c6718
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Nov 2 00:00:58 2026 +0100
+-     chore: bump version to v1.13.6 and update docs
+- commit 6c3449a199335fd69c3f190f8cba740b6d56f464
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 22:10:39 2026 +0100
+-     docs: update version to v1.13.5 and documentation
+- commit 5de4214e8e8439da452b51a2d8de4dfd47cc01e8
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 19:03:28 2026 +0100
+-     fix(bandit): resolve emergency cooldown relaxation and vision filtering
+-     - Fix catalog sync to populate supports_vision from capabilities API with name-pattern fallback
+-     - Add supports_vision column to INSERT/UPDATE statements in fetchAndSyncModels
+-     - Reset provider attention flags for openrouter/xao/xai-oauth
+-     - Clear quota-exhausted flag for no-think provider
+-     - Reduce permanent bans from 64 to 5 models (fails <=1, consecutive_5xx < 3)
+-     - Vision models now correctly detected: 190 in catalog, 176 active
+-     - Emergency triggers resolved: highPermanentCount INACTIVE, quotaExhausted INACTIVE
+- commit 5e58ba0446ddfe0b13707b88e65943fde385b2b7
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 16:28:29 2026 +0100
+-     fix(changelog,docs): recalculate version numbers and format changelog
+-     - Recalculate CHANGELOG.md version numbers from v1.0.x to correct v1.13.x sequence
+-     - Apply proper markdown formatting with consistent spacing
+-     - Update package.json version to 1.13.3
+-     - Verify no secrets exposed in changelog content
+- commit ebadb86404b5e0f978ca480be3a37bd4262066e3
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 15:18:12 2026 +0100
+-     chore(docs,src): update changelog v1.0.2, README version bump and bandit model pruning
+- commit b169fadbb12b462adbb0a7e609c0ec38e8075789
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 13:02:04 2026 +0100
+-     fix(scripts): enhanced restart-safe.sh with sudo and facial recognition support
+-     - Added NEED_SUDO detection for non-root users
+-     - All systemctl/journalctl commands now use sudo when needed
+-     - System PAM already configured with pam_exec.so quiet /usr/local/bin/face-auth for biometric authentication (facial recognition / fingerprint)
+-     - Verified scripts/restart.sh is obsolete (documented in docs/restart-procedure.md)
+-     - Syntax verified with bash -n
+-     docs: fixed CHANGELOG.md version ordering (v1.1.x before v1.0.x)
+-     docs: updated README.md with v1.0.1 entry
+-     chore: enhanced auto-git.md with version ordering validation checks
+- commit 3bca826165f277a393fe12e432877579764700b1
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 12:39:08 2026 +0100
+-     fix: respect ignoreTokenLimit flag in dynamic_max_tokens check
+-     The dynamic_max_tokens check in selectModel was always enforced regardless
+-     of the ignoreTokenLimit flag, causing models to be filtered out prematurely
+-     and forcing the system through all 5 relaxation tiers before finding an
+-     available model. This fix makes the dynamic_max_tokens check respect the
+-     ignoreTokenLimit flag, consistent with how max_input_tokens is already handled.
+- commit 48a3ea8158ed37979f702852f8fb4bce7045855c
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 12:10:36 2026 +0100
+-     fix(scripts): fix check-nvidia.mjs double database connection bug
+-     - Create separate Database instance for second query
+-     - Close both connections properly to avoid 'database connection is not open' error
+- commit 6ff73cfc2379cf46738286476d350a2023fbcb7f
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 03:13:06 2026 +0100
+-     fix(bandit): emergency relaxation ignores already_tried and non_chat_model_excluded
+-     - Emergency relaxation (Tier 4) now ignores already_tried models (ignoreExcluded: true)
+-     - Emergency relaxation now ignores non_chat_model_excluded models (ignoreNonChat: true)
+-     - Absolute last resort removes exclusion filter to allow any available model
+-     - Fixes 'All models filtered' warnings when all models are in cooldown/tried
+- commit 64b3a30c10fb89dd998ab831065a2c52c0a3a91f
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 02:47:42 2026 +0100
+-     docs(CHANGELOG,README): update version 1.0.0 changelog and documentation
+- commit 97bd2a6d19d19b391ca8891b1296faebc6cb90a1
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Nov 1 01:10:42 2026 +0100
+-     docs(roo): ripristina auto-git.md globale e sincronizza documentazione workflow git automatizzato
+-     Converte la configurazione da formato bash shell script a documentazione markdown per uso globale.
+-     Il file .roo/commands/auto-git.md è ora accessibile a livello globale in /home/marco/.roo/commands/ anziché essere limitato al progetto.
+-     Cambiamenti principali:
+-     - Aggiornata descrizione per includere risoluzioni problemi workspace e ottimizzazione history
+-     - Strutturata documentazione con sezioni dettagliate per repository cleanup, workspace validation, documentation updates, staging & commit, history optimization, sync & push
+-     - Mantiene compatibilità con il sistema di skill di Roo Code
+- commit faadf07c6c6a5db5145e703d1c039a1245dc23df
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 23:56:50 2026 +0100
+-     feat(src,docs): update bandit logic
+- commit e8ee864572ed3b4863b64a06ad57c7f526a3a59e
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 22:50:07 2026 +0100
+-     chore: automated update
+- commit 2d874496f7a664290b1c8bdc4eb2ea839cb99794
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 22:32:43 2026 +0100
+-     chore: update dashboard.html
+- commit ded55a2daad7ccb8efed154174e03bf690e46baa
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 21:52:01 2026 +0100
+-     feat(src): fix error classification
+- commit e61a30bcaf799fd6d353bfe402f0aa7cad1a12eb
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 21:12:55 2026 +0100
+-     chore(scripts): update omniroute-bandit-proxy.service
+- commit 0721a03a8e16a63dad527ef8d0d327dd080ff9d5
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 19:12:53 2026 +0100
+-     chore: update documentation
+- commit 1b4450ce2cf78668747778ab941b393a6d9faee1
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 18:38:12 2026 +0100
+-     chore(src,config): update provider limits
+- commit dae10a213e1b6a38add24817e1ecb33859f03caa
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 14:36:41 2026 +0100
+-     feat(src): automated commit
+- commit a1100f5ad769ac4f6c431e11ff1141e7afb948b5
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 02:27:51 2026 +0100
+-     fix(ops): correggi priorità systemd system prima di user in restart-safe.sh
+-     - Inverti ordine run_systemctl() e run_journalctl() per privilegiare systemd system
+-     - Elimina falsi negativi stato servizio inactive/dead su servizio system-wide
+-     - Aggiorna README.md: rimuovi riferimenti restart.sh, promuovi restart-safe.sh
+-     - Dashboard: sostituisci quickAction restart.sh con restart-safe.sh
+-     - Docs: aggiorna restart-procedure.md con migliorie diagnostiche recenti
+-     - Documenta deprecazione restart.sh (retrocompatibilità solo)
+- commit a447be4e06a1d086f0d1c274aaa80b7beba062d2
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 02:04:52 2026 +0100
+-     fix(ops): migliora gestione stato servizio con attesa graduale
+-     - Sostituisce controllo immediato con attesa graduale (5 tentativi x 2s)
+-     - Gestisce correttamente stati activating/inactive durante avvio
+-     - Evita falsi positivi su servizi che impiegano tempo ad avviarsi
+-     - Mantiene rilevamento errori failed con log dettagliati
+- commit 345d585f499b5dc6ef1e1e08c3e791ca50b3da3f
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 01:55:13 2026 +0100
+-     fix(ops): gestisci stato servizio inactive/dead post-start in restart-safe.sh
+-     - Aggiunge controllo immediato se servizio rimane inactive/dead dopo systemctl start
+-     - Stampa log errori e stato dettagliato quando il servizio non parte
+-     - Migliora diagnostica quando servizio non segnala active entro timeout
+- commit 0364bf977f99bffaccdaa6c69abd41d87d91f6f0
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 01:49:08 2026 +0100
+-     fix(ops): migliora restart-safe.sh con rilevamento binding porta multi-metodo e controllo stato failed
+-     - Aggiorna wait_for_port_bind con fallback nc/ss/lsof per rilevamento affidabile
+-     - Aggiunge wait_for_service_failed per rilevamento immediato stato failed post-avvio
+-     - Migliora diagnostica con PID processo node e log dettagliati
+-     - Verifica esplicita processo node in ascolto sulla porta
+- commit 9e88b1b2cb126a6842ff0bb5d0adf1a35260d589
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 31 01:14:17 2026 +0100
+-     chore(src,config,changelog): automated commit
+- commit 7160d3758cd98dbd1826cc949aed4e9fab7b6e5b
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 18:38:31 2026 +0100
+-     fix: model sanitization validation, error classification improvements, and provider cooldown fixes
+- commit 706de4f4dd6b9c330e5d4418d76f69837c749e9c
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 15:34:35 2026 +0100
+-     fix: clear cooldown_until on successful requests in recordFeedback()
+-     - Models/providers were stuck in cooldown because successful requests didn't reset cooldown_until, causing continuous provider_cooldown rejections
+-     - Added cooldown_until = 0 reset in the success path of recordFeedback() for both model and provider records
+-     - Provider cooldown is now properly cleared via UPDATE provider_history SET cooldown_until = 0 on success
+-     - Updated CHANGELOG.md with v1.1.92 entry
+-     - Fixed dashboard timestamp display for active thinking models
+- commit 6992fe59951913bf331c55835eced18dbed5f3dc
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 13:10:27 2026 +0100
+-     fix: remove duplicate isHardError variable declaration causing service startup crash
+-     - Fixed SyntaxError: Identifier 'isHardError' has already been declared in src/index.mjs:1732
+-     - This was the root cause of restart-safe.sh failing with 'Porta 127.0.0.1:8080 non si è bindata dopo 60s'
+-     - Also restored missing node_modules via npm install
+-     - Updated CHANGELOG.md with v1.1.91 entry documenting the fix
+-     Co-authored-by: openhands <openhands@all-hands.dev>
+- commit 4365d84d9b0893ad9621514847f48eb98505d2af
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 12:59:22 2026 +0100
+-     fix: universal provider_cooldown rejections - fix noteProviderFail error type filtering, reduce maxAttempts, set EXPLOIT_ONLY=false, add provider cooldown reset via health check
+- commit 0d09d0722dc6b41e5316c93ef340be330aeaae0e
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 12:24:22 2026 +0100
+-     fix(proxy): fail fast on model-not-found errors and fix status reporting
+-     - Add model-not-found detection (404 status + message patterns) to immediately return 404 without retrying
+-     - Add trackRequestUpdate calls before all early return paths to ensure dashboard shows correct error status
+-     - Fix final response to use tracked lastErrorStatus instead of defaulting to 502
+-     - Fix fallback exhaustion paths to properly track error-503/error-504 statuses
+-     - Fix forced model not available path to track error-404 status
+-     Resolves: proxy retrying on non-existent models and dashboard showing 'Success' for errors
+- commit 1fa82d2a682a31f8628f8e0054cfcad043d4add9
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 04:16:15 2026 +0100
+-     fix: enforce cooldown in bandit emergency relaxation tiers
+-     - Tier 4: ignoreCooldown: true → false so cooldown models are rejected
+-     - Absolute last resort: add cooldown_until check to filter
+-     - Prevents nvidia/google/diffusiongemma-26b-a4b-it from being
+-       re-selected immediately after 500 SSE error with 30000ms cooldown
+- commit 7137d7e927eb1beda622a8b7b3a4c950d263fdde
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 03:43:11 2026 +0100
+-     fix: prevent model re-selection loop in bandit emergency relaxation
+-     - Tier 4 emergency relaxation: changed ignoreExcluded from true to false
+-       so models already in excluded set (failed/cooldown) are not re-selected
+-     - Absolute last resort tier: added .filter(m => !resolvedExcluded.has(m.id))
+-       to respect excluded set even in last resort
+-     - Breaks infinite loop where nvidia/google/diffusiongemma-26b-a4b-it
+-       was selected 15+ times despite repeated 500 SSE errors
+- commit af0293d3b93c8a56d5efbbd92c43d31e21c110ad
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 03:30:49 2026 +0100
+-     fix: revert incorrect ZOO mode addition; fix dashboard CSS alignment and filter overflow
+-     - Revert: remove ZOO entry from config/modes.json (ZOO is a source, not a mode)
+-     - Fix: stats grid uses repeat(auto-fit, minmax(120px, 1fr)) for aligned badge numbers
+-     - Fix: filter-bar flex-wrap: wrap to prevent overflow at half-screen
+-     - Fix: responsive filter-input max-width at 900px breakpoint
+- commit f88bb76661b5c8b2ea9b28abb41ac2c52787ce31
+- Author: auto-bot <auto@example.com>
+- Date:   Fri Oct 30 02:37:38 2026 +0100
+-     chore: v1.1.90 — 2026-10-30
+-     - Auto-Git Command Enhancement: Added # Skill: auto-git directive to .roo/commands/auto-git.md
+-     - Dashboard Log Filter Enhancement: Added log-show-proxy checkbox to dashboard log filter
+-     - Health Check Improvements: Modified health check logic in src/health-check.mjs
+-     - Proxy Error Handling Improvements: Enhanced proxy error handling in src/index.mjs
+- commit 67e3a8f3a9051215e5b6f14dde2a6f9369ed624e
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Oct 29 20:03:09 2026 +0100
+-     fix(dashboard): remove try text from Cronologia Unificata timestamp to resolve column overlap
+- commit 21a11b3a7743eec3c161c92ba242f3acb6fff125
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Oct 29 19:36:07 2026 +0100
+-     fix(dashboard): prevent connection errors by adding try/catch to chat/completions route handler
+-     - Added top-level try/catch wrapper to /v1/chat/completions route handler
+-     - Prevents uncaught exceptions from crashing the server process
+-     - Resolves ERR_CONNECTION_REFUSED and ERR_CONNECTION_RESET errors in Chrome dashboard client
+-     - Follows existing pattern used in other API routes (/v1/metrics, /v1/dashboard/stats)
+-     - Updated CHANGELOG.md with fix documentation
+-     Co-authored-by: openhands <openhands@all-hands.dev>
+- commit aa4a7ab717d6185a878f2ff8d2f20e478f2d72a1
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Oct 29 17:53:17 2026 +0100
+-     fix: prevent repeated provider errors in bandit model selection
+-     - isModelAvailable(): actively check needs_attention flag with auto-reset on cooldown expiry
+-     - selectModel(): add cooledDownThisRequest filtering to skip providers cooled down during current request
+-     - fixed cooledDownThisRequest default from boolean to Set() to resolve TypeError
+-     - dynamic_max_tokens always enforced in filterModels() and absolute last resort fallback
+-     - all 5 tests in __tests__/itpm-quota.test.js now pass
+- commit 54591e06ec489953af87cca26b71fdac1d1ebb2d
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Oct 29 11:17:18 2026 +0100
+-     fix(dashboard): fix log streaming column alignment, message truncation, and container height
+-     - Fix log table column alignment: tbody changed from display:block to display:table-row-group so table-layout:fixed works correctly
+-     - Remove message truncation: log messages now wrap instead of being cut off at 200px
+-     - Expand log container to use all available vertical space: flex:1 instead of max-height:200px
+- commit 118c37a2bef17582618eea6c83fc15062f2e53b0
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Oct 29 10:35:54 2026 +0100
+-     fix(dashboard): stop polling /v1/models when models tab is not active
+-     renderAll() now checks if the active tab is 'models' before fetching
+-     /v1/models and /v1/models/summary. This eliminates unnecessary API calls
+-     every 10s when the user is on another tab (logs, train, modes, etc.),
+-     which was causing log noise with growing suppression counts every ~60s.
+-     Also updated CHANGELOG.md with v1.1.86 entry.
+- commit ad5ef71587c96a338a56f92fa3aa01db19006270
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Oct 29 00:44:45 2026 +0100
+-     fix(dashboard): fix template literal syntax error in fmtRow return
+- commit 7ccb5a9e4d041cbdc07f5be83d0da65724801374
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Oct 29 00:42:27 2026 +0100
+-     fix(dashboard): resolve column overlap in Cronologia Unificata table
+-     - Add Error Type and Countermeasure columns to fmtRow() data rows
+-     - Fix placeholder rows to have 7 columns matching header
+-     - Remove white-space: nowrap from header row for text wrapping
+- commit 4a178c61337d6c8d821ef2b5c8d8111b31c5168f
+- Author: auto-bot <auto@example.com>
+- Date:   Thu Oct 29 00:16:32 2026 +0100
+-     feat(bandit-proxy): add auto-git workflow and cleanup test files
+-     - Add auto-git.sh command with full git maintenance workflow
+-     - Add auto-git skill with cleanup, changelog, and git operations
+-     - Remove AGENTS.md (superseded by .roo/rules-code/AGENTS.md)
+-     - Remove obsolete test files from __tests__/ and tests/
+-     - Update CHANGELOG.md with new entries
+-     - Modify public/dashboard.html and src files
+-     Co-authored-by: auto-git workflow
+- commit 600bccd9fa7deec8a4959827cf6adfe86d0adc1e
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 23:46:09 2026 +0100
+-     fix(dashboard): align numbers, optimize columns, invert unified history order
+-     - Add tabular-nums class to model/provider stat boxes for number alignment
+-     - Reduce log streaming max-height from 300px to 200px to optimize bottom space
+-     - Compact row padding (2px) and font-size (11px) in both tables
+-     - Optimize column widths in unified history and log streaming tables
+-     - Invert unified history order: newest events at top, oldest at bottom
+-     - Combine active + recent events sorted by timestamp descending
+- commit 94e5779360c31e6e703479528fcbb4848957e76e
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 23:25:53 2026 +0100
+-     fix(dashboard): align metrics numbers, hide scrollbars, optimize half-screen view
+-     - Align main metrics box numbers using CSS Grid (label left, value right) with tabular-nums
+-     - Keep scrollbars invisible via existing CSS rules (scrollbar-width: none, ::-webkit-scrollbar display:none)
+-     - Optimize UI for half-screen view with enhanced responsive media queries (max-width: 900px and 600px)
+-     - Skip draggable panels (item 3) as requested
+- commit 46260d1eecafbce881dc8751f0109908eeac9ce2
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 22:58:04 2026 +0100
+-     fix: resolve 'no such column: N' error in getDashboardStats()
+-     The getDashboardStats() method was querying request_logs table for N and sum_reward columns which only exist in the models table. Fixed by:
+-     1. Changing the main query to use FROM models instead of FROM request_logs
+-     2. Adding a separate query to count successful observations from request_logs using status_code
+-     This resolves the error: [BANDIT] getDashboardStats successRateStats error: no such column: N
+- commit e8afce7fee53f9e6922dcb8e46cbd5a1c7db3f42
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 19:41:34 2026 +0100
+-     fix: CSS overlap fix for 'Osservazioni OK' in dashboard stats (display: inline-flex with gap)
+- commit 93e7a418b944644d8ade12559364d0ae99141c3d
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 19:10:52 2026 +0100
+-     fix(dashboard): fix log streaming rendering and copy button
+- commit feb12d149a3447f804703168b402a8d64b4a3d1d
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 16:13:13 2026 +0100
+-     chore: add auto-git command and skill definitions, update changelog and readme
+-     - Add .roo/commands/auto-git.md command definition
+-     - Add .roo/commands/auto-git.sh automation script
+-     - Add .roo/skills/auto-git/SKILL.md skill definition
+-     - Update CHANGELOG.md with v1.1.84 entries (dashboard overhaul, API fixes)
+-     - Update README.md with v1.1.84 version info
+-     - Fix public/dashboard.html (remove duplicate provider quota rendering)
+- commit cbaf8c13a49df501ce5374e811667b517996704d
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 11:19:16 2026 +0100
+-     fix(dashboard): resolve syntax error in public/dashboard.html
+- commit 85c7e5f8c0c9f66fc294593a493188ad73962d7e
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 11:16:11 2026 +0100
+-     fix(dashboard): resolve structural issues in public/dashboard.html
+-     - Removed premature closing tags </body></html>
+-     - Deleted duplicated functions (loadMultipliers, quickAction, init)
+-     - Fixed HTML document structure
+- commit 41c88824a8c3210279aaf889118ff29bb41641b7
+- Author: auto-bot <auto@example.com>
+- Date:   Wed Oct 28 01:29:53 2026 +0100
+-     feat(dashboard): comprehensive dashboard overhaul with enhanced metrics, logs, unified history, and controls
+-     - Metrics box: added latency to top model, successful observations count
+-     - Log tab: color-coded categories (system=white, zoo=green, debug=red, train=blue) with toggle checkboxes
+-     - Unified history: enhanced with error type and countermeasure columns
+-     - Models tab: collapsed by default, fixed column widths, per-model reset buttons
+-     - Providers tab: per-provider reset buttons for cooldown/banned/attention states
+-     - Modes tab: added bonus/malus system table with profile multipliers
+-     - Provider quota: fixed OpenRouter display (RPD=1000, RPM=20 for free tier)
+-     - Scripts manager: added train daemon control and service restart quick actions
+-     - FAB: reduced size, added drag/collapse functionality
+-     - Backend: added unified history endpoint, train control endpoint
+-     - Bandit: added successfulObservations to metrics response
+- commit 2be83f72f8760d66d0647e170c1835412ad9c7ca
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Oct 27 22:25:57 2026 +0100
+-     fix: resolve 'source is not defined' unhandled rejection in selectModel function
+-     Changed undefined variable 'source' to 'feedbackSource' at line 1997 in src/index.mjs.
+-     The 'feedbackSource' variable is properly derived from the x-source request header
+-     at line 1490, while 'source' was referenced but never defined in scope, causing
+-     ReferenceError that became unhandled rejections.
+- commit dcdbfe18ac8f20127f099185801282c7ad392eee
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Oct 27 20:20:36 2026 +0100
+-     fix: render log buffer string entries correctly in dashboard
+- commit 8ee9901e708403338e09cd67fcdafdaf9bd0c2e6
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Oct 27 20:10:00 2026 +0100
+-     fix(dashboard): render logs in log streaming panel
+-     - Complete renderFilteredLogs() function to display fetched logs
+-     - Filter logs by model/provider/status/error_type
+-     - Show timestamp, provider/model, status, latency, and token counts
+-     - Display 'Nessun log corrispondente al filtro.' when no matches
+- commit afdf6270cf3bdfb0e3bd27d09823a773b1449442
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Oct 27 20:05:05 2026 +0100
+-     fix(dashboard): resolve SyntaxError and ReferenceError in dashboard.html
+-     - Move copyScriptOutput function definition into the second script block
+-       where it is referenced, fixing ReferenceError
+-     - Add missing closing brace for showModal() function, fixing
+-       'Unexpected end of input' SyntaxError at end of first script block
+-     - Verify both script blocks pass node --check syntax validation
+- commit 774de70cb74c83d7d1f085aaa7d7d014cdd50346
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Oct 27 17:33:59 2026 +0100
+-     fix: resetProvider endpoint now passes provider name correctly
+-     - getAllProviders() returns objects with 'provider' field, not strings
+-     - Fixed loop to extract p.provider before calling resetProvider()
+- commit edcc95373c93e63362d69f48643dc92f2093f42a
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Oct 27 14:22:40 2026 +0100
+-     fix: dashboard reset buttons now call correct API endpoints
+-     - models-reset-all button now calls POST /v1/reset/model
+-     - providers-reset-all button now calls POST /v1/reset/provider
+-     - Both buttons trigger refreshAll() after reset
+- commit 2ca801c9199f349261562f770b267b974e11b68b
+- Author: auto-bot <auto@example.com>
+- Date:   Tue Oct 27 14:17:39 2026 +0100
+-     feat: separate reset endpoints for models and providers
+-     - POST /v1/reset/counters now only resets metrics counters (meta table + request_logs), not models/providers
+-     - Added POST /v1/reset/model and POST /v1/reset/provider for bulk reset operations
+-     - Dashboard now has separate reset buttons for models and providers
+-     - Unified history horizontal bar made transparent
+-     - All changes verified with 172 passing tests
+- commit a01a14693c889317c9d0d5b5347d6a2aaea11f90
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 22:55:25 2026 +0100
+-     fix(bandit): fix proxy error handling for cfp 502, antigravity 429, and stream retry blocking
+-     - CFP 502 errors now permanently ban provider (not transient cooldown)
+-     - 429 quota exhaustion uses 24h cooldown (persistent condition)
+-     - Stream retry blocked when headers already sent now excludes model
+-     - Status codes passed to error classification for proper 404/no-tool-call handling
+-     - Updated test expectations for 24h quota cooldown
+- commit ef6525524e8a41cb7f0ccda6180c2add64860555
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 21:43:58 2026 +0100
+-     fix(bandit): fix totalObservations counter timing and enhance resetGlobalCounters
+-     - Fixed totalObservations counter increment timing in recordFeedback(): counter now increments only on successful feedback, not on failures
+-     - Enhanced resetGlobalCounters() to clear request_logs history and reset model/provider learning state (N, sum_reward, fails, cooldown, permanent, degraded, consecutive_5xx, dynamic_max_tokens)
+-     - Refined model filtering logic in selectModel(): models with supports_chat === 1 are now correctly treated as chat-capable even if they also support image generation (e.g., gpt-4o)
+-     - Added validation to token limit parsing: values < 1000 tokens are filtered out as spurious (error codes, HTTP status codes)
+-     - Removed redundant /image/i regex from non-chat model exclusion (now relies on supports_chat flag)
+-     Co-authored-by: openhands <openhands@all-hands.dev>
+- commit 899966a11a08eaaaa11cdb277344423b814ca01a
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 21:00:36 2026 +0100
+-     Remove project-local auto-git.md (moved to global)
+- commit 20090bca89b141333c068f3e580d913303fcb188
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 20:47:47 2026 +0100
+-     fix(bandit): resolve model filtering, duplication, and sync issues
+- commit b5692e427efcedabc4e9770668178b36a13d479e
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 17:37:08 2026 +0100
+-     fix(script): show only recent logs in restart-safe to avoid displaying historical errors
+-     - Changed journalctl output to --since '1 hour ago' to avoid showing old EADDRINUSE errors
+-     - Prevents confusion when restart succeeds but old logs are displayed
+- commit 4b1a6b6be03df1e12158c988b8ce592565a57a40
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 17:26:43 2026 +0100
+-     fix(server): move SO_REUSEPORT option before socket bind to prevent EADDRINUSE on restart
+-     - Changed app.listen(PORT, host) to app.listen({port, host, reusePort: true})
+-     - Removed post-bind setSocketOptions call which was too late on Linux
+-     - Prevents fatal 'Porta 8080 già in uso' error during systemd restarts
+-     - restart-safe.sh now completes successfully without port conflicts
+- commit 2524852ee248453c93959431d44477544de7ec04
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 16:42:15 2026 +0100
+-     fix(scripts): enhance restart-safe with failed state reset and active job handling
+- commit 5d670660a189c1d1fa96ebb38dd2dfe7b7860bff
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 02:36:01 2026 +0100
+-     chore: update documentation, service config, and maintenance scripts
+- commit 19d44623082c6fd8079a6730783f888e99fb7327
+- Author: auto-bot <auto@example.com>
+- Date:   Mon Oct 26 00:20:41 2026 +0100
+-     fix(restart): resolve port 8080 conflicts and improve restart safety
+- commit d926f147daf3e19f59458a43648b18a907052088
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Oct 25 19:47:55 2026 +0100
+-     fix: correct syntax error in src/index.mjs after graceful shutdown changes
+- commit 6d5cd1980ee1421b5822148f5b41a480a232f93d
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Oct 25 19:00:52 2026 +0100
+-     fix: prevent auto-git from skipping production scripts during cleanup
+-     - Update cleanup rules to exclude production scripts in scripts/ and src/ directories
+-     - Add critical rule to always stage files from src/, scripts/, config/, and service config files
+-     - Prevents loss of critical infrastructure files during automated git workflow
+- commit 5d187c8a03715749c25cc925e398ee563fcc26db
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Oct 25 18:48:36 2026 +0100
+-     fix: resolve EADDRINUSE on port 8080 during service restarts
+-     - Add graceful shutdown with server.closeAllConnections() and server.close() in SIGTERM/SIGINT handlers
+-     - Implement 10s forced exit timeout for graceful shutdown
+-     - Add SO_REUSEPORT socket option for faster port reuse
+-     - Add wait_for_port_release function in scripts/restart.sh with 10s timeout verification
+-     - Configure TimeoutStopSec=15 and RestartSec=5 in systemd service
+-     - Prevent socket binding race conditions during rapid restarts
+- commit d6593202006be6fe6c109adce0f91c8c7f1d5207
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Oct 25 16:26:59 2026 +0100
+-     chore(automation): improve auto-git staging workflow description
+- commit a56e14b0625c8be5ab0f0a95543737c8bd5488a7
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Oct 25 15:08:06 2026 +0100
+-     fix(bandit): add ignoreDegraded support to emergency relaxation tier
+-     - Add ignoreDegraded option to filterModels to allow bypassing degraded model status
+-     - Update emergency relaxation tier to ignore degraded models, permanent bans, and cooldowns
+-     - Add test verifying emergency relaxation recovers when all models are degraded
+-     - Update auto-git workflow to handle pre-staged changes
+- commit c6887e222effef3b1038fef2e600797b725a8c9f
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Oct 25 12:12:53 2026 +0100
+-     fix(db): reset provider flags to resolve ban/cooldown issues
+- commit 9bbf8ab84a84e46e10da1dda7b5192991615d4bd
+- Author: auto-bot <auto@example.com>
+- Date:   Sun Oct 25 10:25:50 2026 +0100
+-     chore: configure auto-git command in .roo/commands/auto-git.md
+- commit f3c9d2e2958b3a5e4e92072f21cf1ac756580eee
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 24 23:24:24 2026 +0200
+-     fix: correct observations/catalog stats rendering in dashboard
+- commit c890d1eef461264ce853d162408d053b8e05500c
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 24 22:34:35 2026 +0200
+-     fix: remove duplicate latency unit from dashboard observations/catalog
+- commit 110bb2bcde4321e6575c9e5d11ab17077c0da78c
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 24 22:16:55 2026 +0200
+-     fix: use viewport-based scaling for stats boxes in dashboard
+- commit 2b060ed279a5b586e8ac974f6844f8d91bd3db2b
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 24 22:06:38 2026 +0200
+-     fix: refine fluid typography scaling for stats boxes
+- commit 012211a85028b5ac33549abc24f9d40d416152fa
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 24 21:58:27 2026 +0200
+-     chore: ignore .env file
+- commit 3f3d81411079d4ecc5bb080936d80cab6a0c49cc
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 24 21:51:21 2026 +0200
+-     chore: remove accidentally staged .env file
+- commit d6072de26bfc71764f405b5507ffd4028408c5ee
+- Author: auto-bot <auto@example.com>
+- Date:   Sat Oct 24 21:51:16 2026 +0200
+-     feat: implement fluid typography for dashboard stats
+- commit 15d30e4802fa75400b9abc2dd8fa10dc2f63202d
+- Author: Marco <marco@example.com>
+- Date:   Sat Oct 24 21:33:57 2026 +0200
+-     fix: reset attention flags and add emergency relaxation to bandit logic
+- commit 287003fdb9c7e74751da731832efaf7424a8e7c8
+- Author: Marco <marco@example.com>
+- Date:   Sat Oct 24 21:10:29 2026 +0200
+-     fix: update systemd service paths and update changelog
+- commit fdadb77a807c6fb7c472e5ce19d4f52781857083
+- Author: Marco <marco@example.com>
+- Date:   Sat Oct 24 19:29:53 2026 +0200
+-     fix(bandit): ignore vision constraints in emergency relaxation and update catalog vision capabilities
+- commit d02b2bdab9ec85874ddd02ff6c03d58e349f9067
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 24 15:48:19 2026 +0200
+-     chore: cleanup and maintenance
+- commit 833fe353871ee3085123783adeed3398b1476ee8
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 24 15:29:57 2026 +0200
+-     chore: project cleanup and documentation update
+- commit 3c73a7dc76ae43de624e45a7b797bd736bd32ccd
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 24 01:44:01 2026 +0200
+-     docs: update project documentation and architectural plans\n\nStaged files:\n- .roo/commands/auto-git.md
+- commit ba501e69b08b33e93f72d0eb347d0ebd3e85e1c7
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 24 01:40:37 2026 +0200
+-     docs: update project documentation and architectural plans\n\nStaged files:\n- .roo/commands/auto-git.md\n- .roo/commands/auto-git.sh\n- scripts/auto-git.mjs\n- scripts/fix-db.mjs
+- commit 00e6ede868d6eeaa46ddc7ceaf21b252ebde601e
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 24 01:11:12 2026 +0200
+-     chore(scripts): update automation and utility scripts\n\nStaged files:\n- .roo/commands/auto-git.sh\n- scripts/auto-git.mjs
+- commit 160a7554b3e9a699a8e7d32e17fd6857a39e2137
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 24 00:40:52 2026 +0200
+-     fix(db): reset provider cooldown, permanent ban and attention flags for no-think, cfp, xao, xai-oauth, openrouter
+- commit 47a478a52d8f6ce75f532cd38be0e6ed5440b6c4
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 23:09:35 2026 +0200
+-     Fix provider handling: hard-exclude dva for vision, change 402/403 non-resetting quota to 24h cooldown
+- commit e0e7ec93e348f417b9eb09f5ecaaee58fd5c54b8
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 22:38:31 2026 +0200
+-     feat(bandit,index): implement vision capability support and catalog migration
+- commit 7e88018b117daf7a361f481aae1769babbe116b0
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 20:36:32 2026 +0200
+-     fix(bandit): improve error classification, timeout handling, and cleanup unused files
+-     - Enhance 400 error classification in src/bandit.mjs: exclude image block
+-       format mismatches from model-not-found to prevent false positives
+-     - Add enhanced detection for billing errors (billing_error, payment_required,
+-       credits exhausted) in provider error classification
+-     - Clamp timeout values (UPSTREAM_TIMEOUT_MS, STREAM_IDLE_MS, STREAM_MAX_MS)
+-       to minimum 1ms to prevent TimeoutNegativeWarning
+-     - Skip models that are in cooldown/banned/failed during retry loop in
+-       src/index.mjs
+-     - Remove unused scripts/test-target.sh and plans/dashboard-modification-plan.md
+-     - Update CHANGELOG.md with v1.1.74 entry
+- commit 2719527cfb69a1b3fe49e6c83392f8cf63d1e2ac
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 16:03:43 2026 +0200
+-     fix(bandit,index): improve error classification and session affinity logic
+-     - Add new providers (cfp, dva, xai-oauth, xao) to provider-limits.json
+-     - Enhance error classification for Cloudflare Playground (cfp) 502 errors: transient session failures trigger cooldown, permanent environment errors trigger ban
+-     - Improve 400 error classification: exclude image block format mismatches from 'model-not-supported' to prevent false positives
+-     - Fix session affinity check: use database models count instead of sessionModels.size for accurate monitoring
+-     - Update CHANGELOG.md with new version entry
+-     - Update README.md with enhanced error classification details
+- commit d0c1a27d4c4aabb3a8195217b9cbd0aa7d483d7f
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 04:54:10 2026 +0200
+-     dashboard: 2-col internal grid per stats box, Top model name on second line
+- commit c9c0bccb8f22b2f224897448d84fb3367b9d6d31
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 04:41:01 2026 +0200
+-     dashboard: 1 row 4 col stats grid, separate Provider box, copy-all button unified table, fix status rejection logic
+- commit f53b9aa51932a7a84d50b3dedef65d5445f38b94
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 04:21:51 2026 +0200
+-     dashboard: 4-col grid, models+providers 2-col inside same box, keep all data, reduced padding
+- commit b9772d7ed1ac0d47e7a2ba24e8c93949183c86be
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 04:17:22 2026 +0200
+-     dashboard: compact 2-column stats grid, split models/providers, reduce padding
+- commit 3756a42a8433d5a4b01119270c3779fcc0fbe9f5
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 04:04:27 2026 +0200
+-     fix(dashboard): restore full stats data set with optimized 3-column grid and variable widths
+- commit dbe950a49a2341a4d08d2a646ae9f805fdaf02b7
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:51:35 2026 +0200
+-     fix(dashboard): split stats into 4 columns with name value pairs side by side
+- commit aee77742db85cb67e51b8a44fef0b598acb8db19
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:46:45 2026 +0200
+-     fix(dashboard): make each stat box use 3 columns internally
+- commit 748b920c917584f5a2d0e4e2c40e7d718f36b4e8
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:44:52 2026 +0200
+-     fix(dashboard): allow line breaks inside stat boxes
+- commit 4b27cb79c3094fadd5cb7b2bc2e547cccb62fbd9
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:43:13 2026 +0200
+-     fix(dashboard): increase stat box height 3x for single row grid
+- commit a53fbb925d79ec5b7867cca4f7fec8bc2fb19102
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:40:45 2026 +0200
+-     fix(dashboard): use grid 3 columns for stat boxes single row
+- commit 4d06877589e99a282316e814d0a3a2092111fc0f
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:38:32 2026 +0200
+-     fix(dashboard): allow stat boxes to shrink and stay on single line row
+- commit e58c093fc46209022efd22938912df83ef4bedea
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:29:50 2026 +0200
+-     fix(dashboard): remove inline flex:2 conflicting with flex:0 0 auto on top model stats box
+- commit 10f79ca5c555161ee17e9619f6947f8595fb26af
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:15:30 2026 +0200
+-     fix(dashboard): let stat boxes size to content instead of forcing equal width
+-     - Changed .stats-container .stats flex from 1 to 0 0 auto so boxes size to their content
+-     - Removed overflow-x: auto from .stats since container already handles horizontal scrolling
+-     - Removed min-width: 0 from .stats .mono which was forcing truncation
+- commit f8ffde2345236867743e9a224745e7dd63f80f78
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 03:11:49 2026 +0200
+-     fix(dashboard): remove overflow clipping and text truncation from stats boxes
+-     - Changed .stats overflow from hidden to overflow-x: auto to prevent content clipping
+-     - Removed text-overflow: ellipsis from .stats .mono to prevent top model name truncation
+-     - Preserved flex-wrap: nowrap and white-space: nowrap for parameter/value pairing
+- commit e6f68f68cb41e9705443244b0c58a0ababc509bf
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 02:47:26 2026 +0200
+-     fix(dashboard): prevent top model truncation and parameter/value separation, group stats into 3 boxes
+-     - Change .stats flex-wrap from wrap to nowrap to keep parameter:value pairs on same line
+-     - Add white-space: nowrap and overflow: hidden to .stats for clean layout
+-     - Add .stats .mono rule with text-overflow: ellipsis for top model name
+-     - Give top model box flex: 2 for more width
+-     - Group 5 stat boxes into 3: general metrics, top model, models+providers
+- commit b070c4fe265b5b6fecaa4dd87989c531fc53f11a
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 02:33:05 2026 +0200
+-     fix(dashboard): clean duplicate HTML blocks, add top model cooldown/N metrics, expand scrollbar hiding rules
+- commit 4472530b31112009bf0c36d9e42b9765beb5bed6
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 02:05:21 2026 +0200
+-     fix(dashboard,bandit): resolve 6 dashboard issues and restore backward compatibility
+-     - Fix success rate: use backend d.successRate instead of local obs/reqs ratio
+-     - Fix avg latency: add recordRequestStarted() called after model selection to exclude selection time
+-     - Fix free active count: query catalog table with LEFT JOIN instead of models table
+-     - Parse message field: extract provider/model from [provider/model] format into separate columns
+-     - Truncate stats to 200 chars to reduce row height
+-     - Restore request_logs insert in recordRequest() for backward compatibility with tests
+-     - All 171 tests pass
+- commit 7644e0b80b2941e6ea3627048413fbe31bca5d48
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 01:07:53 2026 +0200
+-     feat: implement 5 enhancements - auto-clear needs_attention after health checks, provider circuit breaker, improved token estimation, fallback model scoring, per-provider health check frequency
+- commit 520d2c939bb3c087a1ae8290a2fc2e787bd22e11
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 23 00:35:37 2026 +0200
+-     feat(dashboard): add script manager with live output polling and enhanced UI
+- commit 2805569a11948df4aadb3c83ff2d2f75c5d0ba58
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 22 19:53:45 2026 +0200
+-     fix(dashboard,proxy): fix timestamp display, consolidate error logging, optimize layout, remove unused scripts and plans
+- commit a42e9767fe94d999f3c92065dc70a09240ac4d64
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 22 16:01:32 2026 +0200
+-     fix(dashboard,proxy): resolve model double prefix parsing, timestamp/elapsed seconds formatting, trend indicators, degraded model count, session affinity persistence, and observation counting
+- commit 8fc2c3b34518db0263a2df1de12bae69b235f4bf
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 22 15:15:16 2026 +0200
+-     Fix dynamic_max_tokens bug and dashboard polling; reset corrupted model limits
+-     - src/bandit.mjs: Remove  from cooldown-model error handler so dynamic_max_tokens is only set when _parseTokenLimit extracts a real token limit from 413/TPM errors. Add defensive guard in getModelMaxInput() to ignore dynamic_max_tokens values < 1000 (almost certainly data corruption).
+-     - public/dashboard.html: Reduce polling intervals and only poll when dashboard tab is active.
+-     - Reset 298 models with corrupted dynamic_max_tokens values (2-8) back to 0 in the database.
+- commit c6bff9d663656cfcadbc5355f944d95b61c4b80d
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 22 14:06:55 2026 +0200
+-     docs: update CHANGELOG.md and README.md for log-noise reduction feature
+-     - CHANGELOG.md: Added v1.1.71 entry for log noise reduction & polling efficiency
+-     - README.md: Added section 12 documenting log-throttle.mjs features and updated project structure
+- commit 784a232b24070bf5d890de5bcd6abca239b502b0
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 22 14:06:25 2026 +0200
+-     feat(log-noise): add request throttling and log-noise filtering to reduce console spam and improve polling efficiency
+-     - Added src/log-throttle.mjs with request throttling and log-noise filtering
+-     - Enhanced src/index.mjs with DASHBOARD_STATS_LOG_INTERVAL_MS, MODELS_LOG_THROTTLE_MS, CORS_DEBUG, DEBUG_VERBOSE, and LOG_BUFFER_DENYLIST config options
+-     - Added tests/log-noise.test.mjs with 271 test cases validating throttling behavior
+-     - Updated .env.example with new logging/debug noise control parameters
+-     This reduces console spam and improves polling efficiency by throttling log output and providing configurable log buffer denylist.
+- commit 27d20868b018eaa0fcd8903c302a228aa858ecc9
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 22 03:25:31 2026 +0200
+-     fix(src): resolve false-positive image generation detection
+-     - Rewrite isImageGenerationRequest() with strict three-rule detection (R1/R2/R3)
+-     - Remove body.prompt standalone check that flagged chat prompts as image gen
+-     - Remove ambiguous verb+noun heuristic causing false positives on 'design the icon', 'render the scene'
+-     - Add STRICT_IMAGE_INTENT_RE regex requiring noun to directly follow verb (article + up to 2 adjectives)
+-     - Add diagnostic logging for false-positive identification
+-     - Update CHANGELOG (v1.1.70) and README with three-rule detection details
+-     - All 140 tests pass
+- commit 7a477e154359684072dfe0afb151c37734287fcb
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 22 01:42:06 2026 +0200
+-     feat(api): implement POST /v1/images/generations endpoint
+- commit 7b00a8545591fc989d194b8032b9409108c6918c
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 22 00:17:46 2026 +0200
+-     fix(dashboard): fix Chat Catalogo and Totali Grezzi statistics discrepancy
+- commit 13b9c484dae343e702a98f9e806c24652a193a45
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 20:50:44 2026 +0200
+-     fix(dashboard,bandit): refactor stats container layout and streamline request logging
+- commit 21318f0ba17cfd2b85d55b93033f08c844fb2698
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 19:33:10 2026 +0200
+-     Fix dashboard layout, log table columns, reset counters button, and stats text format
+- commit 7ae1d80c713179de621d99550af4ab6b704d4be5
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 19:08:46 2026 +0200
+-     fix(cors): add CORS headers and OPTIONS preflight support to resolve Firefox network fetch error
+- commit 7ef9b519392b08854d00030ec9e8f737d5b33751
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 19:02:34 2026 +0200
+-     fix: update nginx static root path and bump service worker cache version for dashboard visibility
+- commit 2650720d8e902ed6062860a21050a58f91817250
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 18:59:53 2026 +0200
+-     fix(sw): update service worker to use network-first strategy for dashboard and HTML assets
+- commit b3a7828e5a96508a575355ea5e7e0a8b1b6c9bf8
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 18:37:07 2026 +0200
+-     feat(dashboard): integrate provider stats, separate provider and model columns, absolute timestamps, compact row heights
+- commit d46244d54cfb8f8b0913a501bb5a1cc363c13260
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 18:23:19 2026 +0200
+-     Refine image generation detection in src/index.mjs to eliminate false positives on chat completions
+- commit 4063f15ef4e7c97c6770a66912aaac8b2adc243c
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 17:47:20 2026 +0200
+-     Fix dashboard reset button, request logging, and 400 validation errors
+- commit 1db664402862f030c22902897cd40ac859a4e53e
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 12:34:07 2026 +0200
+-     Update dashboard UI: unified card, icon reset button, model stats clarity, remove consideration tab and title, real model/provider and timestamps
+- commit 4cbc9020d372e57cd0e325724710ba61743c9155
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 03:53:33 2026 +0200
+-     feat: capture failing models and 400 errors explicitly in request logs and dashboard specchietto
+- commit 613a8e6c3c55baf751ad0943258866463d24a901
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 03:15:21 2026 +0200
+-     fix(dashboard): fix refreshing reference error and providers is not iterable TypeError in renderProviderQuota
+- commit 6af11f2d0c841528f0adbccd203e76ca7d8cacd1
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 03:06:04 2026 +0200
+-     fix(src): record and log HTTP 400 errors in middleware and request handler for Zoo proxy
+- commit 35aa6cb14eb8e1ad37102e435aef7a3fd5a575d8
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 02:46:54 2026 +0200
+-     feat(dashboard): redesign unified panel cronologia operativa & stato ucb1 table
+- commit 385f58da79bc47f38b08088dcbc72c71848afb82
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 02:40:33 2026 +0200
+-     Refactor dashboard unified panel: flat header, single scrollable row list without double titles or collapsible toggles
+- commit bdb18ff7b2d2f6084c87be13bfd4482894b8e218
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 02:33:16 2026 +0200
+-     feat(dashboard): unify active requests and ucb1 specchietto into compact scrollable panel
+- commit 4d1b58b5e6bacaae346e8c707572b65cb9609b5e
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 02:27:11 2026 +0200
+-     fix(dashboard): update dashboard interface and configuration
+- commit 232c045bda4bcb843a7c9bd7cab3fcef3dcdaaed
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 02:20:30 2026 +0200
+-     feat: enhance model selection candidate tracking and consideration history buffer across relaxation tiers
+- commit 527054331e560410e4ea78f248420237e1c21a89
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 01:53:42 2026 +0200
+-     fix(dashboard): fix floating action button changelog and developer handlers
+- commit e5578d525f5e7ca30844996bf65cfdf9e5c309d1
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 01:48:07 2026 +0200
+-     perf(dashboard): optimize DOM reflow, debouncing, memory management, and sanitization
+- commit 2d57811e4486293e3e04aba695400bb772d22b9c
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 01:28:13 2026 +0200
+-     fix(dashboard): optimize RAM usage, fix tab switching lag and requests tab bugs in public/dashboard.html
+- commit ff08f1b3f348d1a944d4c573460fa18c52340d40
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 21 00:18:55 2026 +0200
+-     perf(dashboard): optimize RAM usage via consolidated polling and DOM patching
+- commit 57246d08da4af31dbd8761b038364d960f3d8efe
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 21:57:33 2026 +0200
+-     fix(dashboard): correct indentation and syntax in public/dashboard.html
+- commit 9193c6f31550353f03994beb600fdc2b7cecb3a5
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 15:11:34 2026 +0200
+-     feat(dashboard): fix syntax errors in public/dashboard.html and update changelog
+- commit 4ec60d59668bab9cb9324ceabf7336d67db45f57
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 13:22:56 2026 +0200
+-     docs(changelog): update for dashboard refactor
+- commit 21d4453bad4896f9e6a7b804129a76707052f2f1
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 13:18:25 2026 +0200
+-     refactor(dashboard): improve UI efficiency and event handling
+- commit 64643cc9ab18cfe6af980a3752e5113495178365
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 10:48:01 2026 +0200
+-     docs: update CHANGELOG.md for v1.1.63
+- commit 08f1ac91f323cc8d2b9e9add8e5e2143c98af330
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 10:45:51 2026 +0200
+-     refactor(bandit): refine model selection relaxation tiers and optimize debug logging
+-     - Update relaxation tiers in  for clearer progression (Tiers 1-4)
+-     - Conditionalize verbose debug logs in  and  using
+-     - Enhance image generation detection with additional keywords ('visualize', 'render') and regex patterns
+-     - Clean up obsolete plan files
+- commit f524331c360f2333006d52dd5b9fe64a47d73668
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 03:38:44 2026 +0200
+-     fix(bandit): harden getMetrics and getDashboardStats with robust try/catch and ignore placeholder tokens for REQUIRE_AUTH
+- commit 65254ab95081f19bd5737bdfdcadf7b5e258a72e
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 03:36:15 2026 +0200
+-     fix(dashboard): fix auth placeholder bypass and dashboard stats database resilience
+- commit 7f828e1127cc23eb9c856b328a3cb2bd9276bdf0
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 03:32:46 2026 +0200
+-     fix(dashboard): bypass service worker caching and installation for /v1/ API endpoints
+- commit 675613b8190d8680433949a7007c77bc0a95ce96
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 03:17:05 2026 +0200
+-     fix(dashboard): enhance JSON safety and data rendering in public/dashboard.html
+- commit 2bbc2ff612cf2c1613cee32df4b24b1a22a4acba
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 03:12:09 2026 +0200
+-     fix(bandit): refine error handling and ranking in src/bandit.mjs
+- commit 8c095c8a0ca5cd601b27aed5b13130cdbadf0781
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 02:48:26 2026 +0200
+-     fix(dashboard): resolve dashboard regressions in version display, metrics, logs, and conditional auth
+- commit 1769d28efbaa4a2bc29951fa918796114c1cee43
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 02:29:30 2026 +0200
+-     fix(dashboard): resolve silent 401 failures and improve token prompting in dashboard
+- commit eda783e047f3f1ac1bf63d26183c1b6c5f18bc90
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 02:22:21 2026 +0200
+-     fix(dashboard): handle authentication 401 errors, token persistence, and auth prompts
+- commit b491f231ad0a87381cda3f4bd25cd3414a88fba4
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 01:52:26 2026 +0200
+-     fix(logging): fix log buffer pointer corruption in ring buffer and restore log streaming
+- commit 422d075951918d2840f18427a1dfd7f667f36baf
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 01:36:32 2026 +0200
+-     fix(dashboard): resolve application version, metrics panel, and log viewer issues
+- commit 4b624f754774ed2c339641fbde388734f2e60c6e
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Tue Oct 20 00:06:15 2026 +0200
+-     fix(dashboard): fix TypeError assignment to constant variable API_TOKEN restoring dashboard functionality
+- commit 6fc85a5bbbe283e213e9a56c94d170f1f0292b12
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 23:59:39 2026 +0200
+-     feat(dashboard): perform true structural fusion of active requests and selection rejection spec sheet
+- commit 1a0cc963049c2c72fa8657b442ef0ba518ad8686
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 23:44:06 2026 +0200
+-     feat(dashboard): deeply merge active requests history and selection rejection spec sheet into unified persistent component
+- commit 44d54999569acac3ab00c928c47b275ff5ad2413
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 23:41:29 2026 +0200
+-     feat(dashboard): refine metrics fix and dashboard UI refactoring
+-     - Include summary stats in dashboard data payload from [](src/bandit.mjs:1218)
+-     - Refine dashboard UI tab integration and chronological spec sheet display in [](public/dashboard.html:807)
+-     - Update [](CHANGELOG.md:5) with v1.1.59 release details
+- commit ca588e17c52439b79f24c547532db249430097f2
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 23:27:59 2026 +0200
+-     fix(dashboard): fix metrics polling/API and optimize vertical spacing for dashboard tools
+- commit e24e8f487f81a27880141cf01907311ad2b1a347
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 23:22:56 2026 +0200
+-     feat(dashboard): embed chronological selection & discard spec sheet directly inside ⚡ In corso tab
+- commit 9bd064b3b522dc50693326474d20efbcc17c7646
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 23:19:35 2026 +0200
+-     feat(dashboard): remove Considerazioni tab and integrate selection/discard timeline into Live Logs tab, fix proxy error classification & retry loop, and fix /v1/metrics bug
+- commit 7983c636c4168d01be0fe651ae3ecc0800ee4efa
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 21:46:09 2026 +0200
+-     feat(dashboard): integrate model evaluation specchietto into top panel
+- commit 70fc0f159c192049a0cf9a462c5dba2e29b381f5
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 20:14:24 2026 +0200
+-     docs: add changelog entry for v1.1.58 (discarded models spec sheet & per-group provider quota)
+- commit 9a396ca15bbae64bd557fd9e8abedc6c85d45e3d
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 20:14:15 2026 +0200
+-     feat: add chronological discarded models spec sheet and per-group provider quota handling
+- commit 2f7e6667e605a2ac3fa370ec299e9dd74fa0be19
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 13:57:21 2026 +0200
+-     fix(dashboard): handle 401 unauthorized and token prompting for metrics polling
+- commit 360430f5362314a1b9c5a7e2c0fd6fa67e69a905
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 13:13:56 2026 +0200
+-     fix(dashboard): fix consideration fetch via apiFetch and add 401 handling
+- commit 47bc375087d9909a61609b5a969fa83c494dc8cc
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 12:41:14 2026 +0200
+-     fix(dashboard): fix dashboard metrics remaining at 0 with null-coalescing and debug logging
+- commit fbea5129f81caa1e553b31e38cee348a2e74eeb0
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 03:28:01 2026 +0200
+-     fix(proxy): fix sessionKey assignment to constant variable error in src/index.mjs
+- commit d36695efaaa39d9a460e22fa3a942cbd561056e8
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 03:21:19 2026 +0200
+-     fix(bandit): include non-chat models in catalog sync, update capability classification, reset rank cache and update metadata
+- commit adda237832568d038634851763af0a4659326fc2
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 03:15:20 2026 +0200
+-     fix(notifier): prevent telegram url parameter mutation and update changelog
+- commit 65f30ba46d1d75d3c3c992151dacaf25afeffa47
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Mon Oct 19 03:08:48 2026 +0200
+-     feat(proxy,ui): update dashboard UI polling/timeout logic and conditional session affinity bypass, update changelog
+- commit e87dfdaea587c472be3bb7dc7ab84fcb36a5ee35
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 21:02:45 2026 +0200
+-     fix(dashboard): prevent 404 on tab refresh using hash-based routing
+- commit d8c5c97bde29c7cc29e52ddc7d0c51a26b22ff32
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 20:58:07 2026 +0200
+-     fix(proxy): fix streaming retry block by eagerly reading first upstream chunk before sending headers
+- commit 480077969fe47ca80c685834084f9f4c3bf7b499
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 19:48:18 2026 +0200
+-     fix(dashboard): optimize RAM and CPU usage by reducing polling frequency and capping log size
+- commit e078b918dc6f462a509e245d8066f4cd1946cbdd
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 19:32:12 2026 +0200
+-     fix(spa): add server-side SPA fallbacks and enhance client-side route synchronization
+- commit 702f1766d43d0ff989c85d1fb0668e65c4adab7a
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 19:22:39 2026 +0200
+-     fix(bandit): prevent image-generation models from being selected for text requests in isModelAvailable
+- commit 20595ae08747693ddc27cf1a7f11cf4f15cd118a
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 18:36:22 2026 +0200
+-     fix: correct parameter order in selectModel call to prevent image-generation model selection for text requests
+-     - Fix parameter order in src/index.mjs:1575: requireImageGeneration=4th param, profile=5th param
+-     - Add regression test to prevent this bug from recurring
+-     Co-authored-by: AI Assistant
+- commit b40ec9432c194be3e44a9cf8596ab8c1d634100f
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 17:26:53 2026 +0200
+-     Add image generation request check and NULL capability guard
+-     - src/index.mjs: Added isImageGenerationRequest check and requireImageGeneration=false parameter
+-     - src/bandit.mjs: Added NULL capability guard to handle missing capability field
+-     These changes improve request validation and model selection robustness.
+- commit 18a415c898b7ce7822c826cc2e4804757236c7c6
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 03:10:53 2026 +0200
+-     feat(bandit): enforce strict capability filtering for tool requests and image generation models
+- commit fd65b64c53a9fab19b5b9fe14d2e8808e61bcda7
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 02:49:15 2026 +0200
+-     fix(proxy): fix image-generation model fallback loop in chat completions
+- commit 2bad2660526c91e2e2e6811a470ab020226925fb
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 02:36:34 2026 +0200
+-     feat(bandit): implement round-robin exploration for unvisited models and fix image-generation filtering
+- commit f5c20b429dfb59b675508ec418cf128cc198d768
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 02:24:56 2026 +0200
+-     fix(bandit): strictly filter out image-generation models and permanently ban 400 capability mismatches
+- commit 7e344e4232db96c2e005a8cd2d6c5648cf42e43d
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 02:12:53 2026 +0200
+-     feat(bandit): implement model categorization and capability filtering
+- commit 59ac724718dac22be2f93170afb1a9d89bb9efd6
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 01:59:24 2026 +0200
+-     fix(bandit): exclude image-generation models from chat completions and handle 400 bans
+- commit b63cc9badc5009e4e2cafabc93e8f2b85e56573d
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 01:51:30 2026 +0200
+-     feat(proxy): add SPA fallback route for non-API requests and update changelog
+- commit d72a33b1a5fa166eca0cb7190135b4ccefafc5c3
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 01:26:22 2026 +0200
+-     fix: filter out image-generation models for chat completions and make active requests panel scrollable with attempt rows
+- commit e53039776d3df123b8c9e23ffc87b735b5bccc85
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 00:52:08 2026 +0200
+-     feat(bandit/dashboard): add model metrics (N, reward, latency, score) to consideration history and dashboard
+- commit b31b800e804714bcac1684fd4c59c93608cc1632
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 00:43:30 2026 +0200
+-     feat(bandit/dashboard): refine model selection with N=0 prioritization and quality-to-speed metrics, add vertical consideration panel and 100ms polling
+- commit 090bb5b4ad06e451e1729bb01968645252ac9dda
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 00:24:31 2026 +0200
+-     fix(bandit): exclude image-generation models in emergency last-resort fallback selection and update changelog
+- commit 0ec56f1f9acaca7c248246f23635a0be07a1f698
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 00:16:47 2026 +0200
+-     fix(bandit): improve model filtering relaxation tiers and fallback passes
+- commit 365875d53eb7b571e3a3853ec06a67e174e58fca
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 00:11:42 2026 +0200
+-     chore: exclude aihorde image models from chat completions, update tests and CHANGELOG
+- commit 29d0b6a729e6958f6501ea27f800f23b521b7e91
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 00:06:38 2026 +0200
+-     fix(bandit): relax tool and token filtering constraints during model selection recovery
+- commit 614d03b91676441b34c20ab2edbd2b2550a19f3d
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sun Oct 18 00:02:42 2026 +0200
+-     fix(bandit): exclude image-generation models from chat completions and tool usage
+- commit 04ffe21f7989ab0ac7360d0a3d687d2361cd29c1
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 17 23:57:52 2026 +0200
+-     feat(proxy): add image generation request detection and conversion helpers
+- commit 759c3efa1d8306ce129342fc03332af3409823e4
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 17 23:43:28 2026 +0200
+-     feat(image-generation): add image generation detection, routing, and support for /v1/images/generations
+-     - Add automatic image generation request detection and mapping
+-     - Support supports_image_generation in catalog and model selection
+-     - Add comprehensive test suite in __tests__/image-generation.test.mjs
+-     - Update documentation and plans
+- commit 1789cab1a60501459385506cb78b9bd234cd55e7
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 17 04:17:23 2026 +0200
+-     fix(bandit): classify Playwright browser launch 502 errors as ban-provider
+- commit 16c732b0f7dd972cade9b4f8f7e7cbc60ff2fe0a
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 17 01:24:03 2026 +0200
+-     feat(dashboard,scripts): add script arguments input and default status in train-ctl
+- commit 1abbd0c86af7099785f7f2375ff5ab7f2b3515e4
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Sat Oct 17 00:38:46 2026 +0200
+-     feat: enhance request token size estimation for system prompts, tools, and tool calls
+- commit 61d1a9746bde89063834ec83bf65e331f7ef93c2
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 18:58:53 2026 +0200
+-     fix(bandit): improve robust handling and cooldown for 413 ITPM / TPM exceeded errors
+- commit 51f76f7e7da06c67589b6c1a51fe0fd0985c4d0f
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 16:02:44 2026 +0200
+-     fix(bandit): improve error recognition for 429 quota and 503 queue timeouts, and enhance dashboard model selection UI
+- commit c049a2ce2fdd3fd7d42002a5595ad653d2ba4d98
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 15:23:12 2026 +0200
+-     feat(bandit): exclude tts/audio/image models during sync and enhance selection banner logging transparency
+- commit 6ec2f364aaa875b84ef6565a1e07ec15adbfe127
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 14:40:06 2026 +0200
+-     fix: prevent infinite selection loop on models exceeding ITPM/413 token limits
+- commit 91cc961eae65c5879035783e8c5d127005038f53
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 14:14:32 2026 +0200
+-     fix(bandit): robust classification for rate-limit queue timeouts and high-demand 503 errors
+- commit a5682d4f8e91dc97bd79bcc74a489babfde99c6d
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 14:01:44 2026 +0200
+-     feat(proxy): enforce dynamic token limits and refine session affinity TPM blacklisting
+- commit d9408ab3c92a629d59901a77e7425205e5ad4f53
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 04:00:09 2026 +0200
+-     docs: update changelog and clean up design plans
+- commit ab61def0a8e9c62ccfcbaf75d8279eb96f639596
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 03:54:16 2026 +0200
+-     test(quota): add test case for 413 TPM-exceeded dynamic max tokens adjustment and model filtering
+- commit d22f56a2f29d2d25bd70da7eead375541ebfaa31
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 03:42:27 2026 +0200
+-     feat(itpm): configure provider ITPM limits and update changelog for 413 error handling and session affinity fixes
+- commit ffea17fc5096210daa5813eff82e833d0597e69f
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 03:20:42 2026 +0200
+-     fix(bandit): pre-filter models exceeding provider ITPM quota before UCB1 selection
+- commit 6d501ef5f6b2caedc87497ed0e5e907b0b97e7db
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 03:13:57 2026 +0200
+-     fix(bandit): prevent zero-cooldown loops on 500 errors and enforce strict tool filtering
+- commit b9fa9f43ed26717b9f640481b0052543b0f4f4c1
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 03:03:51 2026 +0200
+-     fix: invalidate session affinity on model errors and failures
+- commit 2bf3ae51173d8396bfe1fb449f5cc81180503018
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 02:39:54 2026 +0200
+-     chore: cleanup obsolete scripts and plans, update changelog and docs
+- commit 63d620a8fb1bbbf0897d1b27c47b658fca390f20
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 01:56:14 2026 +0200
+-     fix(bandit): prevent selection of cooling down and token-exceeded models
+- commit 61ee09c84d32ff7ec38936f556ca0b2041e2baca
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Fri Oct 16 01:39:59 2026 +0200
+-     fix(bandit): dynamically extract and persist model token limits from 413 errors
+- commit 2fbcfd33baab4838590a60867370595863bedb3e
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 23:33:34 2026 +0200
+-     feat(bandit,session): ensure model existence in feedback recording and add 413/tpm session invalidation test
+- commit c25c3b35f5bbb04f4817c5fc73ff15f298ec2030
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 23:25:13 2026 +0200
+-     feat(dashboard): optimize log frequency, top panel metrics & UI style unification
+- commit 5f9fcf2cd442efbbae0777abb3cf9a37f7ff2392
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 23:13:16 2026 +0200
+-     fix(bandit,dashboard): handle TPM/token limit errors and refine dashboard metrics styling
+- commit b8d06c33679f3477acdcc4560e6f1764711596e0
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 22:53:02 2026 +0200
+-     fix: resolve CFP browser, Antigravity catalog, and Groq TPM token limit errors
+- commit b0dc9f038ecc431041e4d7de199caccbd0f5369f
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 22:36:03 2026 +0200
+-     fix(bandit): refine error classification and token limit validation & update docs
+- commit 6d798ee37b30659fd96806e2b6aa644a93e911dd
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 22:27:29 2026 +0200
+-     fix(bandit): permanent ban and proactive filtering for environment and missing model errors
+- commit 4be3ef5b64671da8be69b8c5dda7328975692759
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 22:21:25 2026 +0200
+-     fix(dashboard & bandit): fix metrics display, reset buttons, and upstream error classification
+- commit 20d65e658fd5d126d6c313beaad0d6e45b0aceb2
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 22:12:01 2026 +0200
+-     feat(dashboard): add color-coded badges to model statistics
+- commit 96d5901a19d6549023f9367e7bf584cad439b7f0
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 22:05:50 2026 +0200
+-     fix(dashboard): move Monitorati metric to the left of dashboard summary
+- commit f1e7ff43f00501bdf4b774d18565022c0d616882
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 21:54:01 2026 +0200
+-     fix(bandit,proxy): fix session affinity blacklist check and 413/TPM error handling
+- commit 8aec3746a194b0815301f2423cc336986ca4f22b
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 21:48:17 2026 +0200
+-     fix: improve error classification and session affinity handling for TPM and 413/429 limits
+- commit 1d10a82249dc857b0e2ac50ab164b06da7f2b46d
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 21:40:53 2026 +0200
+-     fix(service): fix unreplaced placeholders in omniroute-bandit-proxy.service and service restart logic
+- commit bef609b500740745abcad58f683eeae8e218bc12
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 21:33:09 2026 +0200
+-     docs: update CHANGELOG.md for v1.1.8
+- commit 4eb6d08cecb614932a81d14252de9253ecb9358c
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 21:32:55 2026 +0200
+-     refactor: generalize installation paths and improve script path resolution
+-     - Update systemd service template and README with generic placeholders (%USER%, %INSTALL_DIR%)
+-     - Make switch-mode.sh and train-ctl.sh installation directory resolution dynamic based on script location
+-     - Clean up obsolete git wrapper command script and fix script reference paths
+- commit c23729bf8f865e9b7b8699003572fa11a9e11df2
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 18:12:57 2026 +0200
+-     fix(bandit): enable optimistic exploration for unobserved catalog models in selectModel()
+- commit 1aab17a986fad7b24072ded3416d9a93fc272506
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Thu Oct 15 16:51:18 2026 +0200
+-     fix(proxy): replace recursive compressBody with iterative loop and update changelog
+- commit bce13a0c60134be0b7c7f2a87e4837dcd805eca3
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 14 23:10:59 2026 +0200
+-     refactor(proxy): enhance dashboard, quota checks, bandit reliability and operational scripts
+-     - Update dashboard interface and analytics views in public/dashboard.html
+-     - Refine provider quota tracking and atomic checks in src/provider-quota.mjs
+-     - Optimize bandit ranking and model selection stability in src/bandit.mjs
+-     - Improve proxy routing and error handling in src/index.mjs
+-     - Enhance maintenance and database inspection helper scripts
+-     - Update .gitignore to exclude temporary script outputs
+- commit 32294d2cab66557c9b973f0a475da4ac522c1d31
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 14 21:09:52 2026 +0200
+-     chore: clean up artifacts, update dashboard stats verification, and update changelog
+- commit 264d159a37c5bbd886a200c3186f417dba94170e
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 14 15:35:46 2026 +0200
+-     feat: clean up unused skill scripts, add update_changelog custom tool, and update CHANGELOG.md
+- commit 9b0dc27c3caf675ce258ac175345775dc52f57aa
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 14 14:22:30 2026 +0200
+-     feat: enhance bandit routing, health checks, retry handling, and add comprehensive test suite
+- commit bba8c436f98fa3fb7cedc59f975833a0a2e78d33
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 14 12:11:07 2026 +0200
+-     chore: clean up temporary test scripts, artifacts and auto-git script
+- commit aa968c21bd0ac984d6a2bc924d8ee717e97e866c
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 14 12:03:36 2026 +0200
+-     chore(scripts): update automation and utility scripts\n\nStaged files:\n- scripts/auto-git.mjs
+- commit 8de53ce9f6951af9edf5e413f876ca9f434ccb70
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 14 12:03:21 2026 +0200
+-     docs: update project documentation and architectural plans\n\nStaged files:\n- .roo/commands/git-auto-commit.md\n- package.json\n- plans/auto-git-workflow-design.md\n- scripts/auto-git.mjs
+- commit d8d740ebd2308bd9b8dc322ec9aa0be085056d3e
+- Author: DevOps Automation Specialist <devops@omniroute.local>
+- Date:   Wed Oct 14 11:48:30 2026 +0200
+-     feat: enhance multi-armed bandit proxy routing, error classification, and metrics dashboard
+- commit 097b8c984577114de198c71f0ded6463ad0c3f6b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 20:25:19 2026 +0200
+-     fix: resolve git-utils.sh merge conflicts and syntax errors
+- commit ca402f422a0781a860873a7823d2700a19914524
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 20:04:54 2026 +0200
+-     test: add test file for git-auto-commit
+- commit 23f781a31f929773d76d6d8c139ada4327cb8d77
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 01:16:32 2026 +0200
+-     ci(scripts): git-utils.sh
+- commit ed5bed645176ee11a8a02fc60b483d2f8df60b11
+- Merge: afeb472 34941eb
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 01:13:34 2026 +0200
+-     Merge branch 'main' of https://github.com/CherrugDeveloper/omniroute-bandit-proxy
+- commit afeb4720f7f5d24c900c973b43a9afcfc3d605c6
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 00:49:23 2026 +0200
+-     ci(scripts): git-utils.sh
+- commit 314605791cc97ee03ba0a2f2c6bc7a7389abf469
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 00:45:57 2026 +0200
+-     test(test_debug.txt ): test_debug.txt
+- commit a1b2f83278712c9a7021865872e90e29cd0f2a7a
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 00:45:48 2026 +0200
+-     test: message
+- commit 3206acda0c6ebbae2f9f7154251378d94a82c129
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 23:13:49 2026 +0200
+-     ci:scripts: fix auto-squash unbound variable error
+- commit c558839f1eee2412d3f859414f3f4468f891f61a
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 21:30:18 2026 +0200
+-     ci:git-auto-commit: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     Diff statistics:
+-     [2026-10-12 21:30:14] DEBUG: Running git command (capture): git diff --cached --stat --name-only
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+- commit 2c1fe3b50908d3c8f8806f8087aa503620bb43a7
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 06:35:47 2026 +0200
+-     docs:git-utils.sh scripts: wrapper-test.sh
+-     Changes:
+-       - .roo/commands/simple2.md .roo/commands/test.md .roo/commands/test.sh .roo/commands/wrapper-test.md .roo/commands/wrapper-test.sh .roo/skills/generate-slash-command/SKILL.md .roo/skills/generate-slash-command/assets/command-template.md .roo/skills/generate-slash-command/assets/wrapper-template.sh .roo/skills/generate-slash-command/scripts/generate-slash-command.sh .roo/skills/git-auto-commit/scripts/git-auto-commit.sh .roo/skills/git-auto-commit/scripts/lib/git-utils.sh scripts/test-target.sh scripts/wrapper-test.sh
+-     Diff statistics:
+-     .roo/commands/simple.md
+-     .roo/commands/simple2.md
+-     .roo/commands/test.md
+-     .roo/commands/test.sh
+-     .roo/commands/wrapper-test.md
+-     .roo/commands/wrapper-test.sh
+-     .roo/skills/generate-slash-command/SKILL.md
+-     .roo/skills/generate-slash-command/assets/command-template.md
+-     .roo/skills/generate-slash-command/assets/wrapper-template.sh
+-     .roo/skills/generate-slash-command/scripts/generate-slash-command.sh
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     scripts/test-target.sh
+-     scripts/wrapper-test.sh
+- commit d66d401f807e6815e065e298f880425e8b465bdc
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 02:08:51 2026 +0200
+-     ci:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     Diff statistics:
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+- commit 34941ebb4060c5ff278290f308bd8a32d3b48eff
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 01:11:21 2026 +0200
+-     ci(scripts): git-utils.sh
+- commit 80ef5b10e474b9f2e91065decab06434e668eff1
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 00:49:23 2026 +0200
+-     ci(scripts): git-utils.sh
+- commit bfbe06fc0a85dcf0f4a701a7b6297164ceca8689
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 00:45:57 2026 +0200
+-     test(test_debug.txt ): test_debug.txt
+- commit 1a9c068d7e6ced283283079f3442bfb596e51199
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 00:45:48 2026 +0200
+-     test: message
+- commit b3bf28a6257de4010f90ee792dd3236af3057719
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 13 00:05:12 2026 +0200
+-     ci:git-auto-commit: git-auto-commit.sh
+-     Changes:
+-       - [2026-10-13 00:05:08] DEBUG: Running git command (capture): git diff --cached --name-only .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     Diff statistics:
+-     [2026-10-13 00:05:12] DEBUG: Running git command (capture): git diff --cached --stat --name-only
+- commit d881ebbb53e0795923665faea987d767a83972e4
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 23:13:49 2026 +0200
+-     ci:scripts: fix auto-squash unbound variable error
+- commit beaa50ca3c074fa1160da79059a9a6113f4be1f2
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 23:12:35 2026 +0200
+-     ci:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     Diff statistics:
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+- commit 3ad3b86d0e50c63d45f02db194abe320d9eef52e
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 22:58:50 2026 +0200
+-     ci:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     Diff statistics:
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+- commit 9819cf7f1700538954719de5f24184644c403457
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 21:30:18 2026 +0200
+-     ci:git-auto-commit: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     Diff statistics:
+-     [2026-10-12 21:30:14] DEBUG: Running git command (capture): git diff --cached --stat --name-only
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+- commit b000d953652ad1a59c84185569dc96083a108408
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 21:13:09 2026 +0200
+-     ci:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     Diff statistics:
+-     .roo/skills/git-auto-commit/CHANGES.md
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+- commit 7484c6dbb57955cbeb3f5174e644d1d824a80a9f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 06:35:47 2026 +0200
+-     docs:git-utils.sh scripts: wrapper-test.sh
+-     Changes:
+-       - .roo/commands/simple2.md .roo/commands/test.md .roo/commands/test.sh .roo/commands/wrapper-test.md .roo/commands/wrapper-test.sh .roo/skills/generate-slash-command/SKILL.md .roo/skills/generate-slash-command/assets/command-template.md .roo/skills/generate-slash-command/assets/wrapper-template.sh .roo/skills/generate-slash-command/scripts/generate-slash-command.sh .roo/skills/git-auto-commit/scripts/git-auto-commit.sh .roo/skills/git-auto-commit/scripts/lib/git-utils.sh scripts/test-target.sh scripts/wrapper-test.sh
+-     Diff statistics:
+-     .roo/commands/simple.md
+-     .roo/commands/simple2.md
+-     .roo/commands/test.md
+-     .roo/commands/test.sh
+-     .roo/commands/wrapper-test.md
+-     .roo/commands/wrapper-test.sh
+-     .roo/skills/generate-slash-command/SKILL.md
+-     .roo/skills/generate-slash-command/assets/command-template.md
+-     .roo/skills/generate-slash-command/assets/wrapper-template.sh
+-     .roo/skills/generate-slash-command/scripts/generate-slash-command.sh
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     scripts/test-target.sh
+-     scripts/wrapper-test.sh
+- commit 14cabe5923f9c636a59f86991aad5452bb54cade
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 02:45:25 2026 +0200
+-     ci:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     Diff statistics:
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+- commit 2a57abb1ebd94686a63a4dbe733d30e74374217f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 02:08:51 2026 +0200
+-     ci:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     Diff statistics:
+-     .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-     .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+- commit 0322a50f387b4b2c7ea24a3eb7e5f5ee5b39a340
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 12 00:02:48 2026 +0200
+-     refactor: reorganize git-auto-commit skill and command files
+- commit 6016f434659b88ff17e58992f4002ea5239f5883
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 11 23:11:41 2026 +0200
+-     chore(git-auto-commit): add GIT_AUTO_COMMIT_WSL_EXEC environment variable support
+- commit d362095e6428b0750fe27d79b9b77b5a8be38c39
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 11 21:12:14 2026 +0200
+-     chore: optimize git-auto-commit script
+- commit cbf4cd9d4895ab1f5192352b2f8f64c6a902a1a6
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 11 19:47:13 2026 +0200
+-     docs:.roo: .env.example
+-     Changes:
+-       - .env.example
+-       - .roo/commands/git-auto-commit.md
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - plans/consolidated-logging-design.md
+-       - plans/reduce-dashboard-stats-log-verbosity.md
+-       - public/dashboard.html
+-       - scripts/restart.sh
+-       - src/bandit.mjs
+-       - src/index.mjs
+-       - src/index.mjs.backup
+-       - test.js
+-     Diff statistics:
+-      .env.example                                       |    3 +
+-      .roo/commands/git-auto-commit.md                   |    4 +-
+-      .../git-auto-commit/scripts/git-auto-commit.sh     |    0
+-      plans/consolidated-logging-design.md               |  147 ++
+-      plans/reduce-dashboard-stats-log-verbosity.md      |  106 ++
+-      public/dashboard.html                              |   50 +-
+-      scripts/restart.sh                                 |    0
+-      src/bandit.mjs                                     |   78 +
+-      src/index.mjs                                      |  106 +-
+-      src/index.mjs.backup                               | 1755 ++++++++++++++++++++
+-      test.js                                            |    1 +
+-      11 files changed, 2190 insertions(+), 60 deletions(-)
+- commit e77353e6c9c5c34d32f5e35a91fd3d1ba96697a4
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 16:52:31 2026 +0200
+-     chore: add GIT_AUTO_COMMIT_WSL_EXEC to documentation
+- commit f8ef4f789188b3bd05c63e07356545a36721225a
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 16:50:38 2026 +0200
+-     chore: fix git-auto-commit command metadata
+- commit 4bc28f8d77eb9d7dc87f47cb4e46fc5f7f322bd6
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 14:59:32 2026 +0200
+-     ci:scripts: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-       - scripts/restart.sh
+-       - scripts/train-ctl.sh
+-     Diff statistics:
+-      .../git-auto-commit/scripts/git-auto-commit.sh     | 46 ++++++----------------
+-      .../git-auto-commit/scripts/lib/git-utils.sh       | 42 ++++++++++++++++++++
+-      scripts/restart.sh                                 |  0
+-      scripts/train-ctl.sh                               |  0
+-      4 files changed, 53 insertions(+), 35 deletions(-)
+- commit d154b48cb65a3b9353d3add0bcc10aab54cdd4c8
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 14:43:33 2026 +0200
+-     chore: sync local branch with remote and cleanup files
+- commit fc5d49585a3bd15d6a8d4273599517c47e918949
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 04:36:02 2026 +0200
+-     v1.1.1: API modelli/provider, fix HTML dashboard, CHANGELOG
+- commit 495a489963fc6ce43d15803eecd8d1621c00e633
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 03:37:05 2026 +0200
+-     feat: provider quota system - dashboard table, needs_attention filter, CHANGELOG v1.1.0
+- commit d316b5ae26713c4329f6ea10813a8f71f1c0536c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 03:27:44 2026 +0200
+-     feat: provider quota system - dashboard table, needs_attention filter, CHANGELOG v1.1.0
+- commit a57f274242c995d6fb647136a88c10254a01e59c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 03:15:46 2026 +0200
+-     fix(bandit): migrazione quota + rimuovi needs_attention dal filter
+-       (era dentro e non entrava mai → 'no such column: quota_resets_at')
+-     - Rimosso check needs_attention da selectModel (regressione ri-aggiunta
+-       dal refactor, bloccava i provider permanentemente)
+- commit ca66ee82d95156e50b901145816a44b25f1c8880
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 03:03:45 2026 +0200
+-     fix(index): strip reasoning_details/reasoning_content/reasoning dalle richieste
+-     OpenRouter/Zoo aggiungono reasoning_details ai messaggi assistant della history.
+-     Groq (e altri) li rifiutano con 400 'unsupported property'. Il proxy ora li
+-     rimuove prima di inoltrare a OmniRoute.
+- commit 19d4392682b39d81f98b577b773e2094fd8c701a
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 02:49:33 2026 +0200
+-     fix(bandit): 403 Key limit exceeded → cooldown-provider con reset time
+-     OpenRouter ritorna 403 con 'reset after 24s' (24 secondi, non ore).
+-     Senza questo ramo, il 403 cadeva nel default e non rispettava il reset.
+- commit 57fe80fa1ea7c6131517b3c5469810f0a01ee18d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 02:31:26 2026 +0200
+-     wip(quota): abbozzo sistema quota provider (non integrato)
+-     - ProviderQuota con _loadProviderLimits e _rollWindows (finestre RPM/RPD)
+-     - config/provider-limits.json con limiti noti (openrouter, groq, nvidia, gemini, mistral)
+-     - Da integrare: chiamate in selectModel, getUnhealthyModels, train-daemon
+- commit b1d3c103c4844df05828394ba66e932fdac474dc
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 02:31:05 2026 +0200
+-     chore(scripts): train-ctl.sh eseguibile
+- commit 30ce0659170d7da35b2b270dc4d4ac8a1beecd73
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 02:21:33 2026 +0200
+-     fix(bandit): ban-model con UPSERT su models
+-     UPDATE models SET permanent=1 non faceva nulla se il modello non era
+-     ancora registrato in models (mai arrivato a _registerModelUse).
+-     Risultato: ban loggato ma DB intatto, training riseleziona il modello
+-     ad ogni ciclo. Ora INSERT ... ON CONFLICT DO UPDATE.
+- commit d6fcaee9dc2534ca122f61c7f98472270481b8e6
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 02:18:16 2026 +0200
+-     fix(index): fallback non loopa se già tentato o non disponibile
+-     - fallbackTried blocca il riuso del fallback nella stessa richiesta
+-     - isModelAvailable verifica che il fallback sia usabile
+-     - 503 immediato invece di ritentare 146 volte
+- commit 45795104ccb91d3f7e499ea4d9774726a01ffc65
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 02:14:53 2026 +0200
+-     revert(index): c6483bd di nuovo rotto, ripristino 57697e2
+- commit c6483bddf9027eb4dc5c2fff564680d04282be4c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 02:10:46 2026 +0200
+-     fix(index): fallback non loopa se già tentato o non disponibile
+-     - fallbackTried (Set) blocca il riuso del fallback nella stessa richiesta
+-     - isModelAvailable verifica che il fallback sia effettivamente usabile
+-     - se non disponibile → 503 immediato invece di continuare il loop
+-     Riapplicato dopo revert 98a9fe5 (graffa non bilanciata).
+- commit 57697e2e216640ede422576d72d4385dab580299
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 02:06:39 2026 +0200
+-     revert(index): 98a9fe5 rompeva la sintassi
+-     Il commit 98a9fe5 (fallbackTried) introduceva 'Unexpected token )' a
+-     riga 1431 per una graffa non bilanciata. Ripristino index.mjs a 5624396.
+-     La patch fallback verrà riapplicata in un commit separato con verifica.
+- commit 98a9fe5ac3656011bdad7d4562e614026c6f6c7e
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 01:39:32 2026 +0200
+-     fix(index): fallback non loopa se già tentato o non disponibile
+-     Il fallback hardcoded (mistral/ministral-8b-latest) veniva riusato ad
+-     ogni iterazione del retry loop, anche quando il modello/provider era
+-     in cooldown o bannato. Risultato: 146+ tentativi identici prima del
+-     timeout. Ora:
+-     - fallbackTried (Set) blocca il riuso del fallback nella stessa richiesta
+-     - isModelAvailable() verifica che il fallback sia effettivamente usabile
+-     - se non disponibile → 503 immediato invece di continuare il loop
+- commit 9d5a8d084c1c29f8a6b8ed06e8bfabfae1d827fd
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 00:52:47 2026 +0200
+-     fix(bandit): selectModel carica anche i modelli permanent=1
+-     Il refactor escludeva i bannati dalla query dbModels. Risultato: per un
+-     modello bannato, modelMap conteneva ancora la versione dal catalog con
+-     permanent=0 hardcoded, quindi il filter non lo scartava e veniva riselezionato
+-     ad ogni richiesta.
+-     Fix: rimuovi WHERE m.permanent = 0. Il filter esistente
+-     (if model.permanent === 1) li esclude.
+- commit 3963bfa5228e502f5c88f48355983c8aeab9faf1
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 00:45:14 2026 +0200
+-     fix(bandit): isModelAvailable controlla permanent e degraded
+-     Prima guardava solo cooldown_until: un modello bannato (permanent=1)
+-     con cooldown=0 risultava 'disponibile', quindi l'affinity lo ripinnava
+-     ad ogni richiesta della stessa sessione invece di sceglierne uno nuovo.
+- commit 5624396f1899858a877e0b25de28fecd22a8994b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 00:36:44 2026 +0200
+-     fix(index): estrai la riga data: che contiene "error" (non il keepalive)
+-     Il match precedente prendeva la prima riga 'data: {' che spesso è un
+-     keepalive con delta vuoto, non il vero errore. Ora cerca la riga
+-     che contiene '"error"' prima di parsare.
+- commit c4d9c08063930b4595fcbcd5a41ef933500013e2
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 00:22:47 2026 +0200
+-     fix(bandit,index): 410 model-shutdown ban + SSE error propaga status
+-     - _classifyError: 410 + code 'model_shutdown' → ban-model (nvidia/openai/gpt-oss-120b)
+-     - validateStreamAccumulated ritorna {reason,status,message} invece di stringa
+-       per far arrivare il payload a _classifyError
+-     - chiamante streaming gestisce sia stringa che oggetto (retrocompatibile)
+- commit 46c6ef60e6c61f69c19a719d3aff367a80ea91f8
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 00:09:05 2026 +0200
+-     fix(dashboard): aggiunge graffa mancante else if SYSTEM_LINE_RE
+- commit b5f09652f92c5b6e95eb22d57e98f93b8eaa3429
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 00:01:46 2026 +0200
+-     chore: normalizza line ending (LF forzato per tutti i text file)
+- commit bc4aff79e1ba44b4b25dd64acd8a51702fd5b24b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 10 00:00:01 2026 +0200
+-     fix(dashboard): log system non ereditano source zoo/train
+- commit ab64e41125e1ad0ca175a3bd31454f21e76fc897
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 23:54:54 2026 +0200
+-     fix(bandit): _classifyError riconosce 502 'CLI not found' / 'not configured'
+-     Auggie CLI, Codex app-server transport e simili rispondevano 502
+-     con 'CLI not found' o 'not configured' e finivano in cooldown-model
+-     (transitorio). Ora vanno in flag-provider (cooldown 24h) come
+-     gli altri errori di configurazione permanenti.
+- commit 59428306cf946bbf094141e46222d8fe9b4077a7
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 23:44:35 2026 +0200
+-     fix(index): log raw SSE error per diagnosi gemini/mistral
+- commit b27d4c92a334b21f642d75e3f31af6800940ae94
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 23:43:27 2026 +0200
+-     fix(bandit): _classifyError riconosce 'unknown provider' e 'no longer available'
+-     Pattern aggiunti:
+-     - 404 + 'no longer available' → ban-model (gemini-2.5-flash-lite deprecato)
+-     - 400 + 'unknown provider for model' → ban-model (cfp, hf, huggingface)
+-     - 400 + 'model_not_found' (code) → ban-model
+-     Prima finivano in cooldown-model, lasciando modelli rotti in rotazione
+-     e ritentati in eterno dal training.
+- commit 0daf9d5ed0411336d5123f432788c426aaa7bd7c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 23:34:34 2026 +0200
+-     fix(bandit): needs_attention non blocca, solo cooldown_until
+-     - Rimosso il check needs_attention dal filter di selectModel: era un flag
+-       che restava 1 per sempre dopo la scadenza del cooldown, escludendo i
+-       provider permanentemente
+-     - _flagProviderAttention ora setta anche cooldown_until (24h) così
+-       anche i flag 'misconfigured' hanno una scadenza e non bloccano in eterno
+- commit 64eadceb150cd97e9b3c5882012137475469ddb5
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 22:52:21 2026 +0200
+-     fix(bandit): getModelMaxInput usa dynamic_max_tokens per models
+-     La colonna max_input_tokens esiste solo in catalog. Il refactor
+-     di origin la cercava anche in models → 'no such column: max_input_tokens'
+-     all'avvio del fallback.
+- commit 896bb7ec16882501495deab364fe3efbf071493f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 22:23:39 2026 +0200
+-     docs: AGENTS.md per agenti AI (Roo, Zoo, ecc.)
+- commit edd9d27dd67108743021ddf1c0325c4968566aab
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 22:23:30 2026 +0200
+-     chore(gitignore): ignore training.log.old, analysis reports
+- commit 1ffd16996d77880cfb93547aae58ca36fcdc8623
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 22:23:23 2026 +0200
+-     chore: Roo rules + utility scripts (check-db, clean-cjs, verify-server)
+- commit 7d74c11ad9aa1a9787720365265071d7400e40f6
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 22:23:16 2026 +0200
+-     fix(index): selectModel con 5 argomenti (rimosso null legacy)
+-     La firma in bandit.mjs è a 5 parametri (excluded, estimatedTokens,
+-     requireTools, profile, cooledDownThisRequest). Il null residuo slittava
+-     tutti gli argomenti: estimatedTokens←null, requireTools←numero, ecc.
+- commit 2bcda4db7092328681d6bf52e3cba0111e91c80e
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 22:14:30 2026 +0200
+-     fix(bandit): getUnhealthyModels args, unlock reset needs_attention
+-     - getUnhealthyModels: parametri in .all() invece che in prepare()
+-       (bug introdotto dal refactor, 'Too few parameter values' nel health check)
+-     - _unlockProvider: resetta needs_attention/attention_reason/attention_message
+-       altrimenti il provider resta escluso permanentemente dopo un cooldown
+- commit cf5fbb483bc5df9bb6fbd2d8eb0df50b14356ca2
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:32:28 2026 +0200
+-     test: final verification
+- commit 854490fbac90a7f51242c2cc354b7f0259b245d2
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:32:14 2026 +0200
+-     test:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-       - test14.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/lib/git-utils.sh | 4 ++++
+-      test14.txt                                           | 1 +
+-      2 files changed, 5 insertions(+)
+- commit 39735fce126e620553d5a90aff1aa1ac4422bd4e
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:30:46 2026 +0200
+-     test:test13.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test13.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/git-auto-commit.sh | 14 +-------------
+-      test13.txt                                             |  1 +
+-      2 files changed, 2 insertions(+), 13 deletions(-)
+- commit 25ba065c6e08d05a60956ff252dbb8244354fe75
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:29:40 2026 +0200
+-     test:test12.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test12.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/git-auto-commit.sh | 16 ++++++++++------
+-      test12.txt                                             |  1 +
+-      2 files changed, 11 insertions(+), 6 deletions(-)
+- commit 90dd6557b4818780240aa88e76e8452ef55217d4
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:28:19 2026 +0200
+-     test:test11.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test11.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/git-auto-commit.sh | 6 +++---
+-      test11.txt                                             | 1 +
+-      2 files changed, 4 insertions(+), 3 deletions(-)
+- commit d4f717d0d905b26e1540355515ecc75d15529593
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:26:45 2026 +0200
+-     test:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-       - test10.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/lib/git-utils.sh | 3 ++-
+-      test10.txt                                           | 1 +
+-      2 files changed, 3 insertions(+), 1 deletion(-)
+- commit cf67f4eadd2eec2e399f01d719d157c7b1581e0d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:24:53 2026 +0200
+-     test:test9.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test9.txt
+-     Diff statistics:
+-      .../git-auto-commit/scripts/git-auto-commit.sh       | 20 ++++++++++----------
+-      test9.txt                                            |  1 +
+-      2 files changed, 11 insertions(+), 10 deletions(-)
+- commit eb44837d81247f42c86b9ecfa32a2d101fac57be
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:24:21 2026 +0200
+-     test:test7.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test7.txt
+-       - test8.txt
+-     Diff statistics:
+-      .../git-auto-commit/scripts/git-auto-commit.sh     | 25 +++++++++++-----------
+-      test7.txt                                          |  1 +
+-      test8.txt                                          |  1 +
+-      3 files changed, 15 insertions(+), 12 deletions(-)
+- commit 965fa25a598aa0fc6b06efbca05fc98ae5baf89a
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:21:51 2026 +0200
+-     test:test6.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test6.txt
+-     Diff statistics:
+-      .../git-auto-commit/scripts/git-auto-commit.sh     | 23 +++++++++++-----------
+-      test6.txt                                          |  1 +
+-      2 files changed, 13 insertions(+), 11 deletions(-)
+- commit 5a5e9169f751f0e1a04f600e6df4a5df0dc21481
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:21:26 2026 +0200
+-     test:test5.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test5.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/git-auto-commit.sh | 7 +++++--
+-      test5.txt                                              | 1 +
+-      2 files changed, 6 insertions(+), 2 deletions(-)
+- commit 6381bc838405762c5c97b5153be9c3db0b95deee
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:21:09 2026 +0200
+-     test:test4.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test4.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/git-auto-commit.sh | 3 ++-
+-      test4.txt                                              | 1 +
+-      2 files changed, 3 insertions(+), 1 deletion(-)
+- commit 864701ba951cac61e5b4d26810b0d7b7d2644362
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:20:38 2026 +0200
+-     test:test3.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test3.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/git-auto-commit.sh | 6 +++---
+-      test3.txt                                              | 1 +
+-      2 files changed, 4 insertions(+), 3 deletions(-)
+- commit bc35618a9dc46cd7f88dc2b0b8950173c2aad62b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:09:33 2026 +0200
+-     test:test2.txt: git-auto-commit.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - test2.txt
+-     Diff statistics:
+-      .roo/skills/git-auto-commit/scripts/git-auto-commit.sh | 6 +++---
+-      test2.txt                                              | 1 +
+-      2 files changed, 4 insertions(+), 3 deletions(-)
+- commit a6fdaafbb09c64644ac2164b11aaa511eb884971
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:08:42 2026 +0200
+-     test:test.txt: test.txt
+-     Changes:
+-       - test.txt
+-     Diff statistics:
+-      test.txt | 1 +
+-      1 file changed, 1 insertion(+)
+- commit 7cef3e981679b676f0b6722688a3fea253557b20
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:06:57 2026 +0200
+-     ci:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     Diff statistics:
+-      .../skills/git-auto-commit/scripts/lib/git-utils.sh | 21 ++++++++++++++-------
+-      1 file changed, 14 insertions(+), 7 deletions(-)
+- commit 67e7a83bd010237053133a1d273f258aff0d8bd4
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:06:05 2026 +0200
+-     ci:scripts: git-utils.sh
+-     Changes:
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-     Diff statistics:
+-      .../git-auto-commit/scripts/lib/git-utils.sh       | 30 ++++++++++++++++++----
+-      1 file changed, 25 insertions(+), 5 deletions(-)
+- commit 7a14bab287339f3fa11afcd7fd717792eb153375
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 9 17:05:29 2026 +0200
+-     docs:.roo: git-auto-commit.md
+-     Changes:
+-       - .roo/commands/git-auto-commit.md
+-       - .roo/skills/git-auto-commit/SKILL.md
+-       - .roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+-       - .roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+-       - src/index.mjs
+-     Diff statistics:
+-      .roo/commands/git-auto-commit.md                   |  57 +++
+-      .roo/skills/git-auto-commit/SKILL.md               | 232 +++++++++
+-      .../git-auto-commit/scripts/git-auto-commit.sh     | 350 ++++++++++++++
+-      .../git-auto-commit/scripts/lib/git-utils.sh       | 538 +++++++++++++++++++++
+-      src/index.mjs                                      |  14 +-
+-      5 files changed, 1187 insertions(+), 4 deletions(-)
+- commit b9e1649908da32e9bded8ab81dd353e82fd84d9f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 22:41:22 2026 +0200
+-     chore(.gitignore): add venv/ to gitignore and update linting rules
+-     - Add venv/ to .gitignore to exclude Python virtual environments
+-     - src/bandit.mjs: improve 429 retry and fallback handling
+-     - src/index.mjs: refine dashboard diagnostics
+-     - tests/test-fallback-fix.mjs: add 429 fallback test coverage
+- commit 4343cac565692b67bf336f76ca6eb07b8964df40
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 19:48:39 2026 +0200
+-     chore:
+- commit f3111e470cfdd0de14bdc9617f4ebe7540bf582d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 14:53:53 2026 +0200
+-     test(bandit): adds rate-limit fallback coverage
+-     Adds focused checks and simulations to make the new recovery paths easier to verify during development.
+- commit c42c197609b36e1e4ea258b6b926b3cb583f9ce2
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 14:53:52 2026 +0200
+-     fix(index): improves affinity loop diagnostics
+-     Makes retry logs easier to interpret when session affinity detects struggling models or repeated follow-up loops.
+- commit 2573aa1e89429ab652ff7fcc3d42b6da5069c8aa
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 14:53:52 2026 +0200
+-     feat(bandit): handles 429 retries with fallback
+-     Provides recovery when upstream rate limits interrupt requests, using retry guidance and alternate models to reduce failed requests.
+- commit 10c630de8e0c83fb4a253ba132368182d702cfe4
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 13:07:33 2026 +0200
+-     feat(dashboard): adds debug log filtering
+-     Color log sources and let users filter debug entries alongside existing log categories.
+- commit 2cd0bcd932f38caf13b9f3574cdb22ac8729f00e
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 13:07:32 2026 +0200
+-     fix(tools): ignores failed write calls
+-     Avoid treating unsuccessful edits as completed writes or overlooking them during struggle detection.
+- commit d303c6a39e0eef766554eb5adf52d09d858478cd
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 13:07:31 2026 +0200
+-     fix(context): compresses oversized requests
+-     Try emergency compression before rejecting requests that exceed the configured context limit.
+- commit 1f43a8d2d7237993c02d7aa443ece4df0a189610
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 13:07:31 2026 +0200
+-     chore(scripts): updates control scripts
+-     Keeps the restart, mode-switching, and training control script updates together for review.
+- commit 03f502f6c2dd226095ed19d834e5835ede8db256
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 04:58:11 2026 +0200
+-     fix(bandit): cooldown simmetrico provider+modelli, soft/hard, no loop unlock
+-     - _unlockProvider azzera cooldown_until + consecutive_5xx su provider e modelli
+-     - _forceProviderCooldown: HARD (quota-exhausted, no-credit, key-quota-exceeded,
+-       key-limit-exceeded) congela i modelli; soft (cascade-fail, 5xx, rate-limit)
+-       tocca solo provider_history
+-     - selectModel accetta excludedProviders; unlock-oldest salta i provider
+-       bloccati nella stessa richiesta → niente più loop di ri-sblocco
+-     - fix streamToolNames/respToolNames nell'handler non-streaming
+-     - fix modelsUpdated scope in _forceProviderCooldown
+- commit 0142c1d1f60b7dedf518d71e636b32a122805545
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 04:02:17 2026 +0200
+-     fix(bandit): unlock simmetrico provider+modelli, soft/hard cooldown
+-     - _unlockProvider azzera cooldown_until e consecutive_5xx anche sui modelli
+-     - _forceProviderCooldown: HARD_REASONS (quota-exhausted, no-credit,
+-       key-quota-exceeded) congela i modelli; gli altri (cascade-fail, 5xx,
+-       rate-limit) toccano solo provider_history
+-     - Risolve: 762 modelli openrouter congelati 4h da cascade-fail singolo
+- commit f8193f5119d150e13175189f871f0e0d7fc3e883
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 03:29:17 2026 +0200
+-     feat(bandit+dashboard): reward per tool, loop detection, orchestrator→reasoning
+-     Bandit:
+-     - Reward moltiplicato per tool: ask_followup=0.5, update_todo=0.8, azioni=1.0, no-tool=0.6
+-       → UCB1 impara a preferire modelli action-oriented
+-     - Loop detection: 3+ ask_followup_question consecutivi → ban modello in sessione
+-     - Struggling detection: solo unpin + esclude modello (no doppio penale)
+-     - dynamic_max_tokens appreso da 413
+-     Modes:
+-     - orchestrator passa a profile reasoning (era general)
+-     Dashboard:
+-     - Log: filtro testo + show ZOO/TRAIN
+-     - In corso: checkbox Z/T unificati col log
+-     - Header colonne bianco, 4-5 righe visibili
+-     CHANGELOG: aggiornato a v1.0.10
+- commit 2d948c354137c62dbcc8d7624825ba36124207ae
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Tue Oct 6 01:27:50 2026 +0200
+-     feat(dashboard): checkbox ZOO/TRAIN unificate (log + In corso)
+-     - Rimosse checkbox da "In corso" (venivano resettate ad ogni refresh)
+-     - I checkbox nel log header ora controllano sia il log sia "In corso"
+-     - Un solo punto di controllo, comportamento coerente
+- commit 5aee4f2af5bcb5ae160c2b42febd1ab0393c96d8
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 5 22:35:53 2026 +0200
+-     fix(dashboard): rimuove "In corso" duplicato, colonne "In corso" più larghe
+- commit 4d967f12f5514dd21f649e7fc0d3b5ffd691f528
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 5 22:31:01 2026 +0200
+-     fix(bandit+dashboard): migrazione dynamic_max_tokens fuori dal blocco is_paid
+-     - La migrazione era annidata dentro if (!hasModelsIsPaid), quindi non partiva
+-       mai perché is_paid esisteva già. Spostata a livello top dello schema init.
+-     - Dashboard: rimossa doppia "v" nell'header (backend restituisce già v1.0.10)
+- commit 60306cb76e1ca03cc6e085031de5e6cfba160023
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 5 22:09:45 2026 +0200
+-     feat(dashboard): tabella In corso con header e colonne fisse
+-     - Header riga (Modello | # | N | Avg | → | Tempo | Durata)
+-     - Celle pulite (solo valori, no etichette N=/avg=)
+-     - Sempre 8 valori per riga, allineati a destra
+-     - Fix brace counter (rimosse fetchActive duplicata + renderChangelog orfana)
+-     - Aggiornato CHANGELOG.md con tutte le versioni da v0.8.0
+- commit 6bf9ee581f6ef11e8c8b337dafe73010ddec9650
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 5 13:36:16 2026 +0200
+-     feat(bandit): dynamic_max_tokens appreso dai 413 (self-learning)
+-     Il proxy impara il limite TPM/ITPM reale di ogni modello dall'errore 413:
+-     - _classifyError estrae "Limit N" dal messaggio
+-     - recordFeedback salva in models.dynamic_max_tokens
+-     - selectModel filtra con effective_max_tokens = MIN(catalog.max_input, models.dynamic_max_tokens)
+-     - Un solo estimatedTokens passato alla query (SQLite 3.45 supporta alias in WHERE)
+-     Rimosso LOW_TPM_MODELS/LOW_TPM_THRESHOLD hardcoded: sostituito da self-learning.
+-     Effetto: dopo il primo 413, il modello è escluso automaticamente per i
+-     contesti che non regge, senza filtri hardcoded.
+- commit fdc68d8d4870b5bb09e8a201a67db16d3a686a79
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 5 04:59:01 2026 +0200
+-     fix(affinity): struggling detection solo sull'ultimo tool_result
+-     - Prima: cumulava errori storici → penalizzava modelli che avevano
+-       appena risposto bene (cooldown a raffica su tutti i mistral)
+-     - Ora: guarda solo l'ultimo tool_result. Se è un errore, il modello
+-       ha appena fallito → penalizza + unpin. Altrimenti lascia stare.
+-     - Risolve il caso "sessione marcata struggling per sempre per 2 errori
+-       vecchi che restano nella history"
+- commit 3fec7180c0822ce46751d08968bc1daf22e7e9b0
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Mon Oct 5 03:38:17 2026 +0200
+-     fix(dashboard): fmtInfo con colonne uniformi (avg=-, new)
+-     - Tutte le righe hanno stessa larghezza (rank 4ch + N 9ch + avg 11ch + arrow)
+-     - Test/new mostrano placeholder per non spostare le colonne
+- commit 7442af5b4b041e383a0107c0ebc54f4b1f61f08c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 22:49:55 2026 +0200
+-     feat(backend): endpoint /v1/changelog + file CHANGELOG.md
+-     - Nuovo endpoint GET /v1/changelog che serve CHANGELOG.md
+-     - Import fs in index.mjs
+-     - CHANGELOG.md con versioni v1.0.0, v0.9.0, v0.8.0
+- commit 57768f4fb7834e7529e14510e4874e414490b103
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 22:40:48 2026 +0200
+-     feat(dashboard): changelog formattato + badge "nuovo" sul FAB
+-     - Rendering markdown client-side (versioni, date, bullet)
+-     - Badge rosso pulsante quando c'è changelog non letto
+-     - localStorage.changelogLastRead traccia l'ultima versione vista
+-     - Pulisce CRLF (\r) e BOM (\uFEFF) prima del parsing
+-     - Regex tollera spazi iniziali
+- commit 7d3c6a661399f3d7f920d4a4790959460d42c6fe
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 19:41:13 2026 +0200
+-     fix(train-daemon): aggiunto header x-source: training
+-     Le richieste di training ora sono marcate come source=training,
+-     così la dashboard può distinguerle da quelle di Zoo (🦌 vs 🏋️).
+- commit 731529ff7abf07ab480cce637643b9eb1641073f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 19:19:20 2026 +0200
+-     feat(dashboard): CSS Grid per riquadro "In corso", badge "test" per N<1
+-     - .active-request ora usa grid (colonne allineate, no shift)
+-     - Fix N<1: mostra (test · N=X) invece di avg fuorviante
+-     - #active-list: 5.3em per mostrare 3+ righe senza tagliare
+-     - Icone 🦌/🏋️ per distinguere zoo/training (già funzionante)
+- commit 1279d02625a1394db624b525ff2ac5b4925890d9
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 17:17:24 2026 +0200
+-     fix(dashboard): dev-card con DOMContentLoaded, scroll tab Modalità
+-     - Rimosso blocco dev-card duplicato (chiudeva DOMContentLoaded due volte)
+-     - Fix brace counter (una } in più dopo cancellazione)
+-     - Tab Modalità: overflow-y auto per scrollare contenuto discovery
+- commit 1096dea555ce035b29e32c961ede10f4d8b8ac93
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 16:55:19 2026 +0200
+-     fix(dashboard): rimosso script duplicato dev-card (listener doppi)
+- commit 50edac901ab83f38d4c918c85385a42e269fd2d3
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 16:30:27 2026 +0200
+-     feat: low TPM filter, unpin 413, new models badge, training exclude
+-     Backend bandit.mjs:
+-     - getModelInfo: fallback a catalog per modelli mai testati (trend: 'new')
+-     - LOW_TPM_MODELS / LOW_TPM_THRESHOLD: esclude modelli con TPM basso da contesti grandi
+-     - getUnhealthyModels: filtro HEALTH_EXCLUDE_PROVIDERS da env
+-     - _classifyError accetta providerName (429 provider-level se >20 modelli)
+-     Backend index.mjs:
+-     - 413/ITPM/TPM: rimuove pin sessione per non riprovare stesso modello
+-     - getActiveRequestsSnapshot / trackRequestComplete arricchiti (rank, source, trend)
+-     Frontend dashboard.html:
+-     - Badge "new" per modelli mai testati (trend: 'new')
+-     - Fix doppio pulsante toggle-flat (tab-models ora si nasconde correttamente)
+-     - Mostra rank/N/avg/trend su riquadro in corso + recenti
+-     Config .env:
+-     - LOW_TPM_MODELS=groq/openai/gpt-oss-20b,groq/openai/gpt-oss-120b
+-     - LOW_TPM_THRESHOLD=7000
+-     - HEALTH_EXCLUDE_PROVIDERS=openrouter
+-     - TRAIN_EXCLUDE_PROVIDERS=openrouter
+- commit ea11de409981333ea345c8fd47ae8c84c0ed2d78
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 13:53:39 2026 +0200
+-     fix(dashboard): padding-top per PWA window-controls-overlay
+-     Sposta il contenuto sotto la barra dei controlli finestra quando la
+-     dashboard è installata come PWA, evitando che il toggle debug finisca
+-     sotto i pulsanti min/max/close.
+- commit ed46ea8d1ff6e9444fdc70ee2a06e0daaf65a01b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 12:34:08 2026 +0200
+-     feat(dashboard+bandit): rank modello, trend, esclusione health check
+-     Backend bandit.mjs:
+-     - getModelRank(): posizione in classifica (avg desc, N>=3)
+-     - _rankCache TTL 30s, invalidata su success
+-     - 429 su provider >20 modelli -> cooldown-provider 60s (rate-limit-burst)
+-     - _classifyError accetta providerName per distinguere scope
+-     - getUnhealthyModels: filtro HEALTH_EXCLUDE_PROVIDERS da env
+-     Frontend dashboard.html:
+-     - Riquadro in corso: attive + recenti insieme, mai vuoto
+-     - Rank (#N) visibile, icona sorgente zoo/training
+-     - Rimosso provider da tutti i rendering
+-     - Altezza fissa con scroll interno
+-     - Secondi larghezza fissa (no shift)
+-     Scripts:
+-     - chmod +x su restart, switch-mode, train-ctl
+-     .env:
+-     - HEALTH_EXCLUDE_PROVIDERS=openrouter (20 RPM/1000 RPD, 800+ modelli)
+- commit 43b3de1a9eed36f8a6a2786f4a03c2e20feb2bc7
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 04:54:51 2026 +0200
+-     wip: info N/avg/trend, ranking, distinzione zoo/training
+-     Backend bandit.mjs:
+-     - _lastReward: tracking ultimo reward per modello
+-     - getModelInfo(): N, avg, trend, lastReward
+-     - getModelRank(): posizione in classifica con cache 30s
+-     - _rankCache invalidata su success
+-     - topModel esteso con provider, N, trend
+-     Backend index.mjs:
+-     - /v1/active: espone N, avg, trend, rank
+-     - trackRequestComplete: arricchisce recent con N/avg/trend/rank
+-     - trackRequestStart: aggiunge source (zoo/training)
+-     - Log POST con suffisso [ZOO] o [TRAIN]
+-     - Hard cap contesto 150k token (MAX_CONTEXT_TOKENS)
+-     - Timeout proporzionale a dimensione richiesta (1x-3x)
+-     Frontend dashboard.html:
+-     - Info N/avg/trend su richieste in corso e recenti
+-     - Icona sorgente zoo/training
+-     - Timer decimale sempre
+-     - CSS altezza minima riquadro in corso
+-     TODO domani:
+-     - Riquadro in corso: storico popolato + altezza fissa
+-     - Rank visibile nel rendering (backend pronto, frontend da applicare)
+-     - Rimuovere provider dal rendering frontend
+- commit e1de73ca14971eef7518f7bfe35659ec18950ec4
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 02:32:52 2026 +0200
+-     fix: gestione errori provider saturi, timeout proporzionale, summarizer TPM
+-     Classificatore errori:
+-     - chat_admission_busy / structure_limit -> cooldown-provider 2min
+-     - 413 / ITPM / TPM / Request too large -> skip-feedback
+-     - key limit exceeded / per-model access -> cooldown-provider 4h (OpenRouter budget)
+-     Summarizer profile:
+-     - bigPenalty: 0.15 per modelli grandi (27b+, max, pro, xhigh, opus, luna, ecc.)
+-     - notFastPenalty: 0.25 per tutto cio' che non e' fast
+-     - tpmLowPenalty: 0.05 per groq/gpt-oss-* (TPM 8k, inadatti a contesti >50k)
+-     - STREAM_MAX_MS ridotto a 60s per summarizer
+-     Timeout:
+-     - UPSTREAM_TIMEOUT_MS proporzionale a dimensione richiesta (1x-3x)
+-     - Fix TDZ: baseTimeout dichiarato dopo estimatedTokens
+-     Training daemon:
+-     - Esclude FIM, audio (voxtral/whisper), riva-translate, parse
+-     - Ricontrolla isProviderFlagged prima di ogni test
+-     Dashboard:
+-     - CSS tabella: larghezze colonne ottimizzate (32/12/7/9/9/6/12/13)
+- commit 48dace384506fa753e6a146e2215e0082140686c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sun Oct 4 01:24:22 2026 +0200
+-     feat: session affinity, mode routing, training isolation, debug toggle
+-     Session Affinity:
+-     - Pin modello per conversazione (md5 di system + primo user message)
+-     - TTL 30 min con cleanup automatico
+-     - Endpoint /v1/sessions, DELETE /v1/sessions/:key
+-     Mode/Profile system:
+-     - Registry 14 modalità Zoo Code (config/modes.json)
+-     - Auto-discovery con dashboard labeling
+-     - Soft bias profilo-modello (code/reasoning/general/summarizer)
+-     - Escalation task >100 msg -> reasoning
+-     Training isolation:
+-     - Tabella models_train separata (non inquina UCB1 prod)
+-     - Priorità Zoo: training pausa se /v1/inflight > 0
+-     - Circuit breaker timeout provider (3 timeout = skip ciclo)
+-     Dashboard:
+-     - Tab Modalità (signature + discovery)
+-     - Toggle debug verbose (senza restart)
+-     - Flat mode sorting globale (click su header)
+-     - Scrollbar invisibile, no scroll orizzontale
+-     Resilience:
+-     - Idle timeout stream content-based (STREAM_IDLE_MS)
+-     - Hard cap stream assoluto (STREAM_MAX_MS)
+-     - unhandledRejection non termina più il processo
+-     - Fix scope: profile, forceProvider, excludedModels, hardCapTimer, idleTimer
+-     - Health check include degraded=1
+-     - 5xx transitori: cooldown 1h invece di ban permanente
+-     - Circuit breaker provider in-request (3 fail = cooldown 5min)
+-     Config:
+-     - Nuove env: STREAM_IDLE_MS, STREAM_MAX_MS, ZOO_MAX_WAIT_MS
+-     - config/modes.json (registry committato)
+-     - .gitignore aggiornato (bandit_state.*, *.bak, data/)
+-     Bug fix:
+-     - TDZ su DEBUG_VERBOSE
+-     - ReferenceError forceModel / forceProvider / excludedModels
+- commit 0ccbb622d0993c712d6228a71754015c244db021
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 14:52:44 2026 +0200
+-     chore(scripts): rende eseguibili tutti gli script (bit 755 tracciato in git)
+- commit be77b0a19d02996a02e96ff63d92c820b2910a69
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 04:45:04 2026 +0200
+-     chore(scripts): update restart, switch-mode, train-ctl, and train-daemon scripts
+- commit 8ff155eb730eb5924fd20f78df3a34d315eb2846
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 04:39:17 2026 +0200
+-     fix(bandit): esclude FIM models dal pool tool-capable (diff imprecisi)
+- commit 2b49375c721f51d97d169bb815a2078b7d96d17c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 04:34:34 2026 +0200
+-     fix(proxy): rimuove tools dal body per summarization (no più tool_calls su condense)
+- commit 3ed30a873f481cd1915577afce5aaaf5a7246734
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 04:27:15 2026 +0200
+-     fix(proxy): non richiede tool_calls per richieste di summarization
+- commit e8245b49408c99072261827c3ac0c314aedf7fed
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 04:20:08 2026 +0200
+-     fix(proxy): rimosso reference a model out-of-scope in validateStreamAccumulated
+- commit 4f8d392c56bb0ae319123e1af7049d4abc57d46d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 04:09:24 2026 +0200
+-     fix(proxy): rimuove if(stream) duplicato; fix accumulated->raw; log 503; auto-compress per-model
+- commit aba2e6d8b532ece637f1101faa31f2d5aab67e7a
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 02:10:56 2026 +0200
+-     feat(proxy): auto-compress per-model invece di max-catalog
+- commit 18dce18ddcb4421abd5779f206ca2bb9598ffb12
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 02:03:03 2026 +0200
+-     chore(scripts): restart.sh con feedback log su stdout
+- commit c5c920e9c72840263ef857afa27d5094f08a161b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Sat Oct 3 00:52:21 2026 +0200
+-     fix(bandit): stima token ÷4 (JSON) per supportare contesti 100k+
+- commit e174ca397ab977dd80624d7510600517c45cfd44
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 23:43:35 2026 +0200
+-     fix(bandit): distingue demo-limit da input-too-long (cfp flag-provider)
+- commit 2473d46223765e625bca1782f2840b1debfa0472
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 23:37:58 2026 +0200
+-     feat(proxy): requireTools penalizza modelli che non chiamano tools
+- commit ad2f5b42b03f131788725e42f7509583b7177379
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 23:27:31 2026 +0200
+-     fix(bandit): ripristina hasCatalogIsFree + supports_tools popolato dal payload
+- commit 5dc8b72ea1455a004633e8bcfa1560d404628e1f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 23:12:21 2026 +0200
+-     fix(bandit): rimuove graffa di troppo in _classifyError; riconosce prompt-too-long
+- commit a2997117331bb6f43ccf4ce5f5a06331871f3f64
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 23:09:15 2026 +0200
+-     feat(dashboard): pulsante Blocca modello (permanent=1), cambia in Sblocca se già bannato
+- commit e58508ec8fdc8647bed45ee4ed1f1e9d6baba153
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 20:12:02 2026 +0200
+-     feat(dashboard): modali custom in stile dark (no più alert/confirm nativi)
+- commit 419d9cb308874f9f4e34c69f24a9de0aeee51c3a
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 20:06:20 2026 +0200
+-     fix(proxy): riconosce 'run out of usage' come errore (non premia la risposta)
+- commit 93c5c76dc6fca76b107d01c7b506188e21814e2e
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 19:38:41 2026 +0200
+-     fix(dashboard): script completo pulito con renderAll unificata
+- commit d6775b6452d69c64d082f1c4dda799a202b33838
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 19:16:51 2026 +0200
+-     feat(dashboard): modelli raggruppati per provider con collapse/expand
+- commit c94635344526bd26f6c09152ac479c401c8aeba1
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 19:11:21 2026 +0200
+-     feat(dashboard): modelli raggruppati per provider con collapse/expand
+- commit e4c8f14c95092fa2021913f219db965f6cd08fe2
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 19:05:04 2026 +0200
+-     fix(proxy): rimuove else duplicato e righe irraggiungibili dopo continue
+- commit bef3763f0e983082c15f326c347b1629e26de69d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 18:51:10 2026 +0200
+-     feat(dashboard): pannello attività sempre visibile (attive + ultime richieste)
+- commit e0c98a853b743526381a6e52464d5b86f9960642
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 18:47:16 2026 +0200
+-     fix(dashboard): success rate invece di avg tentativi; top model mostra avg
+- commit b33725d6f88509037f4cf270591aeafc420a36bf
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 18:40:31 2026 +0200
+-     feat(dashboard): pannello richieste in-flight (modello, tentativo, tempo)
+- commit 2c2e4fe1148b815243f016780892d878fa62ed12
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 17:53:55 2026 +0200
+-     fix(dashboard): avg tentativi invece di successo %; fix(bandit): vLLM tool_choice → ban-model
+- commit 77a5eab789be57ee79b1193b74dd44de213d1ee7
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 17:44:17 2026 +0200
+-     fix(bandit): key-quota-exceeded → cooldown solo paid, free restano attivi
+- commit 08f7fc4ea7c2299442c9dbf636d6763d83424eae
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 17:29:00 2026 +0200
+-     fix(bandit): Key limit exceeded → flag-provider (non banna ogni modello)
+- commit de2f4d15e83d6515fff92b3b7a2349a1b8f4d8f3
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 16:40:29 2026 +0200
+-     feat(scripts): modalità train-gentle per training in parallelo all'uso reale
+- commit 46ce17c5848d7e05e96933fbda100dda8222ba20
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 16:34:08 2026 +0200
+-     feat(bandit): EXCLUDE_THINKING + EXPLOIT_ONLY + switch-mode.sh per prod/train
+- commit e66c6829bf998ec0230a7a8c5a90ce640f03a30d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 16:29:52 2026 +0200
+-     feat(scripts): switch-mode.sh per alternare prod/train con un comando
+- commit 93768cbacb88ede02c78596a14590924fc23c865
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 16:28:27 2026 +0200
+-     feat(bandit): EXPLOIT_ONLY (solo modelli N>=3) per uso produttivo <2s
+- commit 418cc7d983254d7ff9f884d6ebb27422ee160907
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 16:11:13 2026 +0200
+-     chore(gitignore): ignora file di backup
+- commit 893406ca6459b44ac8502871924af35e19dccf22
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 16:04:13 2026 +0200
+-     feat(metrics): summary aggregato (attivi, reward, latenza, free, topModel); fix cooldown provider spurio
+- commit 4f0877111d9524b6e993144aded178f392717760
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 15:43:20 2026 +0200
+-     fix(pwa): theme-color coerente + fix training (timeout no-skip-provider, exclude pattern)
+- commit cf41df9f9bd3bef3d764cdd8cb300895e0fd5a91
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 15:25:00 2026 +0200
+-     feat(pwa): display_override per nascondere barra del titolo (window-controls-overlay)
+- commit d8d2c57a8cce0726ec6875baa15b33b01869932f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 15:21:35 2026 +0200
+-     feat(dashboard): pulsante reset contatori globali (richieste + osservazioni)
+- commit 805fb104a9fa71ab6d378c0a8e54eaaf24fe4c64
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 15:17:48 2026 +0200
+-     feat(training): timeout non skippa provider, soglia 5 fail, esclude pattern openrouter problematici
+- commit e2cff7c1e83375dc495803e7aadd69af2199b7fb
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 13:29:35 2026 +0200
+-     fix(training): rimuove filtro cooldown da loadModels (il proxy lo gestisce); EXCLUDE_PROVIDERS e circuit-breaker 404
+- commit d5ff1cf13aa68d4fb062f996910950c482008104
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 07:26:43 2026 +0200
+-     feat(bandit): free/paid detection, filtri ONLY_FREE/EXCLUDE_PAID, 403 model-level non banna provider, catalogRawCount
+- commit 67dc62d32f997a5f2521f0fcd9cd87cb00592f48
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 07:20:01 2026 +0200
+-     feat(bandit): free/paid detection, filtri ONLY_FREE/EXCLUDE_PAID, is_paid su 402, catalogRawCount
+- commit 192f86acdb8b1283c52bfe9dcf1a760bf9a4c27b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 06:41:56 2026 +0200
+-     fix: 403 model-level non banna più l'intero provider; il daemon salta i modelli in timeout nel ciclo corrente
+- commit e93af911220fee84243a327caf35f48f8e77621a
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 06:23:05 2026 +0200
+-     ui(dashboard): badge DA CONFIGURARE cliccabile apre Cosa fare (rimuove pulsante ridondante)
+- commit 20240e713a5d8c6ed936e70a3dc66e3865f80405
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 06:01:25 2026 +0200
+-     feat(notifier): supporto Telegram con chat_id configurabile
+- commit 74be9a34becabf936b6eaabbd25d058dcc9c0afb
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 05:46:11 2026 +0200
+-     feat(notifier): webhook Slack/Discord su eventi critici
+- commit e4ded40169fbb46f318522c4a35c46b97cc38bff
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 05:31:55 2026 +0200
+-     fix(bandit): validation error → ban-model invece di rate-limit
+- commit 4272c75b8fa8fcc09b20bfec79fed967e9fe39e1
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 03:55:49 2026 +0200
+-     feat(dashboard): modale Cosa fare con pulsante copia (rimuove alert non copiabile)
+- commit 60ad507c8874bdf864d0edbeb4b8bdd1aaac200f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 03:54:07 2026 +0200
+-     fix(bandit): _flagProviderAttention ora imposta correttamente il flag (era invertito)
+- commit a533ad5c2449b990caabaaa37c3ce13e10fb28c7
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 03:48:32 2026 +0200
+-     fix(bandit): isModelAvailable filtra anche cooldown modello e provider
+- commit cf39115ab19aec823b9686a86729b040b2ae2a16
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 03:45:01 2026 +0200
+-     fix(training): daemon salta tutti i modelli di un provider dopo primo 404
+- commit 1957be89ab37357f17437482c3ac569bdef8a33b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 03:38:48 2026 +0200
+-     fix(dashboard): messaggio più chiaro quando attention_message è vuoto
+- commit 511d2f7fcd8907643b825da28655b027b34b68bf
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 03:37:29 2026 +0200
+-     feat(dashboard): pulsante Cosa fare sui provider needs_attention con istruzioni contestuali
+- commit 0d35024cf5c7ba63945a1d4fecc1ff2b231b1887
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 03:16:39 2026 +0200
+-     fix(bandit): provider granulare per ID senza slash (evita che un modello rotto banni l'intero gruppo default)
+- commit 072eb678da1d1d06d0813fc6e0b37ff341a7ec21
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 03:02:20 2026 +0200
+-     fix(training): hard-fail su x-force-model non disponibile, skip :batch/tts/lyria nel daemon
+- commit 6c4a774f599c997f0205827bcce8a11cc4d7afcc
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 02:56:25 2026 +0200
+-     chore: forza LF, fix auto-registrazione modelli forzati, script eseguibili
+- commit c0b6af9d70befc1ab0afa2f22ff3aa3e3a0b43cf
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 02:51:51 2026 +0200
+-     fix(bandit): recordFeedback auto-registra modelli non presenti (fix training daemon via x-force-model)
+- commit 1252c85d1aaadd3603c259a81bf09097fc1f7c8d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 02:48:48 2026 +0200
+-     chore(gitignore): ignora file temporanei SQLite
+- commit 19fa45e0a6e0681f1c2529769c3bfda1c20475be
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 02:47:42 2026 +0200
+-     feat(bandit): degraded mode (score*0.3), auto-riabilitazione, catalogRawCount in metrics
+- commit adc9f9d6e6365cd481f5a6e16c666fa6b5ba0780
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 02:47:36 2026 +0200
+-     chore(env): documenta variabili HEALTH_CHECK_*
+- commit 7fb24248b2af4778f0a0655cd47de12dfb392e1c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 02:42:10 2026 +0200
+-     feat(bandit): degraded mode - modelli con 5xx mantengono priorita ridotta (score*0.3) e si riabilitano al primo successo
+- commit 6578c91e83e75adf4eecabdf8814274774600cef
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 02:05:30 2026 +0200
+-     fix(bandit): ban permanente modello dopo 3 errori transitori consecutivi (soglia 5xx)
+- commit c806b4f80ac6aa7938360f61553c454535a39d2f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 01:59:58 2026 +0200
+-     fix(bandit): isModelAvailable accetta un solo parametro SQL
+- commit 3743f89a73152ea5d599660f1980fb09affd1b79
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 01:42:40 2026 +0200
+-     feat(bandit): max_input_tokens in catalog, filtro token, x-force-model, auto-compress
+- commit b54a03ec9786a1f52a717a198e433f2a06df2832
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 01:42:32 2026 +0200
+-     feat(dashboard): contatori needs_attention, colore viola, tasso di successo
+- commit b23397a9b9c8d4136016dcee5cff9c747aea7360
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Fri Oct 2 01:42:21 2026 +0200
+-     chore(training): aggiunge demone round-robin con start/stop/status/logs
+- commit d9247e6f32b6acbebe87bae41ad7ca6d1699559f
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 21:04:45 2026 +0200
+-     feat(dashboard): indicatore tasso di successo accanto a Osservazioni
+- commit 161e526ce30ffcf12b3353f8c048d388bfa43372
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 20:57:46 2026 +0200
+-     feat(dashboard): colore distinto (viola) per needs_attention vs cooldown (giallo)
+- commit a3c515e03a5332ed9ccb906bc94a76b48a2acc47
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 20:45:17 2026 +0200
+-     feat(dashboard): auto-refresh 2.5s, layout full-height senza scroll, rimozione colonna cooldown ridondante
+- commit 0ecc26028d2e3fdbb206e27a27bfc0df62f3bd1b
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 20:12:56 2026 +0200
+-     test: aggiunge suite di unit test per bandit.mjs (classifyError, selectModel, recordFeedback, meta)
+- commit e9377fd863abbd94438e0b3414c5e786871ff2bd
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 20:10:32 2026 +0200
+-     docs: riscrive README allineata al codice attuale, aggiunge licenza MIT
+- commit 6ed09712c08ed6218caadc1bfd8a54b41004dd4d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 20:04:23 2026 +0200
+-     fix(bandit): 5xx su modello non uccide più l'intero provider; aggiunto pattern 402 payment
+- commit d1bac3cf9f9513347ed9d4441bcc857f46e222e3
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 19:14:45 2026 +0200
+-     fix(dashboard): aggiunge pulsante Aggiorna Dati mancante
+- commit 766edd012c89c8ac25e6a523dd2756706b3cb8af
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 18:44:59 2026 +0200
+-     chore(log): rimuove middleware access-log duplicato
+- commit 8d8c4f67bd542e5c79db6380b6db883970d2bca4
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 18:40:21 2026 +0200
+-     fix(dashboard): script completo, valori numerici normalizzati, banner 401 non distruttivo
+- commit 234287e7cacf84c8cc2e5fc42bf77606350de96e
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 17:29:23 2026 +0200
+-     feat(bandit): cooldown proporzionati (24h misconfig, 6h anti-abuse), riconosce bug upstream e reset_seconds, safety provider 30m
+- commit 16286911fd005a8b585154628f4ffa5152f023c3
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 17:07:33 2026 +0200
+-     feat(bandit): catalog chat-only, lazy registration, provider cooldown su quota o fail ripetuti; fix abort spurio
+- commit cb04ab2fdb9950b55f4ad90f90329d4fb68bee2d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 16:07:01 2026 +0200
+-     chore(icons): sostituisce icon set con RealFaviconGenerator, aggiorna link e manifest
+- commit 00d7604411c9bf3178cce93b32843a8b787e950d
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 16:02:10 2026 +0200
+-     fix(dashboard): no-cache HTML, rimozione onclick inline residui, fetchLogs robusto a 401
+- commit 9dc003f0b70023d2bded637a9828a220dea8b145
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 15:04:25 2026 +0200
+-     feat(security): auth token su API di controllo e dashboard
+- commit b9486e7464900ca9859de6d1987be352233bc364
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Thu Oct 1 13:24:03 2026 +0200
+-     Migrazione a ES modules (.mjs), nuova dashboard e icon set PWA
+- commit 00f928923648bdcac0bc3873d2748e69a30e255c
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Wed Sep 30 22:38:49 2026 +0200
+-     fix(proxy): add AbortController timeout, client disconnect handler (499), and immediate bandit fallback
+- commit 611f879e340c6003b8e8c0caa55e62f1c0f46841
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Wed Sep 30 22:21:29 2026 +0200
+-     feat: trasforma la dashboard in PWA con service worker, manifest e pulsante di installazione
+- commit f795b669343c28a0684f8e697d5edada0d7fa53e
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Wed Sep 30 22:18:36 2026 +0200
+-     feat: aggiunta sincronizzazione dinamica dei modelli da OmniRoute via /v1/models e ottimizzazione selezione bandit
+- commit 83d200fc7edbbec1f59baf3651325fc6399fe115
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Wed Sep 30 22:03:41 2026 +0200
+-     Add provider-level health tracking, exponential cooldown, and n+1 rotation pointer with updated dashboard UI
+- commit a090a6e839f6db31a20ff36842b51e1dce1be1a8
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Wed Sep 30 21:52:11 2026 +0200
+-     Add live proxy logs and precise cooldown countdown to the dashboard
+- commit a9250ec67a7933427fd8ce6cd30201c12dc7ba52
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Wed Sep 30 21:40:08 2026 +0200
+-     Fix dashboard binding on 127.0.0.1 and stabilize Bandit proxy error handling
+- commit 73eae23c8c06ae1a297dfe81bad8a22c2fc0db96
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Wed Sep 30 20:19:29 2026 +0200
+-     chore: ignore sqlite wal and shm files
+- commit 9d765621d28defeeb6c08180765332415457a457
+- Author: CherrugDeveloper <marco.falco1997@gmail.com>
+- Date:   Wed Sep 30 20:18:14 2026 +0200
+-     feat(telemetry): add granular real-time logging for UCB1 evaluation, scores, rewards, and feedback metrics
+- commit 2c6f3dfe971ca7740ec72f87192dbafb48189698
+- Author: CherrugDeveloper <marco@PortatileHu.localdomain>
+- Date:   Wed Sep 30 20:09:13 2026 +0200
+-     chore: ensure .env and proxy.log are excluded from git
+- commit 331fa08164c2f424ca113a95a27197483428994c
+- Author: CherrugDeveloper <marco@PortatileHu.localdomain>
+- Date:   Wed Sep 30 19:59:36 2026 +0200
+-     feat: integrate DiscountedUCB1Bandit engine with Zoo Code compatible Zod metadata and Express proxy
+
 ## [1.19.0] - 2026-11-05
 
 ### Feat

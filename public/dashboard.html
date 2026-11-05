@@ -379,7 +379,7 @@
             display: flex;
             flex-direction: column;
         }
-        /* La tab Modalità e Script Manager scrollano internamente se il contenuto è troppo */
+        /* La tab Modalità e Scripts Manager scrollano internamente se il contenuto è troppo */
         #tab-modes.active, #tab-scripts.active {
             overflow-y: auto;
             overflow-x: hidden;
@@ -4748,7 +4748,7 @@
 
     <script>
         // ========================================
-        // SCRIPT MANAGER FUNCTIONALITY
+        // SCRIPTS MANAGER FUNCTIONALITY
         // ========================================
         
         let scriptsData = [];
@@ -5018,7 +5018,7 @@
             } catch (e) { showAlert('Copia fallita: ' + e.message, 'Errore', '⚠️'); }
         }
 
-        // Event listeners per Script Manager
+        // Event listeners per Scripts Manager
         document.addEventListener('DOMContentLoaded', () => {
             // Refresh button
             document.getElementById('scripts-refresh')?.addEventListener('click', loadScripts);

@@ -92,8 +92,10 @@ export function detectProfile(systemPrompt) {
 
 // ─── Multiplier ─────────────────────────────────────────────────────────────
 export function profileMultiplier(profile, modelName) {
-  if (!profile || profile === 'generic' || !modelName) return 1.0;
-  const cfg = PROFILE_MULTIPLIERS[profile];
+  // Handle object inputs (extract profile property from detectProfile result)
+  const resolvedProfile = typeof profile === 'object' && profile !== null ? profile.profile : profile;
+  if (!resolvedProfile || resolvedProfile === 'generic' || !modelName) return 1.0;
+  const cfg = PROFILE_MULTIPLIERS[resolvedProfile];
   if (!cfg) return 1.0;
 
   const n = String(modelName).toLowerCase();

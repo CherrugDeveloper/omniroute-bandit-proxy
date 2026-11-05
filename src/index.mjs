@@ -208,7 +208,7 @@ export function convertImageGenerationToChatCompletion(imageGenResponse) {
  * Compute the UCB1 score for a model (without random tie-breaker).
  * Used for pinned models where we don't want the random noise.
  */
-function computeUCB1Score(modelId, bandit, totalObservations) {
+function computeUCB1Score(modelId, bandit, totalObservations, profile) {
   const modelInfo = bandit.getModelInfo(modelId);
   if (!modelInfo) return 0;
   
@@ -230,7 +230,6 @@ function computeUCB1Score(modelId, bandit, totalObservations) {
   }
   
   // Apply profile multiplier (no random tie-breaker for deterministic pinned model scoring)
-  const profile = detectProfile();
   const mult = profileMultiplier(profile, modelId);
   return ucbScore * mult;
 }
@@ -1722,7 +1721,11 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
   // === MODE / PROFILE ===
   const sysMsg = req.body?.messages?.find(m => m.role === 'system');
-  const sysText = (typeof sysMsg?.content === 'string') ? sysMsg.content : '';
+  const sysText = typeof sysMsg?.content === 'string'
+    ? sysMsg.content
+    : Array.isArray(sysMsg?.content)
+      ? sysMsg.content.map(c => typeof c === 'string' ? c : c.text || '').join('')
+      : '';
   const modeResult = detectProfile(sysText);
   // === STRUGGLING DETECTION ===
   // Guarda gli ultimi 8 messaggi (user + assistant), esclude l'ultimo
@@ -2066,7 +2069,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
             const provider = bandit._getProvider(model);
             // Use totalObservations from bandit for consistent scoring (matches selectModel logic)
             const totalObs = bandit._getMeta("totalObservations") || 0;
-            const computedScore = computeUCB1Score(model, bandit, totalObs);
+            const computedScore = computeUCB1Score(model, bandit, totalObs, profile);
             allSelectionHistory.push({
               id: model,
               provider: provider,
