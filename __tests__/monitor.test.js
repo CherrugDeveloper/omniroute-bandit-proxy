@@ -46,49 +46,49 @@ describe('Punishment Monitor', () => {
      * Test: Rilevazione provider con alti failure count
      */
     it('should detect high failure providers', async () => {
-        db.prepare(`
-            INSERT INTO provider_history 
-            (provider_name, total_failures, circuit_breaker_until, last_request)
-            VALUES ('anthropic', 8, '', datetime('now'))
-        `).run();
-
-        db.prepare(`
-            INSERT INTO provider_history 
-            (provider_name, total_failures, circuit_breaker_until, last_request)
-            VALUES ('google', 2, '', datetime('now'))
-        `).run();
-
-        const highFailures = await getProvidersByFailureThreshold(db, 5);
-        
-        assert.strictEqual(highFailures.length, 1);
-        assert.strictEqual(highFailures[0].provider_name, 'anthropic');
-        assert.strictEqual(highFailures[0].total_failures, 8);
-    });
+            db.prepare(`
+                INSERT INTO provider_history
+                (provider_name, total_failures, circuit_breaker_until, last_request)
+                VALUES ('anthropic', 8, NULL, datetime('now'))
+            `).run();
+    
+            db.prepare(`
+                INSERT INTO provider_history
+                (provider_name, total_failures, circuit_breaker_until, last_request)
+                VALUES ('google', 2, NULL, datetime('now'))
+            `).run();
+    
+            const highFailures = await getProvidersByFailureThreshold(db, 5);
+            
+            assert.strictEqual(highFailures.length, 1);
+            assert.strictEqual(highFailures[0].provider_name, 'anthropic');
+            assert.strictEqual(highFailures[0].total_failures, 8);
+        });
 
     /**
      * Test: Generazione report per dashboard
      */
     it('should generate dashboard-compatible report', async () => {
-        // Setup multi-provider data
-        const providers = ['openai', 'anthropic', 'google'];
-        providers.forEach((p, i) => {
-            db.prepare(`
-                INSERT INTO provider_history 
-                (provider_name, total_failures, circuit_breaker_until)
-                VALUES (?, ?, ?)
-            `).run(p, i * 3, i === 0 ? new Date(Date.now() + 60000).toISOString() : '');
+            // Setup multi-provider data
+            const providers = ['openai', 'anthropic', 'google'];
+            providers.forEach((p, i) => {
+                db.prepare(`
+                    INSERT INTO provider_history
+                    (provider_name, total_failures, circuit_breaker_until)
+                    VALUES (?, ?, ?)
+                `).run(p, i * 3, i === 0 ? new Date(Date.now() + 60000).toISOString() : null);
+            });
+    
+            const report = await generateDashboardReport(db);
+            
+            assert.ok(Array.isArray(report.providers), 'Report dovrebbe avere array providers');
+            assert.strictEqual(report.providers.length, 3, 'Dovrebbero esserci 3 provider');
+            
+            // Verifica struttura dati
+            const openai = report.providers.find(p => p.provider_name === 'openai');
+            assert.strictEqual(openai.status, 'BREAKER_ACTIVE');
+            assert.strictEqual(openai.total_failures, 0);
         });
-
-        const report = await generateDashboardReport(db);
-        
-        assert.ok(Array.isArray(report.providers), 'Report dovrebbe avere array providers');
-        assert.strictEqual(report.providers.length, 3, 'Dovrebbero esserci 3 provider');
-        
-        // Verifica struttura dati
-        const openai = report.providers.find(p => p.provider_name === 'openai');
-        assert.strictEqual(openai.status, 'BREAKER_ACTIVE');
-        assert.strictEqual(openai.total_failures, 0);
-    });
 
     /**
      * Test: Corretta formattazione timestamp
@@ -119,34 +119,34 @@ describe('Circuit Breaker Logic', () => {
     });
 
     it('should correctly evaluate breaker status', () => {
-        const now = Date.now();
-        
-        // Test: Breaker futuro
-        const futureBreaker = new Date(now + 3600000).toISOString();
-        db.prepare('INSERT INTO provider_history (provider_name, circuit_breaker_until) VALUES (?, ?)')
-            .run('openai', futureBreaker);
-
-        const result1 = isBreakerActive(db, 'openai');
-        assert.strictEqual(result1.active, true);
-        assert.strictEqual(result1.minutesRemaining, 60);
-
-        // Test: Breaker passato
-        const pastBreaker = new Date(now - 3600000).toISOString();
-        db.prepare('INSERT INTO provider_history (provider_name, circuit_breaker_until) VALUES (?, ?)')
-            .run('anthropic', pastBreaker);
-
-        const result2 = isBreakerActive(db, 'anthropic');
-        assert.strictEqual(result2.active, false);
-        assert.strictEqual(result2.minutesRemaining, 0);
-    });
-
-    it('should handle null breaker gracefully', () => {
-        db.prepare('INSERT INTO provider_history (provider_name, circuit_breaker_until) VALUES (?, NULL)')
-            .run('google', null);
-
-        const result = isBreakerActive(db, 'google');
-        assert.strictEqual(result.active, false);
-    });
+            const now = Date.now();
+            
+            // Test: Breaker futuro
+            const futureBreaker = new Date(now + 3600000).toISOString();
+            db.prepare('INSERT INTO provider_history (provider_name, circuit_breaker_until) VALUES (?, ?)')
+                .run('openai', futureBreaker);
+    
+            const result1 = isBreakerActive(db, 'openai');
+            assert.strictEqual(result1.active, true);
+            assert.strictEqual(result1.minutesRemaining, 60);
+    
+            // Test: Breaker passato
+            const pastBreaker = new Date(now - 3600000).toISOString();
+            db.prepare('INSERT INTO provider_history (provider_name, circuit_breaker_until) VALUES (?, ?)')
+                .run('anthropic', pastBreaker);
+    
+            const result2 = isBreakerActive(db, 'anthropic');
+            assert.strictEqual(result2.active, false);
+            assert.strictEqual(result2.minutesRemaining, 0);
+        });
+    
+        it('should handle null breaker gracefully', () => {
+                    db.prepare('INSERT INTO provider_history (provider_name, circuit_breaker_until, last_request) VALUES (?, NULL, NULL)')
+                        .run('google');
+    
+            const result = isBreakerActive(db, 'google');
+            assert.strictEqual(result.active, false);
+        });
 });
 
 /**
@@ -257,9 +257,9 @@ function isBreakerActive(db, providerName) {
     }
 
     return {
-        active: true,
-        minutesRemaining: Math.floor(diffMs / 60000)
-    };
+            active: true,
+            minutesRemaining: Math.ceil(diffMs / 60000)
+        };
 }
 
 // Export for external use

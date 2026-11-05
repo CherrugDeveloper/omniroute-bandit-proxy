@@ -3376,9 +3376,12 @@ export class DiscountedUCB1Bandit {
   }
 
   close() {
-    if (this.db) {
-      this.db.close();
-    }
+      if (this.quota && typeof this.quota.stopBackgroundRoller === "function") {
+          this.quota.stopBackgroundRoller();
+      }
+      if (this.db) {
+          this.db.close();
+      }
   }
 }
 

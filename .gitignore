@@ -1,11 +1,40 @@
 # Node
 node_modules/
+package-lock.json
 
 # SQLite
 *.db
 *.db-shm
 *.db-wal
 
+# Environment files (never commit)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Credentials (never commit)
+*.key
+*.pem
+*.cert
+*.pub
+
+# Secrets (never commit)
+*secret*
+*.credentials
+*-credentials*
+
 # Temp
 *.bak
-.env
+
+# IDE
+.vscode/
+!/.vscode/settings.json
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
