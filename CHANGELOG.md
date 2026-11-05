@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- chore: update CHANGELOG, README, and version to v1.21.0
 - chore: update CHANGELOG, README, and version to v1.19.8
 - chore: update CHANGELOG, README, and version to v1.19.7
 - chore: update CHANGELOG, README, and version to v1.19.6
@@ -37,4 +38,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
-For complete version history prior to the latest version, see the [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) or commit files.
+For complete version history prior to the latest version, see the git history or commit files.

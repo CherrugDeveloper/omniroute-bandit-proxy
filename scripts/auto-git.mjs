@@ -43,14 +43,14 @@ function runCommand(command, options = {}) {
   }
 }
 
-// Step 1: Check for conflicting processes (only actual train-daemon processes, not system 'watch' processes)
+// Step 1: Check for conflicting processes (daemon, watch, etc.)
 log('=== Checking for conflicting processes ===', 'blue');
 try {
-  const processes = runCommand('ps aux | grep "train-daemon" | grep -v grep || true', { silent: true });
+  const processes = runCommand('ps aux | grep -E "(daemon|watch|auto-commit)" | grep -v grep || true', { silent: true });
   if (processes && processes.trim()) {
     log(`Conflicting processes detected:\n${processes}`, 'yellow');
-    log('Attempting to stop train-daemon...', 'yellow');
-    runCommand('pkill -f "node.*train-daemon" 2>/dev/null || pkill -f "train-daemon" 2>/dev/null || true', { allowFail: true });
+    log('Stopping conflicting processes...', 'yellow');
+    runCommand('pkill -f "daemon" 2>/dev/null || true', { allowFail: true });
   } else {
     log('No conflicting processes detected', 'green');
   }
@@ -58,16 +58,7 @@ try {
   log('Could not check processes, continuing...', 'yellow');
 }
 
-// Step 2: Stop train-daemon if running
-log('\n=== Stopping train-daemon if running ===', 'blue');
-try {
-  runCommand('pkill -f "train-daemon" 2>/dev/null || true');
-  log('Train-daemon stopped or not running', 'green');
-} catch (e) {
-  log('Train-daemon check failed, continuing...', 'yellow');
-}
-
-// Step 3: Clean repository with file-by-file verification
+// Step 2: Clean repository with file-by-file verification
 log('\n=== Repository Cleanup with File-by-File Verification ===', 'blue');
 
 // Database temporary files (keep them, they're needed)
@@ -88,9 +79,9 @@ for (const pid of pidFiles) {
   }
 }
 
-// Remove script output files
+// Remove script output JSON files
 try {
-  const outputFiles = runCommand('ls scripts/.script-output-*.json 2>/dev/null || true', { silent: true });
+  const outputFiles = runCommand('ls ./.script-output-*.json 2>/dev/null || true', { silent: true });
   if (outputFiles && outputFiles.trim()) {
     for (const file of outputFiles.trim().split('\n')) {
       if (existsSync(file)) {
@@ -103,7 +94,7 @@ try {
   // No output files to clean
 }
 
-// Step 4: Run syntax checks
+// Step 3: Run syntax checks
 log('\n=== Running syntax checks ===', 'blue');
 
 // Run syntax checks with explicit exit code handling
@@ -124,7 +115,7 @@ try {
   process.exit(1);
 }
 
-// Step 5: Get current version from package.json or git tag
+// Step 4: Get current version from package.json or git tag
 const pkgJsonPath = join(ROOT_DIR, 'package.json');
 const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
 const currentVersion = pkgJson.version;
@@ -142,7 +133,7 @@ try {
   log('No git tags found', 'yellow');
 }
 
-// Step 6: Get commits since last tag
+// Step 5: Get commits since last tag
 let commitsSinceTag = [];
 try {
   const sinceTag = latestTag || 'HEAD~1';
@@ -154,7 +145,7 @@ try {
   log('Could not get commits since tag', 'yellow');
 }
 
-// Step 7: Determine version bump
+// Step 6: Determine version bump
 let versionBump = 'patch';
 for (const commit of commitsSinceTag) {
   if (commit.toLowerCase().startsWith('feat:')) {
@@ -184,7 +175,7 @@ if (versionBump === 'minor') {
 log(`Version bump: ${versionBump}`, 'yellow');
 log(`New version: v${newVersion}`, 'green');
 
-// Step 8: Generate/update CHANGELOG.md following Keep a Changelog v1.1.0
+// Step 7: Generate/update CHANGELOG.md following Keep a Changelog v1.1.0
 const changelogPath = join(ROOT_DIR, 'CHANGELOG.md');
 const today = new Date().toISOString().split('T')[0];
 
@@ -215,7 +206,6 @@ function parseCommitType(commit) {
   const lower = commit.toLowerCase();
   if (lower.startsWith('feat:')) return 'feat';
   if (lower.startsWith('fix:')) return 'fix';
-  if (lower.startsWith('feat(') || lower.startsWith('fix(')) return 'feat'; // with scope
   if (lower.startsWith('feat(') || lower.startsWith('fix(')) return 'feat'; // with scope
   return 'other';
 }
@@ -352,7 +342,7 @@ function buildChangelogFromHistory(tags, unreleasedCommits) {
   result.push('');
   result.push('## Version History');
   result.push('');
-  result.push('For complete version history prior to the latest version, see the [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/main/CHANGELOG.md) or commit files.');
+  result.push('For complete version history prior to the latest version, see the git history or commit files.');
   result.push('');
   
   return result.join('\n');
@@ -376,7 +366,7 @@ const newChangelog = buildChangelogFromHistory(allTags, finalCommits);
 writeFileSync(changelogPath, newChangelog, 'utf-8');
 log(`Generated CHANGELOG.md from ${allTags.length} version tags`, 'green');
 
-// Step 9: Update README.md
+// Step 8: Update README.md
 const readmePath = join(ROOT_DIR, 'README.md');
 if (existsSync(readmePath)) {
   let readmeContent = readFileSync(readmePath, 'utf-8');
@@ -389,7 +379,7 @@ if (existsSync(readmePath)) {
       `Version v${newVersion}`
     );
     readmeContent = readmeContent.replace(
-      /v?[\d.]+(\s*\(.*?)?\)/i,
+      /v?[\d.]+(\s*\(.*?\))?/i,
       (match) => {
         if (match.includes(newVersion)) return match;
         const dateMatch = match.match(/\((.*?)\)/);
@@ -402,12 +392,12 @@ if (existsSync(readmePath)) {
   }
 }
 
-// Step 10: Update package.json version
+// Step 9: Update package.json version
 pkgJson.version = newVersion;
 writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n', 'utf-8');
 log(`Updated package.json to v${newVersion}`, 'green');
 
-// Step 11: Verify no sensitive files are staged
+// Step 10: Verify no sensitive files are staged
 log('\n=== Verifying staged files ===', 'blue');
 try {
   const stagedFiles = runCommand('git diff --cached --name-only 2>/dev/null || echo ""', { silent: true });
@@ -427,7 +417,7 @@ try {
   log('Could not verify staged files', 'yellow');
 }
 
-// Step 12: Stage all changes
+// Step 11: Stage all changes
 log('\n=== Staging changes ===', 'blue');
 try {
   runCommand('git add -A');
@@ -437,7 +427,7 @@ try {
   process.exit(1);
 }
 
-// Step 13: Commit
+// Step 12: Commit
 log('\n=== Committing changes ===', 'blue');
 try {
   runCommand(`git commit -m "chore: update CHANGELOG, README, and version to v${newVersion}"`);
@@ -451,7 +441,7 @@ try {
   }
 }
 
-// Step 14: Push to origin
+// Step 13: Push to origin
 log('\n=== Pushing to origin ===', 'blue');
 const branch = runCommand('git rev-parse --abbrev-ref HEAD', { silent: true }).trim();
 log(`Branch: ${branch}`, 'green');
@@ -479,7 +469,7 @@ if (!pushSuccess) {
   process.exit(1);
 }
 
-// Step 15: Verify remote sync
+// Step 14: Verify remote sync
 log('\n=== Verifying remote sync ===', 'blue');
 try {
   const localCommit = runCommand('git rev-parse HEAD', { silent: true }).trim();
