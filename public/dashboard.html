@@ -838,37 +838,25 @@
                     font-size: 11px;
                 }
                 .provider-header .actions {
-                    margin-left: auto;
-                    display: flex;
-                    gap: 4px;
+                            margin-left: auto;
+                            display: flex;
+                            gap: 4px;
+                        }
+                /* Hide model rows under collapsed provider headers - scoped to Models tab */
+                #tab-models .provider-header.collapsed ~ tr.model-row {
+                    display: none !important;
                 }
-        /* Hide model rows under collapsed provider headers - scoped to Models tab */
-        #tab-models .provider-header.collapsed ~ tr {
-            display: none !important;
-        }
-        /* Show collapsed rows that belong to expanded providers */
-        #tab-models .table-wrapper tbody tr {
-            display: table-row !important;
-        }
-        /* Scroll invisibile globale: mantiene lo scroll ma nasconde la barra ovunque */
-        * {
-            scrollbar-width: none;      /* Firefox */
-            -ms-overflow-style: none;    /* IE/Edge */
-        }
-        *::-webkit-scrollbar {
-            display: none;               /* Chrome/Safari/Opera */
-            width: 0 !important;
-            height: 0 !important;
-        }
-        *::-webkit-scrollbar-track {
-            display: none;
-        }
-        *::-webkit-scrollbar-thumb {
-            display: none;
-        }
-        *::-webkit-scrollbar-corner {
-            display: none;
-        }
+                /* Show all tbody rows (must come after collapse rule for proper cascade) */
+                #tab-models .table-wrapper tbody tr {
+                    display: table-row !important;
+                }
+                /* Models tab table - invisible vertical scrollbar - enable scrolling without visible scrollbar */
+                #tab-models .table-wrapper.models-table-wrapper {
+                    overflow-y: auto;
+                }
+                #tab-models .table-wrapper.models-table-wrapper::-webkit-scrollbar {
+                    display: none;
+                }
         #logs,
         #active-list,
         #script-output,
@@ -890,6 +878,54 @@
         .new-badge { color: #d29922; font-weight: bold; }
         .trend-down { color: #f85149; font-weight: bold; }
         .trend-flat { color: #8b949e; }
+
+        /* Responsive styles for Models tab on small screens */
+        @media (max-width: 600px) {
+            #tab-models .models-table-wrapper {
+                max-height: 300px;
+            }
+            #tab-models .provider-header td,
+            #tab-models .model-row td {
+                padding: 4px 6px;
+                font-size: 11px;
+            }
+            #tab-models .model-row td:nth-child(11) { /* Azioni column */
+                white-space: normal;
+                word-break: break-all;
+                min-width: 80px;
+            }
+            #tab-models .model-row .btn-block {
+                white-space: normal;
+                width: auto;
+                min-width: 60px;
+                padding: 2px 4px;
+                font-size: 10px;
+                margin: 2px 0;
+            }
+            #tab-models .model-row .btn-copy,
+            #tab-models .model-row .btn-reset {
+                white-space: normal;
+                width: auto;
+                min-width: 60px;
+                padding: 2px 4px;
+                font-size: 10px;
+                margin: 2px 0;
+            }
+            #tab-models .filter-bar {
+                flex-direction: column;
+                gap: 8px;
+            }
+            #tab-models .filter-input,
+            #tab-models button {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            #tab-models th {
+                font-size: 10px;
+                padding: 6px 4px;
+            }
+        }
+
         /* FAB (pulsante flottante) - ridotto e mobile */
         #dev-fab {
             position: fixed; bottom: 16px; right: 16px;
@@ -1449,26 +1485,26 @@
             <button id="models-reset-all" class="btn btn-danger" style="margin-left:10px;" data-action="reset-model">Reset Tutti i Modelli</button>
             <button id="models-toggle-view" class="btn" title="Alterna vista gruppi/piatte" style="margin-left:8px;">📊</button>
         </div>
-        <div class="table-wrapper">
+        <div class="table-wrapper models-table-wrapper" style="overflow-y: auto; max-height: 400px;">
            <table style="table-layout: fixed; width: 100%;">
-               <thead>
-                   <tr>
-                       <th data-sort="rank" style="width: 50px;">Rank</th>
-                       <th data-sort="id" style="width: 200px;">ID modello</th>
-                       <th data-sort="provider" style="width: 120px;">Provider</th>
-                       <th data-sort="N" class="mono" style="width: 40px;">N</th>
-                       <th data-sort="avg" class="mono" style="width: 80px; white-space: normal;">Avg Reward</th>
-                       <th data-sort="fails" style="width: 50px;">Fails</th>
-                       <th style="width: 100px;">Stato</th>
-                       <th style="width: 50px;">Free</th>
-                       <th style="width: 50px;">Paid</th>
-                       <th style="width: 60px;">Tools</th>
-                       <th style="width: 120px;">Azioni</th>
-                   </tr>
-               </thead>
-               <tbody id="models-tbody"></tbody>
-           </table>
-       </div>
+                <thead>
+                    <tr>
+                        <th data-sort="rank" style="width: 50px;">Rank</th>
+                        <th data-sort="id" style="width: 200px;">ID modello</th>
+                        <th data-sort="provider" style="width: 120px;">Provider</th>
+                        <th data-sort="N" class="mono" style="width: 40px;">N</th>
+                        <th data-sort="avg" class="mono" style="width: 80px; white-space: normal;">Avg Reward</th>
+                        <th data-sort="fails" style="width: 50px;">Fails</th>
+                        <th style="width: 100px;">Stato</th>
+                        <th style="width: 50px;">Free</th>
+                        <th style="width: 50px;">Paid</th>
+                        <th style="width: 60px;">Tools</th>
+                        <th style="width: 120px;">Azioni</th>
+                    </tr>
+                </thead>
+                <tbody id="models-tbody"></tbody>
+            </table>
+        </div>
     </div>
     <div id="tab-train" class="tab-content">
         <div class="metrics-bar" style="display:flex; gap:20px; margin-bottom:10px; padding:8px; background:#0d1117; border:1px solid #30363d; border-radius:6px;">
@@ -1511,7 +1547,7 @@
                         <th style="width: 50px;">Free</th>
                         <th style="width: 50px;">Paid</th>
                         <th style="width: 60px;">Tools</th>
-                        <th style="width: 120px;">Azioni</th>
+                        <th style="width: 140px;" id="actions-col-header">Azioni</th>
                     </tr>
                 </thead>
                 <tbody id="train-tbody"></tbody>
@@ -2171,15 +2207,17 @@
         
         // === Models Tab Toggle ===
         document.addEventListener('click', (e) => {
-            if (e.target && e.target.id === 'models-toggle-view') {
+            const btn = e.target.closest('#models-toggle-view');
+            if (btn) {
+                e.preventDefault();
+                e.stopPropagation();
                 // Toggle between flat and grouped mode for models tab
                 flatMode = !flatMode;
                 sortCol = null;
                 sortDir = 'asc';
                 document.querySelectorAll('th[data-sort]').forEach(t => t.classList.remove('sort-asc', 'sort-desc'));
                 // Update button text/icon
-                const btn = document.getElementById('models-toggle-view');
-                if (btn) btn.textContent = flatMode ? '📈' : '📊';
+                btn.textContent = flatMode ? '📈' : '📊';
                 renderAll();
             }
         });
@@ -2606,11 +2644,11 @@
 
                             html += renderProviderHeader(provider, info, models.length, isCollapsed);
 
-                            if (!isCollapsed || (forceExpand && modelsToShow.length > 0)) {
-                                const sorted = sortRows(modelsToShow);
-                                for (const m of sorted) {
-                                    html += renderModelRow(m);
-                                }
+                            // Always render model rows - CSS will hide them for collapsed providers
+                            // This is necessary because CSS display:none only works on rendered elements
+                            const sorted = sortRows(modelsToShow);
+                            for (const m of sorted) {
+                                html += renderModelRow(m);
                             }
                         }
                     }
@@ -2824,11 +2862,10 @@
 
                             html += renderProviderHeader(provider, info, models.length, isCollapsed);
 
-                            if (!isCollapsed || (forceExpand && modelsToShow.length > 0)) {
-                                const sorted = sortRows(modelsToShow);
-                                for (const m of sorted) {
-                                    html += renderModelRow(m);
-                                }
+                            // Always render model rows, but CSS will hide them if isCollapsed is true
+                            const sorted = sortRows(modelsToShow);
+                            for (const m of sorted) {
+                                html += renderModelRow(m);
                             }
                         }
                     }
@@ -2880,8 +2917,7 @@
                 statusBadge = '<span class="muted">(non ancora usato)</span>';
             }
 
-           return '<tr class="provider-header' + (isCollapsed ? ' collapsed' : '') + '" data-action="toggle-provider" data-name="' + safe + '">' +
-                           '<td colspan="11" style="padding:6px 8px;">' +
+           return '<tr class="provider-header' + (isCollapsed ? ' collapsed' : '') + '" data-provider="' + safe + '"><td colspan="11" style="padding:6px 8px;">' +
                                '<span class="header-content">' +
                                    '<span class="arrow">▼</span> ' +
                                    '<span class="provider-name">' + safe + '</span> ' +
@@ -2941,7 +2977,7 @@
                 ? '<span class="badge badge-active">✓</span>'
                 : (m.supports_tools === 0 ? '<span class="muted">—</span>' : '<span class="muted">?</span>');
 
-            return '<tr>' +
+            return '<tr class="model-row">' +
                 '<td class="mono" style="text-align:center">' + rank + '</td>' +
                 '<td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td>' +
                 '<td>' + escapeHtml(m.provider) + '</td>' +
@@ -3193,35 +3229,48 @@
 
         // ============= CLICK DELEGATION =============
         document.addEventListener('click', (e) => {
+            // Handle other button actions first (check for [data-action] buttons)
             const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const a = btn.dataset.action;
-            if (a === 'reset-model') resetModel(btn.dataset.id);
-            else if (a === 'block-model') blockModel(btn.dataset.id);
-            else if (a === 'reset-provider') resetProvider(btn.dataset.name);
-            else if (a === 'retry-provider') retryProvider(btn.dataset.name);
-            else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
-            else if (a === 'show-help') showHelp(btn.dataset.name);
-            else if (a === 'refresh-all') refreshAll();
-            else if (a === 'copy-logs') copyLogs();
-            else if (a === 'reset-counters') {
-                apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
+            if (btn) {
+                const a = btn.dataset.action;
+                if (a === 'reset-model') resetModel(btn.dataset.id);
+                else if (a === 'block-model') blockModel(btn.dataset.id);
+                else if (a === 'reset-provider') resetProvider(btn.dataset.name);
+                else if (a === 'retry-provider') retryProvider(btn.dataset.name);
+                else if (a === 'ignore-provider') ignoreProvider(btn.dataset.name);
+                else if (a === 'show-help') showHelp(btn.dataset.name);
+                else if (a === 'refresh-all') refreshAll();
+                else if (a === 'copy-logs') copyLogs();
+                else if (a === 'reset-counters') {
+                    apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
+                }
+                else if (a === 'reset-model' && btn.id === 'models-reset-all') {
+                    apiFetch('/v1/reset/model', { method: 'POST' }).then(() => refreshAll());
+                }
+                else if (a === 'reset-provider' && btn.id === 'providers-reset-all') {
+                    apiFetch('/v1/reset/provider', { method: 'POST' }).then(() => refreshAll());
+                }
+                return;
             }
-            else if (a === 'reset-model' && btn.id === 'models-reset-all') {
-                apiFetch('/v1/reset/model', { method: 'POST' }).then(() => refreshAll());
-            }
-            else if (a === 'reset-provider' && btn.id === 'providers-reset-all') {
-                apiFetch('/v1/reset/provider', { method: 'POST' }).then(() => refreshAll());
-            }
-            else if (a === 'toggle-provider') {
-                const name = btn.dataset.name;
-                // Toggle the provider's expanded state
-                // When user clicks, if provider is in expandedProviders, collapse it (remove); otherwise expand it (add)
-                if (expandedProviders.has(name)) expandedProviders.delete(name);
-                else expandedProviders.add(name);
-                // Save to localStorage
-                localStorage.setItem('dashboard.expandedProviders', JSON.stringify(Array.from(expandedProviders)));
-                renderAll();
+            
+            // Handle provider header toggle (click on provider header-content, not on action buttons)
+            const providerRow = e.target.closest('.provider-header[data-provider]');
+            if (providerRow) {
+                const headerContent = providerRow.querySelector('.header-content');
+                const actionsArea = providerRow.querySelector('.header-content .actions');
+                // Only toggle if clicking on header-content but NOT on the actions area
+                if (headerContent && headerContent.contains(e.target) && (!actionsArea || !actionsArea.contains(e.target))) {
+                    const name = providerRow.dataset.provider;
+                    // Toggle the provider's expanded state
+                    if (expandedProviders.has(name)) expandedProviders.delete(name);
+                    else expandedProviders.add(name);
+                    // Save to localStorage
+                    localStorage.setItem('dashboard.expandedProviders', JSON.stringify(Array.from(expandedProviders)));
+                    renderAll();
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
             }
         });
 
