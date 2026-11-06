@@ -807,57 +807,61 @@
             border-bottom: 1px solid #30363d;
         }
         .provider-header .header-content {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    min-width: 0;
-                    flex: 1;
-                    flex-wrap: nowrap;
-                }
-                .provider-header .arrow {
-                    display: inline-block;
-                    width: 14px;
-                    color: #58a6ff;
-                    transition: transform 0.15s;
-                }
-                .provider-header.collapsed .arrow {
-                    transform: rotate(90deg);
-                }
-                .provider-header:not(.collapsed) .arrow {
-                    transform: rotate(0deg);
-                }
-                .provider-header .provider-name {
-                    color: #58a6ff;
-                    font-weight: 600;
-                    min-width: 0;
-                    flex-shrink: 1;
-                }
-                .provider-header .model-count {
-                    color: #8b949e;
-                    font-weight: normal;
-                    font-size: 11px;
-                }
-                .provider-header .actions {
-                            margin-left: auto;
-                            display: flex;
-                            gap: 4px;
-                        }
-                /* Hide model rows under collapsed provider headers - scoped to Models tab */
-                #tab-models .provider-header.collapsed ~ tr.model-row {
-                    display: none !important;
-                }
-                /* Show all tbody rows (must come after collapse rule for proper cascade) */
-                #tab-models .table-wrapper tbody tr {
-                    display: table-row !important;
-                }
-                /* Models tab table - invisible vertical scrollbar - enable scrolling without visible scrollbar */
-                #tab-models .table-wrapper.models-table-wrapper {
-                    overflow-y: auto;
-                }
-                #tab-models .table-wrapper.models-table-wrapper::-webkit-scrollbar {
-                    display: none;
-                }
-        #logs,
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1;
+            flex-wrap: nowrap;
+        }
+        .provider-header .arrow {
+            display: inline-block;
+            width: 14px;
+            color: #58a6ff;
+            transition: transform 0.15s;
+        }
+        .provider-header.collapsed .arrow {
+            transform: rotate(90deg);
+        }
+        .provider-header:not(.collapsed) .arrow {
+            transform: rotate(0deg);
+        }
+        .provider-header .provider-name {
+            color: #58a6ff;
+            font-weight: 600;
+            min-width: 0;
+            flex-shrink: 1;
+        }
+        .provider-header .model-count {
+            color: #8b949e;
+            font-weight: normal;
+            font-size: 11px;
+        }
+        .provider-header .actions {
+            margin-left: auto;
+            display: flex;
+            gap: 4px;
+        }
+        /* Collapse behavior for Models tab */
+        /* Model rows always visible by default */
+        #tab-models .table-wrapper tbody tr.model-row,
+        #tab-models .table-wrapper tbody tr.provider-header {
+            display: table-row !important;
+        }
+        /* Hide model rows under collapsed provider headers */
+        #tab-models .provider-header.collapsed ~ tr.model-row {
+            display: none !important;
+        }
+        /* Models tab table - invisible vertical scrollbar - enable scrolling without visible scrollbar */
+        #tab-models .table-wrapper.models-table-wrapper {
+            overflow-y: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        #tab-models .table-wrapper.models-table-wrapper::-webkit-scrollbar {
+            display: none;
+        }
+        #log,
         #active-list,
         #script-output,
         #consideration-table-body,
@@ -889,27 +893,21 @@
                 padding: 4px 6px;
                 font-size: 11px;
             }
-            #tab-models .model-row td:nth-child(11) { /* Azioni column */
+            #tab-models .model-row td:nth-child(11),
+            #tab-models .provider-header td:nth-child(11) {
                 white-space: normal;
                 word-break: break-all;
-                min-width: 80px;
-            }
-            #tab-models .model-row .btn-block {
-                white-space: normal;
-                width: auto;
                 min-width: 60px;
-                padding: 2px 4px;
-                font-size: 10px;
-                margin: 2px 0;
             }
+            #tab-models .model-row .btn-block,
             #tab-models .model-row .btn-copy,
             #tab-models .model-row .btn-reset {
-                white-space: normal;
-                width: auto;
-                min-width: 60px;
-                padding: 2px 4px;
-                font-size: 10px;
-                margin: 2px 0;
+                white-space: normal !important;
+                width: auto !important;
+                min-width: 44px !important;
+                padding: 2px 4px !important;
+                font-size: 9px !important;
+                margin: 2px !important;
             }
             #tab-models .filter-bar {
                 flex-direction: column;
@@ -924,6 +922,29 @@
                 font-size: 10px;
                 padding: 6px 4px;
             }
+            /* Column width adjustments for small screens */
+            #tab-models thead th:nth-child(1) { width: 30px !important; }
+            #tab-models thead th:nth-child(2) { width: 120px !important; }
+            #tab-models thead th:nth-child(3) { width: 80px !important; }
+            #tab-models thead th:nth-child(4) { width: 30px !important; }
+            #tab-models thead th:nth-child(5) { width: 60px !important; }
+            #tab-models thead th:nth-child(6) { width: 35px !important; }
+            #tab-models thead th:nth-child(7) { width: 60px !important; }
+            #tab-models thead th:nth-child(8),
+            #tab-models thead th:nth-child(9) { width: 35px !important; }
+            #tab-models thead th:nth-child(10) { width: 40px !important; }
+            #tab-models thead th:nth-child(11) { width: 80px !important; min-width: 80px; }
+            #tab-models .model-row td:nth-child(1) { width: 30px !important; }
+            #tab-models .model-row td:nth-child(2) { padding-left: 16px; }
+            #tab-models .model-row td:nth-child(3) { width: 80px !important; }
+            #tab-models .model-row td:nth-child(4) { width: 30px !important; }
+            #tab-models .model-row td:nth-child(5) { width: 60px !important; }
+            #tab-models .model-row td:nth-child(6) { width: 35px !important; }
+            #tab-models .model-row td:nth-child(7) { width: 60px !important; }
+            #tab-models .model-row td:nth-child(8),
+            #tab-models .model-row td:nth-child(9) { width: 35px !important; }
+            #tab-models .model-row td:nth-child(10) { width: 40px !important; }
+            #tab-models .model-row td:nth-child(11) { width: 80px !important; }
         }
 
         /* FAB (pulsante flottante) - ridotto e mobile */
@@ -2564,10 +2585,6 @@
 
                     let html = '';
 
-                    // Bottone toggle visibile solo in flat mode
-                    const toggleBtn = document.getElementById('toggle-flat');
-                    if (toggleBtn) toggleBtn.style.display = flatMode ? 'inline-block' : 'none';
-
                     if (flatMode) {
                         // === FLAT MODE: tutti i modelli in un'unica tabella, sort globale ===
                         let allModels = [];
@@ -2581,15 +2598,15 @@
                             if (search && !providerMatches && matchingModels.length === 0) continue;
 
                             // Apply additional filters
-                                                        const filteredModels = matchingModels.filter(m => {
-                                                            // Status filter: if 'Tutti' (empty) or no status matches, show all models
-                                                            if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
-                                                            if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
-                                                            if (status === 'degraded' && Number(m.degraded) === 1) return true;
-                                                            if (status === 'banned' && Number(m.permanent) === 1) return true;
-                                                            if (status === '') return true;
-                                                            return false;
-                                                        });
+                            const filteredModels = matchingModels.filter(m => {
+                                // Status filter: if 'Tutti' (empty) or no status matches, show all models
+                                if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
+                                if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
+                                if (status === 'degraded' && Number(m.degraded) === 1) return true;
+                                if (status === 'banned' && Number(m.permanent) === 1) return true;
+                                if (status === '') return true;
+                                return false;
+                            });
                             
                             // N filter
                             const nFiltered = filteredModels.filter(m => Number(m.N) >= minN);
@@ -2787,10 +2804,10 @@
                     let html = '';
 
                     // Bottone toggle visibile solo in flat mode
-                    const toggleBtn = document.getElementById('toggle-flat');
-                    if (toggleBtn) toggleBtn.style.display = trainFlatMode ? 'inline-block' : 'none';
+                            const toggleBtn = document.getElementById('models-toggle-view');
+                            if (toggleBtn) toggleBtn.style.display = flatMode ? 'inline-block' : 'none';
 
-                    if (trainFlatMode) {
+                    if (flatMode) {
                         // === FLAT MODE: tutti i modelli in un'unica tabella, sort globale ===
                         let allModels = [];
                         for (const provider of providerNames) {
