@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- feat(dashboard): add real-time training status polling (3s interval) for dashboard updates
+- feat(dashboard): add Scripts Manager tab badge to indicate train-daemon running status
+- feat(dashboard): make "Log Training" button navigate to Scripts Manager tab
+
 ## [1.24.1] - 2026-11-06
 
 ### Fixed
