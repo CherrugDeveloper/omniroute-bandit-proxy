@@ -3267,10 +3267,6 @@ export class DiscountedUCB1Bandit {
         FROM catalog c
         LEFT JOIN models_train m ON c.id = m.id
       `;
-      activeCondition = "1 = 1";
-      cooldownCondition = "0 = 1";
-      degradedCondition = "0 = 1";
-      bannedCondition = "0 = 1";
     }
 
     // Build WHERE conditions
@@ -3300,13 +3296,58 @@ export class DiscountedUCB1Bandit {
     const totalResult = totalStmt.all(...params);
     const total = totalResult[0].count;
 
+    // Get counts by provider
+    const providerStmt = this.db.prepare(`
+      SELECT
+        c.provider,
+        COUNT(*) AS count
+      ${baseQuery}
+      ${whereClause}
+      GROUP BY c.provider
+    `);
+    const providerResult = providerStmt.all(...params);
+    const byProvider = {};
+    providerResult.forEach(row => {
+      byProvider[row.provider] = row.count;
+    });
+
+    if (source === "train") {
+      // Tested count: models where N > 0 or executionTime > 0
+      const testedStmt = this.db.prepare(`
+        SELECT COUNT(*) AS count ${baseQuery}
+        WHERE (m.N > 0 OR m.executionTime > 0)${whereClause ? " AND " + whereClause.slice(6) : ""}
+      `);
+      const tested = testedStmt.all(...params)[0].count;
+
+      // OK count: models where okStatus = 1
+      const okStmt = this.db.prepare(`
+        SELECT COUNT(*) AS count ${baseQuery}
+        WHERE m.okStatus = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+      `);
+      const ok = okStmt.all(...params)[0].count;
+
+      // Fail count: models where errorStatus = 1
+      const failStmt = this.db.prepare(`
+        SELECT COUNT(*) AS count ${baseQuery}
+        WHERE m.errorStatus = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+      `);
+      const fail = failStmt.all(...params)[0].count;
+
+      return {
+        total,
+        tested,
+        ok,
+        fail,
+        byProvider
+      };
+    }
+
     // Get active count
     const activeStmt = this.db.prepare(`
       SELECT COUNT(*) AS count ${baseQuery}
       WHERE ${activeCondition}${whereClause ? " AND " + whereClause.slice(6) : ""}
     `);
-    const activeParams = source === "train" ? [...params] : [now, ...params];
-    const activeResult = activeStmt.all(activeParams);
+    const activeResult = activeStmt.all(now, ...params);
     const active = activeResult[0].count;
 
     // Get cooldown count
@@ -3314,8 +3355,7 @@ export class DiscountedUCB1Bandit {
       SELECT COUNT(*) AS count ${baseQuery}
       WHERE ${cooldownCondition}${whereClause ? " AND " + whereClause.slice(6) : ""}
     `);
-    const cooldownParams = source === "train" ? [...params] : [now, ...params];
-    const cooldownResult = cooldownStmt.all(cooldownParams);
+    const cooldownResult = cooldownStmt.all(now, ...params);
     const cooldown = cooldownResult[0].count;
 
     // Get degraded count
@@ -3333,21 +3373,6 @@ export class DiscountedUCB1Bandit {
     `);
     const bannedResult = bannedStmt.all(...params);
     const banned = bannedResult[0].count;
-
-    // Get counts by provider
-    const providerStmt = this.db.prepare(`
-      SELECT
-        c.provider,
-        COUNT(*) AS count
-      ${baseQuery}
-      ${whereClause}
-      GROUP BY c.provider
-    `);
-    const providerResult = providerStmt.all(...params);
-    const byProvider = {};
-    providerResult.forEach(row => {
-      byProvider[row.provider] = row.count;
-    });
 
     return {
       total,
@@ -3395,22 +3420,32 @@ export class DiscountedUCB1Bandit {
 
   getTrainingStatus() {
     try {
-      const status = this.db.prepare(`
+      const latest = this.db.prepare(`
         SELECT * FROM models_train ORDER BY last_used_index DESC LIMIT 1
       `).get();
-      
+
+      const totals = this.db.prepare(`
+        SELECT
+          SUM(calledModels) as totalCalled,
+          SUM(okStatus) as totalOk,
+          SUM(errorStatus) as totalErr,
+          MAX(last_used_index) as cycleCount
+        FROM models_train
+      `).get();
+
       return {
-        isTraining: status ? status.isTraining === 1 : false,
-        executionTime: status ? status.executionTime : 0,
-        calledModels: status ? status.calledModels : 0,
-        okStatus: status ? status.okStatus : 0,
-        errorStatus: status ? status.errorStatus : 0,
-        lastRun: status ? status.last_used_index : null,
-        statusMessage: status ? status.statusMessage : 'Idle'
+        isTraining: latest ? latest.isTraining === 1 : false,
+        executionTime: latest ? latest.executionTime : 0,
+        calledModels: totals && totals.totalCalled !== null ? totals.totalCalled : (latest ? latest.calledModels : 0),
+        okStatus: totals && totals.totalOk !== null ? totals.totalOk : (latest ? latest.okStatus : 0),
+        errorStatus: totals && totals.totalErr !== null ? totals.totalErr : (latest ? latest.errorStatus : 0),
+        cycleCount: totals && totals.cycleCount !== null ? (totals.cycleCount + 1) : (latest && latest.last_used_index !== undefined ? latest.last_used_index + 1 : 1),
+        lastRun: latest ? latest.last_used_index : null,
+        statusMessage: latest ? latest.statusMessage : 'Idle'
       };
     } catch (e) {
       console.warn("[BANDIT] getTrainingStatus error:", e.message);
-      return { isTraining: false, executionTime: 0, calledModels: 0, okStatus: 0, errorStatus: 0, lastRun: null, statusMessage: 'Error querying training status' };
+      return { isTraining: false, executionTime: 0, calledModels: 0, okStatus: 0, errorStatus: 0, cycleCount: 0, lastRun: null, statusMessage: 'Error querying training status' };
     }
   }
 

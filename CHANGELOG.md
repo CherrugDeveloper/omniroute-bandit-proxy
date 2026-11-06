@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.2] - 2026-11-06
+
 ### Added
 - feat(dashboard): add real-time training status polling (3s interval) for dashboard updates
 - feat(dashboard): add Scripts Manager tab badge to indicate train-daemon running status
 - feat(dashboard): make "Log Training" button navigate to Scripts Manager tab
+- feat(dashboard): add cumulative count and cycle counter to Training Status
+- feat(dashboard): update Provider Quota view with RPM/RPD queries and quota reset column
+- feat(dashboard): add container-scoped individual reset buttons to top UI boxes
+
+### Fixed
+- fix(dashboard): correct "scripti" typo to "scripts" across codebase and UI
+- fix(dashboard): ensure logs are visible in Scripts Manager tab upon switching
+- fix(dashboard): update Train tab metrics and summary queries for tested models
+- fix(dashboard): optimize Scripts Manager table for responsive UI
 
 ## [1.24.1] - 2026-11-06
 
