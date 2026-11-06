@@ -843,13 +843,12 @@
             gap: 4px;
         }
         /* Collapse behavior for Models tab */
-        /* Model rows always visible by default */
-        #tab-models .table-wrapper tbody tr.model-row,
+        /* Provider headers always visible */
         #tab-models .table-wrapper tbody tr.provider-header {
             display: table-row !important;
         }
-        /* Hide model rows under collapsed provider headers */
-        #tab-models .provider-header.collapsed ~ tr.model-row {
+        /* Model rows hidden when their provider is collapsed */
+        #tab-models .table-wrapper tbody tr.model-row.collapsed-provider {
             display: none !important;
         }
         /* Models tab table - invisible vertical scrollbar - enable scrolling without visible scrollbar */
@@ -2728,9 +2727,12 @@
                 .catch(err => {
                     console.error('Errore fetch modelli:', err);
                     tbody.innerHTML = '<tr><td colspan="11" class="empty">Errore caricamento dati</td></tr>';
+                })
+                .finally(() => {
+                    renderAllPending = false;
                 });
         }
-        
+
         function renderTrainAll() {
             // Debounce to prevent concurrent renders
             if (window.renderTrainAllPending) return;
@@ -2804,8 +2806,8 @@
                     let html = '';
 
                     // Bottone toggle visibile solo in flat mode
-                            const toggleBtn = document.getElementById('models-toggle-view');
-                            if (toggleBtn) toggleBtn.style.display = flatMode ? 'inline-block' : 'none';
+                    const toggleBtn = document.getElementById('models-toggle-view');
+                    if (toggleBtn) toggleBtn.style.display = flatMode ? 'inline-block' : 'none';
 
                     if (flatMode) {
                         // === FLAT MODE: tutti i modelli in un'unica tabella, sort globale ===
@@ -2820,15 +2822,15 @@
                             if (search && !providerMatches && matchingModels.length === 0) continue;
 
                             // Apply additional filters
-                                                        const filteredModels = matchingModels.filter(m => {
-                                                            // Status filter: if 'Tutti' (empty) or no status matches, show all models
-                                                            if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
-                                                            if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
-                                                            if (status === 'degraded' && Number(m.degraded) === 1) return true;
-                                                            if (status === 'banned' && Number(m.permanent) === 1) return true;
-                                                            if (status === '') return true;
-                                                            return false;
-                                                        });
+                            const filteredModels = matchingModels.filter(m => {
+                                // Status filter: if 'Tutti' (empty) or no status matches, show all models
+                                if (status === 'active' && (!m.permanent && !m.needs_attention && (!m.cooldown_until || m.cooldown_until <= Date.now()))) return true;
+                                if (status === 'cooldown' && m.cooldown_until && m.cooldown_until > Date.now()) return true;
+                                if (status === 'degraded' && Number(m.degraded) === 1) return true;
+                                if (status === 'banned' && Number(m.permanent) === 1) return true;
+                                if (status === '') return true;
+                                return false;
+                            });
                             
                             // N filter
                             const nFiltered = filteredModels.filter(m => Number(m.N) >= minN);
@@ -2879,11 +2881,11 @@
 
                             html += renderProviderHeader(provider, info, models.length, isCollapsed);
 
-                            // Always render model rows, but CSS will hide them if isCollapsed is true
-                            const sorted = sortRows(modelsToShow);
-                            for (const m of sorted) {
-                                html += renderModelRow(m);
-                            }
+                           // Always render model rows, but CSS will hide them if isCollapsed is true
+                           const sorted = sortRows(modelsToShow);
+                           for (const m of sorted) {
+                              html += renderModelRow(m, isCollapsed);
+                          }
                         }
                     }
 
@@ -2946,7 +2948,7 @@
                        '</tr>';
         }
 
-        function renderModelRow(m) {
+        function renderModelRow(m, isCollapsed = false) {
             const n = Number(m.N) || 0;
             const avg = Number(m.avg) || 0;
             const fails = Number(m.fails) || 0;
@@ -2994,10 +2996,11 @@
                 ? '<span class="badge badge-active">✓</span>'
                 : (m.supports_tools === 0 ? '<span class="muted">—</span>' : '<span class="muted">?</span>');
 
-            return '<tr class="model-row">' +
-                '<td class="mono" style="text-align:center">' + rank + '</td>' +
-                '<td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td>' +
-                '<td>' + escapeHtml(m.provider) + '</td>' +
+            const safeProvider = escapeHtml(m.provider);
+            return '<tr class="model-row' + (isCollapsed ? ' collapsed-provider' : '') + '" data-provider="' + safeProvider + '">' +
+               '<td class="mono" style="text-align:center">' + rank + '</td>' +
+               '<td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td>' +
+               '<td>' + escapeHtml(m.provider) + '</td>' +
                 '<td class="mono ok">' + n.toFixed(1) + '</td>' +
                 '<td class="mono ok">' + avg.toFixed(3) + '</td>' +
                 '<td>' + (fails > 0 ? '<span class="err">' + fails + '</span>' : '<span class="muted">0</span>') + '</td>' +
