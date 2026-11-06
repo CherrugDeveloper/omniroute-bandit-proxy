@@ -344,6 +344,7 @@
         .badge-catalog { background: rgba(57, 210, 219, 0.15); color: #39d2db; border: 1px solid rgba(57, 210, 219, 0.3); }
         .badge-free { background: rgba(45, 164, 138, 0.15); color: #2da48a; border: 1px solid rgba(45, 164, 138, 0.3); }
         .badge-raw { background: rgba(139, 148, 158, 0.15); color: #8b949e; border: 1px solid rgba(139, 148, 158, 0.3); }
+        .badge-training { background: rgba(58, 150, 242, 0.2); color: #36b8ff; border: 1px solid rgba(58, 150, 242, 0.4); }
 
         .tabs {
             display: flex;
@@ -1313,7 +1314,7 @@
         <button class="tab-btn" data-tab="train">🏋️ Train</button>
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
         <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
-        <button class="tab-btn" data-tab="scripts">🛠️ Scripts Manager</button>
+        <button class="tab-btn" data-tab="scripts"><span>🛠️ Scripts Manager</span><span id="scripts-badge" class="badge badge-training" style="display:none; margin-left:4px;">● RUNNING</span></button>
     </div>
 
     <div id="tab-logs" class="tab-content active">
@@ -1976,6 +1977,7 @@
                 const r = await apiFetch('/v1/training/status');
                 if (!r.ok) {
                     document.getElementById('training-status-state').textContent = 'Error';
+                    updateTrainingBadge(false);
                     return;
                 }
                 const d = await r.json();
@@ -1987,9 +1989,21 @@
                 document.getElementById('training-status-models').textContent = d.calledModels || 0;
                 document.getElementById('training-status-ok').textContent = d.okStatus || 0;
                 document.getElementById('training-status-err').textContent = d.errorStatus || 0;
+                updateTrainingBadge(d.isTraining);
             } catch (e) {
                 const el = document.getElementById('training-status-content');
                 if (el) el.textContent = 'Error: ' + e.message;
+                updateTrainingBadge(false);
+            }
+        }
+
+        function updateTrainingBadge(isRunning) {
+            const badge = document.getElementById('scripts-badge');
+            if (!badge) return;
+            if (isRunning) {
+                badge.style.display = 'inline-flex';
+            } else {
+                badge.style.display = 'none';
             }
         }
 
@@ -2166,6 +2180,11 @@
                     const container = document.getElementById('script-output-container');
                     const title = document.getElementById('script-output-title');
                     
+                    // Switch to Scripts Manager tab for logs action
+                    if (arg === 'logs') {
+                        switchTab('scripts');
+                    }
+                    
                     container.style.display = 'block';
                     title.textContent = 'Quick Action: ' + scriptName + (arg ? ' ' + arg : '');
                     statusDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
@@ -2228,6 +2247,11 @@
             const t = document.querySelector('.tab-content.active');
             if (t && t.id === 'tab-modes') loadModes();
         }, 5000);
+        // === Training Status Polling ===
+        setInterval(() => {
+            if (document.hidden) return;
+            updateTrainingStatus();
+        }, 3000);
         // === Tabs ===
         document.addEventListener('click', (e) => {
             if (e.target && e.target.id === 'toggle-btn') {
