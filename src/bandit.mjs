@@ -733,7 +733,19 @@ export class DiscountedUCB1Bandit {
           const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
           const isFree = isFreeModel(modelId) ? 1 : 0;
           const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
-          const supportsTools = (!isFim && m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
+          let supportsTools = (m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
+          if (!supportsTools && !isFim) {
+            const toolPatterns = [/gpt-4/i, /gpt-3\.5/i, /o1/i, /o3/i, /o4/i, /claude-3/i, /claude-4/i, /llama-3/i, /llama-4/i, /mistral/i, /mixtral/i, /codestral/i, /qwen2/i, /qwen3/i, /deepseek/i, /gemini/i, /command-r/i, /glm-4/i, /chat/i];
+            const excludeToolPatterns = /embedding|rerank|moderation|zero|base|completion$|stt|tts/i;
+            if (!excludeToolPatterns.test(modelId)) {
+              for (const p of toolPatterns) {
+                if (p.test(modelId)) {
+                  supportsTools = 1;
+                  break;
+                }
+              }
+            }
+          }
           const supportsVision = (m && typeof m === "object" && m.capabilities && m.capabilities.vision === true) ? 1 : 0;
 
           const lowerId = modelId.toLowerCase();
@@ -3042,6 +3054,7 @@ export class DiscountedUCB1Bandit {
         m.dynamic_max_tokens,
         c.is_free,
         c.supports_tools,
+        c.supports_vision,
         c.max_input_tokens
     `;
 
@@ -3184,6 +3197,7 @@ export class DiscountedUCB1Bandit {
         is_paid: model.is_paid === 1,
         is_free: model.is_free === 1,
         supports_tools: model.supports_tools === 1,
+        supports_vision: model.supports_vision === 1,
         dynamic_max_tokens: model.dynamic_max_tokens,
         consecutive_5xx: model.consecutive_5xx,
         rank: rank // Will be updated below

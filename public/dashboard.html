@@ -821,10 +821,10 @@
             transition: transform 0.15s;
         }
         .provider-header.collapsed .arrow {
-            transform: rotate(90deg);
+            transform: rotate(0deg);
         }
         .provider-header:not(.collapsed) .arrow {
-            transform: rotate(0deg);
+            transform: rotate(90deg);
         }
         .provider-header .provider-name {
             color: #58a6ff;
@@ -1511,7 +1511,6 @@
                     <tr>
                         <th data-sort="rank" style="width: 50px;">Rank</th>
                         <th data-sort="id" style="width: 200px;">ID modello</th>
-                        <th data-sort="provider" style="width: 120px;">Provider</th>
                         <th data-sort="N" class="mono" style="width: 40px;">N</th>
                         <th data-sort="avg" class="mono" style="width: 80px; white-space: normal;">Avg Reward</th>
                         <th data-sort="fails" style="width: 50px;">Fails</th>
@@ -1519,6 +1518,7 @@
                         <th style="width: 50px;">Free</th>
                         <th style="width: 50px;">Paid</th>
                         <th style="width: 60px;">Tools</th>
+                        <th style="width: 50px;">Vision</th>
                         <th style="width: 120px;">Azioni</th>
                     </tr>
                 </thead>
@@ -2664,7 +2664,7 @@
                             // This is necessary because CSS display:none only works on rendered elements
                             const sorted = sortRows(modelsToShow);
                             for (const m of sorted) {
-                                html += renderModelRow(m);
+                                html += renderModelRow(m, isCollapsed);
                             }
                         }
                     }
@@ -2938,7 +2938,7 @@
 
            return '<tr class="provider-header' + (isCollapsed ? ' collapsed' : '') + '" data-provider="' + safe + '"><td colspan="11" style="padding:6px 8px;">' +
                                '<span class="header-content">' +
-                                   '<span class="arrow">▼</span> ' +
+                                   '<span class="arrow">▶</span> ' +
                                    '<span class="provider-name">' + safe + '</span> ' +
                                    '<span class="model-count">(' + modelCount + ' modelli)</span> ' +
                                    '<span class="status-badge">' + statusBadge + '</span>' +
@@ -2995,12 +2995,15 @@
             const toolsBadge = m.supports_tools === 1
                 ? '<span class="badge badge-active">✓</span>'
                 : (m.supports_tools === 0 ? '<span class="muted">—</span>' : '<span class="muted">?</span>');
+            // Vision badge
+            const visionBadge = m.supports_vision === 1
+                ? '<span class="badge badge-active">✓</span>'
+                : '<span class="muted">—</span>';
 
             const safeProvider = escapeHtml(m.provider);
             return '<tr class="model-row' + (isCollapsed ? ' collapsed-provider' : '') + '" data-provider="' + safeProvider + '">' +
                '<td class="mono" style="text-align:center">' + rank + '</td>' +
                '<td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td>' +
-               '<td>' + escapeHtml(m.provider) + '</td>' +
                 '<td class="mono ok">' + n.toFixed(1) + '</td>' +
                 '<td class="mono ok">' + avg.toFixed(3) + '</td>' +
                 '<td>' + (fails > 0 ? '<span class="err">' + fails + '</span>' : '<span class="muted">0</span>') + '</td>' +
@@ -3008,6 +3011,7 @@
                 '<td style="text-align:center">' + freeBadge + '</td>' +
                 '<td style="text-align:center">' + paidBadge + '</td>' +
                 '<td style="text-align:center">' + toolsBadge + '</td>' +
+                '<td style="text-align:center">' + visionBadge + '</td>' +
                 '<td>' + actions + '</td>' +
                 '</tr>';
         }
