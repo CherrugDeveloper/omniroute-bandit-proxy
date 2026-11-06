@@ -95,9 +95,13 @@ function updateTrainingStatus() {
   
   try {
     const db = new Database(DB_PATH, { readonly: false });
+    // Get last_used_index from existing record, or use 0
+    const existing = db.prepare(`SELECT last_used_index FROM models_train WHERE id = 'train-daemon'`).get();
+    const lastUsedIndex = existing ? existing.last_used_index + 1 : 0;
+    
     db.prepare(`
       INSERT INTO models_train (id, provider, sum_reward, N, last_used_index, isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage)
-      VALUES (?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         isTraining = excluded.isTraining,
         executionTime = excluded.executionTime,
@@ -106,7 +110,7 @@ function updateTrainingStatus() {
         errorStatus = excluded.errorStatus,
         statusMessage = excluded.statusMessage,
         last_used_index = last_used_index + 1
-    `).run('train-daemon', 'train-daemon', 0, 0, now, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
+    `).run('train-daemon', '', 0, 0, lastUsedIndex, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
     db.close();
   } catch (e) {
     console.error(`[${new Date().toLocaleTimeString()}] Error updating training status:`, e.message);

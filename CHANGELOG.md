@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - fix(sql): resolve parameter count mismatch in updateTrainingStatus() ([abc123](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commit/abc123))
+- fix(sql): synchronize train-daemon.mjs updateTrainingStatus() with bandit.mjs fix
 - fix(dashboard): correct escaped quotes in Training Status link ([def456](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commit/def456))
 
 ## [1.24.0] - 2026-11-06
