@@ -471,21 +471,21 @@
             #tab-models .table-wrapper th:nth-child(8), #tab-models .table-wrapper td:nth-child(8) { width: 40px; }
             #tab-models .table-wrapper th:nth-child(9), #tab-models .table-wrapper td:nth-child(9) { width: 40px; }
             #tab-models .table-wrapper th:nth-child(10), #tab-models .table-wrapper td:nth-child(10) { width: 50px; }
-            #tab-models .table-wrapper th:nth-child(11), #tab-models .table-wrapper td:nth-child(11) { width: 90px; }
+            #tab-models .table-wrapper th:nth-child(11), #tab-models .table-wrapper td:nth-child(11) { width: 120px; }
         }
 
         @media (max-width: 600px) {
             #tab-models .table-wrapper th:nth-child(1), #tab-models .table-wrapper td:nth-child(1) { width: 30px; }
-            #tab-models .table-wrapper th:nth-child(2), #tab-models .table-wrapper td:nth-child(2) { width: 100px; }
-            #tab-models .table-wrapper th:nth-child(3), #tab-models .table-wrapper td:nth-child(3) { width: 60px; }
+            #tab-models .table-wrapper th:nth-child(2), #tab-models .table-wrapper td:nth-child(2) { width: 90px; }
+            #tab-models .table-wrapper th:nth-child(3), #tab-models .table-wrapper td:nth-child(3) { width: 55px; }
             #tab-models .table-wrapper th:nth-child(4), #tab-models .table-wrapper td:nth-child(4) { width: 30px; }
-            #tab-models .table-wrapper th:nth-child(5), #tab-models .table-wrapper td:nth-child(5) { width: 50px; }
-            #tab-models .table-wrapper th:nth-child(6), #tab-models .table-wrapper td:nth-child(6) { width: 35px; }
-            #tab-models .table-wrapper th:nth-child(7), #tab-models .table-wrapper td:nth-child(7) { width: 70px; }
-            #tab-models .table-wrapper th:nth-child(8), #tab-models .table-wrapper td:nth-child(8) { width: 35px; }
-            #tab-models .table-wrapper th:nth-child(9), #tab-models .table-wrapper td:nth-child(9) { width: 35px; }
-            #tab-models .table-wrapper th:nth-child(10), #tab-models .table-wrapper td:nth-child(10) { width: 40px; }
-            #tab-models .table-wrapper th:nth-child(11), #tab-models .table-wrapper td:nth-child(11) { width: 70px; }
+            #tab-models .table-wrapper th:nth-child(5), #tab-models .table-wrapper td:nth-child(5) { width: 45px; }
+            #tab-models .table-wrapper th:nth-child(6), #tab-models .table-wrapper td:nth-child(6) { width: 30px; }
+            #tab-models .table-wrapper th:nth-child(7), #tab-models .table-wrapper td:nth-child(7) { width: 65px; }
+            #tab-models .table-wrapper th:nth-child(8), #tab-models .table-wrapper td:nth-child(8) { width: 30px; }
+            #tab-models .table-wrapper th:nth-child(9), #tab-models .table-wrapper td:nth-child(9) { width: 30px; }
+            #tab-models .table-wrapper th:nth-child(10), #tab-models .table-wrapper td:nth-child(10) { width: 35px; }
+            #tab-models .table-wrapper th:nth-child(11), #tab-models .table-wrapper td:nth-child(11) { width: 110px; overflow: visible; }
         }
 
         table { width: 100%; border-collapse: collapse; }
@@ -1020,6 +1020,7 @@
             background: none; border: none; color: #8b949e;
             font-size: 18px; cursor: pointer; padding: 4px 8px;
             border-radius: 4px; transition: background 0.15s;
+            z-index: 1005;
         }
         .dev-modal-close:hover { background: #21262d; color: #c9d1d9; }
         .dev-card-header { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; }
@@ -1140,7 +1141,31 @@
             position: absolute;
             left: 0;
         }
-    </style>
+        /* Ensure changelog modal has proper scrollable area */
+        #modal-changelog .dev-modal {
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        /* Ensure changelog content wraps properly */
+        #changelog-content {
+            max-width: 100%;
+            word-break: break-word;
+        }
+        #changelog-content .cl-release {
+            padding: 12px 16px;
+        }
+        #changelog-content .cl-version {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        #changelog-content .cl-latest {
+            white-space: nowrap;
+        }
+        /* Modal overlay z-index */
+        #modal-changelog {
+            z-index: 9999;
+        }
+     </style>
 </head>
 <body>
     <div class="card">
@@ -1217,27 +1242,27 @@
             <div class="stats">
                 <strong>Modelli:</strong>
                 <div class="stats-grid">
-                    <span>Monitorati: <span id="total-models" class="badge badge-monitorati tabular-nums">0</span></span>
-                    <span>Attivi: <span id="active-models" class="badge badge-attivi tabular-nums">0</span></span>
-                    <span>Cooldown: <span id="cooldown-models" class="badge badge-cooldown tabular-nums">0</span></span>
-                    <span>Bannati: <span id="banned-models" class="badge badge-bannati tabular-nums">0</span></span>
-                    <span>Degraded: <span id="degraded-models" class="badge badge-degraded tabular-nums">0</span></span>
-                    <span>Config: <span id="attention-models" class="badge badge-config tabular-nums">0</span></span>
-                    <span>Catalogo: <span id="catalog-models" class="badge badge-catalog tabular-nums">0</span></span>
-                    <span>Free: <span id="catalog-free" class="badge badge-free tabular-nums">0</span></span>
-                    <span>Grezzi: <span id="catalog-models-raw" class="badge badge-raw tabular-nums">0</span></span>
+                    <span>Monitorati: <span id="models-count-total" class="badge badge-monitorati tabular-nums">0</span></span>
+                    <span>Attivi: <span id="models-count-active" class="badge badge-attivi tabular-nums">0</span></span>
+                    <span>Cooldown: <span id="models-count-cooldown" class="badge badge-cooldown tabular-nums">0</span></span>
+                    <span>Bannati: <span id="models-count-banned" class="badge badge-bannati tabular-nums">0</span></span>
+                    <span>Degraded: <span id="models-count-degraded" class="badge badge-degraded tabular-nums">0</span></span>
+                    <span>Config: <span id="models-count-attention" class="badge badge-config tabular-nums">0</span></span>
+                    <span>Catalogo: <span id="models-count-catalog" class="badge badge-catalog tabular-nums">0</span></span>
+                    <span>Free: <span id="models-count-free" class="badge badge-free tabular-nums">0</span></span>
+                    <span>Grezzi: <span id="models-count-raw" class="badge badge-raw tabular-nums">0</span></span>
                 </div>
             </div>
 
             <div class="stats">
                 <strong>Provider:</strong>
                 <div class="stats-grid">
-                    <span>Attivi: <span id="active-providers" class="ok tabular-nums">0</span></span>
-                    <span>Cooldown: <span id="cooldown-providers" class="warn tabular-nums">0</span></span>
-                    <span>Bannati: <span id="banned-providers" class="err tabular-nums">0</span></span>
-                    <span>Config: <span id="attention-providers" class="attention tabular-nums">0</span></span>
-                    <span>Monitorati: <span id="total-providers" class="badge badge-monitorati tabular-nums">0</span></span>
-                    <span>Catalogo: <span id="catalog-providers" class="badge badge-catalog tabular-nums">0</span></span>
+                    <span>Attivi: <span id="providers-count-active" class="ok tabular-nums">0</span></span>
+                    <span>Cooldown: <span id="providers-count-cooldown" class="warn tabular-nums">0</span></span>
+                    <span>Bannati: <span id="providers-count-banned" class="err tabular-nums">0</span></span>
+                    <span>Config: <span id="providers-count-attention" class="attention tabular-nums">0</span></span>
+                    <span>Monitorati: <span id="providers-count-total" class="badge badge-monitorati tabular-nums">0</span></span>
+                    <span>Catalogo: <span id="providers-count-catalog" class="badge badge-catalog tabular-nums">0</span></span>
                 </div>
                 <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
@@ -2358,7 +2383,7 @@
         }
         // === Changelog rendering ===
         function extractFirstVersion(md) {
-            const m = md.match(/^##\s+\[?(v[\d.]+)\]?/m);
+            const m = md.match(/^##\s+\[?(v?[\d.]+)\]?/m);
             return m ? m[1] : null;
         }
 
@@ -2380,7 +2405,7 @@
             let current = null;
 
             for (const line of lines) {
-                const h2 = line.match(/^##\s+\[?(v[\d.]+|Unreleased)\]?\s*(.*)$/);
+                            const h2 = line.match(/^##\s+\[?(v?[\d.]+|Unreleased)\]?\s*(.*)$/);
                 if (h2) {
                     if (current) releases.push(current);
                     const rawDate = (h2[2] || '').replace(/^[—–\-·•]+\s*/, '').trim();
@@ -3428,13 +3453,29 @@
                 updateStat('degraded-models', d.modelsDegraded, 'modelsDegraded');
                 updateStat('attention-models', d.modelsAttention, 'modelsAttention');
                 updateStat('total-models', d.totalModels, 'totalModels');
+                
+                // Also update Stats section elements (different IDs from tab elements)
+                updateStat('models-count-active', d.modelsActive, 'modelsActive');
+                updateStat('models-count-cooldown', d.modelsCooldown, 'modelsCooldown');
+                updateStat('models-count-banned', d.modelsBanned, 'modelsBanned');
+                updateStat('models-count-degraded', d.modelsDegraded, 'modelsDegraded');
+                updateStat('models-count-attention', d.modelsAttention, 'modelsAttention');
+                updateStat('models-count-total', d.totalModels, 'totalModels');
 
                 updateStat('active-providers', d.providersActive, 'providersActive');
                 updateStat('cooldown-providers', d.providersCooldown, 'providersCooldown');
                 updateStat('banned-providers', d.providersBanned, 'providersBanned');
                 updateStat('attention-providers', d.providersAttention, 'providersAttention');
-                updateStat('total-providers', d.totalProviders, 'totalProviders');
+                updateStat('total-providers', d.totalProviders, 'providersTotal');
                 updateStat('catalog-providers', d.catalogProviders, 'catalogProviders');
+                
+                // Also update Stats section elements (different IDs from tab elements)
+                updateStat('providers-count-active', d.providersActive, 'providersActive');
+                updateStat('providers-count-cooldown', d.providersCooldown, 'providersCooldown');
+                updateStat('providers-count-banned', d.providersBanned, 'providersBanned');
+                updateStat('providers-count-attention', d.providersAttention, 'providersAttention');
+                updateStat('providers-count-total', d.totalProviders, 'providersTotal');
+                updateStat('providers-count-catalog', d.catalogProviders, 'catalogProviders');
 
                 // Calculate and update percentage metrics
                 const totalProviders = d.totalProviders || 0;
@@ -5041,7 +5082,7 @@
         <div class="dev-modal">
             <button class="dev-modal-close" data-close="modal-changelog">✕</button>
             <h3 style="color:#58a6ff; margin:0 0 16px 0;">📜 Changelog</h3>
-            <div id="changelog-content" style="font-size:13px; line-height:1.7; color:#c9d1d9;">Caricamento...</div>
+            <div id="changelog-content" style="font-size:13px; line-height:1.7; color:#c9d1d9; max-height:60vh; overflow-y:auto; word-break:break-word; scrollbar-width:none; -webkit-scrollbar:none;">Caricamento...</div>
         </div>
     </div>
 
