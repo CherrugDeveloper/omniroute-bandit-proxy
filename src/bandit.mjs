@@ -3417,9 +3417,13 @@ export class DiscountedUCB1Bandit {
   updateTrainingStatus(isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage) {
     try {
       const now = Date.now();
+      // Get last_used_index from existing record, or use 0
+      const existing = this.db.prepare(`SELECT last_used_index FROM models_train WHERE id = 'train-daemon'`).get();
+      const lastUsedIndex = existing ? existing.last_used_index + 1 : 0;
+      
       this.db.prepare(`
         INSERT INTO models_train (id, provider, sum_reward, N, last_used_index, isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage)
-        VALUES (?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           isTraining = excluded.isTraining,
           executionTime = excluded.executionTime,
@@ -3428,7 +3432,7 @@ export class DiscountedUCB1Bandit {
           errorStatus = excluded.errorStatus,
           statusMessage = excluded.statusMessage,
           last_used_index = last_used_index + 1
-      `).run('train-daemon', 'train-daemon', 0, 0, now, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
+      `).run('train-daemon', '', 0, 0, lastUsedIndex, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
     } catch (e) {
       console.error("[BANDIT] updateTrainingStatus error:", e.message);
     }

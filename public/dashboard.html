@@ -1230,7 +1230,7 @@
                         <span><span id="top-model-latency" class="muted"></span></span>
                     </div>
                     <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
-                        <strong style="font-size:0.9em; color:#58a6ff;">Training Status:</strong>
+                        <a href="javascript:void(0);" onclick="switchTab('scripts')" style="font-size:0.9em; color:#58a6ff; cursor:pointer; text-decoration:underline;">Training Status:</a>
                         <div id="training-status-content" style="font-size:11px; color:#8b949e; margin-top:2px;">
                             <div>Status: <span id="training-status-state" class="muted">Loading...</span></div>
                             <div>Elapsed: <span id="training-status-elapsed" class="muted">-</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
@@ -1339,28 +1339,6 @@
                 </div>
                 <button class="btn btn-copy" data-action="copy-logs">📋 Copia Tutto</button>
             </div>
-            <div id="script-output-container" style="display:none;">
-                <div class="card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h3 id="script-output-title">Output Script</h3>
-                        <div style="display:flex; gap:8px;">
-                            <button class="btn btn-copy" id="script-output-copy" style="font-size:12px; padding:4px 10px;">📋 Copia Log</button>
-                            <button class="btn btn-danger" id="script-output-close" style="font-size:12px; padding:4px 10px;">✕ Chiudi</button>
-                        </div>
-                    </div>
-                    <div id="script-output-status" style="margin-bottom:10px;"></div>
-                    <div id="script-progress-container" style="margin-bottom:12px; display:none;">
-                        <div style="display:flex; justify-content:space-between; font-size:12px; color:#8b949e; margin-bottom:4px;">
-                            <span id="script-progress-label">Avanzamento esecuzione</span>
-                            <span id="script-progress-pct">0%</span>
-                        </div>
-                        <div style="width:100%; background:#21262d; border-radius:4px; height:8px; overflow:hidden; border:1px solid #30363d;">
-                            <div id="script-progress-bar" style="width:0%; height:100%; background:#58a6ff; transition: width 0.3s ease;"></div>
-                        </div>
-                    </div>
-                    <pre id="script-output" style="background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:400px; font-size:12px; white-space:pre-wrap; word-wrap:break-word;"></pre>
-                </div>
-            </div>
         <div id="logs-container" style="flex: 1; min-height: 200px; overflow-y: auto; scrollbar-width: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117; display: flex; flex-direction: column;">
             <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed; flex: 1;">
                 <thead>
@@ -1382,7 +1360,7 @@
             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
                 <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "start")' title="Avvia il daemon di training">▶ Start Daemon</button>
                 <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "stop")' title="Ferma il daemon di training">⏹ Stop Daemon</button>
-                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "status")' title="Visualizza stato del daemon">📊 Status</button>
+                <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "logs")' title="Visualizza i log del training in tempo reale">📊 Log Training</button>
                 <span style="width:1px; height:24px; background:#30363d; margin:0 4px;"></span>
                 <button class="btn btn-sm" onclick='quickAction("restart-safe.sh")' title="Riavvia il servizio proxy">🔄 Restart Service</button>
                 <button class="btn btn-sm" onclick='quickAction("switch-mode.sh", "prod")' title="Cambia modalità prod">🏭 Mode: Prod</button>
@@ -1669,11 +1647,27 @@
     </div>
 
     <div id="tab-scripts" class="tab-content">
-        <div class="card" style="margin-bottom:15px;">
-            <h3>🛠️ Scripts Manager</h3>
-            <p style="color:#8b949e; font-size:13px; margin-top:4px;">
-                Esegui gli script di amministrazione del sistema. Gli script vengono eseguiti in sandbox e l'output viene salvato. Ciascuno script dispone di una descrizione e di opzioni di aiuto per guidare l'operatore.
-            </p>
+        <div id="script-output-container" style="display:none;">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 id="script-output-title">Output Script</h3>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-copy" id="script-output-copy" style="font-size:12px; padding:4px 10px;">📋 Copia Log</button>
+                        <button class="btn btn-danger" id="script-output-close" style="font-size:12px; padding:4px 10px;">✕ Chiudi</button>
+                    </div>
+                </div>
+                <div id="script-output-status" style="margin-bottom:10px;"></div>
+                <div id="script-progress-container" style="margin-bottom:12px; display:none;">
+                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#8b949e; margin-bottom:4px;">
+                        <span id="script-progress-label">Avanzamento esecuzione</span>
+                        <span id="script-progress-pct">0%</span>
+                    </div>
+                    <div style="width:100%; background:#21262d; border-radius:4px; height:8px; overflow:hidden; border:1px solid #30363d;">
+                        <div id="script-progress-bar" style="width:0%; height:100%; background:#58a6ff; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+                <pre id="script-output" style="background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:400px; font-size:12px; white-space:pre-wrap; word-wrap:break-word;"></pre>
+            </div>
         </div>
 
         <div id="scripts-list">
@@ -1696,7 +1690,6 @@
             </div>
         </div>
 
-        <!-- Script output container moved to Live Logs tab for Quick Actions -->
     </div>
 
     <div id="tab-consideration" class="tab-content">
@@ -5406,12 +5399,10 @@
                 `${filtered.length} script${filtered.length !== 1 ? 'i' : ''}`;
             
             tbody.innerHTML = filtered.map(s => {
-                const desc = scriptDescriptions[s.name] || 'Script di utilità e gestione di sistema.';
                 return `
                     <tr>
                         <td>
                             <div style="font-weight:600; color:#58a6ff; margin-bottom:4px; font-family:monospace; font-size:13px;">${escapeHtml(s.name)}</div>
-                            <div style="font-size:12px; color:#c9d1d9; line-height:1.4; white-space:normal; word-break:break-word;">${escapeHtml(desc)}</div>
                         </td>
                         <td><span class="badge badge-${s.type === 'shell' ? 'warning' : 'info'}">${s.type}</span></td>
                         <td>${formatBytes(s.size)}</td>
