@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.3] - 2026-11-06
+
+### Added
+- feat(dashboard): add container-scoped independent reset buttons to top UI stats boxes
+- feat(dashboard): remove metrics bar from Train tab and improve tested models display
+- feat(dashboard): add quick actions visibility for scripts manager and log training navigation
+- feat(dashboard): update bandit and proxy endpoints for robust training status and model queries
+
 ## [1.24.2] - 2026-11-06
 
 ### Added
