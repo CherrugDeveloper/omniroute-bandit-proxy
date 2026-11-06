@@ -1,6 +1,6 @@
 # OmniRoute Bandit Proxy
 
-**v1.23.0 - 2026-11-05) - 2026-11-05) - 2026-11-05** - Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution with enhanced cooldown management and aggressive punishment system
+**Multi-Armed Bandit reverse proxy router for dynamic LLM traffic distribution** with enhanced cooldown management and aggressive punishment system.
 
 ## Overview
 
@@ -8,7 +8,7 @@ OmniRoute Bandit Proxy is a middleware system that acts as a proxy between the Z
 
 ## Key Features
 
-### 1. Bandit Algorithm (Discounted UCBv1.21.0 - 2026-11-05)
+### 1. Bandit Algorithm (Discounted UCB1)
 
 The algorithm uses **Discounted UCB1** with a discount factor of `0.99` applied *per feedback event*, not per timestep. This means reward history decays faster under load.
 
@@ -135,7 +135,6 @@ npm install
 - `npm run dev` - Start development server with watch mode
 - `npm run check` - Syntax check all source files
 - `npm run test` - Run tests
-- `npm run auto-git` - Automated Git versioning, changelog generation, and documentation updates
 
 ## Dashboard
 

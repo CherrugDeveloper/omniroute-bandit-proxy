@@ -155,6 +155,7 @@ export class DiscountedUCB1Bandit {
           provider TEXT NOT NULL,
           max_input_tokens INTEGER DEFAULT 0,
           is_free INTEGER DEFAULT 0,
+          is_paid INTEGER DEFAULT 0,
           supports_tools INTEGER DEFAULT 0,
           supports_image_generation INTEGER DEFAULT 0,
           supports_vision INTEGER DEFAULT 0,
@@ -694,11 +695,12 @@ export class DiscountedUCB1Bandit {
       }
 
       const insertStmt = this.db.prepare(
-        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, supports_tools, supports_vision, supports_image_generation, capability, supports_chat, supports_audio_generation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, is_paid, supports_tools, supports_vision, supports_image_generation, capability, supports_chat, supports_audio_generation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            provider = excluded.provider,
            max_input_tokens = excluded.max_input_tokens,
            is_free = excluded.is_free,
+           is_paid = excluded.is_paid,
            supports_tools = excluded.supports_tools,
            supports_vision = excluded.supports_vision,
            supports_image_generation = excluded.supports_image_generation,
@@ -3152,7 +3154,7 @@ export class DiscountedUCB1Bandit {
     query += " ORDER BY m.N DESC, m.sum_reward DESC";
 
     // Add limit
-    const limit = filters.limit !== undefined && filters.limit !== null ? parseInt(filters.limit) : 500;
+    const limit = filters.limit !== undefined && filters.limit !== null ? Math.min(parseInt(filters.limit), 10000) : 5000;
     query += " LIMIT ?";
     params.push(limit);
 
