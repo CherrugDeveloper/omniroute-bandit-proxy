@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-11-06
+
 ### Added
 - feat(dashboard): enhance Models tab capabilities and UI layout ([2af898d](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commit/2af898d))
 
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(models): resolve 5 UI/UX issues in Models tab ([495af16](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commit/495af16))
 - fix: resolve model count discrepancy and dashboard UI issues ([e8aa328](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commit/e8aa328))
 - fix(dashboard): fix provider expand/collapse and half-screen responsive table columns ([bc72dda](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commit/bc72dda))
+- fix(bandit): add AbortController timeout and offline fallback to fetchAndSyncModels startup
 
 ## [1.23.0] - 2026-11-05
 

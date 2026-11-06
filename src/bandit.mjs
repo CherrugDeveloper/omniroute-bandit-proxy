@@ -510,6 +510,17 @@ export class DiscountedUCB1Bandit {
         }
       }
 
+      const hasCatalogIsPaid = catalogColumns.some(col => col.name === "is_paid");
+      if (!hasCatalogIsPaid) {
+        console.log("[BANDIT] Migrazione: aggiungo is_paid a catalog");
+        try {
+          this.db.exec(`ALTER TABLE catalog ADD COLUMN is_paid INTEGER DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna is_paid a catalog:", err.message);
+          throw err;
+        }
+      }
+
       const hasModelsIsPaid = modelColumns.some(col => col.name === "is_paid");
       if (!hasModelsIsPaid) {
         console.log("[BANDIT] Migrazione: aggiungo is_paid a models");
@@ -682,7 +693,18 @@ export class DiscountedUCB1Bandit {
       const headers = {};
       if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
-      const res = await fetch(modelsUrl, { headers });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      let res;
+      try {
+        res = await fetch(modelsUrl, { headers, signal: controller.signal });
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        throw new Error(`Connessione fallita o timeout (${fetchErr.message})`);
+      }
+      clearTimeout(timeoutId);
+
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: Impossibile recuperare i modelli da OmniRoute`);
       }
@@ -829,8 +851,13 @@ export class DiscountedUCB1Bandit {
       this._setMeta("lastSyncTimestamp", Date.now());
       console.log(`[BANDIT] Catalog sincronizzato: ${inserted} modelli totali (inclusi chat e non-chat, esclusi ${skipped} ignorati su ${raw} totali)`);
     } catch (err) {
-      console.error("[BANDIT] Errore durante fetch modelli:", err.message);
-      throw err;
+      console.warn("[BANDIT] Attenzione: Impossibile sincronizzare i modelli da remoto:", err.message);
+      const cachedCount = this.db.prepare("SELECT COUNT(*) as count FROM catalog").get().count;
+      if (cachedCount > 0) {
+        console.log(`[BANDIT] Utilizzo della cache locale: ${cachedCount} modelli trovati nel catalogo SQLite.`);
+      } else {
+        console.warn("[BANDIT] Attenzione: Nessun modello in cache nel database SQLite.");
+      }
     }
   }
 
