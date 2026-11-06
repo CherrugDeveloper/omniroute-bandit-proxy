@@ -1,17 +1,13 @@
-# Plan: Dashboard Improvements
+# Plan: Dashboard Improvements & Refinements
 
-This plan addresses the feedback on the `public/dashboard.html` interface.
+This plan addresses the precise user feedback and refinements for `public/dashboard.html` and backend endpoints.
 
 ## Tasks
-1. [ ] **Scripts Manager Log View**: Ensure logs are visible in the Scripts Manager tab upon switching.
-2. [ ] **Train Tab**: Fix tested models display and remove/fix unnecessary metrics.
-3. [ ] **Scripts Manager UI**: Optimize table for responsive UI.
-4. [ ] **Training Status**: Add cumulative count and cycle counter (fix reset issue).
-5. [ ] **Terminology**: Correct "scripti" to "scripts" in code and UI.
-6. [ ] **Provider Quota**:
-    - Remove top statistics bar.
-    - Implement query mechanism for RPM/RPD.
-    - Address "quota reset" column usage.
-7. [ ] **Reset Buttons**: Add individual reset buttons to top UI boxes, scoped to their container.
-8. [ ] **Verification**: Verify all changes and functionality.
-9. [ ] **CI/CD**: Execute auto-git workflow.
+1. **Start Daemon Workflow**: Ensure "Start daemon" correctly launches both `train-daemon.mjs` and `train-ctl.sh` (or control actions).
+2. **Scripts Manager Quick Actions**: Make quick action container/box active and visible when the "RUNNING" badge is present in Scripts Manager.
+3. **Log Training Navigation**: Ensure the "Log Training" button simply navigates to the Scripts Manager tab (`switchTab('scripts')`).
+4. **Train Tab Cleanup**: Completely remove the metrics bar from the Train tab (`display:none` or remove HTML).
+5. **Tested Models Verification**: Investigate and fix why models tested by the training daemon are not being displayed correctly in the Train tab.
+6. **Container-Scoped Reset Buttons**: Provide independent reset buttons for each top UI box that reset *only* the metrics/data of that specific box, styled similarly to the main metrics box reset button.
+7. **Verification**: Verify all changes and functionality.
+8. **CI/CD**: Execute auto-git workflow.

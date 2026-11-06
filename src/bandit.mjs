@@ -3067,6 +3067,14 @@ export class DiscountedUCB1Bandit {
     ).run(modelId);
   }
 
+  resetTrainingStatus() {
+    try {
+      this.db.prepare(`UPDATE models_train SET executionTime = 0, calledModels = 0, okStatus = 0, errorStatus = 0, statusMessage = 'Reset' WHERE id = 'train-daemon'`).run();
+    } catch (e) {
+      console.warn("[BANDIT] resetTrainingStatus error:", e.message);
+    }
+  }
+
   getModels(source = "prod", filters = {}) {
     const now = Date.now();
     let query = `

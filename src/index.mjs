@@ -1386,6 +1386,16 @@ app.post("/v1/reset/counters", requireAuth, (req, res) => {
   }
 });
 
+app.post("/v1/reset/training", requireAuth, (req, res) => {
+  try {
+    bandit.resetTrainingStatus();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[API] Errore reset training:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/v1/reset/provider/:p", requireAuth, (req, res) => {
   try {
     bandit.resetProvider(req.params.p);
