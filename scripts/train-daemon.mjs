@@ -352,7 +352,14 @@ async function main() {
     updateTrainingStatus(totalOk, totalFail, cycle);
     if (running) {
       log(`Pausa ${CYCLE_DELAY}ms prima del prossimo ciclo...`);
-      await sleep(CYCLE_DELAY).catch(() => {});
+      // Update status periodically during the long inter-cycle pause to keep daemon "alive"
+      const pauseStart = Date.now();
+      while (running && Date.now() - pauseStart < CYCLE_DELAY) {
+        const remaining = CYCLE_DELAY - (Date.now() - pauseStart);
+        const sleepChunk = Math.min(5000, remaining); // Update every 5 seconds
+        await sleep(sleepChunk).catch(() => {});
+        if (running) updateTrainingStatus(totalOk, totalFail, cycle);
+      }
     }
   }
 

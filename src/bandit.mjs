@@ -3106,6 +3106,8 @@ export class DiscountedUCB1Bandit {
 
   getModels(source = "prod", filters = {}) {
     const now = Date.now();
+    const conditions = [];
+    const params = [];
     let query = `
       SELECT
         m.id,
@@ -3145,9 +3147,6 @@ export class DiscountedUCB1Bandit {
         LEFT JOIN catalog c ON m.id = c.id
       `;
     }
-
-    const conditions = [];
-    const params = [];
 
     // Provider filter
     if (filters.provider) {
@@ -3466,10 +3465,12 @@ export class DiscountedUCB1Bandit {
       let isTraining = daemon ? daemon.isTraining === 1 : false;
       let statusMessage = daemon ? daemon.statusMessage : 'Idle';
 
+      // Use longer timeout to account for inter-cycle pauses (CYCLE_DELAY=30s)
+      // 15s for "active training" timeout, 60s for "daemon inactive" timeout
       if (isTraining && daemon && daemon.updated_at && (now - daemon.updated_at > 15000)) {
         isTraining = false;
         statusMessage = 'Idle (Timeout)';
-      } else if (!daemon || !daemon.updated_at || (now - daemon.updated_at > 30000)) {
+      } else if (!daemon || !daemon.updated_at || (now - daemon.updated_at > 60000)) {
         isTraining = false;
         if (statusMessage === 'Active' || statusMessage.startsWith('Training')) {
           statusMessage = 'Idle (Daemon Inactive)';
