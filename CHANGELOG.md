@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- [1.28.5] - 2026-11-07
 - [1.28.4] - 2026-11-07
 - [1.28.3] - 2026-11-07
 - [1.28.2] - 2026-11-07
@@ -58,6 +59,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [1.2.0] - 2026-09-30
 - [1.1.0] - 2026-09-10
 - [1.0.0] - 2026-09-01
+
+## [1.28.5] - 2026-11-07
+
+### Added
+- feat(dashboard): Redesign changelog modal view for improved clarity and visual appeal
+- feat(dashboard): Add training cycle counter replacing elapsed time in training stats box
+- feat(dashboard): Add explicit `TRAIN` vs `PROD` badges in Unified History (`Cronologia Unificata`)
+
+### Fixed
+- fix(train-daemon): Prevent training status oscillation during inter-cycle pauses by updating heartbeats and adjusting daemon liveness tolerance
+- fix(dashboard): Align train tab table with models tab featuring collapsible providers collapsed by default and expand/collapse interactions
+- fix(dashboard): Enforce strict append-only history rendering in Unified History with most recent events at the top
+
+### Changed
+- refactor(dashboard): Remove redundant helper text from train tab table and refine responsive layout
 
 ## [1.28.4] - 2026-11-07
 

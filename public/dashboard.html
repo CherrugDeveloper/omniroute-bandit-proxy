@@ -1240,7 +1240,7 @@
                         <a href="javascript:void(0);" onclick="switchTab('scripts')" style="font-size:0.9em; color:#58a6ff; cursor:pointer; text-decoration:underline;">Training Status:</a>
                         <div id="training-status-content" style="font-size:11px; color:#8b949e; margin-top:2px;">
                             <div>Status: <span id="training-status-state" class="muted">Loading...</span></div>
-                            <div>Elapsed: <span id="training-status-elapsed" class="muted">-</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
+                            <div>Cycle: <span id="training-status-cycle" class="muted">0</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
                         </div>
                     </div>
                 </div>
@@ -1304,13 +1304,14 @@
             <table id="unified-table" style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed; line-height: 1.2;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
-                        <th style="padding: 2px 6px; text-align: left; width: 10%;">Timestamp</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 10%;">Provider</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 16%;">Model</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 7%;">Source</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 9%;">Timestamp</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 9%;">Provider</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 15%;">Model</th>
                         <th style="padding: 2px 6px; text-align: center; white-space: nowrap; width: 8%;">Status</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 12%;">Error Type</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 14%;">Countermeasure</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 30%;">Reason / Stats</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 11%;">Error Type</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 12%;">Countermeasure</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 29%;">Reason / Stats</th>
                     </tr>
                 </thead>
                 <tbody id="unified-cronologia-tbody">
@@ -1983,14 +1984,14 @@
                     const d = await statusRes.json();
                     isTraining = d.isTraining;
                     const statusStr = d.isTraining ? 'Active' : 'Inactive';
-                    const elapsed = d.isTraining ? Math.floor(d.executionTime / 60) + 'm ' + (d.executionTime % 60) + 's' : '-';
+                    const cycleCount = d.cycleCount || 0;
                     const elState = document.getElementById('training-status-state');
                     if (elState) {
                         elState.textContent = statusStr;
                         elState.style.color = d.isTraining ? '#3fb950' : '#8b949e';
                     }
-                    const elElapsed = document.getElementById('training-status-elapsed');
-                    if (elElapsed) elElapsed.textContent = elapsed;
+                    const elCycle = document.getElementById('training-status-cycle');
+                    if (elCycle) elCycle.textContent = cycleCount;
                     const elModels = document.getElementById('training-status-models');
                     if (elModels) elModels.textContent = d.calledModels || 0;
                     const elOk = document.getElementById('training-status-ok');
@@ -4243,33 +4244,32 @@
                     const ts = r.timestamp || r.endedAt || Date.now();
                     const dObj = new Date(ts);
                     const timeStr = dObj.toLocaleTimeString();
-                    // Timestamp on the left; elapsed seconds ONLY for active thinking model
                     const timeVal = (kind === 'active')
                         ? ('<span style="color:#d29922; font-weight:bold;">' + Number(r.activeSec || r.elapsedSec || 0).toFixed(1) + 's</span>')
                         : timeStr;
 
+                    const isTrainingSource = (r.source === 'training' || r.source === 'train');
+                    const sourceBadge = isTrainingSource
+                        ? '<span style="background: #238636; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">TRAIN</span>'
+                        : '<span style="background: #1f6feb; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">PROD</span>';
+
+                    const rowKey = r.id ? `req-${r.id}-${r.attempt || 0}-${kind}` : `req-${Date.now()}-${Math.random()}`;
+
                     let model = r.model || r.selectedModel || r.requestedModel || '(selezione...)';
                     let provider = r.provider || r.selectedProvider || '-';
 
-                    // Parse message field to extract error reason only - do NOT overwrite model/provider
-                    // The model/provider should come from r.model/r.provider, not from nested error messages
-                    // Example: "[antigravity/claude-sonnet-4-6] provider antigravity e modello claude-sonnet-4-6"
-                    // or: "[provider/model] All antigravity accounts have exhaused their q"
                     let messageReason = null;
                     if (r.message && typeof r.message === 'string') {
                         const message = r.message;
-                        // Try to extract provider/model from message format like "[provider/model] ..."
                         const bracketMatch = message.match(/\[([^/]+)\/([^]]+)\]\s*(.*)/);
                         if (bracketMatch) {
                             const msgProvider = bracketMatch[1];
                             const msgModel = bracketMatch[2];
                             let remainingText = bracketMatch[3] || '';
-                            // Only use message parsing if actual model/provider is missing
                             if (!r.model && !r.selectedModel && !r.requestedModel && msgProvider && msgModel) {
                                 provider = msgProvider;
                                 model = msgModel;
                             }
-                            // Remove "provider X e modello Y" prefix from remaining text
                             if (remainingText) {
                                 remainingText = remainingText.replace(/^provider\s+\S+\s+e\s+modello\s+\S+\.?\s*/i, '').trim();
                                 if (remainingText) {
@@ -4279,7 +4279,6 @@
                         }
                     }
 
-                    // Parse double provider prefixes like nvidia/nvidia/nemotron-...
                     if (model.includes('/')) {
                         const parts = model.split('/');
                         if (parts.length >= 3 && parts[0] === parts[1]) {
@@ -4304,7 +4303,6 @@
                         }
                     }
 
-                    // Strip provider prefix from model display (e.g., "openrouter/gpt-4" -> "gpt-4" when provider is "openrouter")
                     if (provider && provider !== '-' && model.includes(provider)) {
                         model = model.replace(new RegExp('^' + escapeRegex(provider) + '/'), '');
                     }
@@ -4325,7 +4323,6 @@
                         statusColor = '#3fb950';
                     }
 
-                    // Determine countermeasure based on error type
                     let countermeasure = '';
                     if (r.errorType) {
                         if (r.errorType.includes('429') || r.errorType.includes('rate') || r.errorType.includes('timeout')) {
@@ -4340,7 +4337,6 @@
                             countermeasure = 'ban-model';
                         }
                     }
-                    // Also check for explicit reason field
                     if (r.reason) {
                         if (r.reason.includes('429') || r.reason.includes('rate') || r.reason.includes('timeout')) {
                             countermeasure = 'cooldown-provider';
@@ -4364,23 +4360,19 @@
                     if (r.avg != null) statsParts.push(`avg=${r.avg}`);
                     if (r.latency_ms) statsParts.push(`${r.latency_ms}ms`);
                     if (r.tokens_in || r.tokens_out) statsParts.push(`tok:${r.tokens_in || 0}in/${r.tokens_out || 0}out`);
-                    // Extract clean error code and message - user request: only show error code + message
-                    // Format expected: "[500]: error message" or similar
+                    
                     let errorDisplay = '';
                     if (r.errorStatus) {
                         errorDisplay = `err: ${r.errorStatus}`;
                     } else if (r.lastError) {
-                        // Try to extract error code from messages like "[500]: message" or "500: message"
                         const lastError = String(r.lastError);
                         const codeMatch = lastError.match(/^\[?(\d{3})\]?:\s*(.*)/);
                         if (codeMatch) {
                             errorDisplay = `${codeMatch[1]}: ${codeMatch[2]}`;
                         } else {
-                            // Just show the message, truncated
                             errorDisplay = lastError.substring(0, 100);
                         }
                     } else if (messageReason) {
-                        // Extract error code from messageReason if present
                         const msg = String(messageReason);
                         const codeMatch = msg.match(/^\[?(\d{3})\]?:\s*(.*)/);
                         if (codeMatch) {
@@ -4392,19 +4384,8 @@
                     if (errorDisplay) {
                         statsParts.push(`reason: ${errorDisplay}`);
                     }
-                    // Also include original reason if different from messageReason and not a bracketed provider/model
                     if (r.reason && r.reason !== messageReason && !r.reason.includes('[')) {
                         statsParts.push(`reason: ${r.reason}`);
-                    }
-                    if (r.lastError && r.lastError !== messageReason && r.lastError !== r.reason && !r.lastError.includes('[')) {
-                        // Only show lastError if it's not already captured as the main error display
-                        const lastErr = String(r.lastError);
-                        const lastCodeMatch = lastErr.match(/^\[?(\d{3})\]?:\s*(.*)/);
-                        if (lastCodeMatch) {
-                            statsParts.push(`reason: ${lastCodeMatch[1]}: ${lastCodeMatch[2]}`);
-                        } else if (!errorDisplay || errorDisplay !== `${lastCodeMatch[1]}: ${lastCodeMatch[2]}`) {
-                            statsParts.push(`reason: ${lastErr.substring(0, 80)}`);
-                        }
                     }
                     if (r.errorType) statsParts.push(`err: ${r.errorType}`);
                     if (r.errorStatus && !r.lastError) statsParts.push(`errStatus: ${r.errorStatus}`);
@@ -4421,22 +4402,16 @@
                             statsParts.push(`<span title="Modelli scartati per questa richiesta">scarti: ${rejected.length}</span>`);
                         }
                     }
-                    // Add error type to stats parts
                     if (r.errorType) statsParts.unshift(`err: ${r.errorType}`);
-                    // Add countermeasure to stats parts
                     if (countermeasure) statsParts.unshift(`counter: ${countermeasure}`);
-                    const statsStr = statsParts.join(' | ') || '-';
-                    // Truncate long reason to keep row height compact - but keep error code visible
-                    const truncatedStatsStr = statsStr.length > 200 ? statsStr.substring(0, 200) + '...' : statsStr;
 
-                    // Separate error type from stats for dedicated columns
                     const errorTypeDisplay = r.errorType ? r.errorType : (errorDisplay || '');
                     const countermeasureDisplay = countermeasure || '';
-                    // Remaining stats (excluding errorType which is now in its own column)
                     const statsWithoutErrorType = statsParts.filter(p => !p.startsWith('err: ') && p !== `counter: ${countermeasure}`).join(' | ') || '-';
                     const truncatedStats = statsWithoutErrorType.length > 200 ? statsWithoutErrorType.substring(0, 200) + '...' : statsWithoutErrorType;
 
-                    return `<tr style="border-bottom: 1px solid #21262d;">
+                    return `<tr data-row-key="${rowKey}" style="border-bottom: 1px solid #21262d;">
+                        <td style="padding: 2px 6px; white-space: nowrap;">${sourceBadge}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeVal}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
                         <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px;">${escapeHtml(model)}</td>
@@ -4452,17 +4427,21 @@
                     return s.replace(/[\^$.|?*+()]/g, '\\$&');
                 }
 
-                // New function to format selection history entries as rows
-                function fmtSelectionHistoryRow(entry, requestTimestamp, requestIndex, entryIndex) {
-                    // entry has: id, provider, status ('rejected'|'selected'), reason, countermeasure, tier, N, sum_reward, avg_reward, avg_latency, score
+                function fmtSelectionHistoryRow(entry, requestTimestamp, requestIndex, entryIndex, parentId) {
                     const ts = requestTimestamp || Date.now();
                     const dObj = new Date(ts);
                     const timeStr = dObj.toLocaleTimeString();
 
+                    const isTrainingSource = (entry.source === 'training' || entry.source === 'train');
+                    const sourceBadge = isTrainingSource
+                        ? '<span style="background: #238636; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">TRAIN</span>'
+                        : '<span style="background: #1f6feb; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">PROD</span>';
+
+                    const rowKey = `sel-${parentId || Date.now()}-${entryIndex}-${entry.id || 'mod'}`;
+
                     let model = entry.id || '(unknown)';
                     let provider = entry.provider || '-';
 
-                    // Strip provider prefix from model display (e.g., "openrouter/gpt-4" -> "gpt-4" when provider is "openrouter")
                     if (provider && provider !== '-' && model.includes(provider)) {
                         model = model.replace(new RegExp('^' + escapeRegex(provider) + '/'), '');
                     }
@@ -4479,7 +4458,6 @@
                         statusLabel = entry.status;
                     }
 
-                    // Use entry.countermeasure or determine from reason
                     let countermeasure = entry.countermeasure || '';
                     if (!countermeasure && entry.reason) {
                         if (entry.reason.includes('429') || entry.reason.includes('rate') || entry.reason.includes('timeout')) {
@@ -4509,12 +4487,12 @@
                     const errorTypeDisplay = entry.countermeasure ? `counter: ${entry.countermeasure}` : (entry.reason ? `reason: ${entry.reason}` : '');
                     const countermeasureDisplay = countermeasure || '';
 
-                    // Add visual indicator for selection history rows (slightly different style)
                     const rowStyle = entry.status === 'selected'
                         ? 'background: rgba(63, 185, 80, 0.08);'
                         : 'background: rgba(248, 81, 73, 0.05);';
 
-                    return `<tr style="border-bottom: 1px solid #21262d; ${rowStyle}">
+                    return `<tr data-row-key="${rowKey}" style="border-bottom: 1px solid #21262d; ${rowStyle}">
+                        <td style="padding: 2px 6px; white-space: nowrap;">${sourceBadge}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeStr}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
                         <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px;">${escapeHtml(model)}</td>
@@ -4549,67 +4527,68 @@
                         isSelectionHistory: false
                     });
 
-                    // If selection history expansion is enabled, add each entry as a separate row (limited)
                     if (showSelectionHistory && req.selectionHistory && req.selectionHistory.length > 0) {
                         const historyToShow = req.selectionHistory.slice(-MAX_SELECTION_HISTORY_PER_REQUEST);
                         for (let i = 0; i < historyToShow.length; i++) {
                             const entry = historyToShow[i];
                             allRows.push({
-                                html: fmtSelectionHistoryRow(entry, req.timestamp || req.endedAt || Date.now(), 'active', i),
-                                timestamp: req.timestamp || req.endedAt || Date.now() + i * 0.001, // slight offset to preserve order
-                                isSelectionHistory: true
+                                html: fmtSelectionHistoryRow(entry, req.timestamp || req.endedAt || Date.now(), 'active', i, req.id),
+                                timestamp: req.timestamp || req.endedAt || Date.now() + i * 0.001,
+                                isSelectionHistory: true,
+                                key: `sel-${req.id || Date.now()}-${i}-${entry.id || 'mod'}`
                             });
                         }
-                        // If we truncated, add a summary row
                         if (req.selectionHistory.length > MAX_SELECTION_HISTORY_PER_REQUEST) {
                             const hiddenCount = req.selectionHistory.length - MAX_SELECTION_HISTORY_PER_REQUEST;
                             allRows.push({
-                                html: `<tr style="border-bottom: 1px solid #21262d; background: rgba(88, 166, 255, 0.05);">
-                                    <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">...</td>
-                                    <td colspan="6" style="padding: 2px 6px; color: #58a6ff; font-size: 10px;">
-                                        <em>${hiddenCount} more selection history entries hidden. Click checkbox to toggle.</em>
-                                    </td>
-                                </tr>`,
+                                html: `<tr data-row-key="summary-${req.id || Date.now()}" style="border-bottom: 1px solid #21262d; background: rgba(88, 166, 255, 0.05);">
+                                     <td style="padding: 2px 6px; white-space: nowrap;">-</td>
+                                     <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">...</td>
+                                     <td colspan="6" style="padding: 2px 6px; color: #58a6ff; font-size: 10px;">
+                                         <em>${hiddenCount} more selection history entries hidden. Click checkbox to toggle.</em>
+                                     </td>
+                                 </tr>`,
                                 timestamp: req.timestamp || req.endedAt || Date.now() - 0.001,
-                                isSelectionHistory: true
+                                isSelectionHistory: true,
+                                key: `summary-${req.id || Date.now()}`
                             });
                         }
                     }
                 }
 
-                // Process recent requests (last 10)
-                const recentRequests = filterSrc(d.recent).slice(-10);
+                const recentRequests = filterSrc(d.recent).slice(-20);
                 for (const req of recentRequests) {
-                    // Add the main request row
                     allRows.push({
                         html: fmtRow({ ...req, kind: 'recent' }, 'recent'),
                         timestamp: req.timestamp || req.endedAt || Date.now(),
-                        isSelectionHistory: false
+                        isSelectionHistory: false,
+                        key: req.id ? `req-${req.id}-${req.attempt || 0}-recent` : `req-${Date.now()}-${Math.random()}`
                     });
 
-                    // If selection history expansion is enabled, add each entry as a separate row (limited)
                     if (showSelectionHistory && req.selectionHistory && req.selectionHistory.length > 0) {
                         const historyToShow = req.selectionHistory.slice(-MAX_SELECTION_HISTORY_PER_REQUEST);
                         for (let i = 0; i < historyToShow.length; i++) {
                             const entry = historyToShow[i];
                             allRows.push({
-                                html: fmtSelectionHistoryRow(entry, req.timestamp || req.endedAt || Date.now(), 'recent', i),
+                                html: fmtSelectionHistoryRow(entry, req.timestamp || req.endedAt || Date.now(), 'recent', i, req.id),
                                 timestamp: req.timestamp || req.endedAt || Date.now() + i * 0.001,
-                                isSelectionHistory: true
+                                isSelectionHistory: true,
+                                key: `sel-${req.id || Date.now()}-${i}-${entry.id || 'mod'}`
                             });
                         }
-                        // If we truncated, add a summary row
                         if (req.selectionHistory.length > MAX_SELECTION_HISTORY_PER_REQUEST) {
                             const hiddenCount = req.selectionHistory.length - MAX_SELECTION_HISTORY_PER_REQUEST;
                             allRows.push({
-                                html: `<tr style="border-bottom: 1px solid #21262d; background: rgba(88, 166, 255, 0.05);">
-                                    <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">...</td>
-                                    <td colspan="6" style="padding: 2px 6px; color: #58a6ff; font-size: 10px;">
-                                        <em>${hiddenCount} more selection history entries hidden. Click checkbox to toggle.</em>
-                                    </td>
-                                </tr>`,
+                                html: `<tr data-row-key="summary-${req.id || Date.now()}" style="border-bottom: 1px solid #21262d; background: rgba(88, 166, 255, 0.05);">
+                                     <td style="padding: 2px 6px; white-space: nowrap;">-</td>
+                                     <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">...</td>
+                                     <td colspan="6" style="padding: 2px 6px; color: #58a6ff; font-size: 10px;">
+                                         <em>${hiddenCount} more selection history entries hidden. Click checkbox to toggle.</em>
+                                     </td>
+                                 </tr>`,
                                 timestamp: req.timestamp || req.endedAt || Date.now() - 0.001,
-                                isSelectionHistory: true
+                                isSelectionHistory: true,
+                                key: `summary-${req.id || Date.now()}`
                             });
                         }
                     }
@@ -4618,33 +4597,43 @@
                 // Sort all rows by timestamp descending (newest first)
                 allRows.sort((a, b) => b.timestamp - a.timestamp);
 
-                // Clear tbody first
-                tbody.innerHTML = '';
+                // Append-only history implementation:
+                // Collect existing row keys in DOM
+                const existingRows = new Map();
+                for (const tr of tbody.querySelectorAll('tr[data-row-key]')) {
+                    const key = tr.getAttribute('data-row-key');
+                    if (key) existingRows.set(key, tr);
+                }
 
-                // Render rows in chunks using requestAnimationFrame to avoid blocking main thread
-                let renderedCount = 0;
-                const batchSize = 25; // rows per frame
-
-                function renderBatch() {
-                    const end = Math.min(renderedCount + batchSize, allRows.length);
-                    // Build HTML for this batch
-                    let batchHtml = '';
-                    for (let i = renderedCount; i < end; i++) {
-                        batchHtml += allRows[i].html;
-                    }
-                    // Append to tbody
-                    tbody.insertAdjacentHTML('beforeend', batchHtml);
-                    renderedCount = end;
-
-                    if (renderedCount < allRows.length) {
-                        requestAnimationFrame(renderBatch);
+                // Iterate through sorted rows and append new ones or update active ones
+                const MAX_UNIFIED_ROWS = 200;
+                
+                for (const row of allRows) {
+                    if (existingRows.has(row.key)) {
+                        // Already in DOM - if it's active, update its HTML (e.g. timer)
+                        const tr = existingRows.get(row.key);
+                        if (row.key.includes('-active')) {
+                            // Update active row content in place
+                            const tempDiv = document.createElement('tbody');
+                            tempDiv.innerHTML = row.html;
+                            const newTr = tempDiv.firstElementChild;
+                            if (newTr && tr.innerHTML !== newTr.innerHTML) {
+                                tr.innerHTML = newTr.innerHTML;
+                            }
+                        }
+                        existingRows.delete(row.key); // Mark as processed
                     } else {
-                        console.debug('[DEBUG Dashboard] fetchActive table updated, total rows:', allRows.length, '(selection history:', allRows.filter(r => r.isSelectionHistory).length, ')');
+                        // New row - prepend at the top (since sorted newest first)
+                        tbody.insertAdjacentHTML('afterbegin', row.html);
                     }
                 }
 
-                // Start chunked rendering
-                requestAnimationFrame(renderBatch);
+                // Enforce max row limit (remove oldest from bottom)
+                while (tbody.children.length > MAX_UNIFIED_ROWS) {
+                    tbody.lastElementChild?.remove();
+                }
+
+                console.debug('[DEBUG Dashboard] fetchActive table updated, total rows:', tbody.children.length);
             } catch (e) {
                 console.error('[DEBUG Dashboard] fetchActive error:', e);
             }
