@@ -86,7 +86,9 @@ function log(...args) {
 function updateTrainingStatus() {
   if (!running) return;
   const now = Date.now();
-  const isTraining = running && currentModel !== null ? 1 : 0;
+  // isTraining = 1 only when actively training (has a current model being tested)
+  // This distinguishes between daemon running vs actively testing a model
+  const isTraining = currentModel !== null ? 1 : 0;
   const executionTime = cycleStats.cycleStart > 0 ? now - cycleStats.cycleStart : 0;
   const calledModels = cycleStats.cycleOk + cycleStats.cycleFail;
   const okStatus = cycleStats.cycleOk;

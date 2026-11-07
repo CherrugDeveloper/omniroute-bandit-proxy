@@ -14,10 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - refactor(dashboard): optimize scripts manager table width and remove obsolete toggle view buttons
 - refactor(commands): streamline auto-git workflow documentation and tooling
+- refactor(train-daemon): clarify isTraining logic to distinguish daemon running vs actively training
 
 ### Fixed
 - fix(dashboard): resolve model and provider reset actions requiring individual selection when bulk action is triggered
 - fix(bandit): synchronize models_train during catalog sync to fix `GET /v1/models?source=train` results=0
+- fix(dashboard): add tooltip to Quota reset column explaining remaining time until rate limit reset
+- fix(dashboard): change "Reset" button label to "Reset Model" for consistency across Models and Train tabs
 
 ## [1.27.2] - 2026-11-06
 
