@@ -132,7 +132,8 @@ export class DiscountedUCB1Bandit {
           calledModels INTEGER DEFAULT 0,
           okStatus INTEGER DEFAULT 0,
           errorStatus INTEGER DEFAULT 0,
-          statusMessage TEXT DEFAULT 'Idle'
+          statusMessage TEXT DEFAULT 'Idle',
+          updated_at REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS provider_history (
           provider TEXT PRIMARY KEY,
@@ -326,6 +327,17 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE models_train ADD COLUMN statusMessage TEXT DEFAULT 'Idle'`);
         } catch (err) {
           console.error("[BANDIT] Errore aggiunta colonna statusMessage:", err.message);
+          throw err;
+        }
+      }
+
+      const hasUpdatedAt = trainColumns.some(col => col.name === "updated_at");
+      if (!hasUpdatedAt) {
+        console.log("[BANDIT] Migrazione: aggiungo updated_at a models_train");
+        try {
+          this.db.exec(`ALTER TABLE models_train ADD COLUMN updated_at REAL DEFAULT 0`);
+        } catch (err) {
+          console.error("[BANDIT] Errore aggiunta colonna updated_at:", err.message);
           throw err;
         }
       }
@@ -3442,15 +3454,24 @@ export class DiscountedUCB1Bandit {
         FROM models_train
       `).get();
 
+      const now = Date.now();
+      let isTraining = latest ? latest.isTraining === 1 : false;
+      let statusMessage = latest ? latest.statusMessage : 'Idle';
+
+      if (isTraining && latest.updated_at && (now - latest.updated_at > 15000)) {
+        isTraining = false;
+        statusMessage = 'Idle (Timeout)';
+      }
+
       return {
-        isTraining: latest ? latest.isTraining === 1 : false,
+        isTraining,
         executionTime: latest ? latest.executionTime : 0,
         calledModels: totals && totals.totalCalled !== null ? totals.totalCalled : (latest ? latest.calledModels : 0),
         okStatus: totals && totals.totalOk !== null ? totals.totalOk : (latest ? latest.okStatus : 0),
         errorStatus: totals && totals.totalErr !== null ? totals.totalErr : (latest ? latest.errorStatus : 0),
         cycleCount: totals && totals.cycleCount !== null ? (totals.cycleCount + 1) : (latest && latest.last_used_index !== undefined ? latest.last_used_index + 1 : 1),
         lastRun: latest ? latest.last_used_index : null,
-        statusMessage: latest ? latest.statusMessage : 'Idle'
+        statusMessage
       };
     } catch (e) {
       console.warn("[BANDIT] getTrainingStatus error:", e.message);
@@ -3466,8 +3487,8 @@ export class DiscountedUCB1Bandit {
       const lastUsedIndex = existing ? existing.last_used_index + 1 : 0;
       
       this.db.prepare(`
-        INSERT INTO models_train (id, provider, sum_reward, N, last_used_index, isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO models_train (id, provider, sum_reward, N, last_used_index, isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           isTraining = excluded.isTraining,
           executionTime = excluded.executionTime,
@@ -3475,8 +3496,9 @@ export class DiscountedUCB1Bandit {
           okStatus = excluded.okStatus,
           errorStatus = excluded.errorStatus,
           statusMessage = excluded.statusMessage,
+          updated_at = excluded.updated_at,
           last_used_index = last_used_index + 1
-      `).run('train-daemon', '', 0, 0, lastUsedIndex, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
+      `).run('train-daemon', '', 0, 0, lastUsedIndex, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage, now);
     } catch (e) {
       console.error("[BANDIT] updateTrainingStatus error:", e.message);
     }

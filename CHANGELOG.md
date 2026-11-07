@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.5] - 2026-11-07
+
+### Added
+- feat(dashboard): refactor Train tab ([`public/dashboard.html`](public/dashboard.html:1558)) to mirror Models tab structure and filters
+- feat(dashboard): optimize numeric filter inputs with clear placeholders/labels (`N ≥`, `avg ≥`)
+- feat(dashboard): add responsive CSS table layout for Scripts Manager tab ([`public/dashboard.html`](public/dashboard.html:1663))
+
+### Fixed
+- fix(bandit): add training status heartbeat timeout (`updated_at` tracking in [`src/bandit.mjs`](src/bandit.mjs:1)) to prevent stale running badges and stuck metrics
+
 ## [1.24.4] - 2026-11-07
 
 ### Added
