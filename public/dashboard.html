@@ -1673,15 +1673,15 @@
             <div class="counter-bar">
                 <span id="scripts-count">0</span>
             </div>
-            <div class="table-wrapper" style="margin-top:10px;">
-                <table style="table-layout: fixed; width: 100%;">
+            <div class="table-wrapper" style="margin-top:10px; overflow-x: auto;">
+                <table style="table-layout: auto; width: 100%;">
                     <thead>
                         <tr>
-                            <th style="width: 25%;">Script</th>
-                            <th style="width: 15%;">Tipo</th>
-                            <th style="width: 15%;">Dimensione</th>
-                            <th style="width: 25%;">Ultima modifica</th>
-                            <th style="width: 20%;">Azioni</th>
+                            <th style="width: 30%; min-width: 150px;">Script</th>
+                            <th style="width: 12%; min-width: 75px;">Tipo</th>
+                            <th style="width: 12%; min-width: 85px;">Dimensione</th>
+                            <th style="width: 23%; min-width: 130px;">Ultima modifica</th>
+                            <th style="width: 23%; min-width: 160px;">Azioni</th>
                         </tr>
                     </thead>
                     <tbody id="scripts-tbody"></tbody>
@@ -2011,9 +2011,13 @@
         function updateRunningBadge(isRunning) {
             const badge = document.getElementById('scripts-badge');
             if (!badge) return;
+            const container = document.getElementById('script-output-container');
             if (isRunning) {
                 badge.isScriptRunning = true;
                 badge.style.display = 'inline-flex';
+                if (container) {
+                    container.style.display = 'block';
+                }
             } else {
                 badge.isScriptRunning = false;
                 badge.style.display = 'none';
@@ -2333,8 +2337,9 @@
                 const outputContainer = document.getElementById('script-output-container');
                 const output = document.getElementById('script-output');
                 if (outputContainer && output) {
-                    // Show the container if there's actual content
-                    const hasContent = output.textContent.trim().length > 0;
+                    // Show the container if there's actual content or if a script is running
+                    const badge = document.getElementById('scripts-badge');
+                    const hasContent = output.textContent.trim().length > 0 || (badge && badge.isScriptRunning);
                     outputContainer.style.display = hasContent ? 'block' : 'none';
                 }
             }
@@ -5458,15 +5463,15 @@
             tbody.innerHTML = filtered.map(s => {
                 return `
                     <tr>
-                        <td>
+                        <td style="word-break: break-all;">
                             <div style="font-weight:600; color:#58a6ff; margin-bottom:4px; font-family:monospace; font-size:13px;">${escapeHtml(s.name)}</div>
                         </td>
                         <td><span class="badge badge-${s.type === 'shell' ? 'warning' : 'info'}">${s.type}</span></td>
                         <td>${formatBytes(s.size)}</td>
-                        <td>${new Date(s.modified).toLocaleString()}</td>
+                        <td style="white-space: nowrap; font-size: 11px; color:#8b949e;">${new Date(s.modified).toLocaleString()}</td>
                         <td>
-                            <div style="display:flex; gap:6px; align-items:center;">
-                                <input type="text" id="script-args-${escapeHtml(s.name)}" placeholder="args (es. status)" title="Argomenti riga di comando opzionali" style="width:110px; padding:4px 6px; font-size:11px; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:4px;">
+                            <div style="display:flex; gap:6px; align-items:center; flex-wrap: wrap;">
+                                <input type="text" id="script-args-${escapeHtml(s.name)}" placeholder="args (es. status)" title="Argomenti riga di comando opzionali" style="width:90px; padding:4px 6px; font-size:11px; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:4px;">
                                 <button class="btn btn-sm" onclick="executeScript('${escapeHtml(s.name)}')" title="Esegui script">
                                     ▶ Esegui
                                 </button>
