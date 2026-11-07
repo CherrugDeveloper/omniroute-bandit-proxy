@@ -855,6 +855,14 @@ export class DiscountedUCB1Bandit {
           FROM catalog c
           WHERE NOT EXISTS (SELECT 1 FROM models WHERE models.id = c.id)
         `).run();
+
+        // Ensure all catalog models have corresponding entries in models_train table
+        this.db.prepare(`
+          INSERT OR IGNORE INTO models_train (id, provider, last_used_index)
+          SELECT c.id, c.provider, 1
+          FROM catalog c
+          WHERE NOT EXISTS (SELECT 1 FROM models_train WHERE models_train.id = c.id)
+        `).run();
         const modelsCount = this.db.prepare("SELECT COUNT(*) as count FROM models").get().count;
         console.log(`[BANDIT] Models table synchronized: ${modelsCount} models (catalog: ${inserted})`);
         
