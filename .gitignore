@@ -26,6 +26,8 @@ package-lock.json
 
 # Temp
 *.bak
+.train-daemon.pid
+scripts/.script-output-*.json
 
 # IDE
 .vscode/
