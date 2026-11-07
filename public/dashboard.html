@@ -1373,7 +1373,7 @@
             <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
                 <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "start")' title="Avvia il daemon di training">▶ Start Daemon</button>
                 <button class="btn btn-sm" onclick='quickAction("train-ctl.sh", "stop")' title="Ferma il daemon di training">⏹ Stop Daemon</button>
-                <button class="btn btn-sm" onclick="switchTab('scripts')" title="Visualizza i log del training in tempo reale">📊 Log Training</button>
+                <button class="btn btn-sm" onclick="switchTab('scripts'); streamTrainingLogs();" title="Visualizza i log del training in tempo reale">📊 Log Training</button>
                 <span style="width:1px; height:24px; background:#30363d; margin:0 4px;"></span>
                 <button class="btn btn-sm" onclick='quickAction("restart-safe.sh")' title="Riavvia il servizio proxy">🔄 Restart Service</button>
                 <button class="btn btn-sm" onclick='quickAction("switch-mode.sh", "prod")' title="Cambia modalità prod">🏭 Mode: Prod</button>
@@ -1971,26 +1971,101 @@
 
         async function updateTrainingStatus() {
             try {
-                const r = await apiFetch('/v1/training/status');
-                if (!r.ok) {
-                    document.getElementById('training-status-state').textContent = 'Error';
-                    updateTrainingBadge(false);
-                    return;
+                const [statusRes, daemonRes] = await Promise.all([
+                    apiFetch('/v1/training/status').catch(() => ({ ok: false })),
+                    apiFetch('/v1/training/daemon-status').catch(() => ({ ok: false }))
+                ]);
+                
+                let isTraining = false;
+                let daemonRunning = false;
+
+                if (statusRes.ok) {
+                    const d = await statusRes.json();
+                    isTraining = d.isTraining;
+                    const statusStr = d.isTraining ? 'Active' : 'Inactive';
+                    const elapsed = d.isTraining ? Math.floor(d.executionTime / 60) + 'm ' + (d.executionTime % 60) + 's' : '-';
+                    const elState = document.getElementById('training-status-state');
+                    if (elState) {
+                        elState.textContent = statusStr;
+                        elState.style.color = d.isTraining ? '#3fb950' : '#8b949e';
+                    }
+                    const elElapsed = document.getElementById('training-status-elapsed');
+                    if (elElapsed) elElapsed.textContent = elapsed;
+                    const elModels = document.getElementById('training-status-models');
+                    if (elModels) elModels.textContent = d.calledModels || 0;
+                    const elOk = document.getElementById('training-status-ok');
+                    if (elOk) elOk.textContent = d.okStatus || 0;
+                    const elErr = document.getElementById('training-status-err');
+                    if (elErr) elErr.textContent = d.errorStatus || 0;
                 }
-                const d = await r.json();
-                const statusStr = d.isTraining ? 'Active' : 'Inactive';
-                const elapsed = d.isTraining ? Math.floor(d.executionTime / 60) + 'm ' + (d.executionTime % 60) + 's' : '-';
-                document.getElementById('training-status-state').textContent = statusStr;
-                document.getElementById('training-status-state').style.color = d.isTraining ? '#3fb950' : '#8b949e';
-                document.getElementById('training-status-elapsed').textContent = elapsed;
-                document.getElementById('training-status-models').textContent = d.calledModels || 0;
-                document.getElementById('training-status-ok').textContent = d.okStatus || 0;
-                document.getElementById('training-status-err').textContent = d.errorStatus || 0;
-                updateTrainingBadge(d.isTraining);
+
+                if (daemonRes.ok) {
+                    const dd = await daemonRes.json();
+                    daemonRunning = dd.isRunning;
+                    if (daemonRunning && !isTraining) {
+                        const elState = document.getElementById('training-status-state');
+                        if (elState) {
+                            elState.textContent = 'Active (Daemon)';
+                            elState.style.color = '#3fb950';
+                        }
+                    }
+                }
+
+                const active = isTraining || daemonRunning;
+                updateTrainingBadge(active);
             } catch (e) {
                 const el = document.getElementById('training-status-content');
                 if (el) el.textContent = 'Error: ' + e.message;
                 updateTrainingBadge(false);
+            }
+        }
+
+        let trainingLogAbortController = null;
+
+        async function streamTrainingLogs() {
+            const container = document.getElementById('script-output-container');
+            const title = document.getElementById('script-output-title');
+            const status = document.getElementById('script-output-status');
+            const output = document.getElementById('script-output');
+            const progressContainer = document.getElementById('script-progress-container');
+
+            if (!container || !output) return;
+
+            if (trainingLogAbortController) {
+                trainingLogAbortController.abort();
+            }
+            trainingLogAbortController = new AbortController();
+
+            container.style.display = 'block';
+            if (progressContainer) progressContainer.style.display = 'none';
+            if (title) title.textContent = 'Training Daemon Log Stream (training.log)';
+            if (status) status.innerHTML = '<span style="color:#3fb950;">● Connesso al log stream live (training.log)</span>';
+            output.textContent = 'Connessione al log stream in corso...\n';
+
+            try {
+                const res = await fetch('/v1/training/log-stream', {
+                    headers: authHeaders(),
+                    signal: trainingLogAbortController.signal
+                });
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                output.textContent = ''; // Clear connection message
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    output.textContent += chunk;
+                    output.scrollTop = output.scrollHeight;
+                }
+            } catch (e) {
+                if (e.name !== 'AbortError') {
+                    if (status) status.innerHTML = `<span style="color:#f85149;">Errore log stream: ${escapeHtml(e.message)}</span>`;
+                }
             }
         }
 

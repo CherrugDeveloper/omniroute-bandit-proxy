@@ -3125,6 +3125,7 @@ export class DiscountedUCB1Bandit {
     `;
 
     if (source === "train") {
+      conditions.push("m.id != 'train-daemon'");
       query += `, 0 AS is_paid`;
       query += `
         FROM models_train m
@@ -3457,27 +3458,18 @@ export class DiscountedUCB1Bandit {
 
   getTrainingStatus() {
     try {
-      const latest = this.db.prepare(`
-        SELECT * FROM models_train ORDER BY last_used_index DESC LIMIT 1
-      `).get();
-
-      const totals = this.db.prepare(`
-        SELECT
-          SUM(calledModels) as totalCalled,
-          SUM(okStatus) as totalOk,
-          SUM(errorStatus) as totalErr,
-          MAX(last_used_index) as cycleCount
-        FROM models_train
+      const daemon = this.db.prepare(`
+        SELECT * FROM models_train WHERE id = 'train-daemon'
       `).get();
 
       const now = Date.now();
-      let isTraining = latest ? latest.isTraining === 1 : false;
-      let statusMessage = latest ? latest.statusMessage : 'Idle';
+      let isTraining = daemon ? daemon.isTraining === 1 : false;
+      let statusMessage = daemon ? daemon.statusMessage : 'Idle';
 
-      if (isTraining && latest.updated_at && (now - latest.updated_at > 15000)) {
+      if (isTraining && daemon && daemon.updated_at && (now - daemon.updated_at > 15000)) {
         isTraining = false;
         statusMessage = 'Idle (Timeout)';
-      } else if (!latest || !latest.updated_at || (now - latest.updated_at > 30000)) {
+      } else if (!daemon || !daemon.updated_at || (now - daemon.updated_at > 30000)) {
         isTraining = false;
         if (statusMessage === 'Active' || statusMessage.startsWith('Training')) {
           statusMessage = 'Idle (Daemon Inactive)';
@@ -3486,12 +3478,12 @@ export class DiscountedUCB1Bandit {
 
       return {
         isTraining,
-        executionTime: latest ? latest.executionTime : 0,
-        calledModels: totals && totals.totalCalled !== null ? totals.totalCalled : (latest ? latest.calledModels : 0),
-        okStatus: totals && totals.totalOk !== null ? totals.totalOk : (latest ? latest.okStatus : 0),
-        errorStatus: totals && totals.totalErr !== null ? totals.totalErr : (latest ? latest.errorStatus : 0),
-        cycleCount: totals && totals.cycleCount !== null ? (totals.cycleCount + 1) : (latest && latest.last_used_index !== undefined ? latest.last_used_index + 1 : 1),
-        lastRun: latest ? latest.last_used_index : null,
+        executionTime: daemon ? daemon.executionTime : 0,
+        calledModels: daemon ? daemon.calledModels : 0,
+        okStatus: daemon ? daemon.okStatus : 0,
+        errorStatus: daemon ? daemon.errorStatus : 0,
+        cycleCount: daemon ? daemon.last_used_index : 0,
+        lastRun: daemon ? daemon.updated_at : null,
         statusMessage
       };
     } catch (e) {

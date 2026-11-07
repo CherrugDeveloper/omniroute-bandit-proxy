@@ -83,27 +83,21 @@ function log(...args) {
   console.log(`[${t}]`, ...args);
 }
 
-function updateTrainingStatus() {
+function updateTrainingStatus(totalOk = 0, totalFail = 0, cycleNum = 0) {
   if (!running) return;
   const now = Date.now();
-  // isTraining = 1 only when actively training (has a current model being tested)
-  // This distinguishes between daemon running vs actively testing a model
   const isTraining = currentModel !== null ? 1 : 0;
   const executionTime = cycleStats.cycleStart > 0 ? now - cycleStats.cycleStart : 0;
-  const calledModels = cycleStats.cycleOk + cycleStats.cycleFail;
-  const okStatus = cycleStats.cycleOk;
-  const errorStatus = cycleStats.cycleFail;
-  const statusMessage = isTraining ? `Training - Cycle ${cycle} - OK=${okStatus} FAIL=${errorStatus}` : 'Idle';
+  const calledModels = totalOk + totalFail;
+  const okStatus = totalOk;
+  const errorStatus = totalFail;
+  const statusMessage = isTraining ? `Training - Cycle ${cycleNum} - OK=${okStatus} FAIL=${errorStatus}` : 'Idle';
   
   try {
     const db = new Database(DB_PATH, { readonly: false });
-    // Get last_used_index from existing record, or use 0
-    const existing = db.prepare(`SELECT last_used_index FROM models_train WHERE id = 'train-daemon'`).get();
-    const lastUsedIndex = existing ? existing.last_used_index + 1 : 0;
-    
     db.prepare(`
-      INSERT INTO models_train (id, provider, sum_reward, N, last_used_index, isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO models_train (id, provider, sum_reward, N, last_used_index, isTraining, executionTime, calledModels, okStatus, errorStatus, statusMessage, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         isTraining = excluded.isTraining,
         executionTime = excluded.executionTime,
@@ -111,8 +105,9 @@ function updateTrainingStatus() {
         okStatus = excluded.okStatus,
         errorStatus = excluded.errorStatus,
         statusMessage = excluded.statusMessage,
-        last_used_index = last_used_index + 1
-    `).run('train-daemon', '', 0, 0, lastUsedIndex, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage);
+        updated_at = excluded.updated_at,
+        last_used_index = excluded.last_used_index
+    `).run('train-daemon', '', 0, 0, cycleNum, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage, now);
     db.close();
   } catch (e) {
     console.error(`[${new Date().toLocaleTimeString()}] Error updating training status:`, e.message);
@@ -250,7 +245,7 @@ async function main() {
   let consecutive404 = 0;
 
   // Initial status update
-  updateTrainingStatus();
+  updateTrainingStatus(totalOk, totalFail, cycle);
 
   while (running) {
     cycle++;
@@ -346,7 +341,7 @@ async function main() {
       // Update training status periodically
       const now = Date.now();
       if (now - lastStatusUpdate >= STATUS_UPDATE_INTERVAL) {
-        updateTrainingStatus();
+        updateTrainingStatus(totalOk, totalFail, cycle);
         lastStatusUpdate = now;
       }
 
@@ -354,7 +349,7 @@ async function main() {
     }
 
     log(`--- Ciclo #${cycle} chiuso: OK=${ok} FAIL=${fail} (totale: OK=${totalOk} FAIL=${totalFail}) ---`);
-    updateTrainingStatus();
+    updateTrainingStatus(totalOk, totalFail, cycle);
     if (running) {
       log(`Pausa ${CYCLE_DELAY}ms prima del prossimo ciclo...`);
       await sleep(CYCLE_DELAY).catch(() => {});
@@ -363,7 +358,7 @@ async function main() {
 
   // Final status update on shutdown
   running = false;
-  updateTrainingStatus();
+  updateTrainingStatus(totalOk, totalFail, cycle);
   log("=================================================");
   log(`Train daemon terminato. Totale: OK=${totalOk} FAIL=${totalFail}`);
   log("=================================================");

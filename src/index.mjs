@@ -1173,6 +1173,114 @@ app.get('/v1/training/status', requireAuth, (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// Check if training daemon process is running (based on PID file)
+app.get('/v1/training/daemon-status', requireAuth, (req, res) => {
+  try {
+    const pidFile = path.join(__dirname, "../.train-daemon.pid");
+    let isRunning = false;
+    let pid = null;
+    
+    if (fs.existsSync(pidFile)) {
+      const pidContent = fs.readFileSync(pidFile, 'utf8').trim();
+      pid = parseInt(pidContent, 10);
+      if (!isNaN(pid)) {
+        try {
+          process.kill(pid, 0);
+          isRunning = true;
+        } catch (e) {
+          isRunning = false;
+        }
+      }
+    }
+    
+    res.json({ 
+      isRunning, 
+      pid: isRunning ? pid : null,
+      pidFileExists: fs.existsSync(pidFile)
+    });
+  } catch (e) {
+    console.error("[API] Errore /v1/training/daemon-status:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Stream training.log live (like tail -f)
+app.get('/v1/training/log-stream', requireAuth, (req, res) => {
+  try {
+    const logFile = path.join(__dirname, "../training.log");
+    
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    
+    if (!fs.existsSync(logFile)) {
+      res.write('Log file not found yet. Waiting for training daemon to start...\n');
+    }
+    
+    // Get initial file size to start from end
+    let lastSize = 0;
+    try {
+      const stats = fs.statSync(logFile);
+      lastSize = Math.max(0, stats.size - 10000); // Start from last 10KB
+    } catch (e) {
+      lastSize = 0;
+    }
+    
+    let fd = null;
+    let isClosed = false;
+    
+    const readAndSend = () => {
+      if (isClosed) return;
+      
+      try {
+        if (!fs.existsSync(logFile)) {
+          return;
+        }
+        
+        const stats = fs.statSync(logFile);
+        if (stats.size > lastSize) {
+          if (fd === null) {
+            fd = fs.openSync(logFile, 'r');
+          }
+          
+          const buffer = Buffer.alloc(stats.size - lastSize);
+          const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, lastSize);
+          if (bytesRead > 0) {
+            const chunk = buffer.subarray(0, bytesRead).toString('utf8');
+            res.write(chunk);
+          }
+          lastSize = stats.size;
+        }
+      } catch (e) {
+        // Ignore errors, will retry
+      }
+    };
+    
+    // Send initial chunk
+    readAndSend();
+    
+    // Poll for new content every 500ms
+    const interval = setInterval(readAndSend, 500);
+    
+    // Clean up on client disconnect
+    req.on('close', () => {
+      isClosed = true;
+      clearInterval(interval);
+      if (fd !== null) {
+        try { fs.closeSync(fd); } catch (e) {}
+      }
+    });
+    
+  } catch (e) {
+    console.error("[API] Errore /v1/training/log-stream:", e.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+});
+
 app.get('/v1/modes', requireAuth, (req, res) => {
   res.json({ stats: registryStats(), discovered: listDiscovered() });
 });
