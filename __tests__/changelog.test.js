@@ -35,10 +35,10 @@ describe('Changelog Suite', () => {
   });
 
   /**
-   * Test: Unreleased section exists
+   * Test: Unreleased section does not exist
    */
-  it('should have Unreleased section', () => {
-    assert.ok(changelogContent.includes('## [Unreleased]'), 'Has Unreleased section');
+  it('should NOT have Unreleased section', () => {
+    assert.ok(!changelogContent.includes('## [Unreleased]'), 'Does not have Unreleased section');
   });
 
   /**
@@ -282,12 +282,8 @@ describe('Changelog Currency', () => {
       `Changelog contains version ${packageVersion} (or ${majorMinor}) from package.json`);
   });
 
-  it('should have Unreleased section before version history', () => {
-    const unreleasedIndex = changelogContent.indexOf('## [Unreleased]');
+  it('should have Version History section', () => {
     const versionHistoryIndex = changelogContent.indexOf('## Version History');
-    
-    assert.ok(unreleasedIndex !== -1, 'Has Unreleased section');
     assert.ok(versionHistoryIndex !== -1, 'Has Version History section');
-    assert.ok(unreleasedIndex < versionHistoryIndex, 'Unreleased comes before Version History');
   });
 });
