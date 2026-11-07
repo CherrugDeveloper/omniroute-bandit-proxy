@@ -754,9 +754,10 @@ export class DiscountedUCB1Bandit {
           }
 
           const provider = this._getProvider(modelId);
-          const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
-          const isFree = isFreeModel(modelId) ? 1 : 0;
-          const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
+                    const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
+                    const isFree = isFreeModel(modelId) ? 1 : 0;
+                    const isPaid = isFree ? 0 : 1;
+                    const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
           let supportsTools = (m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
           if (!supportsTools && !isFim) {
             const toolPatterns = [/gpt-4/i, /gpt-3\.5/i, /o1/i, /o3/i, /o4/i, /claude-3/i, /claude-4/i, /llama-3/i, /llama-4/i, /mistral/i, /mixtral/i, /codestral/i, /qwen2/i, /qwen3/i, /deepseek/i, /gemini/i, /command-r/i, /glm-4/i, /chat/i];
@@ -826,7 +827,7 @@ export class DiscountedUCB1Bandit {
             }
           }
 
-          insertStmt.run(modelId, provider, maxInput, isFree, supportsTools, finalSupportsVision, supportsImageGeneration, capability, supportsChat, supportsAudioGeneration);
+          insertStmt.run(modelId, provider, maxInput, isFree, isPaid, supportsTools, finalSupportsVision, supportsImageGeneration, capability, supportsChat, supportsAudioGeneration);
           inserted++;
         }
         return { inserted, skipped, raw };
