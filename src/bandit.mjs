@@ -3477,6 +3477,11 @@ export class DiscountedUCB1Bandit {
       if (isTraining && latest.updated_at && (now - latest.updated_at > 15000)) {
         isTraining = false;
         statusMessage = 'Idle (Timeout)';
+      } else if (!latest || !latest.updated_at || (now - latest.updated_at > 30000)) {
+        isTraining = false;
+        if (statusMessage === 'Active' || statusMessage.startsWith('Training')) {
+          statusMessage = 'Idle (Daemon Inactive)';
+        }
       }
 
       return {
