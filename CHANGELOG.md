@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-11-07
+
+### Fixed
+- fix(bandit): ensure training feedback correctly updates `models_train` table in [`src/bandit.mjs`](src/bandit.mjs:580)
+- fix(dashboard): optimize scripts manager table column widths and layout in [`public/dashboard.html`](public/dashboard.html:1677)
+
 ## [1.26.0] - 2026-11-07
 
 ### Changed

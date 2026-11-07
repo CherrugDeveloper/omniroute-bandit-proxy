@@ -444,10 +444,10 @@
         #tab-scripts .table-wrapper { overflow-x: auto; width: 100%; }
         #tab-scripts table { table-layout: fixed; width: 100%; }
         #tab-scripts .table-wrapper th:nth-child(1), #tab-scripts .table-wrapper td:nth-child(1) { width: 35%; }
-        #tab-scripts .table-wrapper th:nth-child(2), #tab-scripts .table-wrapper td:nth-child(2) { width: 15%; }
-        #tab-scripts .table-wrapper th:nth-child(3), #tab-scripts .table-wrapper td:nth-child(3) { width: 15%; }
+        #tab-scripts .table-wrapper th:nth-child(2), #tab-scripts .table-wrapper td:nth-child(2) { width: 10%; }
+        #tab-scripts .table-wrapper th:nth-child(3), #tab-scripts .table-wrapper td:nth-child(3) { width: 12%; }
         #tab-scripts .table-wrapper th:nth-child(4), #tab-scripts .table-wrapper td:nth-child(4) { width: 20%; }
-        #tab-scripts .table-wrapper th:nth-child(5), #tab-scripts .table-wrapper td:nth-child(5) { width: 15%; }
+        #tab-scripts .table-wrapper th:nth-child(5), #tab-scripts .table-wrapper td:nth-child(5) { width: 23%; }
 
         /* Larghezze colonne specifiche per la tab Models (#tab-models) - 11 colonne */
         #tab-models .table-wrapper th:nth-child(1), #tab-models .table-wrapper td:nth-child(1) { width: 50px; }
@@ -1674,14 +1674,14 @@
                 <span id="scripts-count">0</span>
             </div>
             <div class="table-wrapper" style="margin-top:10px; overflow-x: auto;">
-                <table style="table-layout: auto; width: 100%;">
+                <table style="table-layout: fixed; width: 100%;">
                     <thead>
                         <tr>
-                            <th style="width: 30%; min-width: 150px;">Script</th>
-                            <th style="width: 12%; min-width: 75px;">Tipo</th>
-                            <th style="width: 12%; min-width: 85px;">Dimensione</th>
-                            <th style="width: 23%; min-width: 130px;">Ultima modifica</th>
-                            <th style="width: 23%; min-width: 160px;">Azioni</th>
+                            <th>Script</th>
+                            <th>Tipo</th>
+                            <th>Dimensione</th>
+                            <th>Ultima modifica</th>
+                            <th>Azioni</th>
                         </tr>
                     </thead>
                     <tbody id="scripts-tbody"></tbody>

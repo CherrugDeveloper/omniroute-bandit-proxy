@@ -1227,6 +1227,10 @@ export class DiscountedUCB1Bandit {
         }
         // Belt-and-suspenders: clear model cooldown on success
         this.db.prepare(`UPDATE models SET cooldown_until = 0 WHERE id = ?`).run(sanitizedModelId);
+        if (source === 'training') {
+          this._recordTrainingFeedback(sanitizedModelId, true, reward);
+          console.log(`[BANDIT-TRAIN] Recorded training feedback for model=${modelId} success=true reward=${reward} source=training`);
+        }
       } else {
         // On failure: increment both fails (consecutive) and total_failures (cumulative for escalation)
         this.db.prepare(
@@ -1312,6 +1316,10 @@ export class DiscountedUCB1Bandit {
         this.db.prepare(
           "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
         ).run(Date.now(), statusCode, errorMessage, sanitizedModelId, provider);
+        if (source === 'training') {
+          this._recordTrainingFeedback(sanitizedModelId, false, reward);
+          console.log(`[BANDIT-TRAIN] Recorded training feedback for model=${modelId} success=false reward=${reward} source=training`);
+        }
       }
       const result = { success, reward, errorDetails };
       return result;
