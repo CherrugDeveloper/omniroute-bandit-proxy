@@ -1998,12 +1998,39 @@
         function updateTrainingBadge(isRunning) {
             const badge = document.getElementById('scripts-badge');
             if (!badge) return;
+            badge.isTrainingActive = isRunning;
             // Only update badge if no script is currently running
             if (!badge.isScriptRunning) {
                 if (isRunning) {
                     badge.style.display = 'inline-flex';
                 } else {
                     badge.style.display = 'none';
+                }
+            }
+            // If training is active and user is currently viewing scripts tab, ensure quick action box is visible
+            const activeTab = localStorage.getItem('dashboard.activeTab') || 'logs';
+            if (activeTab === 'scripts' && isRunning) {
+                const container = document.getElementById('script-output-container');
+                const output = document.getElementById('script-output');
+                if (container && output) {
+                    container.style.display = 'block';
+                    if (output.textContent.trim().length === 0) {
+                        const title = document.getElementById('script-output-title');
+                        const statusDiv = document.getElementById('script-output-status');
+                        if (title) title.textContent = 'Training Daemon Status (Active)';
+                        if (statusDiv) statusDiv.innerHTML = '<span style="color:#3fb950;">● Training Daemon attivo in esecuzione in background</span>';
+                        if (window.__rawLogs && Array.isArray(window.__rawLogs)) {
+                            const trainingLogs = window.__rawLogs.filter(l => l.source === 'training' || /train/i.test(l.message));
+                            if (trainingLogs.length > 0) {
+                                output.textContent = trainingLogs.map(l => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.message}`).join('\n');
+                                output.scrollTop = output.scrollHeight;
+                            } else {
+                                output.textContent = 'Training daemon attivo in background. In attesa di eventi di training...';
+                            }
+                        } else {
+                            output.textContent = 'Training daemon attivo in background.';
+                        }
+                    }
                 }
             }
         }
@@ -2332,15 +2359,32 @@
             if (btn) btn.classList.add('active');
             if (content) content.classList.add('active');
 
-            // For Scripts tab, auto-show the script output container if there's active output
+            // For Scripts tab, auto-show the script output container if there's active output or training active
             if (tabName === 'scripts') {
                 const outputContainer = document.getElementById('script-output-container');
                 const output = document.getElementById('script-output');
                 if (outputContainer && output) {
-                    // Show the container if there's actual content or if a script is running
                     const badge = document.getElementById('scripts-badge');
-                    const hasContent = output.textContent.trim().length > 0 || (badge && badge.isScriptRunning);
+                    const isTrainingActive = badge && badge.isTrainingActive;
+                    const hasContent = output.textContent.trim().length > 0 || (badge && badge.isScriptRunning) || isTrainingActive;
                     outputContainer.style.display = hasContent ? 'block' : 'none';
+                    if (hasContent && isTrainingActive && output.textContent.trim().length === 0) {
+                        const title = document.getElementById('script-output-title');
+                        const statusDiv = document.getElementById('script-output-status');
+                        if (title) title.textContent = 'Training Daemon Status (Active)';
+                        if (statusDiv) statusDiv.innerHTML = '<span style="color:#3fb950;">● Training Daemon attivo in esecuzione in background</span>';
+                        if (window.__rawLogs && Array.isArray(window.__rawLogs)) {
+                            const trainingLogs = window.__rawLogs.filter(l => l.source === 'training' || /train/i.test(l.message));
+                            if (trainingLogs.length > 0) {
+                                output.textContent = trainingLogs.map(l => `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.message}`).join('\n');
+                                output.scrollTop = output.scrollHeight;
+                            } else {
+                                output.textContent = 'Training daemon attivo in background. In attesa di eventi di training...';
+                            }
+                        } else {
+                            output.textContent = 'Training daemon attivo in background.';
+                        }
+                    }
                 }
             }
 
