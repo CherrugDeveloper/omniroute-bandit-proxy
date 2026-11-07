@@ -1257,11 +1257,21 @@ app.get("/v1/models", requireAuth, (req, res) => {
     };
     const models = bandit.getModels(source, filters);
 
-    const { log, message, suppressed } = modelsLogger.decide(
-      `[API] GET /v1/models source=${source} results=${models.length}`
-    );
-    if (log) {
-      console.log(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
+    let shouldLog = true;
+    if (source === 'train' && models.length === 0) {
+      const trainingStatus = bandit.getTrainingStatus();
+      if (!trainingStatus.isTraining) {
+        shouldLog = false;
+      }
+    }
+
+    if (shouldLog) {
+      const { log, message, suppressed } = modelsLogger.decide(
+        `[API] GET /v1/models source=${source} results=${models.length}`
+      );
+      if (log) {
+        console.log(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
+      }
     }
 
     res.json({ models });
