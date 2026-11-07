@@ -3,28 +3,31 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
-## [1.27.1] - 2026-11-07
-
-### Fixed
-- fix(bandit): synchronize `models_train` during `fetchAndSyncModels()` in [`src/bandit.mjs`](src/bandit.mjs:852) so `GET /v1/models?source=train` returns active catalog models instead of 0 results
-
-## [1.27.0] - 2026-11-07
-
-### Fixed
-- fix(bandit): ensure training feedback correctly updates `models_train` table in [`src/bandit.mjs`](src/bandit.mjs:580)
-- fix(dashboard): optimize scripts manager table column widths and layout in [`public/dashboard.html`](public/dashboard.html:1677)
-
-## [1.26.0] - 2026-11-07
-
-### Changed
-- feat(dashboard): refine dashboard UI, optimize scripts manager table width and responsive layout
-- fix(dashboard): restrict scripts manager running badge to active script executions only
-- feat(dashboard): align Train tab table structure and buttons with Models tab
-
 ## Version History
 
-For complete version history prior to v1.26.0, see the [git history](https://github.com/tuogiuseppe/omniroute-bandit-proxy/commits/master/CHANGELOG.md) or commit files.
+## [1.27.2] - 2026-11-07
+
+### Fixed
+- fix(bandit): synchronize models_train during catalog sync to fix GET /v1/models?source=train results=0
+- fix(daemon): refine training daemon activity state so active only during actual training
+- fix(dashboard): align Train tab structure and optimize script table column widths
+
+## [1.27.1] - 2026-11-06
+
+### Fixed
+- fix(bandit): synchronize models_train table during catalog sync
+
+## [1.27.0] - 2026-11-06
+
+### Fixed
+- fix(train): fix training feedback for models_train
+- fix(dashboard): optimize scripts manager table column widths
+
+## [1.26.0] - 2026-11-05
+
+### Added
+- feat(dashboard): dashboard UI refinements and real-time monitoring enhancements

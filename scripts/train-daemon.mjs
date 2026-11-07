@@ -86,7 +86,7 @@ function log(...args) {
 function updateTrainingStatus() {
   if (!running) return;
   const now = Date.now();
-  const isTraining = running;
+  const isTraining = running && currentModel !== null ? 1 : 0;
   const executionTime = cycleStats.cycleStart > 0 ? now - cycleStats.cycleStart : 0;
   const calledModels = cycleStats.cycleOk + cycleStats.cycleFail;
   const okStatus = cycleStats.cycleOk;
