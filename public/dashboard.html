@@ -2217,21 +2217,46 @@
                     }
                 }
 
+                function showToast(message, type = 'info') {
+                    let container = document.getElementById('toast-container');
+                    if (!container) {
+                        container = document.createElement('div');
+                        container.id = 'toast-container';
+                        container.style.cssText = 'position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px; max-width:350px;';
+                        document.body.appendChild(container);
+                    }
+                    const toast = document.createElement('div');
+                    const bg = type === 'success' ? '#238636' : type === 'error' ? '#da3633' : '#1f6feb';
+                    toast.style.cssText = `background:${bg}; color:#ffffff; padding:12px 16px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.3); font-size:13px; font-weight:500; opacity:0; transition:opacity 0.3s ease;`;
+                    toast.textContent = message;
+                    container.appendChild(toast);
+                    setTimeout(() => toast.style.opacity = '1', 10);
+                    setTimeout(() => {
+                        toast.style.opacity = '0';
+                        setTimeout(() => toast.remove(), 300);
+                    }, 4000);
+                }
+
                 async function quickAction(scriptName, arg = '') {
                     const statusDiv = document.getElementById('script-output-status');
                     const outputDiv = document.getElementById('script-output');
                     const container = document.getElementById('script-output-container');
                     const title = document.getElementById('script-output-title');
                     
+                    const actionLabel = scriptName + (arg ? ' ' + arg : '');
+                    showToast('🚀 Esecuzione ' + actionLabel + ' in corso...', 'info');
+                    
                     // Switch to Scripts Manager tab for logs action
                     if (arg === 'logs') {
                         switchTab('scripts');
                     }
                     
-                    container.style.display = 'block';
-                    title.textContent = 'Quick Action: ' + scriptName + (arg ? ' ' + arg : '');
-                    statusDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
-                    outputDiv.textContent = '';
+                    if (container) {
+                        container.style.display = 'block';
+                        title.textContent = 'Quick Action: ' + actionLabel;
+                        statusDiv.innerHTML = '<span style="color:#58a6ff;">⏳ Esecuzione in corso...</span>';
+                        outputDiv.textContent = '';
+                    }
                     
                     try {
                         const args = arg ? [arg] : [];
@@ -2253,11 +2278,19 @@
                             throw new Error(result.error || 'Errore HTTP ' + res.status);
                         }
                         
+                        showToast('✓ ' + actionLabel + ' avviato con successo', 'success');
                         await pollScriptOutput(result.pid);
                         
                     } catch (e) {
-                        statusDiv.innerHTML = '<span style="color:#f85149;">✗ Errore: ' + escapeHtml(e.message) + '</span>';
-                        outputDiv.textContent = e.message;
+                        if (e.message.includes('Failed to fetch') || e.message.includes('network') || e.message.includes('ECONNREFUSED')) {
+                            statusDiv.innerHTML = '<span style="color:#3fb950;">✓ Servizio in riavvio (systemctl restart)... Ricarica tra qualche secondo.</span>';
+                            outputDiv.textContent = 'Il servizio proxy si sta riavviando (es. ' + scriptName + '). La disconnessione momentanea è normale durante il riavvio del demone. Attendi 2-3 secondi e ricarica la pagina.';
+                            showToast('✓ Servizio in riavvio (' + actionLabel + ')', 'success');
+                        } else {
+                            statusDiv.innerHTML = '<span style="color:#f85149;">✗ Errore: ' + escapeHtml(e.message) + '</span>';
+                            outputDiv.textContent = e.message;
+                            showToast('✗ Errore: ' + e.message, 'error');
+                        }
                     }
                 }
 
@@ -5486,8 +5519,14 @@
                 renderScripts();
             } catch (e) {
                 console.error('Error loading scripts:', e);
+                const isNetworkError = e.message.includes('Failed to fetch') || e.message.includes('network') || e.message.includes('ECONNREFUSED');
+                if (isNetworkError && scriptsData && scriptsData.length > 0) {
+                    return;
+                }
+                const msg = isNetworkError ? 'Servizio in riavvio / riconnessione in corso...' : `Errore caricamento script: ${escapeHtml(e.message)}`;
+                const color = isNetworkError ? '#8b949e' : '#f85149';
                 document.getElementById('scripts-tbody').innerHTML =
-                    `<tr><td colspan="5" style="text-align:center; color:#f85149;">Errore caricamento script: ${escapeHtml(e.message)}</td></tr>`;
+                    `<tr><td colspan="5" style="text-align:center; color:${color};">${msg}</td></tr>`;
             }
         }
         

@@ -78,12 +78,42 @@ wait_for_port_release() {
       return 0
     fi
     
+    # After 5 seconds of waiting, automatically trigger emergency port freeing if port is still occupied
+    if [ $elapsed -eq 5 ]; then
+      echo "⚠ Porta ${host}:${port} ancora occupata dopo 5s, avvio liberazione forzata automatica..."
+      if [ -x "./scripts/free-port-emergency.sh" ]; then
+        ./scripts/free-port-emergency.sh || true
+      else
+        if command -v lsof >/dev/null 2>&1; then
+          local procs=$(lsof -i :${port} -t 2>/dev/null || true)
+          for pid in $procs; do
+            kill -TERM "$pid" 2>/dev/null || true
+          done
+        fi
+        pkill -f "node.*src/index.mjs" || true
+      fi
+    fi
+    
     sleep 1
     elapsed=$((elapsed + 1))
   done
   
-  echo "✗ ERRORE: Porta ${host}:${port} ancora occupata dopo ${timeout}s"
-  exit 1
+  # Timeout reached: execute aggressive force-kill
+  echo "⚠ Timeout ${timeout}s raggiunto per liberazione porta ${host}:${port}, eseguo force-kill aggressivo..."
+  if [ -x "./scripts/free-port-emergency.sh" ]; then
+    ./scripts/free-port-emergency.sh || true
+  fi
+  pkill -9 -f "node.*src/index.mjs" || true
+  pkill -9 -f "omniroute-bandit-proxy" || true
+  
+  sleep 2
+  if command -v nc >/dev/null 2>&1 && nc -z -w1 "$host" "$port" 2>/dev/null; then
+    echo "✗ ERRORE CRITICO: Impossibile liberare la porta ${host}:${port}"
+    exit 1
+  else
+    echo "✓ Porta ${host}:${port} forzatamente liberata"
+    return 0
+  fi
 }
 
 wait_for_port_bind() {

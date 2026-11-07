@@ -1530,9 +1530,10 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
       });
     }
     
+        const cmdName = isShell ? 'bash' : 'node';
         const output = {
           pid: child.pid,
-          command: `${command} ${absolutePath} ${args.join(' ')}`,
+          command: `${cmdName} ${absolutePath} ${args.join(' ')}`,
           startTime: Date.now(),
           status: "running"
         };
@@ -1609,10 +1610,10 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
         // Audit log: script execution failed
         auditLogger.write({
           action: "script_execute_error",
-          scriptPath,
-          args,
+          scriptPath: typeof scriptPath !== 'undefined' ? scriptPath : (req?.body?.scriptPath || 'unknown'),
+          args: typeof args !== 'undefined' ? args : (req?.body?.args || []),
           error: e.message,
-          user: req.user || req.ip
+          user: req?.user || req?.ip
         });
     
         res.status(500).json({ error: e.message });
