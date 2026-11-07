@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.4] - 2026-11-07
+
+### Added
+- feat(dashboard): refine dashboard UI with container-scoped resets, clean train tab, and improved daemon controls
+
+### Fixed
+- fix(bandit,dashboard): fix SQL catalog insertion parameter mismatch and apply dashboard UI refinements
+
 ## [1.24.3] - 2026-11-06
 
 ### Added

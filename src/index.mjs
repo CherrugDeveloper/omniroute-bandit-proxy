@@ -1504,20 +1504,21 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
     // Esecuzione dello script
     const isShell = absolutePath.endsWith('.sh');
 
-    let command, options;
+    let child;
     if (isShell) {
-      command = "bash";
-      options = { shell: true };
+      const escapedArgs = args.map(arg => `"${String(arg).replace(/"/g, '\\"')}"`).join(' ');
+      const fullCmd = `bash "${absolutePath}" ${escapedArgs}`;
+      child = spawn(fullCmd, {
+        cwd: scriptsDir,
+        stdio: ["pipe", "pipe", "pipe"],
+        shell: true
+      });
     } else {
-      command = "node";
-      options = {};
+      child = spawn("node", [absolutePath, ...args], {
+        cwd: scriptsDir,
+        stdio: ["pipe", "pipe", "pipe"]
+      });
     }
-
-    const child = spawn(command, [absolutePath, ...args], {
-          cwd: scriptsDir,
-          stdio: ["pipe", "pipe", "pipe"],
-          ...options
-        });
     
         const output = {
           pid: child.pid,
