@@ -1,57 +1,43 @@
 # OmniRoute Bandit Proxy
 
-Multi-Armed Bandit reverse proxy for LLM traffic with dynamic provider routing, fallback chains, quotas, exponential backoff punishments, and real-time dashboard analytics.
-
-## Overview
-
-OmniRoute Bandit Proxy acts as an intelligent proxy layer for Large Language Model (LLM) APIs across multiple providers (OpenAI, Anthropic, Groq, Google Gemini, DeepSeek, etc.). It optimizes routing using Discounted UCB1 Multi-Armed Bandit algorithms, monitors provider error patterns, enforces quotas and rate limits, and provides a real-time web dashboard for telemetry, debugging, and training management.
+Multi-Armed Bandit reverse proxy for LLM traffic with intelligent provider routing, dynamic reinforcement learning (Discounted UCB1), granular error handling, quota management, and automated training daemon.
 
 ## Features
 
-- **Multi-Armed Bandit Routing**: Uses `DiscountedUCB1Bandit` (0.99 discount factor) with profile multipliers and real-time scoring.
-- **Robust Error Classification & Punishment**: 5-tier classification scope with exponential backoff cooldowns (15s up to permanent ban) and 3-strike aggressive punishment for critical failures.
-- **Provider Quota Management**: Atomic minute and day window checks at the provider level.
-- **Comprehensive Real-Time Dashboard**: Tabbed interface (`public/dashboard.html`) for monitoring models, providers, training status, consideration logs, and system stats.
-- **SQLite Persistence**: Powered by `better-sqlite3` with additive-only schema migrations.
-
-## System Requirements
-
-- Node.js (v18+ recommended)
-- npm
+- **Multi-Armed Bandit Routing**: Discounted UCB1 bandit algorithm (discount factor 0.99) with 30s rank caching and profile multipliers.
+- **Robust Error Classification & Punishment**: 5 classification scopes (ban, cooldown, flag, etc.), exponential backoff cooldowns (15s → 5m → 30m → 2h → permanent), and 3-strike aggressive punishment for critical failures.
+- **Training Daemon**: Automated background training cycles (`scripts/train-daemon.mjs`) with automatic 404 error auto-flagging (`permanent = 1`) to prevent dead model retry loops.
+- **Atomic Quota Management**: Provider-level rate limit (RPM/RPD) and token (ITPM) atomic minute/day window checks.
+- **Session Tracking**: Persistent request tracking with SQLite (`better-sqlite3`), 30-minute session TTL, and 60-second stream idle timeout.
+- **Interactive Dashboard**: Real-time web UI (`public/dashboard.html`) for monitoring models, providers, logs, and training status.
 
 ## Installation
 
 ```bash
-git clone https://github.com/marco/omniroute-bandit-proxy.git
+git clone https://github.com/your-org/omniroute-bandit-proxy.git
 cd omniroute-bandit-proxy
 npm install
 ```
 
 ## Configuration
 
-1. Copy [`[.env.example](.env.example)`] to [`.env`](.env) and configure required API keys and ports.
-2. Review configuration files in [`config/bandit.json`](config/bandit.json) and [`config/provider-limits.json`](config/provider-limits.json).
+Copy `.env.example` to `.env` and configure your API keys and endpoints. Model and provider fallback configurations are located in [`config/bandit.json`](config/bandit.json:1).
 
-## Usage
+## Usage & Scripts
 
-Start the production proxy server:
+- `npm start` - Start the proxy server
+- `npm run dev` - Start development server with watch mode (`node --watch src/index.mjs`)
+- `npm run check` - Syntax check all source files
+- `npm test` - Run the test suite (`node --test __tests__/*.test.js`)
+
+## Testing
+
+The test suite runs with Node.js built-in test runner (`node:test`) and in-memory SQLite databases:
+
 ```bash
-npm start
-```
-
-Start the development server with auto-reload:
-```bash
-npm run dev
-```
-
-## Testing & Verification
-
-Run syntax checks and test suites:
-```bash
-npm run check
 npm test
 ```
 
 ## License
 
-This project is licensed under the MIT License - see the [`LICENSE`](LICENSE) file for details.
+MIT
