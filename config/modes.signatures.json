@@ -22,5 +22,17 @@
     "profile": "code",
     "source": "pattern",
     "ts": 1794160748166
+  },
+  "46a37ea84a67b4f0": {
+    "mode": "architect",
+    "profile": "reasoning",
+    "source": "manual",
+    "ts": 1794165254513
+  },
+  "e7980e5a4a59c790": {
+    "mode": "ask",
+    "profile": "general",
+    "source": "manual",
+    "ts": 1794165282219
   }
 }
