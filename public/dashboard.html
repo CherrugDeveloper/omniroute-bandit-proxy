@@ -1685,6 +1685,8 @@
         let allData = { providers: [], models: [] };
         let refreshing = false;
         let trainData = { providers: [], models: [] };
+        let statsFetchId = 0;
+        let modelsFetchId = 0;
         let sortCol = null;
         let sortDir = 'asc';
         let trainSortCol = null;
@@ -2795,6 +2797,7 @@
             }
 
             renderAllPending = true;
+            const currentModelsId = ++modelsFetchId;
             
             // Get filter values
             const search = document.getElementById('models-filter-search').value.toLowerCase();
@@ -2812,6 +2815,7 @@
                   '&limit=10000')
                 .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
                 .then(data => {
+                    if (currentModelsId !== modelsFetchId) return; // Stale response guard
                     const models = Array.isArray(data) ? data : (data.models || []);
                     
                     // Compute filtered summary from the filtered models
@@ -3735,9 +3739,11 @@
         async function refreshAll() {
             if (refreshing) return;
             refreshing = true;
+            const currentStatsId = ++statsFetchId;
             try {
                 console.log('[DEBUG dashboard] Fetching /v1/dashboard/stats with token:', API_TOKEN ? 'present' : 'missing');
                 const r = await apiFetch('/v1/dashboard/stats');
+                if (currentStatsId !== statsFetchId) return; // Stale response guard
                 loadDebugStatus();
                 loadConfigStatus();
                 updateTrainingStatus();
@@ -3852,7 +3858,11 @@
                     prevStats[key] = value ?? 0;
                 };
 
-                if (!hasActiveFilters()) {
+                const activeTabEl = document.querySelector('.tab-content.active');
+                const activeTabIdEl = activeTabEl ? activeTabEl.id : '';
+                const isModelsTabActive = activeTabIdEl === 'tab-models';
+
+                if (!hasActiveFilters() && !isModelsTabActive) {
                     updateStat('models-count-catalog', d.catalogTotal, 'catalogTotal');
                     updateStat('models-count-free', d.catalogFree, 'catalogFree');
                     updateStat('models-count-raw', d.catalogRawCount, 'catalogRawCount');
@@ -3885,6 +3895,8 @@
                     updateStat('providers-count-banned', d.providersBanned, 'providersBanned');
                     updateStat('providers-count-attention', d.providersAttention, 'providersAttention');
                     updateStat('providers-count-total', d.totalProviders, 'providersTotal');
+                } else if (isModelsTabActive) {
+                    console.log('[DEBUG dashboard] Models tab active, skipping global model/provider count updates from stats fetch to prevent race condition');
                 } else {
                     console.log('[DEBUG dashboard] Filters active, skipping model/provider count updates from global stats');
                 }
