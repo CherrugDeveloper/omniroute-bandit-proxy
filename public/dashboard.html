@@ -2757,7 +2757,7 @@
             const minN = parseInt(document.getElementById('models-filter-minN').value) || 0;
             const minAvg = parseFloat(document.getElementById('models-filter-minAvg').value) || 0;
             
-            // Fetch models and summary
+            // Fetch filtered models only (no separate summary fetch - we'll compute from filtered data)
             apiFetch('/v1/models?source=prod&provider=' + encodeURIComponent(provider) +
                   '&status=' + encodeURIComponent(status) +
                   '&minN=' + minN +
@@ -2767,10 +2767,67 @@
                 .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
                 .then(data => {
                     const models = Array.isArray(data) ? data : (data.models || []);
-                    // Fetch summary
-                    return apiFetch('/v1/models/summary?source=prod')
-                        .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
-                        .then(summary => ({models, summary}));
+                    
+                    // Compute filtered summary from the filtered models
+                    const now = Date.now();
+                    const filteredSummary = {
+                        total: models.length,
+                        active: 0,
+                        cooldown: 0,
+                        degraded: 0,
+                        banned: 0,
+                        attention: 0,
+                        providers: {
+                            total: new Set(models.map(m => m.provider)).size,
+                            active: 0,
+                            cooldown: 0,
+                            banned: 0,
+                            attention: 0
+                        }
+                    };
+                    
+                    // Count models by status
+                    for (const m of models) {
+                        const permanent = Number(m.permanent) === 1;
+                        const needsAttention = Number(m.needs_attention) === 1;
+                        const cooldown = m.cooldown_until && m.cooldown_until > now;
+                        const degraded = Number(m.degraded) === 1;
+                        
+                        if (permanent) filteredSummary.banned++;
+                        else if (needsAttention) filteredSummary.attention++;
+                        else if (cooldown) filteredSummary.cooldown++;
+                        else if (degraded) filteredSummary.degraded++;
+                        else filteredSummary.active++;
+                    }
+                    
+                    // Count providers by status
+                    const providerStatus = {};
+                    for (const m of models) {
+                        const p = m.provider || 'unknown';
+                        if (!providerStatus[p]) providerStatus[p] = { active: 0, cooldown: 0, banned: 0, attention: 0 };
+                        
+                        const permanent = Number(m.permanent) === 1;
+                        const needsAttention = Number(m.needs_attention) === 1;
+                        const cooldown = m.cooldown_until && m.cooldown_until > now;
+                        const degraded = Number(m.degraded) === 1;
+                        
+                        if (permanent) providerStatus[p].banned++;
+                        else if (needsAttention) providerStatus[p].attention++;
+                        else if (cooldown) providerStatus[p].cooldown++;
+                        else if (degraded) providerStatus[p].cooldown++; // degraded counts as cooldown for providers?
+                        else providerStatus[p].active++;
+                    }
+                    
+                    for (const p of Object.keys(providerStatus)) {
+                        const ps = providerStatus[p];
+                        // A provider is active if it has at least one active model
+                        if (ps.active > 0) filteredSummary.providers.active++;
+                        if (ps.cooldown > 0) filteredSummary.providers.cooldown++;
+                        if (ps.banned > 0) filteredSummary.providers.banned++;
+                        if (ps.attention > 0) filteredSummary.providers.attention++;
+                    }
+                    
+                    return { models, summary: filteredSummary };
                 })
                 .then(({models, summary}) => {
                     // Update counters safely if elements exist
@@ -2779,7 +2836,7 @@
                         if (el) el.textContent = val ?? 0;
                     };
 
-                    // Update BOTH tab counters and top summary box counters
+                    // Update BOTH tab counters and top summary box counters WITH FILTERED DATA
                     updateIfExists('models-count-total', summary.total);
                     updateIfExists('total-models', summary.total);
                     
