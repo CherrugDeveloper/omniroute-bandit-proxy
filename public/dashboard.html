@@ -1311,14 +1311,13 @@
             <table id="unified-table" style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed; line-height: 1.2;">
                 <thead>
                     <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
-                        <th style="padding: 2px 6px; text-align: left; width: 7%;">Source</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 9%;">Timestamp</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 9%;">Provider</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 15%;">Model</th>
-                        <th style="padding: 2px 6px; text-align: center; white-space: nowrap; width: 8%;">Status</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 11%;">Error Type</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 12%;">Countermeasure</th>
-                        <th style="padding: 2px 6px; text-align: left; width: 29%;">Reason / Stats</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 9%;">Source</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 11%;">Timestamp</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 12%;">Provider</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 24%;">Model</th>
+                        <th style="padding: 2px 6px; text-align: center; white-space: nowrap; width: 10%;">Status</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 17%;">Error Type</th>
+                        <th style="padding: 2px 6px; text-align: left; width: 17%;">Countermeasure</th>
                     </tr>
                 </thead>
                 <tbody id="unified-cronologia-tbody">
@@ -2516,6 +2515,52 @@
             }
         }
 
+        function navigateToModel(provider, modelName) {
+            switchTab('models', true);
+            setTimeout(() => {
+                const tbody = document.getElementById('models-tbody');
+                if (!tbody) return;
+                const rows = tbody.querySelectorAll('tr.model-row');
+                let targetRow = null;
+                const cleanProvider = (provider || '').trim().toLowerCase();
+                const cleanModel = (modelName || '').trim().toLowerCase();
+
+                for (const row of rows) {
+                    const rowProvider = (row.getAttribute('data-provider') || '').trim().toLowerCase();
+                    const rowModel = (row.getAttribute('data-model') || '').trim().toLowerCase();
+                    const text = row.textContent.toLowerCase();
+
+                    if (rowProvider === cleanProvider && (rowModel === cleanModel || rowModel.includes(cleanModel) || cleanModel.includes(rowModel))) {
+                        targetRow = row;
+                        break;
+                    }
+                    if (text.includes(cleanProvider) && text.includes(cleanModel)) {
+                        targetRow = row;
+                        break;
+                    }
+                }
+                if (!targetRow) {
+                    for (const row of rows) {
+                        const rowModel = (row.getAttribute('data-model') || '').trim().toLowerCase();
+                        if (rowModel === cleanModel || row.textContent.toLowerCase().includes(cleanModel)) {
+                            targetRow = row;
+                            break;
+                        }
+                    }
+                }
+
+                if (targetRow) {
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const origBg = targetRow.style.background;
+                    targetRow.style.transition = 'background 0.5s ease';
+                    targetRow.style.background = 'rgba(88, 166, 255, 0.35)';
+                    setTimeout(() => {
+                        targetRow.style.background = origBg;
+                    }, 3000);
+                }
+            }, 200);
+        }
+
         function toggleTopSpecSheet() {
             const wrap = document.getElementById('spec-sheet-collapsible-wrapper');
             const btn = document.getElementById('spec-toggle-btn');
@@ -3328,7 +3373,7 @@
                 : '<span class="muted">—</span>';
 
             const safeProvider = escapeHtml(m.provider);
-            return '<tr class="model-row' + (isCollapsed ? ' collapsed-provider' : '') + '" data-provider="' + safeProvider + '">' +
+            return '<tr class="model-row' + (isCollapsed ? ' collapsed-provider' : '') + '" data-provider="' + safeProvider + '" data-model="' + escapeHtml(m.id) + '">' +
                '<td class="mono" style="text-align:center">' + rank + '</td>' +
                '<td style="padding-left:32px"><b>' + escapeHtml(m.id) + '</b></td>' +
                 '<td class="mono ok">' + n.toFixed(1) + '</td>' +
@@ -4556,11 +4601,10 @@
                         <td style="padding: 2px 6px; white-space: nowrap;">${sourceBadge}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeVal}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
-                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px;">${escapeHtml(model)}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px; cursor: pointer;" title="Clicca per visualizzare nel tab Modelli" onclick="navigateToModel('${escapeHtml(provider)}', '${escapeHtml(model)}')">${escapeHtml(model)}</td>
                         <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
                         <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(errorTypeDisplay)}">${escapeHtml(errorTypeDisplay) || '-'}</td>
                         <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay) || '-'}</td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #c9d1d9; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(truncatedStats)}">${escapeHtml(truncatedStats)}</td>
                     </tr>`;
                 }
 
@@ -4637,11 +4681,10 @@
                         <td style="padding: 2px 6px; white-space: nowrap;">${sourceBadge}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeStr}</td>
                         <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
-                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px;">${escapeHtml(model)}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px; cursor: pointer;" title="Clicca per visualizzare nel tab Modelli" onclick="navigateToModel('${escapeHtml(provider)}', '${escapeHtml(model)}')">${escapeHtml(model)}</td>
                         <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
                         <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(errorTypeDisplay)}">${escapeHtml(errorTypeDisplay) || '-'}</td>
                         <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay) || '-'}</td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #c9d1d9; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(truncatedStats)}">${escapeHtml(truncatedStats)}</td>
                     </tr>`;
                 }
 

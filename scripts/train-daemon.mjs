@@ -319,6 +319,18 @@ async function main() {
           if (result.status === 404) {
             consecutive404++;
             skippedProviders.add(model);
+            try {
+              const db = new Database(DB_PATH, { readonly: false });
+              db.prepare(`
+                INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index)
+                VALUES (?, ?, 1, ?, 0, 0, 1, 0, 0)
+                ON CONFLICT(id) DO UPDATE SET permanent = 1, banned_since = COALESCE(banned_since, ?), fails = fails + 1
+              `).run(model, provider, Date.now(), Date.now());
+              db.close();
+              log(`  🔒 Modello ${model} restituito 404 permanentemente: marcato come permanent=1`);
+            } catch (e) {
+              // ignore db error
+            }
           } else {
             consecutive404 = 0;
           }
