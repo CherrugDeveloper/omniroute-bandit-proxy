@@ -1416,8 +1416,8 @@ export class DiscountedUCB1Bandit {
       return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
 
-    // Sandbox, Missing Binary, and Environment Configuration Errors
-    if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured|Playwright is not available/i.test(message)) {
+    // Sandbox, Missing Binary, and Environment Configuration Errors (including Playwright / Cloudflare Playground)
+    if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured|Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright/i.test(message)) {
       const isProviderLevel = resolvedProvider === 'zc' || resolvedProvider === 'cfp' || !!resolvedProvider || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
       if (isProviderLevel) {
         if (resolvedProvider === 'cfp') {
@@ -1490,9 +1490,9 @@ export class DiscountedUCB1Bandit {
     if (status === 502 && /No auth provided|Please log in/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
-    // Playwright not available -> flag-provider
-    if (status === 502 && /Playwright is not available/i.test(message)) {
-      return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
+    // Playwright / Cloudflare Playground / 502 / 503 errors -> cooldown-provider
+    if ((status === 502 || status === 503) && /Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright/i.test(message)) {
+      return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
     }
     // CLI / binario mancante o non configurato -> flag-provider
     if (status === 502 && /is not configured|missing url or token/i.test(message)) {
