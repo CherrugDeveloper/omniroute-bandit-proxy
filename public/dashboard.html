@@ -855,6 +855,13 @@
         #tab-models .table-wrapper tbody tr.model-row.collapsed-provider {
             display: none !important;
         }
+        /* Collapse behavior for Train tab */
+        #tab-train .table-wrapper tbody tr.provider-header {
+            display: table-row !important;
+        }
+        #tab-train .table-wrapper tbody tr.model-row.collapsed-provider {
+            display: none !important;
+        }
         /* Models tab table - invisible vertical scrollbar - enable scrolling without visible scrollbar */
         #tab-models .table-wrapper.models-table-wrapper {
             overflow-y: auto;
@@ -1746,9 +1753,9 @@
         // Load expanded providers from localStorage
         // Empty set = all providers collapsed by default
         // Non-empty set = those providers are expanded
-        const expandedProviders = new Set(JSON.parse(localStorage.getItem('dashboard.expandedProviders') || '[]'));
-        // Train tab: default collapsed, persist expanded state in localStorage
-        const trainExpandedProviders = new Set(JSON.parse(localStorage.getItem('train.expandedProviders') || '[]'));
+        // Always start with all providers collapsed by default (ignoring stale localStorage)
+        const expandedProviders = new Set();
+        const trainExpandedProviders = new Set();
         let prevStats = {};
         let prevModelStats = {};
         // === Auth token (persistente tra tab) ===
@@ -2767,16 +2774,47 @@
                 })
                 .then(({models, summary}) => {
                     // Update counters safely if elements exist
-                    const totalEl = document.getElementById('models-count-total');
-                    if (totalEl) totalEl.textContent = summary.total || 0;
-                    const activeEl = document.getElementById('models-count-active');
-                    if (activeEl) activeEl.textContent = summary.active || 0;
-                    const cooldownEl = document.getElementById('models-count-cooldown');
-                    if (cooldownEl) cooldownEl.textContent = summary.cooldown || 0;
-                    const degradedEl = document.getElementById('models-count-degraded');
-                    if (degradedEl) degradedEl.textContent = summary.degraded || 0;
-                    const bannedEl = document.getElementById('models-count-banned');
-                    if (bannedEl) bannedEl.textContent = summary.banned || 0;
+                    const updateIfExists = (id, val) => {
+                        const el = document.getElementById(id);
+                        if (el) el.textContent = val ?? 0;
+                    };
+
+                    // Update BOTH tab counters and top summary box counters
+                    updateIfExists('models-count-total', summary.total);
+                    updateIfExists('total-models', summary.total);
+                    
+                    updateIfExists('models-count-active', summary.active);
+                    updateIfExists('active-models', summary.active);
+                    
+                    updateIfExists('models-count-cooldown', summary.cooldown);
+                    updateIfExists('cooldown-models', summary.cooldown);
+                    
+                    updateIfExists('models-count-degraded', summary.degraded);
+                    updateIfExists('degraded-models', summary.degraded);
+                    
+                    updateIfExists('models-count-banned', summary.banned);
+                    updateIfExists('banned-models', summary.banned);
+
+                    updateIfExists('models-count-attention', summary.attention);
+                    updateIfExists('attention-models', summary.attention);
+
+                    // Update provider counts if summary includes them (it does from getModelsSummary)
+                    if (summary.providers) {
+                        updateIfExists('providers-count-total', summary.providers.total);
+                        updateIfExists('total-providers', summary.providers.total);
+                        
+                        updateIfExists('providers-count-active', summary.providers.active);
+                        updateIfExists('active-providers', summary.providers.active);
+                        
+                        updateIfExists('providers-count-cooldown', summary.providers.cooldown);
+                        updateIfExists('cooldown-providers', summary.providers.cooldown);
+                        
+                        updateIfExists('providers-count-banned', summary.providers.banned);
+                        updateIfExists('banned-providers', summary.providers.banned);
+
+                        updateIfExists('providers-count-attention', summary.providers.attention);
+                        updateIfExists('attention-providers', summary.providers.attention);
+                    }
                     
                     // Store data for sorting
                     allData.models = models;
@@ -3534,6 +3572,26 @@
                 return;
             }
             
+            // Handle provider header toggle for train tab first (before general .provider-header check)
+            const trainProviderRow = e.target.closest('#tab-train .provider-header[data-provider]');
+            if (trainProviderRow) {
+                const headerContent = trainProviderRow.querySelector('.header-content');
+                const actionsArea = trainProviderRow.querySelector('.header-content .actions');
+                // Only toggle if clicking on header-content but NOT on the actions area
+                if (headerContent && headerContent.contains(e.target) && (!actionsArea || !actionsArea.contains(e.target))) {
+                    const name = trainProviderRow.dataset.provider;
+                    // Toggle the provider's expanded state
+                    if (trainExpandedProviders.has(name)) trainExpandedProviders.delete(name);
+                    else trainExpandedProviders.add(name);
+                    // Save to localStorage
+                    localStorage.setItem('train.expandedProviders', JSON.stringify(Array.from(trainExpandedProviders)));
+                    renderTrainAll();
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+            }
+
             // Handle provider header toggle (click on provider header-content, not on action buttons)
             const providerRow = e.target.closest('.provider-header[data-provider]');
             if (providerRow) {
@@ -3553,27 +3611,21 @@
                     return;
                 }
             }
-            
-            // Handle provider header toggle for train tab
-            const trainProviderRow = e.target.closest('#tab-train .provider-header[data-provider]');
-            if (trainProviderRow) {
-                const headerContent = trainProviderRow.querySelector('.header-content');
-                const actionsArea = trainProviderRow.querySelector('.header-content .actions');
-                // Only toggle if clicking on header-content but NOT on the actions area
-                if (headerContent && headerContent.contains(e.target) && (!actionsArea || !actionsArea.contains(e.target))) {
-                    const name = trainProviderRow.dataset.provider;
-                    // Toggle the provider's expanded state
-                    if (trainExpandedProviders.has(name)) trainExpandedProviders.delete(name);
-                    else trainExpandedProviders.add(name);
-                    // Save to localStorage
-                    localStorage.setItem('train.expandedProviders', JSON.stringify(Array.from(trainExpandedProviders)));
-                    renderTrainAll();
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return;
-                }
-            }
         });
+
+        function hasActiveFilters() {
+            const search = document.getElementById('models-filter-search')?.value || '';
+            const provider = document.getElementById('models-filter-provider')?.value || '';
+            const status = document.getElementById('models-filter-status')?.value || '';
+            const minN = document.getElementById('models-filter-minN')?.value || '0';
+            const minAvg = document.getElementById('models-filter-minAvg')?.value || '0';
+            
+            return search.trim().length > 0 ||
+                   provider.length > 0 ||
+                   status.length > 0 ||
+                   minN !== '0' ||
+                   minAvg !== '0';
+        }
 
         async function refreshAll() {
             if (refreshing) return;
@@ -3695,38 +3747,42 @@
                     prevStats[key] = value ?? 0;
                 };
 
-                updateStat('models-count-catalog', d.catalogTotal, 'catalogTotal');
-                updateStat('models-count-free', d.catalogFree, 'catalogFree');
-                updateStat('models-count-raw', d.catalogRawCount, 'catalogRawCount');
+                if (!hasActiveFilters()) {
+                    updateStat('models-count-catalog', d.catalogTotal, 'catalogTotal');
+                    updateStat('models-count-free', d.catalogFree, 'catalogFree');
+                    updateStat('models-count-raw', d.catalogRawCount, 'catalogRawCount');
 
-                updateStat('active-models', d.modelsActive, 'modelsActive');
-                updateStat('cooldown-models', d.modelsCooldown, 'modelsCooldown');
-                updateStat('banned-models', d.modelsBanned, 'modelsBanned');
-                updateStat('degraded-models', d.modelsDegraded, 'modelsDegraded');
-                updateStat('attention-models', d.modelsAttention, 'modelsAttention');
-                updateStat('total-models', d.totalModels, 'totalModels');
-                
-                // Also update Stats section elements (different IDs from tab elements)
-                updateStat('models-count-active', d.modelsActive, 'modelsActive');
-                updateStat('models-count-cooldown', d.modelsCooldown, 'modelsCooldown');
-                updateStat('models-count-banned', d.modelsBanned, 'modelsBanned');
-                updateStat('models-count-degraded', d.modelsDegraded, 'modelsDegraded');
-                updateStat('models-count-attention', d.modelsAttention, 'modelsAttention');
-                updateStat('models-count-total', d.totalModels, 'totalModels');
+                    updateStat('active-models', d.modelsActive, 'modelsActive');
+                    updateStat('cooldown-models', d.modelsCooldown, 'modelsCooldown');
+                    updateStat('banned-models', d.modelsBanned, 'modelsBanned');
+                    updateStat('degraded-models', d.modelsDegraded, 'modelsDegraded');
+                    updateStat('attention-models', d.modelsAttention, 'modelsAttention');
+                    updateStat('total-models', d.totalModels, 'totalModels');
+                    
+                    // Also update Stats section elements (different IDs from tab elements)
+                    updateStat('models-count-active', d.modelsActive, 'modelsActive');
+                    updateStat('models-count-cooldown', d.modelsCooldown, 'modelsCooldown');
+                    updateStat('models-count-banned', d.modelsBanned, 'modelsBanned');
+                    updateStat('models-count-degraded', d.modelsDegraded, 'modelsDegraded');
+                    updateStat('models-count-attention', d.modelsAttention, 'modelsAttention');
+                    updateStat('models-count-total', d.totalModels, 'totalModels');
 
-                updateStat('active-providers', d.providersActive, 'providersActive');
-                updateStat('cooldown-providers', d.providersCooldown, 'providersCooldown');
-                updateStat('banned-providers', d.providersBanned, 'providersBanned');
-                updateStat('attention-providers', d.providersAttention, 'providersAttention');
-                updateStat('total-providers', d.totalProviders, 'providersTotal');
-                updateStat('catalog-providers', d.catalogProviders, 'catalogProviders');
-                
-                // Also update Stats section elements (different IDs from tab elements)
-                updateStat('providers-count-active', d.providersActive, 'providersActive');
-                updateStat('providers-count-cooldown', d.providersCooldown, 'providersCooldown');
-                updateStat('providers-count-banned', d.providersBanned, 'providersBanned');
-                updateStat('providers-count-attention', d.providersAttention, 'providersAttention');
-                updateStat('providers-count-total', d.totalProviders, 'providersTotal');
+                    updateStat('active-providers', d.providersActive, 'providersActive');
+                    updateStat('cooldown-providers', d.providersCooldown, 'providersCooldown');
+                    updateStat('banned-providers', d.providersBanned, 'providersBanned');
+                    updateStat('attention-providers', d.providersAttention, 'providersAttention');
+                    updateStat('total-providers', d.totalProviders, 'providersTotal');
+                    updateStat('catalog-providers', d.catalogProviders, 'catalogProviders');
+                    
+                    // Also update Stats section elements (different IDs from tab elements)
+                    updateStat('providers-count-active', d.providersActive, 'providersActive');
+                    updateStat('providers-count-cooldown', d.providersCooldown, 'providersCooldown');
+                    updateStat('providers-count-banned', d.providersBanned, 'providersBanned');
+                    updateStat('providers-count-attention', d.providersAttention, 'providersAttention');
+                    updateStat('providers-count-total', d.totalProviders, 'providersTotal');
+                } else {
+                    console.log('[DEBUG dashboard] Filters active, skipping model/provider count updates from global stats');
+                }
                 updateStat('providers-count-catalog', d.catalogProviders, 'catalogProviders');
 
                 // Calculate and update percentage metrics
