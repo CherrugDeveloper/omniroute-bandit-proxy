@@ -2,7 +2,7 @@
 
 Multi-Armed Bandit reverse proxy for LLM traffic with dynamic provider routing, fallback chains, quotas, exponential backoff punishments, and real-time dashboard analytics.
 
-## Description
+## Overview
 
 OmniRoute Bandit Proxy acts as an intelligent proxy layer for Large Language Model (LLM) APIs across multiple providers (OpenAI, Anthropic, Groq, Google Gemini, DeepSeek, etc.). It optimizes routing using Discounted UCB1 Multi-Armed Bandit algorithms, monitors provider error patterns, enforces quotas and rate limits, and provides a real-time web dashboard for telemetry, debugging, and training management.
 
@@ -14,13 +14,23 @@ OmniRoute Bandit Proxy acts as an intelligent proxy layer for Large Language Mod
 - **Comprehensive Real-Time Dashboard**: Tabbed interface (`public/dashboard.html`) for monitoring models, providers, training status, consideration logs, and system stats.
 - **SQLite Persistence**: Powered by `better-sqlite3` with additive-only schema migrations.
 
+## System Requirements
+
+- Node.js (v18+ recommended)
+- npm
+
 ## Installation
 
 ```bash
-git clone https://github.com/your-username/omniroute-bandit-proxy.git
+git clone https://github.com/marco/omniroute-bandit-proxy.git
 cd omniroute-bandit-proxy
 npm install
 ```
+
+## Configuration
+
+1. Copy [`[.env.example](.env.example)`] to [`.env`](.env) and configure required API keys and ports.
+2. Review configuration files in [`config/bandit.json`](config/bandit.json) and [`config/provider-limits.json`](config/provider-limits.json).
 
 ## Usage
 
@@ -34,26 +44,14 @@ Start the development server with auto-reload:
 npm run dev
 ```
 
-## Configuration
+## Testing & Verification
 
-Configure environment variables in a `.env` file (see [.env.example](.env.example)):
-- Proxy port and host settings
-- API keys and provider endpoints
-
-Configure routing behavior, fallback models, and error classifications in [`config/bandit.json`](config/bandit.json:1).
-
-## Testing
-
-Run the test suite:
-```bash
-npm test
-```
-
-Perform syntax checks:
+Run syntax checks and test suites:
 ```bash
 npm run check
+npm test
 ```
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License - see the [`LICENSE`](LICENSE) file for details.
