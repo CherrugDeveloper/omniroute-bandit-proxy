@@ -3682,10 +3682,6 @@
                     document.getElementById('top-model-latency').textContent = '';
                 }
 
-                updateStat('models-count-catalog', d.catalogTotal, 'catalogTotal');
-                updateStat('models-count-free', d.catalogFree, 'catalogFree');
-                updateStat('models-count-raw', d.catalogRawCount, 'catalogRawCount');
-
                 const updateStat = (id, value, key) => {
                     const el = document.getElementById(id);
                     if (!el) return;
@@ -3698,6 +3694,10 @@
                     el.textContent = value ?? 0;
                     prevStats[key] = value ?? 0;
                 };
+
+                updateStat('models-count-catalog', d.catalogTotal, 'catalogTotal');
+                updateStat('models-count-free', d.catalogFree, 'catalogFree');
+                updateStat('models-count-raw', d.catalogRawCount, 'catalogRawCount');
 
                 updateStat('active-models', d.modelsActive, 'modelsActive');
                 updateStat('cooldown-models', d.modelsCooldown, 'modelsCooldown');
