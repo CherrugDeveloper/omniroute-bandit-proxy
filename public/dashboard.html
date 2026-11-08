@@ -3682,9 +3682,9 @@
                     document.getElementById('top-model-latency').textContent = '';
                 }
 
-                document.getElementById('catalog-models').textContent = d.catalogTotal ?? '?';
-                document.getElementById('catalog-free').textContent = d.catalogFree ?? '?';
-                document.getElementById('catalog-models-raw').textContent = d.catalogRawCount ?? '?';
+                updateStat('models-count-catalog', d.catalogTotal, 'catalogTotal');
+                updateStat('models-count-free', d.catalogFree, 'catalogFree');
+                updateStat('models-count-raw', d.catalogRawCount, 'catalogRawCount');
 
                 const updateStat = (id, value, key) => {
                     const el = document.getElementById(id);

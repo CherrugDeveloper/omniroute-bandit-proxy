@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- [1.28.7] - 2026-11-08
 - [1.28.6] - 2026-11-08
 - [1.28.5] - 2026-11-07
 - [1.28.4] - 2026-11-07
@@ -60,6 +61,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [1.2.0] - 2026-09-30
 - [1.1.0] - 2026-09-10
 - [1.0.0] - 2026-09-01
+
+## [1.28.7] - 2026-11-08
+
+### Fixed
+- fix(dashboard): Fix missing catalog, free, and raw count updates in stats polling loop by referencing correct element IDs (`models-count-catalog`, `models-count-free`, `models-count-raw`)
 
 ## [1.28.6] - 2026-11-08
 
