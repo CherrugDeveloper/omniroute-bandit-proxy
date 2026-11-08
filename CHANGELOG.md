@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+## [1.28.13] - 2026-11-08
+
+### Added
+- [`__tests__/proxy-improvements.test.js`](__tests__/proxy-improvements.test.js:1): added comprehensive unit tests for error classification of browser and runtime dependencies
+
+### Changed
+- [`src/bandit.mjs`](src/bandit.mjs:1346): refined error classification for Playwright, Chromium, and ENOENT runtime dependencies as provider-misconfigured cooldowns
+- [`src/index.mjs`](src/index.mjs:2361): optimized fallback chain and filtering logic to reduce 503 latency and handle non-chat/image models robustly
+- [`src/health-check.mjs`](src/health-check.mjs:231): enhanced health check probe response verification and automated model rehabilitation
+
 ## [1.28.12] - 2026-11-08
 
 ### Added

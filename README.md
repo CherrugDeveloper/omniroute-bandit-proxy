@@ -4,61 +4,108 @@ description: Comprehensive documentation and reproducibility guide for Omniroute
 
 # Omniroute Bandit Proxy
 
-Multi-Armed Bandit reverse proxy for LLM traffic with advanced fallback chains, dynamic model training, exponential backoff punishment systems, and real-time dashboard monitoring.
+Omniroute Bandit Proxy is a high-performance, intelligent Multi-Armed Bandit (MAB) reverse proxy designed for Large Language Model (LLM) traffic routing, dynamic load balancing, automated error classification, provider quota enforcement, and fault-tolerant failovers.
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Architecture & Key Components](#architecture--key-components)
+3. [Prerequisites & System Requirements](#prerequisites--system-requirements)
+4. [Installation & Setup](#installation--setup)
+5. [Configuration](#configuration)
+6. [Running & Usage](#running--usage)
+7. [Testing & Verification](#testing--verification)
+8. [Health Checks & Rehabilitation](#health-checks--rehabilitation)
+9. [License & Author](#license--author)
+
+---
 
 ## Overview
 
-Omniroute Bandit Proxy acts as an intelligent router and load balancer for Large Language Model (LLM) requests. It uses Discounted UCB1 Multi-Armed Bandit algorithms to dynamically select the best performing models while tracking health, quotas, errors, and performance metrics across multiple providers.
+Omniroute Bandit Proxy intercepts LLM API requests and dynamically selects the optimal model using Discounted UCB1 Multi-Armed Bandit algorithms, taking into account provider limits, historical reliability, soft biases, and real-time failure tracking. When errors occur, it classifies them into granular scopes (ban, cooldown, flag) and implements fallback chains and circuit breakers to maintain high availability.
 
-## Key Features
+---
 
-- **Multi-Armed Bandit Routing**: Discounted UCB1 (`0.99` discount factor) with soft bias (`profileMultiplier`) and exploit-only modes.
-- **Robust Error Handling**: 5 classification scopes (ban, cooldown, flag, etc.) with exponential backoff cooldowns and 3-strike aggressive punishment for critical failures (403, 429, timeout, safeWrite errors).
-- **Provider Quota Management**: Atomic minute and day window checks for rate limits (RPM/RPD) and token limits (ITPM).
-- **Real-Time Dashboard**: Optimized frontend dashboard with debounced filters, AbortController request cancellation, Page Visibility API integration, and live telemetry.
-- **SQLite Persistence**: Powered by `better-sqlite3` with additive-only migrations.
+## Architecture & Key Components
 
-## Installation & Reproducibility
+- **[DiscountedUCB1Bandit](src/bandit.mjs:30)**: Core MAB routing engine (`0.99` discount factor, 30s rank cache, exponential backoff cooldowns).
+- **[RequestTracker](src/request-tracker.mjs:1)**: Persistent session and request attempt tracking with SQLite (`better-sqlite3`).
+- **[ProviderQuota](src/provider-quota.mjs:5)**: Atomic provider-level rate-limiting (RPM/RPD windows).
+- **[HealthChecker](src/health-check.mjs:44)**: Background probing service for rehabilitating unhealthy models and providers.
+- **[Dashboard UI](public/dashboard.html:1)**: Real-time monitoring dashboard with debounced filters and AbortController request caching.
 
-### Prerequisites
-- Node.js (v18+ recommended)
-- npm
+---
 
-### Installation
-```bash
-git clone https://github.com/your-username/omniroute-bandit-proxy.git
-cd omniroute-bandit-proxy
-npm install
-```
+## Prerequisites & System Requirements
 
-### Configuration
-Copy `.env.example` to `.env` and configure your proxy settings and upstream API keys:
-```bash
-cp .env.example .env
-```
+- **Node.js**: `v18.x` or higher (ES Modules support required)
+- **SQLite3**: Managed via [`better-sqlite3`](package.json:14)
 
-## Running the Proxy
+---
 
-- **Start production server**:
+## Installation & Setup
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/omniroute-bandit-proxy.git
+   cd omniroute-bandit-proxy
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Configure environment variables (refer to [`.env.example`](.env.example:1)):
+   ```bash
+   cp .env.example .env
+   ```
+
+---
+
+## Configuration
+
+Configuration files are located in the [`config/`](config/) directory:
+- [`config/bandit.json`](config/bandit.json:1): Fallback models and error classification regex patterns.
+- [`config/provider-limits.json`](config/provider-limits.json:1): Provider rate limits and pricing tiers.
+
+---
+
+## Running & Usage
+
+- **Start Proxy Server**:
   ```bash
   npm start
   ```
-- **Start development server (watch mode)**:
+- **Start Development Mode (Watch)**:
   ```bash
   npm run dev
   ```
 
-## Testing & Quality Assurance
+---
 
-- **Syntax check**:
-  ```bash
-  npm run check
-  ```
-- **Run test suite**:
-  ```bash
-  npm test
-  ```
+## Testing & Verification
+
+Run the comprehensive test suite (`node:test` + in-memory SQLite database):
+```bash
+npm test
+```
+
+Run syntax checks:
+```bash
+npm run check
+```
+
+---
+
+## Health Checks & Rehabilitation
+
+The background health checker probes unhealthy models periodically (`[HealthChecker](src/health-check.mjs:44)`), automatically clearing attention flags and resetting cooldowns upon successful responses.
+
+---
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+Licensed under the MIT License - see the [LICENSE](LICENSE:1) file for details.
