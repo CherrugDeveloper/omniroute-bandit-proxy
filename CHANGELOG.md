@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+## [1.28.14] - 2026-11-08
+
+### Added
+- [`public/dashboard.html`](public/dashboard.html:3382): added `sanitizeModelName` helper function to strip explicit provider prefixes from model display names
+
+### Changed
+- [`public/dashboard.html`](public/dashboard.html:1403): optimized CSS table layout and responsive column widths for [`#tab-models`](public/dashboard.html:1511) and [`#tab-train`](public/dashboard.html:1551) tabs to ensure rank, free, paid, tools, and vision cells are fully visible and readable across screen resolutions
+
+### Fixed
+- [`public/dashboard.html`](public/dashboard.html:1451): resolved column count mismatch and clipping issues in [`#tab-train`](public/dashboard.html:1551) table layout
+
 ## [1.28.13] - 2026-11-08
 
 ### Added

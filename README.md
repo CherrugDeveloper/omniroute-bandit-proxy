@@ -1,111 +1,122 @@
----
-description: Comprehensive documentation and reproducibility guide for Omniroute Bandit Proxy.
----
-
 # Omniroute Bandit Proxy
 
-Omniroute Bandit Proxy is a high-performance, intelligent Multi-Armed Bandit (MAB) reverse proxy designed for Large Language Model (LLM) traffic routing, dynamic load balancing, automated error classification, provider quota enforcement, and fault-tolerant failovers.
+[![Build & Test](https://github.com/marco/omniroute-bandit-proxy/actions/workflows/test.yml/badge.svg)](https://github.com/marco/omniroute-bandit-proxy/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-1.28.14-blue.svg)](package.json)
+
+Omniroute Bandit Proxy is a high-performance, intelligent multi-armed bandit reverse proxy designed for LLM traffic routing, load balancing, dynamic reward optimization, and robust error management.
 
 ---
 
 ## Table of Contents
-
 1. [Overview](#overview)
-2. [Architecture & Key Components](#architecture--key-components)
-3. [Prerequisites & System Requirements](#prerequisites--system-requirements)
-4. [Installation & Setup](#installation--setup)
+2. [Key Features](#key-features)
+3. [Architecture & Design Patterns](#architecture--design-patterns)
+4. [Installation & Requirements](#installation--requirements)
 5. [Configuration](#configuration)
-6. [Running & Usage](#running--usage)
-7. [Testing & Verification](#testing--verification)
-8. [Health Checks & Rehabilitation](#health-checks--rehabilitation)
-9. [License & Author](#license--author)
+6. [Usage & Execution](#usage--execution)
+7. [Testing & Reproducibility](#testing--reproducibility)
+8. [Dashboard & Management UI](#dashboard--management-ui)
+9. [Error Handling & Punishment System](#error-handling--punishment-system)
+10. [License](#license)
 
 ---
 
 ## Overview
 
-Omniroute Bandit Proxy intercepts LLM API requests and dynamically selects the optimal model using Discounted UCB1 Multi-Armed Bandit algorithms, taking into account provider limits, historical reliability, soft biases, and real-time failure tracking. When errors occur, it classifies them into granular scopes (ban, cooldown, flag) and implements fallback chains and circuit breakers to maintain high availability.
+Omniroute Bandit Proxy sits between client applications and large language model (LLM) providers. It dynamically selects the optimal model/provider combination using Discounted UCB1 multi-armed bandit algorithms, tracks request performance and latency, applies soft bias multipliers (`profileMultiplier`), enforces provider-level rate limits (RPM/RPD), and executes aggressive 3-strike multi-tier failure recovery.
 
 ---
 
-## Architecture & Key Components
+## Key Features
 
-- **[DiscountedUCB1Bandit](src/bandit.mjs:30)**: Core MAB routing engine (`0.99` discount factor, 30s rank cache, exponential backoff cooldowns).
-- **[RequestTracker](src/request-tracker.mjs:1)**: Persistent session and request attempt tracking with SQLite (`better-sqlite3`).
-- **[ProviderQuota](src/provider-quota.mjs:5)**: Atomic provider-level rate-limiting (RPM/RPD windows).
-- **[HealthChecker](src/health-check.mjs:44)**: Background probing service for rehabilitating unhealthy models and providers.
-- **[Dashboard UI](public/dashboard.html:1)**: Real-time monitoring dashboard with debounced filters and AbortController request caching.
-
----
-
-## Prerequisites & System Requirements
-
-- **Node.js**: `v18.x` or higher (ES Modules support required)
-- **SQLite3**: Managed via [`better-sqlite3`](package.json:14)
+- **Discounted UCB1 Bandit**: Optimizes routing decisions with a 0.99 discount factor per event and a 30s rank caching TTL.
+- **Isolated Training & Production**: Maintains isolated `models_train` and production tables with seamless blended scoring.
+- **Multi-Tier Error Classification & Punishment**: 5 classification scopes (ban, cooldown, flag, etc.) featuring exponential backoff cooldowns and an aggressive 3-strike system for critical failures.
+- **Provider-Level Quota Management**: Atomic minute and day window checks across provider requests.
+- **Advanced Management Dashboard**: Real-time web console [`public/dashboard.html`](public/dashboard.html) featuring responsive table layouts, sanitized model names, request logs, and system controls.
 
 ---
 
-## Installation & Setup
+## Architecture & Design Patterns
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/omniroute-bandit-proxy.git
-   cd omniroute-bandit-proxy
-   ```
+- **ES Modules**: Built on modern JavaScript (ESM) running on Node.js.
+- **Database**: Uses `better-sqlite3` with additive-only schema migrations (`ADD COLUMN` in `_migrateDB`).
+- **Proxy/Sessions**: 30-minute session TTL (`SESSION_TTL_MS`) and 60-second stream idle timeout (`STREAM_IDLE_MS`) refreshed on any chunk or heartbeat.
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+---
 
-3. Configure environment variables (refer to [`.env.example`](.env.example:1)):
-   ```bash
-   cp .env.example .env
-   ```
+## Installation & Requirements
+
+- **Node.js**: `v18.x` or higher
+- **Dependencies**: [`package.json`](package.json)
+
+```bash
+git clone https://github.com/marco/omniroute-bandit-proxy.git
+cd omniroute-bandit-proxy
+npm install
+```
 
 ---
 
 ## Configuration
 
-Configuration files are located in the [`config/`](config/) directory:
-- [`config/bandit.json`](config/bandit.json:1): Fallback models and error classification regex patterns.
-- [`config/provider-limits.json`](config/provider-limits.json:1): Provider rate limits and pricing tiers.
+Configuration files are located in [`config/`](config/):
+- [`config/bandit.json`](config/bandit.json): Bandit hyperparameters, fallback chains, and error pattern regex mapping.
+- [`config/modes.json`](config/modes.json): Available operating modes and signatures.
+- [`config/provider-limits.json`](config/provider-limits.json): Provider rate limits (RPM/RPD).
+
+Copy [` .env.example`](.env.example) to `.env` to configure environment variables.
 
 ---
 
-## Running & Usage
+## Usage & Execution
 
 - **Start Proxy Server**:
   ```bash
   npm start
   ```
-- **Start Development Mode (Watch)**:
+- **Start Development Server (Watch Mode)**:
   ```bash
   npm run dev
+  ```
+- **Syntax Check**:
+  ```bash
+  npm run check
+  ```
+- **Run Test Suite**:
+  ```bash
+  npm run test
   ```
 
 ---
 
-## Testing & Verification
+## Testing & Reproducibility
 
-Run the comprehensive test suite (`node:test` + in-memory SQLite database):
-```bash
-npm test
-```
+Testing uses Node's built-in `node:test` runner combined with in-memory SQLite databases (`:memory:`), using test helpers like `makeBandit()` and `seedCatalog()`.
 
-Run syntax checks:
 ```bash
-npm run check
+npm run test
 ```
 
 ---
 
-## Health Checks & Rehabilitation
+## Dashboard & Management UI
 
-The background health checker probes unhealthy models periodically (`[HealthChecker](src/health-check.mjs:44)`), automatically clearing attention flags and resetting cooldowns upon successful responses.
+The management dashboard is served at root and available in [`public/dashboard.html`](public/dashboard.html). It features:
+- **Modelli & Train Tabs**: Optimized 11-column tables with sanitized model names (removing explicit provider prefixes) and responsive column layouts.
+- **Live Logs & Metrics**: Real-time activity tracking, success rates, and token estimation (4 chars/token).
+
+---
+
+## Error Handling & Punishment System
+
+- **5 Scopes**: Ban, cooldown, flag provider/model.
+- **Consecutive 5xx Tracking**: `consecutive_5xx ≥ 3` transitions models into degraded mode.
+- **3-Strike System**: Permanent ban after 3 consecutive critical failures (403 forbidden, 429 rate limit, timeout, safeWrite errors), tracked via `consecutive_critical_failures`.
 
 ---
 
 ## License
 
-Licensed under the MIT License - see the [LICENSE](LICENSE:1) file for details.
+MIT License. See [`LICENSE`](LICENSE) for details.
