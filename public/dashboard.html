@@ -1770,6 +1770,16 @@
             localStorage.setItem('api_token', API_TOKEN);
         }
 
+        function debounce(fn, delay) {
+            let timeoutId = null;
+            return function (...args) {
+                if (timeoutId) clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => fn.apply(this, args), delay);
+            };
+        }
+
+        const activeControllers = {};
+
         async function apiFetch(url, opts = {}) {
             if (!API_TOKEN) {
                 API_TOKEN =
@@ -1781,14 +1791,35 @@
             }
             const headers = { ...(opts.headers || {}) };
             if (API_TOKEN) headers['x-api-token'] = API_TOKEN;
-            console.log(`[DEBUG Dashboard Client] Fetching ${url} with token present: ${Boolean(API_TOKEN)}, token length: ${API_TOKEN.length}`);
-            const res = await fetch(url, { ...opts, headers });
-            console.log(`[DEBUG Dashboard Client] Response for ${url}: status=${res.status}, ok=${res.ok}`);
-            if (res.status === 401) {
-                console.warn(`[DEBUG Dashboard Client] Received 401 Unauthorized for ${url}`);
-                handleUnauthorized();
+
+            const urlKey = url.split('?')[0];
+            if (activeControllers[urlKey]) {
+                activeControllers[urlKey].abort();
             }
-            return res;
+            const controller = new AbortController();
+            activeControllers[urlKey] = controller;
+
+            const fetchOpts = { ...opts, headers, signal: controller.signal };
+
+            try {
+                console.log(`[DEBUG Dashboard Client] Fetching ${url} with token present: ${Boolean(API_TOKEN)}, token length: ${API_TOKEN.length}`);
+                const res = await fetch(url, fetchOpts);
+                console.log(`[DEBUG Dashboard Client] Response for ${url}: status=${res.status}, ok=${res.ok}`);
+                if (res.status === 401) {
+                    console.warn(`[DEBUG Dashboard Client] Received 401 Unauthorized for ${url}`);
+                    handleUnauthorized();
+                }
+                return res;
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    console.debug(`[DEBUG Dashboard Client] Request for ${url} was aborted.`);
+                }
+                throw err;
+            } finally {
+                if (activeControllers[urlKey] === controller) {
+                    delete activeControllers[urlKey];
+                }
+            }
         }
 
         async function safeJson(res) {
@@ -2503,6 +2534,18 @@
                         }
                     }
                 }
+            }
+
+            if (tabName === 'models') {
+                renderAll();
+            } else if (tabName === 'train') {
+                renderTrainAll();
+            } else if (tabName === 'providers') {
+                fetchQuota();
+            } else if (tabName === 'consideration') {
+                fetchConsideration();
+            } else if (tabName === 'scripts') {
+                loadScripts();
             }
 
             // Persist tab selection to localStorage
@@ -4848,17 +4891,19 @@
                 console.error('Copy failed', e);
             }
         });
-        // Attach filter event listeners to existing filter elements
-        document.getElementById('models-filter-search')?.addEventListener('input', renderAll);
+        // Attach debounced filter event listeners to filter elements
+        document.getElementById('models-filter-search')?.addEventListener('input', debounce(renderAll, 200));
         document.getElementById('models-filter-provider')?.addEventListener('change', renderAll);
         document.getElementById('models-filter-status')?.addEventListener('change', renderAll);
-        document.getElementById('models-filter-minN')?.addEventListener('input', renderAll);
-        document.getElementById('models-filter-minAvg')?.addEventListener('input', renderAll);
-        document.getElementById('models-filter-search-train')?.addEventListener('input', renderTrainAll);
+        document.getElementById('models-filter-minN')?.addEventListener('input', debounce(renderAll, 200));
+        document.getElementById('models-filter-minAvg')?.addEventListener('input', debounce(renderAll, 200));
+        document.getElementById('models-filter-search-train')?.addEventListener('input', debounce(renderTrainAll, 200));
         document.getElementById('models-filter-provider-train')?.addEventListener('change', renderTrainAll);
         document.getElementById('models-filter-status-train')?.addEventListener('change', renderTrainAll);
-        document.getElementById('models-filter-minN-train')?.addEventListener('input', renderTrainAll);
-        document.getElementById('models-filter-minAvg-train')?.addEventListener('input', renderTrainAll);
+        document.getElementById('models-filter-minN-train')?.addEventListener('input', debounce(renderTrainAll, 200));
+        document.getElementById('models-filter-minAvg-train')?.addEventListener('input', debounce(renderTrainAll, 200));
+        document.getElementById('log-filter')?.addEventListener('input', debounce(renderFilteredLogs, 150));
+        document.getElementById('consideration-filter')?.addEventListener('input', debounce(renderConsiderationTab, 150));
 
         // Reset filtri al load (no persistenza browser)
         logFilterPreset = 'all';
@@ -4905,6 +4950,15 @@
         // Tab-aware debounced polling
         // Only run polls relevant to the currently active tab
         const pollDebounceTimeouts = {};
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                console.debug('[Dashboard] Tab became visible, triggering immediate refresh.');
+                refreshAll();
+                fetchLogs();
+                fetchActive();
+            }
+        });
 
         setInterval(() => {
             if (document.hidden) return;
