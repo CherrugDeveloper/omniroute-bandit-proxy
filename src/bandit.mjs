@@ -2386,7 +2386,7 @@ export class DiscountedUCB1Bandit {
         modelsCooldown: modelsSummary.cooldown || 0,
         modelsBanned: modelsSummary.banned || 0,
         modelsDegraded: modelsSummary.degraded || 0,
-        modelsAttention: 0,
+        modelsAttention: modelsSummary.attention || 0,
         providersActive,
         providersCooldown,
         providersBanned,
@@ -3411,12 +3411,22 @@ export class DiscountedUCB1Bandit {
     const bannedResult = bannedStmt.all(...params);
     const banned = bannedResult[0].count;
 
+    // Get attention count (models whose provider has needs_attention = 1)
+    const attentionStmt = this.db.prepare(`
+      SELECT COUNT(*) AS count ${baseQuery}
+      LEFT JOIN provider_history ph ON c.provider = ph.provider
+      WHERE ph.needs_attention = 1${whereClause ? " AND " + whereClause.slice(6) : ""}
+    `);
+    const attentionResult = attentionStmt.all(...params);
+    const attention = attentionResult[0].count;
+
     return {
       total,
       active,
       cooldown,
       degraded,
       banned,
+      attention,
       byProvider
     };
   }
@@ -3462,15 +3472,15 @@ export class DiscountedUCB1Bandit {
       `).get();
 
       const now = Date.now();
+      // Use isTraining flag from database - it's set to 0 during inter-cycle pauses (CYCLE_DELAY)
+      // The 15s timeout that caused false "Idle (Timeout)" during 30s inter-cycle pauses has been removed
+      // Training daemon updates statusMessage each cycle with "Training - Cycle N - OK=..." format
       let isTraining = daemon ? daemon.isTraining === 1 : false;
       let statusMessage = daemon ? daemon.statusMessage : 'Idle';
 
-      // Use longer timeout to account for inter-cycle pauses (CYCLE_DELAY=30s)
-      // 15s for "active training" timeout, 60s for "daemon inactive" timeout
-      if (isTraining && daemon && daemon.updated_at && (now - daemon.updated_at > 15000)) {
-        isTraining = false;
-        statusMessage = 'Idle (Timeout)';
-      } else if (!daemon || !daemon.updated_at || (now - daemon.updated_at > 60000)) {
+      // Only mark as inactive if daemon record doesn't exist or hasn't been updated in 60s
+      // This accounts for normal daemon operation with 30s cycle delays
+      if (!daemon || !daemon.updated_at || (now - daemon.updated_at > 60000)) {
         isTraining = false;
         if (statusMessage === 'Active' || statusMessage.startsWith('Training')) {
           statusMessage = 'Idle (Daemon Inactive)';

@@ -1581,7 +1581,7 @@
                 <tbody id="train-tbody"></tbody>
             </table>
         </div>
-        <div class="helper-text">Modelli testati dal training daemon. I dati sono isolati da quelli di produzione.</div>
+        <div id="train-helper-text" class="helper-text">Modelli testati dal training daemon. I dati sono isolati da quelli di produzione.</div>
     </div>
     <div id="tab-modes" class="tab-content">
         <div class="card">
@@ -1747,7 +1747,8 @@
         // Empty set = all providers collapsed by default
         // Non-empty set = those providers are expanded
         const expandedProviders = new Set(JSON.parse(localStorage.getItem('dashboard.expandedProviders') || '[]'));
-        const trainCollapsedProviders = new Set();
+        // Train tab: default collapsed, persist expanded state in localStorage
+        const trainExpandedProviders = new Set(JSON.parse(localStorage.getItem('train.expandedProviders') || '[]'));
         let prevStats = {};
         let prevModelStats = {};
         // === Auth token (persistente tra tab) ===
@@ -2467,16 +2468,18 @@
             if (btn) btn.classList.add('active');
             if (content) content.classList.add('active');
 
-            // For Scripts tab, auto-show the script output container if there's active output or training active
+            // For Scripts tab, auto-show the script output container if there's active output, training active, or script running
             if (tabName === 'scripts') {
                 const outputContainer = document.getElementById('script-output-container');
                 const output = document.getElementById('script-output');
                 if (outputContainer && output) {
                     const badge = document.getElementById('scripts-badge');
                     const isTrainingActive = badge && badge.isTrainingActive;
-                    const hasContent = output.textContent.trim().length > 0 || (badge && badge.isScriptRunning) || isTrainingActive;
+                    const isScriptRunning = badge && badge.isScriptRunning;
+                    const hasContent = output.textContent.trim().length > 0 || isScriptRunning || isTrainingActive;
+                    // Only show container if there's actual content or script running; hide when training is inactive
                     outputContainer.style.display = hasContent ? 'block' : 'none';
-                    if (hasContent && isTrainingActive && output.textContent.trim().length === 0) {
+                    if (isTrainingActive && output.textContent.trim().length === 0) {
                         const title = document.getElementById('script-output-title');
                         const statusDiv = document.getElementById('script-output-status');
                         if (title) title.textContent = 'Training Daemon Status (Active)';
@@ -3099,7 +3102,7 @@
                             
                             if (search && !provider.toLowerCase().includes(search) && avgFiltered.length === 0) continue;
 
-                            const isCollapsed = !forceExpand && !expandedProviders.has(provider);
+                            const isCollapsed = !forceExpand && !trainExpandedProviders.has(provider);
                             const modelsToShow = (forceExpand && !provider.toLowerCase().includes(search)) ? avgFiltered : avgFiltered;
 
                             html += renderProviderHeader(provider, info, models.length, isCollapsed);
@@ -3116,6 +3119,12 @@
                         tbody.innerHTML = '<tr><td colspan="11" class="empty">Nessun risultato</td></tr>';
                     } else {
                         tbody.innerHTML = html;
+                    }
+
+                    // Hide helper text when table is populated
+                    const helperText = document.getElementById('train-helper-text');
+                    if (helperText) {
+                        helperText.style.display = models.length > 0 ? 'none' : 'block';
                     }
                 })
                 .catch(err => {
@@ -3539,6 +3548,26 @@
                     // Save to localStorage
                     localStorage.setItem('dashboard.expandedProviders', JSON.stringify(Array.from(expandedProviders)));
                     renderAll();
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+            }
+            
+            // Handle provider header toggle for train tab
+            const trainProviderRow = e.target.closest('#tab-train .provider-header[data-provider]');
+            if (trainProviderRow) {
+                const headerContent = trainProviderRow.querySelector('.header-content');
+                const actionsArea = trainProviderRow.querySelector('.header-content .actions');
+                // Only toggle if clicking on header-content but NOT on the actions area
+                if (headerContent && headerContent.contains(e.target) && (!actionsArea || !actionsArea.contains(e.target))) {
+                    const name = trainProviderRow.dataset.provider;
+                    // Toggle the provider's expanded state
+                    if (trainExpandedProviders.has(name)) trainExpandedProviders.delete(name);
+                    else trainExpandedProviders.add(name);
+                    // Save to localStorage
+                    localStorage.setItem('train.expandedProviders', JSON.stringify(Array.from(trainExpandedProviders)));
+                    renderTrainAll();
                     e.preventDefault();
                     e.stopPropagation();
                     return;

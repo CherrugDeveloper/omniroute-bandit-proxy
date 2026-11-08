@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- [1.28.6] - 2026-11-08
 - [1.28.5] - 2026-11-07
 - [1.28.4] - 2026-11-07
 - [1.28.3] - 2026-11-07
@@ -59,6 +60,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [1.2.0] - 2026-09-30
 - [1.1.0] - 2026-09-10
 - [1.0.0] - 2026-09-01
+
+## [1.28.6] - 2026-11-08
+
+### Added
+- feat(dashboard): Make provider list in train tab expandable/collapsible with default collapsed state and localStorage persistence (`train.expandedProviders`)
+- feat(dashboard): Add visual badges for conventional commit types (feat, fix, refactor, etc.) in changelog viewer
+
+### Fixed
+- fix(dashboard): Completely hide "Modelli testati dal training daemon" helper text when train table is populated
+- fix(dashboard): Hide quick-action log container (`#script-output-container`) in Scripts Manager view when training status is inactive
+- fix(bandit): Ensure model box metrics correctly reflect actual values - fix `modelsAttention` count in `getDashboardStats()` and `getModelsSummary()`
+
+### Changed
+- refactor(dashboard): Remove redundant `expandedProviders` from models tab, use dedicated `trainExpandedProviders` for train tab
+- refactor(bandit): Improve training status detection by removing fragile 15s timeout check, relying solely on database `isTraining` flag with 60s daemon liveness threshold
+- refactor(bandit): Add `attention` count to `getModelsSummary()` for models whose provider has `needs_attention = 1`
 
 ## [1.28.5] - 2026-11-07
 
