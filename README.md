@@ -29,33 +29,45 @@ OmniRoute Bandit Proxy implements a Multi-Armed Bandit algorithm for dynamic tra
 - **Safety Mechanisms**: 3-strike aggressive punishment for critical failures (403, 429, timeouts, safeWrite errors)
 - **Rate Limiting**: Per-provider quota management with atomic minute/day window checks
 - **Session Persistence**: 30-minute session TTL with 60-second stream idle timeout
+- **Event System**: Real-time punishment event streaming via WebSocket at `/v1/events`
 
 ## Features
 
 ### Traffic Management
+
 - Multi-provider load balancing with configurable weight profiles
 - Automatic failover and degraded mode on consecutive 5xx errors
 - Real-time provider health monitoring
+- Session affinity with graceful degradation
 
 ### Bandit Algorithm
+
 - DiscountedUCB1 implementation with 0.99 event discount factor
-- 30-second cache TTL for ranking computations
+- 30-second cache TTL for ranking computations (`_rankCache`)
 - Profile multiplier stacking for soft bias optimization
+- Separate training data table (`models_train`) with production read merging (0.3 × training if N < 1)
 
 ### Database Layer
+
 - SQLite via better-sqlite3 for embedded storage
 - Schema migrations restricted to ADD COLUMN operations only
-- Separate training data table with production read merging (0.3 * training if N < 1)
+- Isolated `models_train` table for training data
+- Automatic model registration and cleanup
 
 ### Error Handling
+
 - Five classification scopes: ban, cooldown, flag, degraded, retry
-- Error pattern mapping for immediate model banning
+- Error pattern mapping for immediate model banning (including `safeWrite` errors)
 - Consecutive failure tracking with automatic reset on success
+- `consecutive_5xx` triggers degraded mode
 
 ### Monitoring & Dashboard
+
 - Web-based monitoring dashboard at `/dashboard.html`
 - Real-time statistics and provider status
 - Request history and session tracking
+- Unified Chronology panel with selection history
+- WebSocket-based log streaming
 
 ## Installation
 
@@ -178,6 +190,7 @@ Example configuration structure:
 │              Provider Quota Manager                         │
 │              - Atomic minute/day window checks              │
 │              - Exponential backoff cooldowns                │
+│              - 3-strike aggressive punishment           │
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         ▼
@@ -193,8 +206,8 @@ Example configuration structure:
 
 The system uses two main tables:
 
-1. **`models`** - Production model information
-2. **`models_train`** - Isolated training data (merged 0.3x if N < 1)
+1. **`models`** - Production model information (id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent)
+2. **`models_train`** - Isolated training data (merged 0.3× if N < 1)
 
 Schema migrations are restricted to `ADD COLUMN` operations only.
 
@@ -202,20 +215,27 @@ Schema migrations are restricted to `ADD COLUMN` operations only.
 
 The system classifies errors into five scopes:
 
-1. **ban** - Immediate model blocking
+1. **ban** - Immediate model blocking (403 forbidden, 429 rate limit, timeout, safeWrite errors trigger 3-strike system → permanent ban)
 2. **cooldown** - Temporary suspension with exponential backoff
 3. **flag** - Non-blocking issue marking
-4. **degraded** - Reduced functionality mode
+4. **degraded** - Reduced functionality mode (score × 0.3)
 5. **retry** - Automatic retry logic
 
 ### Cooldown Algorithm
 
 Exponential backoff progression:
 - First failure: 15 seconds
-- Second consecutive: 5 minutes
+- Second consecutive: 5 minutes  
 - Third consecutive: 30 minutes
 - Fourth consecutive: 2 hours
-- Fifth+: Permanent ban
+- Fifth+: Permanent ban (3-strike system for critical failures)
+
+### 3-Strike Punishment System
+
+Aggressive punishment for critical failures (403 forbidden, 429 rate limit, timeout, safeWrite errors):
+- Permanent ban after 3 consecutive critical failures
+- `consecutive_critical_failures` counter tracks the streak
+- Counter resets on success
 
 ## Usage
 
@@ -252,18 +272,40 @@ Navigate to `http://localhost:8080/dashboard.html` for real-time metrics includi
 - Request distribution
 - Model performance statistics
 - Session tracking
+- Training daemon status
+
+## API Reference
+
+### Core Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/chat/completions` | POST | Chat completions proxy |
+| `/v1/completions` | POST | Text completions proxy |
+| `/v1/models` | GET | Available models list |
+| `/v1/metrics` | GET | Bandit metrics and summary |
+| `/v1/dashboard/stats` | GET | Dashboard statistics |
+| `/v1/events` | GET | Server-Sent Events for punishment events |
+
+### Reset Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/reset/model/{model}` | POST | Reset specific model state |
+| `/v1/reset/provider/{provider}` | POST | Reset specific provider state |
 
 ## Testing
 
 ### Test Suite Structure
 
-The project uses Node.js built-in test runner with 75 tests covering:
+The project uses Node.js built-in test runner with comprehensive test coverage:
 
 - Bandit algorithm behavior
 - Provider quota management
 - Request tracking and memory
 - Error handling and punishment systems
 - Training feedback mechanisms
+- Dashboard metrics calculations
 
 ### Run All Tests
 
@@ -281,6 +323,9 @@ npm test
 | `request-tracker.test.js` | Session tracking and memory |
 | `punishment-system.test.js` | Error classification and banning |
 | `training-feedback.test.js` | Training data collection |
+| `monitor.test.js` | Monitoring functionality |
+| `proxy-improvements.test.js` | Proxy enhancements |
+| `itpm-quota.test.js` | ITPM quota handling |
 
 ### Test Environment
 
@@ -335,7 +380,7 @@ npm test
 1. Fork and clone the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
 3. Make your changes
-4. Run tests: `npm test`
+4. Run tests: `npm test` (all tests must pass)
 5. Format your commit message using conventional commits: `type(scope): subject`
 6. Push and create a pull request
 
@@ -350,7 +395,7 @@ npm test
 
 ### Pull Request Process
 
-1. Ensure all 75 tests pass
+1. Ensure all tests pass
 2. Update CHANGELOG.md if applicable
 3. Update README.md if documentation changes
 4. Request review from maintainers
@@ -371,7 +416,7 @@ If you use OmniRoute Bandit Proxy in your research, please cite:
 
 ```
 OmniRoute Bandit Proxy: Multi-Armed Bandit LLM Traffic Routing
-Version 1.28.15
+Version 1.28.16
 https://github.com/your-username/omniroute-bandit-proxy
 ```
 
