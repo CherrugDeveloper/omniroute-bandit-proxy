@@ -921,16 +921,16 @@ function createLogEntry(message) {
   let status = null;
   let is_paid = false;
 
-  if (/\[BAN\]|\[BANNED\]|ban-provider|ban_model/i.test(message)) {
+  if (/\[BAN\]|\[BANNED\]|ban-provider|ban-model|ban_model|PAID-GROUP-BAN/i.test(message)) {
     source = 'ban';
     type = 'ban';
-  } else if (/\[COOLDOWN\]|cooldown-provider|cooldown_model/i.test(message)) {
+  } else if (/\[COOLDOWN\]|cooldown-provider|cooldown-model|cooldown_model/i.test(message)) {
     source = 'cooldown';
     type = 'cooldown';
-  } else if (/\[FLAG\]|flag-provider/i.test(message)) {
+  } else if (/\[FLAG\]|flag-provider|CRITICAL/i.test(message)) {
     source = 'flag';
     type = 'flag';
-  } else if (/\[DEGRADED\]/i.test(message)) {
+  } else if (/\[DEGRADED\]|DEGRADED|degraded-model|degraded_model/i.test(message)) {
     source = 'degraded';
     type = 'degraded';
   } else if (/\[TRAIN\]|\[TRAINING\]|training daemon|train-daemon/i.test(message)) {
