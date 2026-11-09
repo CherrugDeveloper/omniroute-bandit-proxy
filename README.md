@@ -282,10 +282,14 @@ Navigate to `http://localhost:8080/dashboard.html` for real-time metrics includi
 |----------|--------|-------------|
 | `/v1/chat/completions` | POST | Chat completions proxy |
 | `/v1/completions` | POST | Text completions proxy |
-| `/v1/models` | GET | Available models list |
+| `/v1/models` | GET | Available models list (supports `?source=prod` or `?source=train`) |
 | `/v1/metrics` | GET | Bandit metrics and summary |
-| `/v1/dashboard/stats` | GET | Dashboard statistics |
-| `/v1/events` | GET | Server-Sent Events for punishment events |
+| `/v1/dashboard/stats` | GET | Dashboard statistics (includes modelsActive, modelsCooldown, modelsBanned, etc.) |
+| `/v1/providers` | GET | Provider status and health |
+| `/v1/quota` | GET | Per-provider quota limits |
+| `/v1/active` | GET | Active request count (no auth required) |
+| `/v1/inflight` | GET | In-flight requests count (no auth required) |
+| `/v1/events/punishment` | WebSocket | Real-time punishment events stream (bans, cooldowns, degradation) |
 
 ### Reset Endpoints
 
@@ -293,6 +297,74 @@ Navigate to `http://localhost:8080/dashboard.html` for real-time metrics includi
 |----------|--------|-------------|
 | `/v1/reset/model/{model}` | POST | Reset specific model state |
 | `/v1/reset/provider/{provider}` | POST | Reset specific provider state |
+| `/v1/reset/counters` | POST | Reset all counters |
+| `/v1/block/model/{id}` | POST | Permanently ban model |
+| `/v1/unblock/model/{id}` | POST | Unban model |
+| `/v1/provider/retry/{p}` | POST | Retry provider |
+| `/v1/provider/ignore/{p}` | POST | Ignore provider |
+
+### Training Daemon Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/training/status` | GET | Training daemon status |
+| `/v1/training/daemon-status` | GET | Daemon process status |
+| `/v1/reset/training` | POST | Reset training data |
+
+### Using the API
+
+#### REST API Examples
+
+The proxy server runs on port **20128** by default.
+
+```bash
+# Fetch dashboard statistics
+curl http://localhost:20128/v1/dashboard/stats
+
+# Get available models from production catalog
+curl http://localhost:20128/v1/models?source=prod
+
+# Get provider quota information
+curl http://localhost:20128/v1/quota
+```
+
+#### WebSocket Event Monitoring
+
+The proxy provides real-time punishment event streaming via WebSocket. This is useful for monitoring when models or providers are banned due to critical failures (403, 429, timeouts, safeWrite errors) or consecutive 5xx errors.
+
+**Endpoint:** `ws://localhost:20128/v1/events/punishment`
+
+**Event Types:**
+- `ban-model` - Model permanently banned (3 consecutive critical failures)
+- `ban-provider` - Provider permanently banned
+- `cooldown` - Model/provider on exponential backoff (15s → 5m → 30m → 2h → permanent)
+
+See `examples/monitor.mjs` for a complete implementation with error handling.
+
+#### Running Example Scripts
+
+Example scripts demonstrating API usage are available in the `examples/` directory:
+
+```bash
+# Monitor real-time punishment events (shows all ban/cooldown events)
+node examples/monitor.mjs
+
+# Fetch and display current dashboard statistics
+node examples/stats.mjs
+```
+
+**Output Example for `monitor.mjs`:**
+```
+Connecting to ws://127.0.0.1:20128/v1/events/punishment...
+Connected to punishment stream.
+Received punishment event: {
+  "type": "cooldown",
+  "provider": "openai",
+  "model": "gpt-4",
+  "reason": "5xx error rate exceeded threshold",
+  "until": "2024-01-15T10:30:00.000Z"
+}
+```
 
 ## Testing
 
@@ -416,7 +488,7 @@ If you use OmniRoute Bandit Proxy in your research, please cite:
 
 ```
 OmniRoute Bandit Proxy: Multi-Armed Bandit LLM Traffic Routing
-Version 1.28.16
+Version 1.28.17
 https://github.com/your-username/omniroute-bandit-proxy
 ```
 
