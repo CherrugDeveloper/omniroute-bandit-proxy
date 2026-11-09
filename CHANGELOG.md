@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/) 2.0.0.
 
 ## Version History
 
+## [1.28.16] - 2026-11-09
+
+### Added
+- Add 3-strike aggressive punishment system for critical failures (403 forbidden, 429 rate limit, timeout, safeWrite errors)
+- Add `src/events.mjs` event system module for punishment events
+- Add training feedback and metrics test suite
+
+### Changed
+- Improve runtime error classification, fallback routing, and health check validation
+- Optimize frontend dashboard reactivity, debouncing, AbortController request management, and visibility checks
+
 ## [1.28.15] - 2026-11-09
 
 ### Changed

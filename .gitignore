@@ -26,7 +26,6 @@ package-lock.json
 
 # Temp
 *.bak
-raw_git_log.txt
 old_changelog.txt
 .train-daemon.pid
 scripts/.script-output-*.json
@@ -42,4 +41,3 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
-raw_git_log.txt
