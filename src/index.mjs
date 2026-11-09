@@ -1453,10 +1453,38 @@ app.get("/v1/inflight", (req, res) => {
 app.get("/v1/active", requireAuth, (req, res) => {
   try {
     const requests = getActiveRequestsSnapshot();
+    
+    // Get recent requests from in-memory buffer, or fall back to database
+    let recent = recentRequests.getAll();
+    if (recent.length < 10) {
+      // Buffer too small or empty - query database for recent completed requests
+      const dbRecent = bandit.db.prepare(`
+        SELECT id, started_at as timestamp, ended_at, status_code, error_message, model, provider
+        FROM request_logs
+        WHERE ended_at IS NOT NULL
+        ORDER BY started_at DESC
+        LIMIT 50
+      `).all().map(r => ({
+        ...r,
+        timestamp: r.timestamp,  // Map started_at to timestamp for dashboard compatibility
+        endedAt: r.ended_at,
+        statusCode: r.status_code,
+        errorMessage: r.error_message,
+        // Derived fields for display
+        status: r.status_code >= 400 ? (r.status_code >= 500 ? 'error' : 'client_error') : 'success',
+        statusLabel: r.status_code === 403 ? 'forbidden' : (r.status_code === 429 ? 'rate_limit' : (r.status_code >= 500 ? 'server_error' : (r.status_code >= 400 ? 'client_error' : 'success')))
+      }));
+      
+      // Merge: prefer in-memory buffer, supplement with DB
+      if (dbRecent.length > 0) {
+        recent = [...recent, ...dbRecent].slice(-50);
+      }
+    }
+    
     res.json({
       count: requests.length,
       requests,
-      recent: recentRequests.getAll().slice(-3)  // ultime 3
+      recent: recent.slice(-3)  // ultime 3
     });
   } catch (e) {
     console.error("[API] Errore /v1/active:", e.message);

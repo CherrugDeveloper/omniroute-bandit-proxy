@@ -1,10 +1,22 @@
 const activeRequests = new Map(); // key: `${id}-att${attempt}`
 
+// Ring buffer for recent requests (last 100 for "recent requests" display)
+const MAX_RECENT_REQUESTS = 100;
+const recentRequestBuffer = [];
+
+// Helper to push to ring buffer
+function pushRecent(request) {
+  recentRequestBuffer.push(request);
+  if (recentRequestBuffer.length > MAX_RECENT_REQUESTS) {
+    recentRequestBuffer.shift();
+  }
+}
+
 export function trackRequestStart(id, meta) {
   // Use ?? to preserve attempt: 0 (only null/undefined become 1)
   const attempt = meta.attempt ?? 1;
   const key = `${id}-att${attempt}`;
-  activeRequests.set(key, {
+  const request = {
     source: meta.source || 'zoo',
     id,
     attempt,
@@ -12,7 +24,11 @@ export function trackRequestStart(id, meta) {
     status: 'starting',
     sessionKey: meta.sessionKey || null,
     ...meta
-  });
+  };
+  activeRequests.set(key, request);
+  
+  // Add to recent requests buffer
+  pushRecent(request);
 }
 
 export function trackRequestUpdate(id, patch) {
@@ -103,3 +119,20 @@ export function getRequest(id) {
   }
   return latest;
 }
+
+// Recent Requests API - returns the last N requests as an array
+const recentRequests = {
+  getAll() {
+    // Return a copy to prevent external mutation
+    return [...recentRequestBuffer];
+  },
+  // Keep for compatibility with tests
+  get size() {
+    return recentRequestBuffer.length;
+  },
+  clear() {
+    recentRequestBuffer.length = 0;
+  }
+};
+
+export { recentRequests };
