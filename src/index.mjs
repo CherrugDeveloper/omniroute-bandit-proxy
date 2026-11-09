@@ -18,7 +18,7 @@ import { createPunishmentEvents, formatEventPayload } from "./events.mjs";
 EventEmitter.defaultMaxListeners = 50;
 // Define ES module __dirname and __filename at the top (before they are used)
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename__);
+const __dirname = path.dirname(__filename);
 
 // WebSocket server instance and punishment event tracking
 let wss = null;
