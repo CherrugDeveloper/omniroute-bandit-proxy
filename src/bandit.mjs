@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ProviderQuota from './provider-quota.mjs';
+import { logPunishment, EVENT_TYPES } from './events.mjs';
 
 
 export class DiscountedUCB1Bandit {
@@ -1130,6 +1131,7 @@ export class DiscountedUCB1Bandit {
                 }
                 this._banProvider(provider);
                 console.log(`[BANDIT-CONSEQUENCE] ban-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
+                logPunishment({ type: EVENT_TYPES.BAN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
                 break;
               case "ban-model":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
@@ -1141,6 +1143,7 @@ export class DiscountedUCB1Bandit {
                    ON CONFLICT(id) DO UPDATE SET permanent = 1, banned_since = ?`
                 ).run(sanitizedModelId, provider, Date.now(), Date.now());
                 console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
+                logPunishment({ type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
                 break;
               case "cooldown-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
@@ -1151,10 +1154,12 @@ export class DiscountedUCB1Bandit {
                 }
                 this._forceProviderCooldown(provider, c.cooldownMs, c.reason);
                 console.log(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=provider`);
+                logPunishment({ type: EVENT_TYPES.COOLDOWN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: c.cooldownMs || 0, failures: 0 });
                 break;
               case "cooldown-paid-only":
                 this._cooldownPaidOnly(provider, c.cooldownMs);
                 console.log(`[BANDIT-CONSEQUENCE] cooldown-paid-only | model=${modelId} provider=${provider} cooldownMs=${c.cooldownMs} scope=provider`);
+                logPunishment({ type: EVENT_TYPES.COOLDOWN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason || 'cooldown-paid-only', cooldownMs: c.cooldownMs || 0, failures: 0 });
                 break;
               case "flag-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
@@ -1162,6 +1167,7 @@ export class DiscountedUCB1Bandit {
                 }
                 this._flagProviderAttention(provider, c.reason, errorDetails.message || errorDetails.error || "");
                 console.log(`[BANDIT-CONSEQUENCE] flag-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
+                logPunishment({ type: EVENT_TYPES.FLAG_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
                 break;
               case "cooldown-model": {
                 const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
@@ -1186,6 +1192,7 @@ export class DiscountedUCB1Bandit {
                   if (modelRow && modelRow.consecutive_5xx >= 3) {
                     this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ?`).run(Date.now(), sanitizedModelId);
                     console.log(`[BANDIT-CONSEQUENCE] degraded | model=${modelId} provider=${provider} reason=consecutive_5xx count=${modelRow.consecutive_5xx} scope=model`);
+                    logPunishment({ type: EVENT_TYPES.DEGRADED_MODEL, provider, modelId: sanitizedModelId, reason: 'consecutive_5xx', cooldownMs: 0, failures: 0 });
                   }
                   // Also set degraded_since if degraded via config-driven permanent error (category=PERMANENT and scope=model)
                   if (c.category === "PERMANENT" && c.scope === "model") {
@@ -1215,30 +1222,44 @@ export class DiscountedUCB1Bandit {
       }
 
       if (success) {
-        this.totalObservations++;
-        this._setMeta("totalObservations", this.totalObservations);
-        // On success: reset all consecutive failure counters and cooldown, but keep total_failures for escalation tracking
+      this.totalObservations++;
+      this._setMeta("totalObservations", this.totalObservations);
+      // On success: reset all consecutive failure counters and cooldown, but keep total_failures for escalation tracking
+      // NOTE: For training source, we skip UCB1 updates (sum_reward, N, last_used_index) to avoid pollution
+      // Training feedback should only update operational metrics (fails, cooldown, etc.), not bandit scores
+      if (source !== 'training') {
+        // Production feedback: update UCB1 metrics
         this.db.prepare(
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0, consecutive_critical_failures = 0, cooldown_until = 0
            WHERE id = ?`
         ).run(reward, sanitizedModelId);
-        console.log(`[BANDIT-3STRIKE] RESET | model=${modelId} | consecutive_critical_failures reset to 0 | reason=success`);
+        console.log(`[BANDIT-3STRIKE] RESET | model=${modelId} | UCB1 updated sum_reward+=${reward} N++ | reason=success`);
+      } else {
+        // Training feedback: only update operational metrics, NOT UCB1 scores
         this.db.prepare(
-          "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
-        ).run(Date.now(), 200, null, sanitizedModelId, provider);
+          `UPDATE models SET fails = 0, consecutive_5xx = 0, consecutive_critical_failures = 0, cooldown_until = 0
+           WHERE id = ?`
+        ).run(sanitizedModelId);
+        console.log(`[BANDIT-3STRIKE] RESET | model=${modelId} | operational metrics reset only (no UCB1 pollution) | reason=training-success`);
+      }
+      this.db.prepare(
+        "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+      ).run(Date.now(), 200, null, sanitizedModelId, provider);
+      if (source !== 'training') {
         this._lastReward.set(modelId, reward);
-        // Reset consecutive provider failures on success
-        if (provider && provider !== 'unknown') {
-          this.db.prepare(
-            `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0, last_success_time = ?, cooldown_until = 0 WHERE provider = ?`
-          ).run(Date.now(), provider);
-        }
-        // Belt-and-suspenders: clear model cooldown on success
-        this.db.prepare(`UPDATE models SET cooldown_until = 0 WHERE id = ?`).run(sanitizedModelId);
-        if (source === 'training') {
-          this._recordTrainingFeedback(sanitizedModelId, true, reward);
-          console.log(`[BANDIT-TRAIN] Recorded training feedback for model=${modelId} success=true reward=${reward} source=training`);
-        }
+      }
+      // Reset consecutive provider failures on success
+      if (provider && provider !== 'unknown') {
+        this.db.prepare(
+          `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0, last_success_time = ?, cooldown_until = 0 WHERE provider = ?`
+        ).run(Date.now(), provider);
+      }
+      // Belt-and-suspenders: clear model cooldown on success
+      this.db.prepare(`UPDATE models SET cooldown_until = 0 WHERE id = ?`).run(sanitizedModelId);
+      if (source === 'training') {
+        this._recordTrainingFeedback(sanitizedModelId, true, reward);
+        console.log(`[BANDIT-TRAIN] Recorded training feedback for model=${modelId} success=true reward=${reward} source=training`);
+      }
       } else {
         // On failure: increment both fails (consecutive) and total_failures (cumulative for escalation)
         this.db.prepare(
@@ -1274,6 +1295,7 @@ export class DiscountedUCB1Bandit {
                  WHERE provider = ? AND is_paid = 1`
               ).run(Date.now(), newConsecutiveCritical, provider);
               console.log(`[BANDIT-3STRIKE] PAID-GROUP-BAN | provider=${provider} | 3 consecutive critical failures on paid model=${modelId} | permanent ban applied to ALL paid models in provider | total_critical=${newConsecutiveCritical} | STATUS_CODE=${statusCode}`);
+              logPunishment({ type: EVENT_TYPES.BAN_PAID_GROUP, provider, modelId, reason: '3-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             } else {
               // Non-paid model: just ban the individual model
               // Use INSERT OR REPLACE for new models, UPDATE preserves metrics for existing models
@@ -1291,6 +1313,7 @@ export class DiscountedUCB1Bandit {
                 ).run(Date.now(), newConsecutiveCritical, sanitizedModelId);
               }
               console.log(`[BANDIT-3STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 3 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=3-strike-rule | STATUS_CODE=${statusCode}`);
+              logPunishment({ type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: '3-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             }
           } else {
             // Just increment the counter, don't ban yet
@@ -1318,6 +1341,7 @@ export class DiscountedUCB1Bandit {
               `UPDATE models SET permanent = 1, banned_since = ? WHERE id = ?`
             ).run(Date.now(), sanitizedModelId);
             console.log(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
+          logPunishment({ type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: 'escalation', cooldownMs: 0, failures: totalFailures });
           }
         }
         

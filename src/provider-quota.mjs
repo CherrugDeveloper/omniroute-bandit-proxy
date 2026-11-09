@@ -6,6 +6,7 @@ class ProviderQuota {
     constructor(db) {
         this.db = db;
         this.providerLimits = this._loadProviderLimits();
+        this._closing = false;
         this._startBackgroundRoller();
         this._cache = new Map();
         this._cacheTTL = 5000; // 5 seconds
@@ -15,22 +16,28 @@ class ProviderQuota {
         // Periodically roll quota windows even without incoming requests,
         // so providers recover from rate-limit exhaustion without needing a request.
         this._bgTimer = setInterval(() => {
+            if (this._closing) return;
             try {
                 const now = Date.now();
                 const providers = this.db.prepare(
                     `SELECT provider FROM provider_history`
                 ).all();
                 for (const row of providers) {
+                    if (this._closing) return;
                     this._rollWindows(row.provider, false);
+                    if (this._closing) return;
                     this._rollWindows(row.provider, true);
                 }
             } catch (err) {
-                console.error("[PROVIDER_QUOTA] Background roll error:", err.message);
+                if (!this._closing) {
+                    console.error("[PROVIDER_QUOTA] Background roll error:", err.message);
+                }
             }
         }, 60000); // every 60s
     }
 
     stopBackgroundRoller() {
+        this._closing = true;
         if (this._bgTimer) {
             clearInterval(this._bgTimer);
             this._bgTimer = null;
@@ -111,6 +118,7 @@ class ProviderQuota {
     }
 
     canCall(provider, isPaid = false) {
+        if (this._closing) return true;
         const cacheKey = `${provider}-${isPaid}`;
         const now = Date.now();
         if (this._cache.has(cacheKey)) {
@@ -170,6 +178,7 @@ class ProviderQuota {
     }
 
     recordCall(provider, isPaid = false) {
+        if (this._closing) return;
         this._rollWindows(provider, isPaid);
 
         const now = Date.now();

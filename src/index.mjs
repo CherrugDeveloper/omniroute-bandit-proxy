@@ -14,15 +14,16 @@ import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryS
 import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebugEnabled, isDebugVerboseEnabled, readDebugVerboseTtlMs, createTtlFlag, isPollingPath } from "./log-throttle.mjs";
 import fs from "node:fs";
 import * as WebSocket from "ws";
+import { createPunishmentEvents, formatEventPayload } from "./events.mjs";
 EventEmitter.defaultMaxListeners = 50;
 // Define ES module __dirname and __filename at the top (before they are used)
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(__filename__);
 
-
-// WebSocket server instance and connection tracking
+// WebSocket server instance and punishment event tracking
 let wss = null;
 const scriptOutputClients = new Map(); // pid -> Set of WebSocket connections
+const punishmentEventClients = new Set(); // Dashboard clients listening for punishment events
 
 // Centralized audit logger for script executions
 const auditLogPath = path.join(__dirname, "../scripts/audit.log");
@@ -3222,32 +3223,64 @@ async function startServer(attempt = 1) {
       }
     });
   
-    // Initialize WebSocket server for real-time script output streaming
-    wss = new WebSocket.WebSocketServer({ noServer: true });
-    wss.on("connection", (ws, req) => {
-      const pid = req.url?.split("/")[1];
-      if (pid) {
-        if (!scriptOutputClients.has(pid)) {
-          scriptOutputClients.set(pid, new Set());
-        }
-        scriptOutputClients.get(pid).add(ws);
-        console.log(`[WS] Client connesso per script PID ${pid} (totale: ${scriptOutputClients.get(pid).size})`);
-  
-        ws.on("close", () => {
-          if (scriptOutputClients.has(pid)) {
-            scriptOutputClients.get(pid).delete(ws);
-            if (scriptOutputClients.get(pid).size === 0) {
-              scriptOutputClients.delete(pid);
+    // Initialize WebSocket server for real-time script output streaming and punishment events
+        wss = new WebSocket.WebSocketServer({ noServer: true });
+        
+        // Set up punishment event emitter to broadcast to dashboard clients
+        const punishmentEvents = createPunishmentEvents();
+        punishmentEvents.on('event', (event) => {
+          const payload = formatEventPayload(event);
+          punishmentEventClients.forEach(ws => {
+            if (ws.readyState === WebSocket.WebSocket.OPEN) {
+              ws.send(JSON.stringify(payload));
             }
-            console.log(`[WS] Client disconnesso per script PID ${pid}`);
+          });
+        });
+        
+        wss.on("connection", (ws, req) => {
+          const path = req.url || '';
+          
+          // Handle punishment events endpoint
+          if (path === '/v1/events/punishment' || path.startsWith('/v1/events/punishment?')) {
+            punishmentEventClients.add(ws);
+            console.log(`[WS] Client connesso per eventi di punizione (totale: ${punishmentEventClients.size})`);
+            
+            ws.on("close", () => {
+              punishmentEventClients.delete(ws);
+              console.log(`[WS] Client disconnesso dagli eventi di punizione (totale: ${punishmentEventClients.size})`);
+            });
+            
+            ws.on("error", (err) => {
+              console.error(`[WS] Errore connessione per eventi di punizione:`, err.message);
+              punishmentEventClients.delete(ws);
+            });
+            return;
+          }
+          
+          // Handle script output endpoint
+          const pid = path.split("/")[1];
+          if (pid) {
+            if (!scriptOutputClients.has(pid)) {
+              scriptOutputClients.set(pid, new Set());
+            }
+            scriptOutputClients.get(pid).add(ws);
+            console.log(`[WS] Client connesso per script PID ${pid} (totale: ${scriptOutputClients.get(pid).size})`);
+      
+            ws.on("close", () => {
+              if (scriptOutputClients.has(pid)) {
+                scriptOutputClients.get(pid).delete(ws);
+                if (scriptOutputClients.get(pid).size === 0) {
+                  scriptOutputClients.delete(pid);
+                }
+                console.log(`[WS] Client disconnesso per script PID ${pid}`);
+              }
+            });
+      
+            ws.on("error", (err) => {
+              console.error(`[WS] Errore connessione per PID ${pid}:`, err.message);
+            });
           }
         });
-  
-        ws.on("error", (err) => {
-          console.error(`[WS] Errore connessione per PID ${pid}:`, err.message);
-        });
-      }
-    });
   
     // Register WebSocket upgrade handler
     server.on("upgrade", handleUpgrade);
