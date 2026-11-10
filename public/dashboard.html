@@ -1334,7 +1334,6 @@
         <button class="tab-btn" data-tab="modes">🧠 Modalità</button>
         <button class="tab-btn" data-tab="providers">📊 Provider Quota</button>
         <button class="tab-btn" data-tab="scripts"><span>🛠️ Scripts Manager</span><span id="scripts-badge" class="badge badge-training" style="display:none; margin-left:4px;">● RUNNING</span></button>
-        <button class="tab-btn" data-tab="events">🔔 Punishment Events</button>
     </div>
 
     <div id="tab-logs" class="tab-content active">
@@ -1676,39 +1675,6 @@
                     </thead>
                     <tbody id="consideration-table-body">
                         <tr><td colspan="8" style="text-align:center; color:#8b949e; padding:20px;">Caricamento considerazioni in corso...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div id="tab-events" class="tab-content">
-        <div class="card" style="margin-bottom:15px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h3 style="margin:0; color:#58a6ff; font-size:15px; display:flex; align-items:center; gap:8px;">
-                    <span>🔔</span> Punishment Events
-                </h3>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <span id="events-connection-status" style="font-size:12px; color:#8b949e;">● Disconnected</span>
-                    <button id="events-clear-btn" class="btn" onclick="clearEvents()" style="font-size:12px; padding:4px 10px; background:#21262d; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; border-radius:4px;">🗑️ Pulisci</button>
-                </div>
-            </div>
-            <div style="height: 400px; overflow-y: auto; scrollbar-width: none; -webkit-scrollbar: none; border: 1px solid #30363d; border-radius: 4px; background:#0d1117;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9; table-layout: fixed;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #30363d; color: #58a6ff; position: sticky; top: 0; background: #161b22; z-index: 1;">
-                            <th style="padding: 6px 8px; width: 15%;">Timestamp</th>
-                            <th style="padding: 6px 8px; width: 10%;">Provider</th>
-                            <th style="padding: 6px 8px; width: 12%;">Model ID</th>
-                            <th style="padding: 6px 8px; width: 10%;">Type</th>
-                            <th style="padding: 6px 8px; width: 18%;">Reason</th>
-                            <th style="padding: 6px 8px; width: 10%;">Cooldown</th>
-                            <th style="padding: 6px 8px; width: 8%;">Fails</th>
-                            <th style="padding: 6px 8px; width: 15%;">Consequences</th>
-                        </tr>
-                    </thead>
-                    <tbody id="events-tbody">
-                        <tr><td colspan="8" style="text-align:center; color:#8b949e; padding:20px;"> Connessione WebSocket in corso... </td></tr>
                     </tbody>
                 </table>
             </div>
@@ -2451,7 +2417,7 @@
                 renderAll();
             }
         });
-        const validTabs = ['logs', 'models', 'train', 'modes', 'providers', 'scripts', 'consideration', 'events'];
+        const validTabs = ['logs', 'models', 'train', 'modes', 'providers', 'scripts', 'consideration'];
 
         function toggleTopSpecWidget() {
             const content = document.getElementById('top-spec-content');
@@ -6098,61 +6064,36 @@
         });
 
         // ===== PUNISHMENT EVENTS WEBSOCKET =====
-        let punishmentEvents = [];
+        // WebSocket-connected punishment events buffer (for real-time updates)
+        let punishmentEventBuffer = [];
         let punishmentWS = null;
-        let eventsWSConnected = false;
+        let punishmentWSConnected = false;
 
-        function renderEvents() {
-            const tbody = document.getElementById('events-tbody');
+        // Add punishment event row to unified table (called by WebSocket onmessage)
+        function addPunishmentEventToTable(event) {
+            const tbody = document.getElementById('unified-cronologia-tbody');
             if (!tbody) return;
             
-            const eventsData = punishmentEvents.slice(-500); // Keep last 500 events
-            tbody.innerHTML = eventsData.map(e => {
-                const time = new Date(e.timestamp).toLocaleString();
-                const cooldown = e.cooldownMs ? formatCooldown(e.cooldownMs) : '-';
-                const failures = e.failures || 0;
-                const consecutive = e.consecutive || 0;
-                const consequences = [];
-                if (e.subtype === 'permanent') consequences.push('Permanent ban');
-                if (consecutive >= 3) consequences.push('3-strike rule');
-                return `<tr style="border-bottom: 1px solid #21262d;">
-                    <td style="padding: 4px 8px; font-size: 11px;">${time}</td>
-                    <td style="padding: 4px 8px; font-size: 11px; color:#c9d1d9;">${e.provider || '-'}</td>
-                    <td style="padding: 4px 8px; font-size: 11px; color:#9b59b6;">${e.modelId || '-'}</td>
-                    <td style="padding: 4px 8px; font-size: 11px;"><span style="color:#f85149;">🔴 ${e.type}</span></td>
-                    <td style="padding: 4px 8px; font-size: 11px; color:#ff9800;">${formatReason(e.reason)}</td>
-                    <td style="padding: 4px 8px; font-size: 11px; color:#e6ac00;">${cooldown}</td>
-                    <td style="padding: 4px 8px; font-size: 11px;">${failures}</td>
-                    <td style="padding: 4px 8px; font-size: 11px; color:#ff5858;">${consequences.join(', ') || '-'}</td>
-                </tr>`;
-            }).join('');
-        }
-
-        function formatReason(reason) {
-            if (!reason) return '-';
-            if (reason === 'critical_failure') return 'Critical failure';
-            if (reason === 'rate_limit') return 'Rate limit';
-            if (reason === 'context_exhausted') return 'Context exhausted';
-            if (reason === 'insufficient_quota') return 'Insufficient quota';
-            return reason.replace(/_/g, ' ');
-        }
-
-        function formatCooldown(ms) {
-            if (!ms || ms <= 0) return '-';
-            if (ms < 1000) return ms + 'ms';
-            const seconds = Math.floor(ms / 1000);
-            if (seconds < 60) return seconds + 's';
-            const minutes = Math.floor(seconds / 60);
-            if (minutes < 60) return minutes + 'm';
-            const hours = Math.floor(minutes / 60);
-            if (hours < 24) return hours + 'h';
-            const days = Math.floor(hours / 24);
-            return days + 'd';
-        }
-
-        function clearEvents() {
-            punishmentEvents = [];
-            renderEvents();
+            const rowHtml = fmtPunishmentRow(event);
+            const rowKey = 'pun-' + (event.timestamp || Date.now());
+            
+            // Create row element
+            const tempDiv = document.createElement('tbody');
+            tempDiv.innerHTML = rowHtml;
+            const newTr = tempDiv.firstElementChild;
+            
+            if (newTr) {
+                // Prepend at top (newest first)
+                tbody.insertAdjacentHTML('afterbegin', rowHtml);
+                
+                // Enforce max row limit (remove oldest from bottom)
+                const MAX_UNIFIED_ROWS = 200;
+                while (tbody.children.length > MAX_UNIFIED_ROWS) {
+                    tbody.lastElementChild?.remove();
+                }
+                
+                console.log('[WebSocket] Punishment event added to unified table:', event.type, event.timestamp);
+            }
         }
 
         function connectPunishmentWS() {
@@ -6163,85 +6104,36 @@
             punishmentWS = new WebSocket(window.location.origin + '/v1/events/punishment' + (API_TOKEN ? '?token=' + API_TOKEN : ''));
             
             punishmentWS.onopen = () => {
-                console.log('[Punishment Events] Connected');
-                eventsWSConnected = true;
-                const statusEl = document.getElementById('events-connection-status');
-                if (statusEl) {
-                    statusEl.style.color = '#3fb950';
-                    statusEl.textContent = '● Connected';
-                }
+                console.log('[WebSocket] Punishment Events Connected');
+                punishmentWSConnected = true;
             };
             
             punishmentWS.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    punishmentEvents.push(data);
-                    renderEvents();
-                    // Auto-scroll to newest events
-                    const tbody = document.getElementById('events-tbody');
-                    if (tbody) {
-                        const parent = tbody.parentElement;
-                        if (parent) {
-                            parent.scrollTop = parent.scrollHeight;
-                        }
-                    }
+                    addPunishmentEventToTable(data);
                 } catch (e) {
-                    console.error('[Punishment Events] Parse error:', e);
+                    console.error('[WebSocket] Punishment Events Parse error:', e);
                 }
             };
             
             punishmentWS.onerror = (e) => {
-                console.error('[Punishment Events] WebSocket error:', e);
-                const statusEl = document.getElementById('events-connection-status');
-                if (statusEl) {
-                    statusEl.style.color = '#f85149';
-                    statusEl.textContent = '● Error';
-                }
+                console.error('[WebSocket] Punishment Events error:', e);
             };
             
             punishmentWS.onclose = () => {
-                console.log('[Punishment Events] Disconnected');
-                eventsWSConnected = false;
-                const statusEl = document.getElementById('events-connection-status');
-                if (statusEl) {
-                    statusEl.style.color = '#8b949e';
-                    statusEl.textContent = '● Disconnected';
-                }
+                console.log('[WebSocket] Punishment Events Disconnected');
+                punishmentWSConnected = false;
             };
         }
 
-        // Initialize punishment events WebSocket when DOM is ready
-        document.addEventListener('DOMContentLoaded', () => {
-            // Connect when events tab is first shown
-            const eventsTab = document.querySelector('[data-tab="events"]');
-            if (eventsTab) {
-                eventsTab.addEventListener('click', () => {
-                    if (!eventsWSConnected) {
-                        connectPunishmentWS();
-                    }
-                });
-            }
-
-            // Handle clear button
-            const clearBtn = document.getElementById('events-clear-btn');
-            if (clearBtn) {
-                clearBtn.addEventListener('click', () => {
-                    if (confirm('Clear all punishment events?')) {
-                        clearEvents();
-                    }
-                });
-            }
-        });
-
-        // Extend switchTab to handle events WebSocket
-        const originalSwitchTab = window.switchTab;
-        window.switchTab = function(tabName, updateHistory = true) {
-            if (originalSwitchTab) originalSwitchTab(tabName, updateHistory);
-            
-            if (tabName === 'events' && !eventsWSConnected) {
+        // Initialize punishment events WebSocket on page load for real-time updates
+        (function initPunishmentWS() {
+            // Connect immediately for real-time punishment events
+            setTimeout(() => {
                 connectPunishmentWS();
-            }
-        };
+            }, 2000);
+        })();
     </script>
 </body>
 </html>

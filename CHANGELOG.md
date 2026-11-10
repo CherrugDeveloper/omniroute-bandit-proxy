@@ -370,6 +370,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - WebSocket support for real-time script output streaming
 - Service worker for PWA capabilities
 
+## Version History
+
 [1.28.17]: https://github.com/CherrugDeveloper/omniroute-bandit-proxy/compare/v1.28.16...v1.28.17
 [1.28.16]: https://github.com/CherrugDeveloper/omniroute-bandit-proxy/compare/v1.28.15...v1.28.16
 [1.28.15]: https://github.com/CherrugDeveloper/omniroute-bandit-proxy/compare/v1.28.14...v1.28.15
