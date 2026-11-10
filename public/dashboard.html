@@ -3899,43 +3899,46 @@
                 const activeTabIdEl = activeTabEl ? activeTabEl.id : '';
                 const isModelsTabActive = activeTabIdEl === 'tab-models';
 
-                if (!hasActiveFilters() && !isModelsTabActive) {
-                    updateStat('models-count-catalog', d.catalogTotal, 'catalogTotal');
-                    updateStat('models-count-free', d.catalogFree, 'catalogFree');
-                    updateStat('models-count-raw', d.catalogRawCount, 'catalogRawCount');
+                // Update global model/provider counts from stats endpoint
+                // These are the main dashboard metrics that should always be synchronized
+                updateStat('models-count-catalog', d.catalogTotal, 'catalogTotal');
+                updateStat('models-count-free', d.catalogFree, 'catalogFree');
+                updateStat('models-count-raw', d.catalogRawCount, 'catalogRawCount');
 
-                    updateStat('active-models', d.modelsActive, 'modelsActive');
-                    updateStat('cooldown-models', d.modelsCooldown, 'modelsCooldown');
-                    updateStat('banned-models', d.modelsBanned, 'modelsBanned');
-                    updateStat('degraded-models', d.modelsDegraded, 'modelsDegraded');
-                    updateStat('attention-models', d.modelsAttention, 'modelsAttention');
-                    updateStat('total-models', d.totalModels, 'totalModels');
-                    
-                    // Also update Stats section elements (different IDs from tab elements)
-                    updateStat('models-count-active', d.modelsActive, 'modelsActive');
-                    updateStat('models-count-cooldown', d.modelsCooldown, 'modelsCooldown');
-                    updateStat('models-count-banned', d.modelsBanned, 'modelsBanned');
-                    updateStat('models-count-degraded', d.modelsDegraded, 'modelsDegraded');
-                    updateStat('models-count-attention', d.modelsAttention, 'modelsAttention');
-                    updateStat('models-count-total', d.totalModels, 'totalModels');
+                updateStat('active-models', d.modelsActive, 'modelsActive');
+                updateStat('cooldown-models', d.modelsCooldown, 'modelsCooldown');
+                updateStat('banned-models', d.modelsBanned, 'modelsBanned');
+                updateStat('degraded-models', d.modelsDegraded, 'modelsDegraded');
+                updateStat('attention-models', d.modelsAttention, 'modelsAttention');
+                updateStat('total-models', d.totalModels, 'totalModels');
+                
+                // Also update Stats section elements (different IDs from tab elements)
+                updateStat('models-count-active', d.modelsActive, 'modelsActive');
+                updateStat('models-count-cooldown', d.modelsCooldown, 'modelsCooldown');
+                updateStat('models-count-banned', d.modelsBanned, 'modelsBanned');
+                updateStat('models-count-degraded', d.modelsDegraded, 'modelsDegraded');
+                updateStat('models-count-attention', d.modelsAttention, 'modelsAttention');
+                updateStat('models-count-total', d.totalModels, 'totalModels');
 
-                    updateStat('active-providers', d.providersActive, 'providersActive');
-                    updateStat('cooldown-providers', d.providersCooldown, 'providersCooldown');
-                    updateStat('banned-providers', d.providersBanned, 'providersBanned');
-                    updateStat('attention-providers', d.providersAttention, 'providersAttention');
-                    updateStat('total-providers', d.totalProviders, 'providersTotal');
-                    updateStat('catalog-providers', d.catalogProviders, 'catalogProviders');
-                    
-                    // Also update Stats section elements (different IDs from tab elements)
-                    updateStat('providers-count-active', d.providersActive, 'providersActive');
-                    updateStat('providers-count-cooldown', d.providersCooldown, 'providersCooldown');
-                    updateStat('providers-count-banned', d.providersBanned, 'providersBanned');
-                    updateStat('providers-count-attention', d.providersAttention, 'providersAttention');
-                    updateStat('providers-count-total', d.totalProviders, 'providersTotal');
-                } else if (isModelsTabActive) {
-                    console.log('[DEBUG dashboard] Models tab active, skipping global model/provider count updates from stats fetch to prevent race condition');
+                updateStat('active-providers', d.providersActive, 'providersActive');
+                updateStat('cooldown-providers', d.providersCooldown, 'providersCooldown');
+                updateStat('banned-providers', d.providersBanned, 'providersBanned');
+                updateStat('attention-providers', d.providersAttention, 'providersAttention');
+                updateStat('total-providers', d.totalProviders, 'providersTotal');
+                updateStat('catalog-providers', d.catalogProviders, 'catalogProviders');
+                
+                // Also update Stats section elements
+                updateStat('providers-count-active', d.providersActive, 'providersActive');
+                updateStat('providers-count-cooldown', d.providersCooldown, 'providersCooldown');
+                updateStat('providers-count-banned', d.providersBanned, 'providersBanned');
+                updateStat('providers-count-attention', d.providersAttention, 'providersAttention');
+                updateStat('providers-count-total', d.totalProviders, 'providersTotal');
+                
+                if (hasActiveFilters()) {
+                    console.log('[DEBUG dashboard] Filters active on models tab - show filtered data');
                 } else {
-                    console.log('[DEBUG dashboard] Filters active, skipping model/provider count updates from global stats');
+                    console.log('[DEBUG dashboard] Global stats synchronized');
+                }
                 }
                 updateStat('providers-count-catalog', d.catalogProviders, 'catalogProviders');
 
