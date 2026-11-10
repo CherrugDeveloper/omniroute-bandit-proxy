@@ -110,12 +110,14 @@ export function isCriticalFailure(statusCode, message = '', errorDetails = {}) {
 /**
  * Logs a punishment event to the console for immediate visibility
  * Also broadcasts to connected dashboard clients via WebSocket
+ * Persists to database if bandit instance is provided
  * @param {Object} params
+ * @param {Object} [params.bandit] - Optional bandit instance for DB persistence
  */
-export function logPunishment({ type, provider, modelId, reason, cooldownMs, failures, consecutive }) {
+export function logPunishment({ bandit, type, provider, modelId, reason, cooldownMs, failures, consecutive }) {
   const timestamp = new Date().toISOString();
   let logLine;
-  
+
   if (type === EVENT_TYPES.BAN_PROVIDER) {
     logLine = `[BANDIT-3STRIKE] BAN-PROVIDER | provider=${provider} | ${reason} | failures=${failures}`;
   } else if (type === EVENT_TYPES.BAN_MODEL) {
@@ -133,8 +135,13 @@ export function logPunishment({ type, provider, modelId, reason, cooldownMs, fai
   } else {
     logLine = `[BANDIT] ${type} | provider=${provider} | model=${modelId} | ${reason}`;
   }
-  
+
   console.log(logLine);
+  
+  // Persist to database if bandit instance is available
+  if (bandit) {
+    bandit.recordPunishmentEvent(type, provider, modelId, reason, cooldownMs, failures, consecutive);
+  }
   
   // Emit for WebSocket subscribers
   const events = createPunishmentEvents();
