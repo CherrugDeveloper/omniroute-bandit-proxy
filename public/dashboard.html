@@ -2526,6 +2526,9 @@
                 loadScripts();
             }
 
+            // Always refresh stats when switching tabs
+            refreshAll();
+
             // Persist tab selection to localStorage
             localStorage.setItem('dashboard.activeTab', tabName);
 
