@@ -2923,41 +2923,30 @@
                         if (el) el.textContent = val ?? 0;
                     };
 
-                    // Update BOTH tab counters and top summary box counters WITH FILTERED DATA
+                    // Update tab counters with FILTERED data
                     updateIfExists('models-count-total', summary.total);
-                    updateIfExists('total-models', summary.total);
                     
                     updateIfExists('models-count-active', summary.active);
-                    updateIfExists('active-models', summary.active);
                     
                     updateIfExists('models-count-cooldown', summary.cooldown);
-                    updateIfExists('cooldown-models', summary.cooldown);
                     
                     updateIfExists('models-count-degraded', summary.degraded);
-                    updateIfExists('degraded-models', summary.degraded);
                     
                     updateIfExists('models-count-banned', summary.banned);
-                    updateIfExists('banned-models', summary.banned);
 
                     updateIfExists('models-count-attention', summary.attention);
-                    updateIfExists('attention-models', summary.attention);
 
-                    // Update provider counts if summary includes them (it does from getModelsSummary)
+                    // Update provider tab counters if summary includes them
                     if (summary.providers) {
                         updateIfExists('providers-count-total', summary.providers.total);
-                        updateIfExists('total-providers', summary.providers.total);
                         
                         updateIfExists('providers-count-active', summary.providers.active);
-                        updateIfExists('active-providers', summary.providers.active);
                         
                         updateIfExists('providers-count-cooldown', summary.providers.cooldown);
-                        updateIfExists('cooldown-providers', summary.providers.cooldown);
                         
                         updateIfExists('providers-count-banned', summary.providers.banned);
-                        updateIfExists('banned-providers', summary.providers.banned);
 
                         updateIfExists('providers-count-attention', summary.providers.attention);
-                        updateIfExists('attention-providers', summary.providers.attention);
                     }
                     
                     // Store data for sorting
