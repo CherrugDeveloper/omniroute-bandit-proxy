@@ -1207,94 +1207,108 @@
         </div>
         <div class="stats-container">
             <div class="stats">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
-                    <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Metriche principali</div>
-                    <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
-                </div>
-                <div class="stats-grid stats-grid-single">
-                    <span class="metric-label"><strong>Richieste:</strong></span>
-                    <span class="metric-value"><span id="total-req" class="ok">0</span></span>
-                    <span class="metric-label"><strong>Osservazioni:</strong></span>
-                    <span class="metric-value"><span id="total-obs" class="ok">0</span></span>
-                    <span class="metric-label"><strong>Osservazioni OK:</strong></span>
-                    <span class="metric-value"><span id="successful-obs" class="ok">0</span></span>
-                    <span class="metric-label"><strong>Successo:</strong></span>
-                    <span class="metric-value"><span id="success-rate" class="ok">—</span></span>
-                    <span class="metric-label"><strong>Qualità:</strong></span>
-                    <span class="metric-value"><span id="avg-reward" class="ok">—</span></span>
-                    <span class="metric-label"><strong>Latenza:</strong></span>
-                    <span class="metric-value"><span id="avg-latency" class="ok">—</span></span>
-                    <span class="metric-label"><strong>Free attivi:</strong></span>
-                    <span class="metric-value"><span id="free-active" class="attention">—</span></span>
-                </div>
-            </div>
-
-            <div class="stats">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
-                    <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Top model / Training</div>
-                    <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-training" title="Reset training status">🔄</button>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:1px; width:100%;">
-                    <div><span id="top-model" class="mono" title="" style="white-space:normal; word-break:break-all;"></span></div>
-                    <div class="stats-grid">
-                        <span><span id="top-model-score" class="muted"></span></span>
-                        <span><span id="top-model-provider" class="muted"></span></span>
-                        <span><span id="top-model-cooldown" class="muted"></span></span>
-                        <span><span id="top-model-n" class="muted"></span></span>
-                        <span><span id="top-model-latency" class="muted"></span></span>
-                    </div>
-                    <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
-                        <a href="javascript:void(0);" onclick="switchTab('scripts')" style="font-size:0.9em; color:#58a6ff; cursor:pointer; text-decoration:underline;">Training Status:</a>
-                        <div id="training-status-content" style="font-size:11px; color:#8b949e; margin-top:2px;">
-                            <div>Status: <span id="training-status-state" class="muted">Loading...</span></div>
-                            <div>Cycle: <span id="training-status-cycle" class="muted">0</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
+                        <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Metriche principali</div>
+                        <div style="display:flex; gap:2px; align-items:center;">
+                            <button class="btn btn-copy" data-action="copy-box-content" data-target="metrics-box" style="padding:0 2px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; line-height:1;" title="Copia contatori">📋</button>
+                            <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-counters" title="Reset contatori richieste/osservazioni">🔄</button>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <div class="stats">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
-                    <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Modelli</div>
-                    <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-model" title="Reset tutti i modelli">🔄</button>
-                </div>
-                <div class="stats-grid">
-                    <span>Monitorati: <span id="models-count-total" class="badge badge-monitorati tabular-nums">0</span></span>
-                    <span>Attivi: <span id="models-count-active" class="badge badge-attivi tabular-nums">0</span></span>
-                    <span>Cooldown: <span id="models-count-cooldown" class="badge badge-cooldown tabular-nums">0</span></span>
-                    <span>Bannati: <span id="models-count-banned" class="badge badge-bannati tabular-nums">0</span></span>
-                    <span>Degraded: <span id="models-count-degraded" class="badge badge-degraded tabular-nums">0</span></span>
-                    <span>Config: <span id="models-count-attention" class="badge badge-config tabular-nums">0</span></span>
-                    <span>Catalogo: <span id="models-count-catalog" class="badge badge-catalog tabular-nums">0</span></span>
-                    <span>Free: <span id="models-count-free" class="badge badge-free tabular-nums">0</span></span>
-                    <span>Grezzi: <span id="models-count-raw" class="badge badge-raw tabular-nums">0</span></span>
-                </div>
-            </div>
-
-            <div class="stats">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
-                    <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Provider</div>
-                    <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-provider" title="Reset tutti i provider">🔄</button>
-                </div>
-                <div class="stats-grid">
-                    <span>Attivi: <span id="providers-count-active" class="ok tabular-nums">0</span></span>
-                    <span>Cooldown: <span id="providers-count-cooldown" class="warn tabular-nums">0</span></span>
-                    <span>Bannati: <span id="providers-count-banned" class="err tabular-nums">0</span></span>
-                    <span>Config: <span id="providers-count-attention" class="attention tabular-nums">0</span></span>
-                    <span>Monitorati: <span id="providers-count-total" class="badge badge-monitorati tabular-nums">0</span></span>
-                    <span>Catalogo: <span id="providers-count-catalog" class="badge badge-catalog tabular-nums">0</span></span>
-                </div>
-                <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
-                        <span>Provider in salute </span><span id="healthy-providers-pct" style="font-weight:600; color:#58a6ff;"></span>
+                    <div class="stats-grid stats-grid-single" id="metrics-box">
+                        <span class="metric-label"><strong>Richieste:</strong></span>
+                        <span class="metric-value"><span id="total-req" class="ok">0</span></span>
+                        <span class="metric-label"><strong>Osservazioni:</strong></span>
+                        <span class="metric-value"><span id="total-obs" class="ok">0</span></span>
+                        <span class="metric-label"><strong>Osservazioni OK:</strong></span>
+                        <span class="metric-value"><span id="successful-obs" class="ok">0</span></span>
+                        <span class="metric-label"><strong>Successo:</strong></span>
+                        <span class="metric-value"><span id="success-rate" class="ok">—</span></span>
+                        <span class="metric-label"><strong>Qualità:</strong></span>
+                        <span class="metric-value"><span id="avg-reward" class="ok">—</span></span>
+                        <span class="metric-label"><strong>Latenza:</strong></span>
+                        <span class="metric-value"><span id="avg-latency" class="ok">—</span></span>
+                        <span class="metric-label"><strong>Free attivi:</strong></span>
+                        <span class="metric-value"><span id="free-active" class="attention">—</span></span>
                     </div>
-                    <div id="healthy-providers-content" style="font-size:11px; color:#8b949e;"></div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-top:4px; margin-bottom:2px;">
-                        <span>Modelli operativi </span><span id="operational-models-pct" style="font-weight:600; color:#58a6ff;"></span>
-                    </div>
-                    <div id="operational-models-content" style="font-size:11px; color:#8b949e;"></div>
                 </div>
-            </div>
+            
+                <div class="stats">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
+                        <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Top model / Training</div>
+                        <div style="display:flex; gap:2px; align-items:center;">
+                            <button class="btn btn-copy" data-action="copy-box-content" data-target="top-model-training-box" style="padding:0 2px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; line-height:1;" title="Copia top model/training">📋</button>
+                            <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-training" title="Reset training status">🔄</button>
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:1px; width:100%;">
+                        <div><span id="top-model" class="mono" title="" style="white-space:normal; word-break:break-all;"></span></div>
+                        <div class="stats-grid">
+                            <span><span id="top-model-score" class="muted"></span></span>
+                            <span><span id="top-model-provider" class="muted"></span></span>
+                            <span><span id="top-model-cooldown" class="muted"></span></span>
+                            <span><span id="top-model-n" class="muted"></span></span>
+                            <span><span id="top-model-latency" class="muted"></span></span>
+                        </div>
+                        <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
+                            <a href="javascript:void(0);" onclick="switchTab('scripts')" style="font-size:0.9em; color:#58a6ff; cursor:pointer; text-decoration:underline;">Training Status:</a>
+                            <div id="training-status-content" style="font-size:11px; color:#8b949e; margin-top:2px;">
+                                <div>Status: <span id="training-status-state" class="muted">Loading...</span></div>
+                                <div>Cycle: <span id="training-status-cycle" class="muted">0</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="top-model-training-box" style="display:none;"></div>
+                </div>
+            
+                <div class="stats">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
+                        <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Modelli</div>
+                        <div style="display:flex; gap:2px; align-items:center;">
+                            <button class="btn btn-copy" data-action="copy-box-content" data-target="models-box" style="padding:0 2px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; line-height:1;" title="Copia modelli">📋</button>
+                            <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-model" title="Reset tutti i modelli">🔄</button>
+                        </div>
+                    </div>
+                    <div class="stats-grid" id="models-box">
+                        <span>Monitorati: <span id="models-count-total" class="badge badge-monitorati tabular-nums">0</span></span>
+                        <span>Attivi: <span id="models-count-active" class="badge badge-attivi tabular-nums">0</span></span>
+                        <span>Cooldown: <span id="models-count-cooldown" class="badge badge-cooldown tabular-nums">0</span></span>
+                        <span>Bannati: <span id="models-count-banned" class="badge badge-bannati tabular-nums">0</span></span>
+                        <span>Degraded: <span id="models-count-degraded" class="badge badge-degraded tabular-nums">0</span></span>
+                        <span>Config: <span id="models-count-attention" class="badge badge-config tabular-nums">0</span></span>
+                        <span>Catalogo: <span id="models-count-catalog" class="badge badge-catalog tabular-nums">0</span></span>
+                        <span>Free: <span id="models-count-free" class="badge badge-free tabular-nums">0</span></span>
+                        <span>Grezzi: <span id="models-count-raw" class="badge badge-raw tabular-nums">0</span></span>
+                    </div>
+                </div>
+            
+                <div class="stats">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
+                        <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Provider</div>
+                        <div style="display:flex; gap:2px; align-items:center;">
+                            <button class="btn btn-copy" data-action="copy-box-content" data-target="providers-box" style="padding:0 2px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; line-height:1;" title="Copia provider">📋</button>
+                            <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-provider" title="Reset tutti i provider">🔄</button>
+                        </div>
+                    </div>
+                    <div class="stats-grid" id="providers-box">
+                        <span>Attivi: <span id="providers-count-active" class="ok tabular-nums">0</span></span>
+                        <span>Cooldown: <span id="providers-count-cooldown" class="warn tabular-nums">0</span></span>
+                        <span>Bannati: <span id="providers-count-banned" class="err tabular-nums">0</span></span>
+                        <span>Config: <span id="providers-count-attention" class="attention tabular-nums">0</span></span>
+                        <span>Monitorati: <span id="providers-count-total" class="badge badge-monitorati tabular-nums">0</span></span>
+                        <span>Catalogo: <span id="providers-count-catalog" class="badge badge-catalog tabular-nums">0</span></span>
+                    </div>
+                    <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-bottom:2px;">
+                            <span>Provider in salute </span><span id="healthy-providers-pct" style="font-weight:600; color:#58a6ff;"></span>
+                        </div>
+                        <div id="healthy-providers-content" style="font-size:11px; color:#8b949e;"></div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e; margin-top:4px; margin-bottom:2px;">
+                            <span>Modelli operativi </span><span id="operational-models-pct" style="font-weight:600; color:#58a6ff;"></span>
+                        </div>
+                        <div id="operational-models-content" style="font-size:11px; color:#8b949e;"></div>
+                    </div>
+                    <div id="providers-box-copy" style="display:none;"></div>
+                </div>
             </div>
 
     <!-- Persistent Unified Panel -->
@@ -3622,6 +3636,22 @@
                 else if (a === 'show-help') showHelp(btn.dataset.name);
                 else if (a === 'refresh-all') refreshAll();
                 else if (a === 'copy-logs') copyLogs();
+                else if (a === 'copy-box-content') {
+                    const target = btn.dataset.target;
+                    if (target) {
+                        const box = document.getElementById(target);
+                        if (box) {
+                            const text = box.innerText.trim();
+                            if (text) {
+                                navigator.clipboard.writeText(text).then(() => {
+                                    const orig = btn.textContent;
+                                    btn.textContent = '✅';
+                                    setTimeout(() => btn.textContent = orig, 1000);
+                                }).catch(e => console.error('Copy failed', e));
+                            }
+                        }
+                    }
+                }
                 else if (a === 'reset-counters') {
                     apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
                 }
@@ -4634,66 +4664,51 @@
                 }
 
                 function fmtPunishmentRow(event) {
-                    const dObj = new Date(event.timestamp || Date.now());
-                    const timeStr = dObj.toLocaleTimeString();
-                    
-                    const provider = event.provider || '-';
-                    const model = event.modelId || '-';
-                    
-                    // Determine punishment type and status
-                    const punishmentType = event.subtype || event.type;
-                    const isBan = punishmentType.includes('ban');
-                    const isCritical = event.reason === 'critical_failure';
-                    
-                    let statusLabel = '';
-                    let statusColor = '#c9d1d9';
-                    
-                    if (isBan) {
-                        statusLabel = punishmentType.replace('-', ' ').toUpperCase();
-                        statusColor = '#f85149';
-                    } else if (punishmentType.includes('cooldown')) {
-                        statusLabel = punishmentType.replace('-', ' ').toUpperCase();
-                        statusColor = '#f1c40f';
-                    } else if (punishmentType.includes('flag')) {
-                        statusLabel = punishmentType.replace('-', ' ').toUpperCase();
-                        statusColor = '#e6ac00';
-                    } else if (punishmentType.includes('degraded')) {
-                        statusLabel = 'DEGRADED';
-                        statusColor = '#d29922';
-                    } else if (isCritical) {
-                        statusLabel = 'CRITICAL';
-                        statusColor = '#ff5858';
-                    } else {
-                        statusLabel = punishmentType.replace('-', ' ');
-                        statusColor = '#58a6ff';
-                    }
-                    
-                    // Calculate consequences
-                    const consequences = [];
-                    if (event.subtype === 'permanent') consequences.push('Permanent ban');
-                    if (event.consecutive >= 3) consequences.push('3-strike rule');
-                    if (consequences.length === 0 && punishmentType.includes('ban')) consequences.push('Banned');
-                    
-                    // Format reason for display
-                    let reasonDisplay = event.reason || '-';
-                    if (reasonDisplay === 'critical_failure') reasonDisplay = 'Critical failure';
-                    else if (reasonDisplay === 'rate_limit') reasonDisplay = 'Rate limit';
-                    else if (reasonDisplay === 'context_exhausted') reasonDisplay = 'Context exhausted';
-                    else if (reasonDisplay === 'insufficient_quota') reasonDisplay = 'Insufficient quota';
-                    else reasonDisplay = reasonDisplay.replace(/_/g, ' ');
-                    
-                    const punishmentId = 'pun-' + (event.timestamp || Date.now());
-                    
-                    return `<tr data-row-key="${punishmentId}" style="border-bottom: 1px solid #21262d; background: rgba(248, 81, 73, 0.05);">
-                        <td style="padding: 2px 6px; white-space: nowrap;"><span style="background: #f85149; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">PUN</span></td>
-                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeStr}</td>
-                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
-                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px; cursor: pointer;" title="Clicca per visualizzare nel tab Modelli" onclick="navigateToModel('${escapeHtml(provider)}', '${escapeHtml(model)}')">${escapeHtml(model)}</td>
-                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(punishmentType)}">${escapeHtml(punishmentType)}</td>
-                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(consequences.join(', ') || 'Punished')}">${escapeHtml(consequences.join(', ') || 'Punished')}</td>
-                    </tr>`;
-                }
+                                    const dObj = new Date(event.timestamp || Date.now());
+                                    const timeStr = dObj.toLocaleTimeString();
+                                    
+                                    const provider = event.provider || '-';
+                                    const model = event.modelId || '-';
+                                    
+                                    // Determine punishment type (countermeasure)
+                                    const punishmentType = event.subtype || event.type || 'punished';
+                                    const isBan = punishmentType.includes('ban');
+                                    const isCritical = event.reason === 'critical_failure';
+                                    
+                                    // Status: always "punished" for punished rows
+                                    let statusLabel = 'punished';
+                                    let statusColor = '#f85149';
+                                    
+                                    // Format reason for display (Error Type column)
+                                    let reasonDisplay = event.reason || '-';
+                                    if (reasonDisplay === 'critical_failure') reasonDisplay = 'Critical failure';
+                                    else if (reasonDisplay === 'rate_limit') reasonDisplay = 'Rate limit';
+                                    else if (reasonDisplay === 'context_exhausted') reasonDisplay = 'Context exhausted';
+                                    else if (reasonDisplay === 'insufficient_quota') reasonDisplay = 'Insufficient quota';
+                                    else if (reasonDisplay === 'safeWrite') reasonDisplay = 'safeWrite error';
+                                    else if (reasonDisplay === '403') reasonDisplay = 'Forbidden (403)';
+                                    else if (reasonDisplay === '429') reasonDisplay = 'Rate limit exceeded';
+                                    else if (reasonDisplay === 'timeout') reasonDisplay = 'Timeout';
+                                    else reasonDisplay = reasonDisplay.replace(/_/g, ' ');
+                                    
+                                    // Countermeasure: the punishment type chosen
+                                    let countermeasureDisplay = punishmentType.replace('-', ' ').toUpperCase();
+                                    if (!isBan && !punishmentType.includes('cooldown') && !punishmentType.includes('flag') && !punishmentType.includes('degraded')) {
+                                        countermeasureDisplay = punishmentType.replace('-', ' ');
+                                    }
+                                    
+                                    const punishmentId = 'pun-' + (event.timestamp || Date.now());
+                                    
+                                    return `<tr data-row-key="${punishmentId}" style="border-bottom: 1px solid #21262d; background: rgba(248, 81, 73, 0.05);">
+                                        <td style="padding: 2px 6px; white-space: nowrap;"><span style="background: #f85149; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">punished</span></td>
+                                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeStr}</td>
+                                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
+                                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px; cursor: pointer;" title="Clicca per visualizzare nel tab Modelli" onclick="navigateToModel('${escapeHtml(provider)}', '${escapeHtml(model)}')">${escapeHtml(model)}</td>
+                                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
+                                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(reasonDisplay)}">${escapeHtml(reasonDisplay)}</td>
+                                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay)}</td>
+                                    </tr>`;
+                                }
                 
                 const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
                 const showTrain = document.getElementById('log-show-train')?.checked ?? true;
@@ -4845,18 +4860,23 @@
         // ============= INIT =============
         // Copy unified table button
         document.getElementById('copy-unified-btn')?.addEventListener('click', async () => {
-            const tbody = document.getElementById('unified-cronologia-tbody');
-            if (!tbody) return;
-            let text = '';
-            // header
-            const headers = ['Timestamp','Provider','Model','Status','Error Type','Countermeasure','Reason / Stats'];
-            text += headers.join('\t') + '\n';
-            // rows
-            const rows = tbody.querySelectorAll('tr');
-            rows.forEach(tr => {
-                const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
-                if (cells.length) text += cells.join('\t') + '\n';
-            });
+                    const tbody = document.getElementById('unified-cronologia-tbody');
+                    if (!tbody) return;
+                    let text = '';
+                    // header
+                    const headers = ['Source','Timestamp','Provider','Model','Status','Error Type','Countermeasure'];
+                    text += headers.join('\t') + '\n';
+                    // rows
+                    const rows = tbody.querySelectorAll('tr');
+                    rows.forEach(tr => {
+                        const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                        if (cells.length >= 7) {
+                            // Only take first 7 cells to match headers
+                            text += cells.slice(0, 7).join('\t') + '\n';
+                        } else if (cells.length) {
+                            text += cells.join('\t') + '\n';
+                        }
+                    });
             try {
                 await navigator.clipboard.writeText(text);
                 const btn = document.getElementById('copy-unified-btn');
@@ -4867,6 +4887,26 @@
                 console.error('Copy failed', e);
             }
         });
+
+        // Copy stats box content (event delegation)
+        document.addEventListener('click', async (e) => {
+            const copyBtn = e.target.closest('[data-action="copy-box-content"]');
+            if (copyBtn) {
+                const targetId = copyBtn.dataset.target;
+                const targetEl = document.getElementById(targetId);
+                if (!targetEl) return;
+                const text = targetEl.innerText.trim();
+                try {
+                    await navigator.clipboard.writeText(text);
+                    const orig = copyBtn.textContent;
+                    copyBtn.textContent = '✅';
+                    setTimeout(() => copyBtn.textContent = orig, 1000);
+                } catch(err) {
+                    console.error('Box copy failed', err);
+                }
+            }
+        });
+
         // Attach debounced filter event listeners to filter elements
         document.getElementById('models-filter-search')?.addEventListener('input', debounce(renderAll, 200));
         document.getElementById('models-filter-provider')?.addEventListener('change', renderAll);

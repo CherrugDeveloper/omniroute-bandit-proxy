@@ -29,7 +29,9 @@ package-lock.json
 old_changelog.txt
 .train-daemon.pid
 scripts/.script-output-*.json
-raw_git_log.txt
+
+# Workflow retention (not ignored)
+# raw_git_log.txt is retained by the auto-git workflow
 
 # IDE
 .vscode/
