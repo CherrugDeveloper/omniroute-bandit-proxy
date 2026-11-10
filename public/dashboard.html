@@ -2917,37 +2917,7 @@
                     return { models, summary: filteredSummary };
                 })
                 .then(({models, summary}) => {
-                    // Update counters safely if elements exist
-                    const updateIfExists = (id, val) => {
-                        const el = document.getElementById(id);
-                        if (el) el.textContent = val ?? 0;
-                    };
-
-                    // Update tab counters with FILTERED data
-                    updateIfExists('models-count-total', summary.total);
-                    
-                    updateIfExists('models-count-active', summary.active);
-                    
-                    updateIfExists('models-count-cooldown', summary.cooldown);
-                    
-                    updateIfExists('models-count-degraded', summary.degraded);
-                    
-                    updateIfExists('models-count-banned', summary.banned);
-
-                    updateIfExists('models-count-attention', summary.attention);
-
-                    // Update provider tab counters if summary includes them
-                    if (summary.providers) {
-                        updateIfExists('providers-count-total', summary.providers.total);
-                        
-                        updateIfExists('providers-count-active', summary.providers.active);
-                        
-                        updateIfExists('providers-count-cooldown', summary.providers.cooldown);
-                        
-                        updateIfExists('providers-count-banned', summary.providers.banned);
-
-                        updateIfExists('providers-count-attention', summary.providers.attention);
-                    }
+                    renderAllPending = false;
                     
                     // Store data for sorting
                     allData.models = models;
@@ -3997,8 +3967,6 @@
                 if (operationalContentTabEl) {
                     operationalContentTabEl.textContent = `${activeModels} / ${totalModels} modelli attivi`;
                 }
-
-                renderAll();
             } catch (e) {
                 console.error('Errore fetch dashboard stats:', e);
                 const topModelEl = document.getElementById('top-model');
@@ -4026,23 +3994,7 @@
 
             const providers = Array.isArray(input) ? input : (input?.quota || input?.providers || []);
 
-            // Count providers by state for metrics counters
-            let totalCount = 0;
-            let activeCount = 0;
-            let cooldownCount = 0;
-            let exhaustedCount = 0;
-
             if (!providers || !Array.isArray(providers) || providers.length === 0) {
-                // Reset counters to 0 when no data
-                const totalEl = document.getElementById('providers-count-total');
-                if (totalEl) totalEl.textContent = '0';
-                const activeEl = document.getElementById('providers-count-active');
-                if (activeEl) activeEl.textContent = '0';
-                const cooldownEl = document.getElementById('providers-count-cooldown');
-                if (cooldownEl) cooldownEl.textContent = '0';
-                const exhaustedEl = document.getElementById('providers-count-exhausted');
-                if (exhaustedEl) exhaustedEl.textContent = '0';
-                
                 const tr = document.createElement('tr');
                 const td = document.createElement('td');
                 td.colSpan = 7;
@@ -4098,12 +4050,6 @@
                     state = 'cooldown';
                 }
 
-                // Increment counters
-                totalCount++;
-                if (state === 'attivo') activeCount++;
-                else if (state === 'cooldown') cooldownCount++;
-                else if (state === 'quota-exhausted') exhaustedCount++;
-
                 const tr = document.createElement('tr');
                 
                 const td1 = document.createElement('td');
@@ -4156,16 +4102,6 @@
 
                 fragment.appendChild(tr);
             }
-
-            // Update metrics counters
-            const totalEl = document.getElementById('providers-count-total');
-            if (totalEl) totalEl.textContent = totalCount;
-            const activeEl = document.getElementById('providers-count-active');
-            if (activeEl) activeEl.textContent = activeCount;
-            const cooldownEl = document.getElementById('providers-count-cooldown');
-            if (cooldownEl) cooldownEl.textContent = cooldownCount;
-            const exhaustedEl = document.getElementById('providers-count-exhausted');
-            if (exhaustedEl) exhaustedEl.textContent = exhaustedCount;
 
             tbody.replaceChildren(fragment);
         }
