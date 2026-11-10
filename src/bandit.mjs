@@ -635,6 +635,30 @@ export class DiscountedUCB1Bandit {
       }
 
       console.log("[BANDIT] Migrazione database completata");
+
+      // Create punishment_events table for persisting punishment events
+      const punishmentEventsTable = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='punishment_events'").get();
+      if (!punishmentEventsTable) {
+        console.log("[BANDIT] Creazione tabella punishment_events");
+        try {
+          this.db.exec(`CREATE TABLE punishment_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              event_type TEXT NOT NULL,
+              provider TEXT NOT NULL,
+              model_id TEXT,
+              reason TEXT,
+              cooldown_ms REAL DEFAULT 0,
+              failures INTEGER DEFAULT 0,
+              consecutive INTEGER DEFAULT 0,
+              created_at REAL DEFAULT (strftime('%s', 'now'))
+            )`);
+          this.db.exec(`CREATE INDEX IF NOT EXISTS idx_punishment_events_provider ON punishment_events(provider)`);
+          this.db.exec(`CREATE INDEX IF NOT EXISTS idx_punishment_events_model ON punishment_events(model_id)`);
+          this.db.exec(`CREATE INDEX IF NOT EXISTS idx_punishment_events_created ON punishment_events(created_at)`);
+        } catch (err) {
+          console.error("[BANDIT] Errore creazione tabella punishment_events:", err.message);
+        }
+      }
     } catch (err) {
       console.error("[BANDIT] Errore durante migrazione:", err.message);
       throw err;
@@ -695,6 +719,34 @@ export class DiscountedUCB1Bandit {
     this.db.prepare(
       "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = COALESCE(?, model), provider = COALESCE(?, provider) WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
     ).run(Date.now(), statusCode, errorMessage, model, provider);
+  }
+
+  recordPunishmentEvent(eventType, provider, modelId, reason, cooldownMs, failures, consecutive) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO punishment_events (event_type, provider, model_id, reason, cooldown_ms, failures, consecutive, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(eventType, provider, modelId || null, reason || null, cooldownMs || 0, failures || 0, consecutive || 0, Date.now());
+    } catch (err) {
+      console.error("[BANDIT] Errore registrazione evento punizione:", err.message);
+    }
+  }
+
+  getRecentPunishmentEvents(limit = 20) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT event_type as type, provider, model_id as modelId, reason, cooldown_ms as cooldownMs,
+               failures, consecutive, created_at as timestamp
+        FROM punishment_events
+        ORDER BY created_at DESC
+        LIMIT ?
+      `);
+      return stmt.all(limit);
+    } catch (err) {
+      console.error("[BANDIT] Errore recupero eventi punizione:", err.message);
+      return [];
+    }
   }
 
   async fetchAndSyncModels() {

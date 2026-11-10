@@ -4667,6 +4667,68 @@
                     </tr>`;
                 }
 
+                function fmtPunishmentRow(event) {
+                    const dObj = new Date(event.timestamp || Date.now());
+                    const timeStr = dObj.toLocaleTimeString();
+                    
+                    const provider = event.provider || '-';
+                    const model = event.modelId || '-';
+                    
+                    // Determine punishment type and status
+                    const punishmentType = event.subtype || event.type;
+                    const isBan = punishmentType.includes('ban');
+                    const isCritical = event.reason === 'critical_failure';
+                    
+                    let statusLabel = '';
+                    let statusColor = '#c9d1d9';
+                    
+                    if (isBan) {
+                        statusLabel = punishmentType.replace('-', ' ').toUpperCase();
+                        statusColor = '#f85149';
+                    } else if (punishmentType.includes('cooldown')) {
+                        statusLabel = punishmentType.replace('-', ' ').toUpperCase();
+                        statusColor = '#f1c40f';
+                    } else if (punishmentType.includes('flag')) {
+                        statusLabel = punishmentType.replace('-', ' ').toUpperCase();
+                        statusColor = '#e6ac00';
+                    } else if (punishmentType.includes('degraded')) {
+                        statusLabel = 'DEGRADED';
+                        statusColor = '#d29922';
+                    } else if (isCritical) {
+                        statusLabel = 'CRITICAL';
+                        statusColor = '#ff5858';
+                    } else {
+                        statusLabel = punishmentType.replace('-', ' ');
+                        statusColor = '#58a6ff';
+                    }
+                    
+                    // Calculate consequences
+                    const consequences = [];
+                    if (event.subtype === 'permanent') consequences.push('Permanent ban');
+                    if (event.consecutive >= 3) consequences.push('3-strike rule');
+                    if (consequences.length === 0 && punishmentType.includes('ban')) consequences.push('Banned');
+                    
+                    // Format reason for display
+                    let reasonDisplay = event.reason || '-';
+                    if (reasonDisplay === 'critical_failure') reasonDisplay = 'Critical failure';
+                    else if (reasonDisplay === 'rate_limit') reasonDisplay = 'Rate limit';
+                    else if (reasonDisplay === 'context_exhausted') reasonDisplay = 'Context exhausted';
+                    else if (reasonDisplay === 'insufficient_quota') reasonDisplay = 'Insufficient quota';
+                    else reasonDisplay = reasonDisplay.replace(/_/g, ' ');
+                    
+                    const punishmentId = 'pun-' + (event.timestamp || Date.now());
+                    
+                    return `<tr data-row-key="${punishmentId}" style="border-bottom: 1px solid #21262d; background: rgba(248, 81, 73, 0.05);">
+                        <td style="padding: 2px 6px; white-space: nowrap;"><span style="background: #f85149; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">PUN</span></td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeStr}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px; cursor: pointer;" title="Clicca per visualizzare nel tab Modelli" onclick="navigateToModel('${escapeHtml(provider)}', '${escapeHtml(model)}')">${escapeHtml(model)}</td>
+                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(punishmentType)}">${escapeHtml(punishmentType)}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(consequences.join(', ') || 'Punished')}">${escapeHtml(consequences.join(', ') || 'Punished')}</td>
+                    </tr>`;
+                }
+                
                 const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
                 const showTrain = document.getElementById('log-show-train')?.checked ?? true;
                 const filterSrc = (arr) => (arr || []).filter(item => {
@@ -4755,6 +4817,18 @@
                                 key: `summary-${req.id || Date.now()}`
                             });
                         }
+                    }
+                }
+                
+                // Process punishment events from active endpoint
+                if (d.punishmentEvents && d.punishmentEvents.length > 0) {
+                    for (const event of d.punishmentEvents.slice(-10)) {
+                        allRows.push({
+                            html: fmtPunishmentRow(event),
+                            timestamp: event.timestamp || Date.now(),
+                            isSelectionHistory: false,
+                            key: 'pun-' + (event.timestamp || Date.now())
+                        });
                     }
                 }
 

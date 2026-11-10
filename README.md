@@ -1,407 +1,317 @@
 # OmniRoute Bandit Proxy
 
-A multi-armed bandit reverse proxy system for intelligent LLM traffic routing and load balancing.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-1.28.17-blue)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases)
+
+A Multi-Armed Bandit reverse proxy for LLM traffic with intelligent routing, real-time monitoring, and automated error handling.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Features](#features)
 - [Installation](#installation)
-- [Quick Start](#quick-start)
 - [Configuration](#configuration)
-- [Architecture](#architecture)
 - [Usage](#usage)
+- [Architecture](#architecture)
 - [API Reference](#api-reference)
-- [Testing](#testing)
+- [Dashboard](#dashboard)
+- [Error Handling & Punishment System](#error-handling--punishment-system)
+- [Provider Quota Management](#provider-quota-management)
+- [Training Daemon](#training-daemon)
 - [Development](#development)
+- [Testing](#testing)
+- [Deployment](#deployment)
 - [Contributing](#contributing)
 - [License](#license)
-- [Changelog](#changelog)
 
 ## Overview
 
-OmniRoute Bandit Proxy implements a Multi-Armed Bandit algorithm for dynamic traffic routing across multiple LLM providers. The system continuously learns from traffic patterns and provider performance to optimize routing decisions, balancing cost, latency, and quality metrics.
-
-### Key Characteristics
-
-- **Adaptive Routing**: Uses DiscountedUCB1 bandit algorithm with 0.99 discount factor for temporal adaptation
-- **Provider Intelligence**: Tracks success/failure patterns with exponential backoff cooldowns (15s → 5m → 30m → 2h → permanent)
-- **Safety Mechanisms**: 3-strike aggressive punishment for critical failures (403, 429, timeouts, safeWrite errors)
-- **Rate Limiting**: Per-provider quota management with atomic minute/day window checks
-- **Session Persistence**: 30-minute session TTL with 60-second stream idle timeout
-- **Event System**: Real-time punishment event streaming via WebSocket at `/v1/events`
+OmniRoute Bandit Proxy is a sophisticated reverse proxy that intelligently routes LLM API requests across multiple providers using a Discounted Upper Confidence Bound (UCB1) multi-armed bandit algorithm. It provides real-time monitoring, automated error handling with 3-strike punishment, and a web-based dashboard for comprehensive observability.
 
 ## Features
 
-### Traffic Management
-
-- Multi-provider load balancing with configurable weight profiles
-- Automatic failover and degraded mode on consecutive 5xx errors
-- Real-time provider health monitoring
-- Session affinity with graceful degradation
-
-### Bandit Algorithm
-
-- DiscountedUCB1 implementation with 0.99 event discount factor
-- 30-second cache TTL for ranking computations (`_rankCache`)
-- Profile multiplier stacking for soft bias optimization
-- Separate training data table (`models_train`) with production read merging (0.3 × training if N < 1)
-
-### Database Layer
-
-- SQLite via better-sqlite3 for embedded storage
-- Schema migrations restricted to ADD COLUMN operations only
-- Isolated `models_train` table for training data
-- Automatic model registration and cleanup
-
-### Error Handling
-
-- Five classification scopes: ban, cooldown, flag, degraded, retry
-- Error pattern mapping for immediate model banning (including `safeWrite` errors)
-- Consecutive failure tracking with automatic reset on success
-- `consecutive_5xx` triggers degraded mode
-
-### Monitoring & Dashboard
-
-- Web-based monitoring dashboard at `/dashboard.html`
-- Real-time statistics and provider status
-- Request history and session tracking
-- Unified Chronology panel with selection history
-- WebSocket-based log streaming
+- **Intelligent Model Selection**: UCB1 algorithm with discount factor (0.99/event) for dynamic model routing
+- **Real-time Dashboard**: Web-based PWA dashboard with live metrics, logs, and controls
+- **3-Strike Punishment System**: Aggressive punishment for critical failures (403 forbidden, 429 rate limit, timeout, safeWrite errors)
+- **Exponential Backoff Cooldowns**: Progressive cooldown periods (15s → 5m → 30m → 2h → permanent)
+- **Provider Quota Management**: RPM/RPD tracking with atomic minute and day window checks
+- **Session Affinity**: Configurable session persistence with 30-minute TTL
+- **WebSocket Support**: Real-time script output streaming via WebSocket
+- **Training Daemon**: Automated model evaluation with live log streaming
+- **Error Classification**: 5-scope error handling (ban, cooldown, flag, degraded, provider)
+- **Degraded Mode**: Models with consecutive 5xx errors receive 0.3x score multiplier
 
 ## Installation
 
 ### Prerequisites
 
-- Node.js 18.0.0 or higher
-- npm 9.0.0 or higher
-- SQLite 3.x (automatically installed via better-sqlite3)
+- Node.js 18.x or higher
+- npm 9.x or higher
+- A supported LLM provider API key (OpenAI, Anthropic, Google, etc.)
 
-### Clone and Install
+### Setup
 
 ```bash
-git clone https://github.com/your-username/omniroute-bandit-proxy.git
+# Clone the repository
+git clone https://github.com/CherrugDeveloper/omniroute-bandit-proxy.git
 cd omniroute-bandit-proxy
+
+# Install dependencies
 npm install
-```
 
-### Environment Setup
-
-Create a `.env` file based on `.env.example`:
-
-```bash
+# Create environment file
 cp .env.example .env
+# Edit .env with your configuration
 ```
 
-Edit `.env` with your configuration values:
+### Configuration
 
-```env
-# Provider API Keys
-OPENAI_API_KEY=your-openai-key
-ANTHROPIC_API_KEY=your-anthropic-key
-GOOGLE_API_KEY=your-google-key
+The `.env` file supports the following variables:
 
-# Server Configuration
-PORT=8080
-SESSION_TTL_MS=1800000
-STREAM_IDLE_MS=60000
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | 8080 |
+| `API_TOKEN` | API authentication token | - |
+| `SESSION_TTL_MS` | Session TTL in milliseconds | 1800000 (30m) |
+| `STREAM_IDLE_MS` | Stream idle timeout | 60000 (60s) |
+| `LOG_LEVEL` | Logging verbosity | info |
 
-# Database Path
-DB_PATH=./data/proxy.db
-```
-
-## Quick Start
-
-### Development Mode
-
-```bash
-npm run dev
-```
-
-### Production Mode
-
-```bash
-npm start
-```
-
-### Syntax Check
-
-```bash
-npm run check
-```
-
-### Run Tests
-
-```bash
-npm test
-```
-
-## Configuration
-
-### Main Configuration Files
-
-| File | Description |
-|------|-------------|
-| `config/provider-limits.json` | Provider-level rate limits (minute/day windows) |
-| `config/bandit.json` | Bandit algorithm parameters and fallback chains |
-| `src/provider-quota.mjs` | Provider quota management logic |
-
-### Bandit Configuration
-
-The `config/bandit.json` file contains:
-
-- Fallback chains that bypass UCB1 calculations
-- Error patterns mapped to ban-model actions
-- Discount factor and cache TTL settings
-
-Example configuration structure:
+Provider configuration is managed in `config/provider-limits.json`:
 
 ```json
 {
-  "patterns": {
-    "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized": "ban-model"
+  "provider": {
+    "rpm": 100,
+    "rpd": 10000,
+    "exp": {
+      "rpm": 10,
+      "rpd": 100
+    }
   }
 }
 ```
 
-## Architecture
+### Bandit Configuration
 
-### System Components
+Configure routing behavior in `config/bandit.json`:
 
+```json
+{
+  "bandit": {
+    "discount": 0.99,
+    "rankCacheTtlMs": 30000,
+    "profileMultiplier": 1.0
+  }
+}
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Client Request                            │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Session Manager (30m TTL)                      │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│               Bandit Router (DiscountedUCB1)                │
-│              - 0.99 discount factor                         │
-│              - 30s _rankCache TTL                           │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Provider Quota Manager                         │
-│              - Atomic minute/day window checks              │
-│              - Exponential backoff cooldowns                │
-│              - 3-strike aggressive punishment           │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Provider Selection & Proxy                     │
-│              - Fallback chains                              │
-│              - Error handling                               │
-│              - STREAM_IDLE_MS = 60s                         │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Database Schema
-
-The system uses two main tables:
-
-1. **`models`** - Production model information (id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent)
-2. **`models_train`** - Isolated training data (merged 0.3× if N < 1)
-
-Schema migrations are restricted to `ADD COLUMN` operations only.
-
-### Error Classification System
-
-The system classifies errors into five scopes:
-
-1. **ban** - Immediate model blocking (403 forbidden, 429 rate limit, timeout, safeWrite errors trigger 3-strike system → permanent ban)
-2. **cooldown** - Temporary suspension with exponential backoff
-3. **flag** - Non-blocking issue marking
-4. **degraded** - Reduced functionality mode (score × 0.3)
-5. **retry** - Automatic retry logic
-
-### Cooldown Algorithm
-
-Exponential backoff progression:
-- First failure: 15 seconds
-- Second consecutive: 5 minutes  
-- Third consecutive: 30 minutes
-- Fourth consecutive: 2 hours
-- Fifth+: Permanent ban (3-strike system for critical failures)
-
-### 3-Strike Punishment System
-
-Aggressive punishment for critical failures (403 forbidden, 429 rate limit, timeout, safeWrite errors):
-- Permanent ban after 3 consecutive critical failures
-- `consecutive_critical_failures` counter tracks the streak
-- Counter resets on success
 
 ## Usage
 
-### Basic Proxy Usage
+### Start the Proxy
 
-The proxy acts as a drop-in replacement for LLM API calls:
+```bash
+# Production mode
+npm start
+
+# Development mode (with watch)
+npm run dev
+```
+
+### API Endpoint
+
+All LLM requests are proxied through the root endpoint:
 
 ```bash
 curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model": "gpt-4", "messages": [...]}'
-```
-
-### Monitoring Commands
-
-```bash
-# Check database integrity
-node scripts/check-db.mjs
-
-# Inspect bans
-node scripts/inspect-bans.mjs
-
-# Reset provider state
-node scripts/reset-providers.mjs
-
-# Check specific provider catalog
-node scripts/check-catalog.mjs
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -d '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
 ```
 
 ### Dashboard Access
 
-Navigate to `http://localhost:8080/dashboard.html` for real-time metrics including:
-- Provider status and response times
-- Request distribution
-- Model performance statistics
-- Session tracking
-- Training daemon status
+Open `http://localhost:8080/dashboard` in your browser. The dashboard is a Progressive Web App (PWA) with offline support.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    OmniRoute Bandit Proxy                   │
+├─────────────────────────────────────────────────────────────┤
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐            │
+│  │   Client   │──│   Index    │──│   Bandit   │            │
+│  │   Request  │  │ Middleware │─▶│  Selector  │            │
+│  └────────────┘  └────────────┘  └────────────┘              │
+│                                                  │            │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌───────┐  │
+│  │ Dashboard  │  │  Notifier  │  │ Request    │  │ DB    │  │
+│  │    UI      │  │   Service  │  │  Tracker   │─▶│       │  │
+│  └────────────┘  └────────────┘  └────────────┘  └───────┘  │
+│                    │                                         │
+│                    ▼                                         │
+│            ┌──────────────┐                                  │
+│            │   Upstream   │──▶ Provider APIs (OpenAI,       │
+│            │   Proxy      │     Anthropic, Google, etc.)    │
+│            └──────────────┘                                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Components
+
+1. **DiscountedUCB1Bandit** (`src/bandit.mjs`): Multi-armed bandit algorithm for model selection
+2. **Express Server** (`src/index.mjs`): Main proxy server with middleware pipeline
+3. **Request Tracker**: Tracks request metrics, errors, and feedback
+4. **Punishment System**: Manages model/provider bans and cooldowns
+5. **Quota Manager**: Tracks provider-level RPM/RPD limits
+6. **Training Daemon** (`scripts/train-daemon.mjs`): Automated model evaluation
 
 ## API Reference
 
-### Core Endpoints
+### Health Check
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/chat/completions` | POST | Chat completions proxy |
-| `/v1/completions` | POST | Text completions proxy |
-| `/v1/models` | GET | Available models list (supports `?source=prod` or `?source=train`) |
-| `/v1/metrics` | GET | Bandit metrics and summary |
-| `/v1/dashboard/stats` | GET | Dashboard statistics (includes modelsActive, modelsCooldown, modelsBanned, etc.) |
-| `/v1/providers` | GET | Provider status and health |
-| `/v1/quota` | GET | Per-provider quota limits |
-| `/v1/active` | GET | Active request count (no auth required) |
-| `/v1/inflight` | GET | In-flight requests count (no auth required) |
-| `/v1/events/punishment` | WebSocket | Real-time punishment events stream (bans, cooldowns, degradation) |
+```
+GET /health
+```
+
+Returns server health status.
+
+### Models Catalog
+
+```
+GET /v1/models
+```
+
+Returns available models with metadata including:
+- `id`: Model identifier
+- `created`: Creation timestamp
+- `expires`: Expiration timestamp
+- `n`: Observation count
+- `avg`: Average response time
+- `rewards`: Success rate data
+
+Query parameters:
+- `source`: `all` | `catalog` | `train` (default: `all`)
 
 ### Reset Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/reset/model/{model}` | POST | Reset specific model state |
-| `/v1/reset/provider/{provider}` | POST | Reset specific provider state |
-| `/v1/reset/counters` | POST | Reset all counters |
-| `/v1/block/model/{id}` | POST | Permanently ban model |
-| `/v1/unblock/model/{id}` | POST | Unban model |
-| `/v1/provider/retry/{p}` | POST | Retry provider |
-| `/v1/provider/ignore/{p}` | POST | Ignore provider |
-
-### Training Daemon Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/training/status` | GET | Training daemon status |
-| `/v1/training/daemon-status` | GET | Daemon process status |
-| `/v1/reset/training` | POST | Reset training data |
-
-### Using the API
-
-#### REST API Examples
-
-The proxy server runs on port **20128** by default.
-
-```bash
-# Fetch dashboard statistics
-curl http://localhost:20128/v1/dashboard/stats
-
-# Get available models from production catalog
-curl http://localhost:20128/v1/models?source=prod
-
-# Get provider quota information
-curl http://localhost:20128/v1/quota
+```
+POST /resetProvider?name=provider-name
+POST /resetModel?model=model-id
+POST /resetAll
 ```
 
-#### WebSocket Event Monitoring
+Reset provider, model, or global counters.
 
-The proxy provides real-time punishment event streaming via WebSocket. This is useful for monitoring when models or providers are banned due to critical failures (403, 429, timeouts, safeWrite errors) or consecutive 5xx errors.
+### Training Control
 
-**Endpoint:** `ws://localhost:20128/v1/events/punishment`
-
-**Event Types:**
-- `ban-model` - Model permanently banned (3 consecutive critical failures)
-- `ban-provider` - Provider permanently banned
-- `cooldown` - Model/provider on exponential backoff (15s → 5m → 30m → 2h → permanent)
-
-See `examples/monitor.mjs` for a complete implementation with error handling.
-
-#### Running Example Scripts
-
-Example scripts demonstrating API usage are available in the `examples/` directory:
-
-```bash
-# Monitor real-time punishment events (shows all ban/cooldown events)
-node examples/monitor.mjs
-
-# Fetch and display current dashboard statistics
-node examples/stats.mjs
+```
+POST /training/start
+POST /training/stop
+GET  /training/status
+GET  /training/logs
 ```
 
-**Output Example for `monitor.mjs`:**
-```
-Connecting to ws://127.0.0.1:20128/v1/events/punishment...
-Connected to punishment stream.
-Received punishment event: {
-  "type": "cooldown",
-  "provider": "openai",
-  "model": "gpt-4",
-  "reason": "5xx error rate exceeded threshold",
-  "until": "2024-01-15T10:30:00.000Z"
+Control the training daemon and retrieve status/logs.
+
+## Dashboard
+
+The web-based dashboard provides:
+
+- **Top Panel**: Current model metrics, session info, and controls
+- **Models Tab**: Available models with UCB1 scores, observation counts, and latency metrics
+- **Providers Tab**: Provider status, quota usage, and cooldown information
+- **Training Tab**: Training daemon controls and live log streaming
+- **Logs Tab**: Real-time request logs with filtering by type
+- **Scripts Tab**: Execution controls for maintenance scripts
+
+### Dashboard Metrics
+
+- **Reward**: Success rate per model
+- **Latency**: Average response time
+- **Score**: UCB1 selection score
+- **N**: Number of observations
+- **Degraded**: Models with 0.3x score penalty
+
+## Error Handling & Punishment System
+
+### Error Classification
+
+Errors are classified into 5 scopes:
+
+1. **ban**: Permanent model/provider ban
+2. **cooldown**: Temporary unavailability
+3. **flag**: Provider attention required
+4. **degraded**: Reduced performance mode
+5. **provider**: Provider-level issues
+
+### 3-Strike System
+
+Critical failures trigger permanent bans after 3 consecutive occurrences:
+- HTTP 403 (Forbidden)
+- HTTP 429 (Rate Limit)
+- Request timeout
+- safeWrite errors
+
+The `consecutive_critical_failures` counter tracks streaks and resets on successful requests.
+
+### Exponential Backoff
+
+Cooldown progression:
+1. 15 seconds
+2. 5 minutes
+3. 30 minutes
+4. 2 hours
+5. Permanent ban
+
+### Error Patterns
+
+Configured in `config/bandit.json`:
+```json
+{
+  "errorPatterns": {
+    "ban-model": [
+      "safeWrite",
+      "cannot access safeWrite",
+      "safeWrite before initialization",
+      "safeWrite is not initialized"
+    ]
+  }
 }
 ```
 
-## Testing
+## Provider Quota Management
 
-### Test Suite Structure
+The proxy enforces per-provider quotas:
 
-The project uses Node.js built-in test runner with comprehensive test coverage:
+| Metric | Description | Window |
+|--------|-------------|--------|
+| RPM | Requests Per Minute | Rolling 60 seconds |
+| RPD | Requests Per Day | Rolling 24 hours |
 
-- Bandit algorithm behavior
-- Provider quota management
-- Request tracking and memory
-- Error handling and punishment systems
-- Training feedback mechanisms
-- Dashboard metrics calculations
+Quota checks are atomic and occur before model selection. Exceeded quotas result in provider cooldown.
 
-### Run All Tests
+## Training Daemon
+
+The training daemon automatically evaluates models:
 
 ```bash
-npm test
+# Manual control
+POST /training/start   # Start daemon
+POST /training/stop    # Stop daemon
+GET  /training/status  # Check status
+
+# WebSocket log streaming
+wss://localhost:8080/ws/training-logs
 ```
 
-### Test Categories
-
-| Test File | Focus |
-|-----------|-------|
-| `bandit-config.test.js` | Configuration patterns and error mapping |
-| `changelog.test.js` | CHANGELOG.md format validation |
-| `provider-quota.test.js` | Quota enforcement and timing |
-| `request-tracker.test.js` | Session tracking and memory |
-| `punishment-system.test.js` | Error classification and banning |
-| `training-feedback.test.js` | Training data collection |
-| `monitor.test.js` | Monitoring functionality |
-| `proxy-improvements.test.js` | Proxy enhancements |
-| `itpm-quota.test.js` | ITPM quota handling |
-
-### Test Environment
-
-Tests use in-memory SQLite databases (`:memory:`) for isolation and speed.
+Key features:
+- Round-robin model evaluation
+- Automatic 404 detection with permanent flag
+- Live log streaming via WebSocket
+- Status heartbeat every 30 seconds
 
 ## Development
 
@@ -409,92 +319,182 @@ Tests use in-memory SQLite databases (`:memory:`) for isolation and speed.
 
 ```
 omniroute-bandit-proxy/
-├── src/                    # Core source files
-│   ├── index.mjs           # Entry point
-│   ├── bandit.mjs          # Bandit algorithm
-│   ├── provider-quota.mjs  # Provider management
-│   ├── request-tracker.mjs # Session tracking
-│   └── ...
-├── config/                  # Configuration files
-│   ├── bandit.json         # Bandit parameters
-│   ├── provider-limits.json # Rate limits
-│   └── ...
-├── scripts/                # Utility scripts
-├── __tests__/              # Test suite
-├── public/                 # Dashboard and static files
-└── config/                 # Application configuration
+├── src/
+│   ├── index.mjs           # Main server
+│   ├── bandit.mjs          # UCB1 bandit algorithm
+│   ├── events.mjs          # Event system
+│   ├── health-check.mjs    # Health check utilities
+│   ├── log-throttle.mjs    # Logging throttling
+│   ├── modes-registry.mjs  # Mode detection
+│   ├── notifier.mjs        # Notification service
+│   ├── provider-quota.mjs  # Quota tracking
+│   ├── request-tracker.mjs # Request tracking
+├── scripts/
+│   ├── train-daemon.mjs    # Training daemon
+│   ├── check-*.mjs         # Utility scripts
+│   └── auto-git.mjs        # Git automation
+├── public/
+│   ├── dashboard.html      # Web dashboard
+│   ├── sw.js               # Service worker
+│   └── manifest.json       # PWA manifest
+├── config/
+│   ├── bandit.json         # Bandit settings
+│   └── provider-limits.json # Quota configuration
+└── __tests__/              # Test suite
 ```
 
-### Development Scripts
+### Code Standards
+
+- ES Modules (type: "module" in package.json)
+- Modern JavaScript (ES2022+)
+- Consistent indentation (2 spaces)
+- Comments for complex logic
+- Functions focused and well-named
+
+## Testing
+
+### Run Tests
 
 ```bash
-# Watch mode for development
-npm run dev
+# Run all tests
+npm run test
 
-# Syntax validation
+# Run specific test file
+node --test __tests__/bandit-config.test.js
+
+# Check syntax
 npm run check
-
-# Run tests
-npm test
 ```
 
-### Code Style
+### Test Suite
 
-- Modern JavaScript (ES modules)
-- Consistent indentation (2 spaces)
-- JSDoc comments for complex functions
-- Semantic versioning commit messages
+| File | Description |
+|------|-------------|
+| `bandit-config.test.js` | Bandit configuration tests |
+| `changelog.test.js` | CHANGELOG validation |
+| `punishment-system.test.js` | 3-strike punishment tests |
+| `proxy-improvements.test.js` | Proxy routing tests |
+| `training-feedback.test.js` | Training daemon tests |
+
+### Test Helpers
+
+- `makeBandit()`: Creates isolated bandit instance with in-memory DB
+- `seedCatalog()`: Seeds catalog with test models
+
+## Deployment
+
+### Systemd Service
+
+```ini
+# /etc/systemd/system/omniroute-bandit-proxy.service
+[Unit]
+Description=OmniRoute Bandit Proxy
+After=network.target
+
+[Service]
+Type=simple
+User=webserver
+Group=webserver
+WorkingDirectory=/opt/omniroute-bandit-proxy
+ExecStart=/usr/bin/node src/index.mjs
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Docker
+
+```dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+
+ENV NODE_ENV=production
+EXPOSE 8080
+
+CMD ["npm", "start"]
+```
+
+### Nginx Reverse Proxy
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
 
 ## Contributing
 
-### Development Workflow
-
-1. Fork and clone the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
+1. Fork the repository
+2. Create a feature branch
 3. Make your changes
-4. Run tests: `npm test` (all tests must pass)
-5. Format your commit message using conventional commits: `type(scope): subject`
-6. Push and create a pull request
+4. Run tests: `npm run test`
+5. Commit with conventional format: `feat(scope): subject`
+6. Push and create a Pull Request
 
-### Commit Types
+### Commit Convention
 
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+Types:
 - `feat`: New feature
 - `fix`: Bug fix
-- `docs`: Documentation update
+- `docs`: Documentation
+- `style`: Formatting, missing semicolons, etc.
 - `refactor`: Code refactoring
-- `test`: Test addition or modification
-- `chore`: Maintenance tasks
+- `test`: Adding tests
+- `chore`: Maintenance, build tasks
 
-### Pull Request Process
-
-1. Ensure all tests pass
-2. Update CHANGELOG.md if applicable
-3. Update README.md if documentation changes
-4. Request review from maintainers
+Reference files using `[filename:line]` format in commit bodies.
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
-## Changelog
+### License Text
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
+```
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 
-### Citation
-
-If you use OmniRoute Bandit Proxy in your research, please cite:
-
-```
-OmniRoute Bandit Proxy: Multi-Armed Bandit LLM Traffic Routing
-Version 1.28.17
-https://github.com/your-username/omniroute-bandit-proxy
-```
-
-### Acknowledgments
-
-- Built with [Express.js](https://expressjs.com/)
-- Database layer uses [better-sqlite3](https://github.com/WiseLib/better-sqlite3)
-- Web interface powered by vanilla JavaScript
-- Testing framework: [Node.js Test Runner](https://nodejs.org/api/test.html)
+**Version**: 1.28.17  
+**Last Updated**: 2026-11-10  
+**Maintainer**: CherrugDeveloper

@@ -1481,10 +1481,14 @@ app.get("/v1/active", requireAuth, (req, res) => {
       }
     }
     
+    // Get recent punishment events from database
+    const punishmentEvents = bandit.getRecentPunishmentEvents(20);
+    
     res.json({
       count: requests.length,
       requests,
-      recent: recent.slice(-3)  // ultime 3
+      recent: recent.slice(-3),  // ultime 3
+      punishmentEvents: punishmentEvents
     });
   } catch (e) {
     console.error("[API] Errore /v1/active:", e.message);
