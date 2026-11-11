@@ -3455,7 +3455,7 @@
                 if (!btn) return;
                 const orig = btn.textContent;
                 btn.textContent = '✅ Copiato!';
-                setTimeout(() => btn.textContent = orig, 1500);
+                setTimeout(() => btn.textContent = orig, 1000);
             } catch (e) { showAlert('Copia fallita: ' + e.message, 'Errore', '⚠️'); }
         }
 
@@ -3587,7 +3587,7 @@
                     await navigator.clipboard.writeText(fullText);
                     const orig = btnCopy.textContent;
                     btnCopy.textContent = '✅ Copiato!';
-                    setTimeout(() => btnCopy.textContent = orig, 1500);
+                    setTimeout(() => btnCopy.textContent = orig, 1000);
                 } catch (e) {
                     const ta = document.createElement('textarea');
                     ta.value = fullText;
@@ -3597,7 +3597,7 @@
                     ta.remove();
                     const orig = btnCopy.textContent;
                     btnCopy.textContent = '✅ Copiato!';
-                    setTimeout(() => btnCopy.textContent = orig, 1500);
+                    setTimeout(() => btnCopy.textContent = orig, 1000);
                 }
             };
             btnBar.appendChild(btnCopy);
@@ -3644,22 +3644,6 @@
                 else if (a === 'show-help') showHelp(btn.dataset.name);
                 else if (a === 'refresh-all') refreshAll();
                 else if (a === 'copy-logs') copyLogs();
-                else if (a === 'copy-box-content') {
-                    const target = btn.dataset.target;
-                    if (target) {
-                        const box = document.getElementById(target);
-                        if (box) {
-                            const text = box.innerText.trim();
-                            if (text) {
-                                navigator.clipboard.writeText(text).then(() => {
-                                    const orig = btn.textContent;
-                                    btn.textContent = '✅';
-                                    setTimeout(() => btn.textContent = orig, 1000);
-                                }).catch(e => console.error('Copy failed', e));
-                            }
-                        }
-                    }
-                }
                 else if (a === 'reset-counters') {
                     apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
                 }
@@ -3668,19 +3652,30 @@
                         apiFetch('/v1/reset/training', { method: 'POST' }).then(() => refreshAll());
                     }
                 }
-                else if (a === 'reset-model') {
-                    if (confirm('Sei sicuro di voler resettare tutti i modelli? Questa azione reimpostera N, sum_reward, fails e stato cooldown per tutti i modelli.')) {
-                        apiFetch('/v1/reset/model', { method: 'POST' }).then(() => refreshAll());
+                else if (a === 'reset-top-model') {
+                    if (confirm('Sei sicuro di voler resettare lo stato del modello top?')) {
+                        apiFetch('/v1/reset/top-model', { method: 'POST' }).then(() => refreshAll());
                     }
                 }
-                else if (a === 'reset-provider') {
-                    if (confirm('Sei sicuro di voler resettare tutti i provider? Questa azione reimpostera stato cooldown e ban per tutti i provider.')) {
-                        apiFetch('/v1/reset/provider', { method: 'POST' }).then(() => refreshAll());
+                else if (a === 'copy-box-content') {
+                    const targetId = btn.dataset.target;
+                    const targetEl = document.getElementById(targetId);
+                    if (targetEl) {
+                        const text = targetEl.innerText.trim();
+                        try {
+                            await navigator.clipboard.writeText(text);
+                            const orig = btn.textContent;
+                            btn.textContent = '✅';
+                            setTimeout(() => btn.textContent = orig, 1000);
+                        } catch(err) {
+                            console.error('Box copy failed', err);
+                        }
                     }
+                    return;
                 }
                 return;
             }
-            
+
             // Handle provider header toggle for train tab first (before general .provider-header check)
             const trainProviderRow = e.target.closest('#tab-train .provider-header[data-provider]');
             if (trainProviderRow) {
@@ -3800,6 +3795,7 @@
                 document.getElementById('avg-latency').textContent = (d.avgLatencySec || 0).toFixed(1);
                 document.getElementById('free-active').textContent = d.freeActive ?? 0;
                 
+                if (d.topModel) {
                     const topModelEl = document.getElementById('top-model');
                     // Model name is already sanitized by backend (provider prefix removed)
                     // The provider is shown separately, so no need to strip it again
@@ -4912,28 +4908,9 @@
                 const btn = document.getElementById('copy-unified-btn');
                 const orig = btn.textContent;
                 btn.textContent = '✅ Copiato';
-                setTimeout(()=> btn.textContent = orig, 1500);
+                setTimeout(()=> btn.textContent = orig, 1000);
             } catch(e) {
                 console.error('Copy failed', e);
-            }
-        });
-
-        // Copy stats box content (event delegation)
-        document.addEventListener('click', async (e) => {
-            const copyBtn = e.target.closest('[data-action="copy-box-content"]');
-            if (copyBtn) {
-                const targetId = copyBtn.dataset.target;
-                const targetEl = document.getElementById(targetId);
-                if (!targetEl) return;
-                const text = targetEl.innerText.trim();
-                try {
-                    await navigator.clipboard.writeText(text);
-                    const orig = copyBtn.textContent;
-                    copyBtn.textContent = '✅';
-                    setTimeout(() => copyBtn.textContent = orig, 1000);
-                } catch(err) {
-                    console.error('Box copy failed', err);
-                }
             }
         });
 
@@ -6102,7 +6079,7 @@
                 if (!btn) return;
                 const orig = btn.textContent;
                 btn.textContent = '✅ Copiato!';
-                setTimeout(() => btn.textContent = orig, 1500);
+                setTimeout(() => btn.textContent = orig, 1000);
             } catch (e) { showAlert('Copia fallita: ' + e.message, 'Errore', '⚠️'); }
         }
 
@@ -6167,11 +6144,18 @@
         }
 
         function connectPunishmentWS() {
+            // Re-fetch token to ensure we have the latest if initialization was delayed
+            const currentToken = API_TOKEN ||
+                                 localStorage.getItem('omniroute_token') ||
+                                 localStorage.getItem('omniroute_dashboard_token') ||
+                                 localStorage.getItem('api_token') ||
+                                 '';
+            
             if (punishmentWS) {
                 try { punishmentWS.close(); } catch (e) {}
             }
             
-            punishmentWS = new WebSocket(window.location.origin + '/v1/events/punishment' + (API_TOKEN ? '?token=' + API_TOKEN : ''));
+            punishmentWS = new WebSocket(window.location.origin + '/v1/events/punishment' + (currentToken ? '?token=' + currentToken : ''));
             
             punishmentWS.onopen = () => {
                 console.log('[WebSocket] Punishment Events Connected');
