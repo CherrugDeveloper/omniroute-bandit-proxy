@@ -3615,7 +3615,7 @@
         }
 
         // ============= CLICK DELEGATION =============
-        document.addEventListener('click', (e) => {
+        document.addEventListener('click', async (e) => {
             // Handle other button actions first (check for [data-action] buttons)
             const btn = e.target.closest('[data-action]');
             if (btn) {
@@ -6145,7 +6145,8 @@
 
         function connectPunishmentWS() {
             // Re-fetch token to ensure we have the latest if initialization was delayed
-            const currentToken = API_TOKEN ||
+            // Safely access API_TOKEN if it exists globally
+            const currentToken = (typeof API_TOKEN !== 'undefined' ? API_TOKEN : '') ||
                                  localStorage.getItem('omniroute_token') ||
                                  localStorage.getItem('omniroute_dashboard_token') ||
                                  localStorage.getItem('api_token') ||
