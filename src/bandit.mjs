@@ -2926,6 +2926,62 @@ export class DiscountedUCB1Bandit {
             avg_reward: (model.N || 0) > 0 ? (model.sum_reward || 0) / (model.N || 0) : 1.0,
             avg_latency: model.avg_latency || 250
           });
+          
+          // Persist punishment state to models table for dashboard metrics
+          if (countermeasure === 'ban-model') {
+            const sanitizedModelId = this._sanitizeModelId(model.id);
+            const provider = model.provider;
+            // Increment consecutive_critical_failures for 3-strike system
+            const currentFailRow = this.db.prepare("SELECT consecutive_critical_failures FROM models WHERE id = ?").get(sanitizedModelId);
+            const currentConsecutive = currentFailRow?.consecutive_critical_failures || 0;
+            const newConsecutive = currentConsecutive + 1;
+            this.db.prepare(
+              `INSERT INTO models (id, provider, N, sum_reward, fails, total_failures, cooldown_until, permanent, last_used_index, consecutive_critical_failures, banned_since)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 permanent = excluded.permanent,
+                 banned_since = excluded.banned_since,
+                 consecutive_critical_failures = CASE WHEN models.consecutive_critical_failures IS NULL THEN 1 ELSE models.consecutive_critical_failures + 1 END`
+            ).run(sanitizedModelId, provider, 0, 0, 0, 0, 0, 1, 0, newConsecutive, Date.now());
+            console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${model.id} provider=${provider} reason=${rejectionReason} scope=emergency-rejection consecutive=${newConsecutive}`);
+            logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider: provider, modelId: sanitizedModelId, reason: rejectionReason, cooldownMs: 0, failures: 1 });
+          } else if (countermeasure === 'cooldown-model') {
+            // Ensure model exists in models table, then update
+            const sanitizedModelId = this._sanitizeModelId(model.id);
+            const provider = model.provider;
+            this.db.prepare(
+              `INSERT OR IGNORE INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, total_failures)
+               VALUES (?, ?, 0, 0, 0, 0, 0, 0)`
+            ).run(sanitizedModelId, provider);
+            // Get current fail count and increment it
+            const currentFailRow = this.db.prepare("SELECT fails, total_failures FROM models WHERE id = ?").get(sanitizedModelId);
+            const currentFails = currentFailRow?.fails || 0;
+            const newFailCount = currentFails + 1;
+            const cooldownMs = this._getModelCooldownMs(newFailCount);
+            if (cooldownMs === null || cooldownMs === 0) {
+              // Permanent ban case (5+ failures) - escalate to permanent ban
+              // Reset consecutive_critical_failures on successful ban escalation
+              const newConsecutive = (currentFailRow?.consecutive_critical_failures || 0) + 1;
+              this.db.prepare(
+                `INSERT INTO models (id, provider, N, sum_reward, fails, total_failures, cooldown_until, permanent, last_used_index, consecutive_critical_failures, banned_since)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                   permanent = excluded.permanent,
+                   banned_since = excluded.banned_since,
+                   consecutive_critical_failures = excluded.consecutive_critical_failures`
+              ).run(sanitizedModelId, provider, 0, 0, 0, 0, 0, 1, 0, newConsecutive, Date.now());
+              console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${model.id} provider=${provider} reason=${rejectionReason} scope=emergency-rejection (escalated from cooldown)`);
+              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider: provider, modelId: sanitizedModelId, reason: rejectionReason, cooldownMs: 0, failures: newFailCount });
+            } else {
+              this.db.prepare("UPDATE models SET fails = fails + 1, cooldown_until = ? WHERE id = ?").run(Date.now() + cooldownMs, sanitizedModelId);
+              console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${model.id} provider=${provider} reason=${rejectionReason} cooldownMs=${cooldownMs} scope=emergency-rejection failCount=${newFailCount}`);
+              logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_MODEL, provider: provider, modelId: sanitizedModelId, reason: rejectionReason, cooldownMs: cooldownMs, failures: newFailCount });
+            }
+          } else if (countermeasure === 'cooldown-provider') {
+            this._forceProviderCooldown(model.provider, this._getModelCooldownMs(1), rejectionReason);
+            console.log(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${model.id} provider=${model.provider} reason=${rejectionReason} scope=emergency-rejection`);
+            logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_PROVIDER, provider: model.provider, modelId: model.id, reason: rejectionReason, cooldownMs: 0, failures: 1 });
+          }
           return false;
         }
 

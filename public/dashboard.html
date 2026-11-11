@@ -1234,10 +1234,10 @@
             
                 <div class="stats">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
-                        <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Top model / Training</div>
+                        <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Top Model</div>
                         <div style="display:flex; gap:2px; align-items:center;">
-                            <button class="btn btn-copy" data-action="copy-box-content" data-target="top-model-training-box" style="padding:0 2px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; line-height:1;" title="Copia top model/training">📋</button>
-                            <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-training" title="Reset training status">🔄</button>
+                            <button class="btn btn-copy" data-action="copy-box-content" data-target="top-model-box" style="padding:0 2px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; line-height:1;" title="Copia top model">📋</button>
+                            <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-top-model" title="Reset top model">🔄</button>
                         </div>
                     </div>
                     <div style="display:flex; flex-direction:column; gap:1px; width:100%;">
@@ -1249,15 +1249,23 @@
                             <span><span id="top-model-n" class="muted"></span></span>
                             <span><span id="top-model-latency" class="muted"></span></span>
                         </div>
-                        <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
-                            <a href="javascript:void(0);" onclick="switchTab('scripts')" style="font-size:0.9em; color:#58a6ff; cursor:pointer; text-decoration:underline;">Training Status:</a>
-                            <div id="training-status-content" style="font-size:11px; color:#8b949e; margin-top:2px;">
-                                <div>Status: <span id="training-status-state" class="muted">Loading...</span></div>
-                                <div>Cycle: <span id="training-status-cycle" class="muted">0</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
+                    </div>
+                    <div id="top-model-box" style="display:none;"></div>
+                    <div style="margin-top:4px; border-top:1px solid #30363d; padding-top:4px;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%; margin-top:-2px; margin-bottom:1px;">
+                            <div style="font-weight:normal; color:#58a6ff; font-size:0.85em; opacity:0.9;">Training Status</div>
+                            <div style="display:flex; gap:2px; align-items:center;">
+                                <button class="btn btn-copy" data-action="copy-box-content" data-target="training-status-box" style="padding:0 2px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer; line-height:1;" title="Copia training status">📋</button>
+                                <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-training" title="Reset training status">🔄</button>
                             </div>
                         </div>
+                        <a href="javascript:void(0);" onclick="switchTab('scripts')" style="font-size:0.9em; color:#58a6ff; cursor:pointer; text-decoration:underline;">Training Status:</a>
+                        <div id="training-status-content" style="font-size:11px; color:#8b949e; margin-top:2px;">
+                            <div>Status: <span id="training-status-state" class="muted">Loading...</span></div>
+                            <div>Cycle: <span id="training-status-cycle" class="muted">0</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
+                        </div>
+                        <div id="training-status-box" style="display:none;"></div>
                     </div>
-                    <div id="top-model-training-box" style="display:none;"></div>
                 </div>
             
                 <div class="stats">
@@ -3792,8 +3800,9 @@
                 document.getElementById('avg-latency').textContent = (d.avgLatencySec || 0).toFixed(1);
                 document.getElementById('free-active').textContent = d.freeActive ?? 0;
                 
-                if (d.topModel) {
                     const topModelEl = document.getElementById('top-model');
+                    // Model name is already sanitized by backend (provider prefix removed)
+                    // The provider is shown separately, so no need to strip it again
                     topModelEl.textContent = d.topModel;
                     // Add score, provider, cooldown, N, and latency info
                     const scoreEl = document.getElementById('top-model-score');
@@ -4586,6 +4595,27 @@
                 // Helper function to escape regex special characters
                 function escapeRegex(s) {
                     return s.replace(/[\^$.|?*+()]/g, '\\$&');
+                }
+
+                // Sanitize model name by stripping provider prefix (same logic as in fmtRow)
+                function sanitizeModelName(model, provider) {
+                    if (!model || model === '—') return model;
+                    if (provider && provider !== '-' && model.includes(provider)) {
+                        return model.replace(new RegExp('^' + escapeRegex(provider) + '/'), '');
+                    }
+                    // Also handle cases where model contains provider as first part (e.g., "openrouter/anthropic/claude")
+                    if (model.includes('/')) {
+                        const parts = model.split('/');
+                        if (parts.length >= 3 && parts[0] === parts[1]) {
+                            // Handle format like "openrouter/openrouter/anthropic/claude"
+                            return parts.slice(2).join('/');
+                        } else if (parts.length >= 2 && parts[0] === parts[1]) {
+                            return parts.slice(1).join('/');
+                        } else if (parts.length >= 2 && provider && parts[0] === provider) {
+                            return parts.slice(1).join('/');
+                        }
+                    }
+                    return model;
                 }
 
                 function fmtSelectionHistoryRow(entry, requestTimestamp, requestIndex, entryIndex, parentId) {
