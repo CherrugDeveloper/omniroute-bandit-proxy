@@ -4690,51 +4690,45 @@
                 }
 
                 function fmtPunishmentRow(event) {
-                                    const dObj = new Date(event.timestamp || Date.now());
-                                    const timeStr = dObj.toLocaleTimeString();
-                                    
-                                    const provider = event.provider || '-';
-                                    const model = event.modelId || '-';
-                                    
-                                    // Determine punishment type (countermeasure)
-                                    const punishmentType = event.subtype || event.type || 'punished';
-                                    const isBan = punishmentType.includes('ban');
-                                    const isCritical = event.reason === 'critical_failure';
-                                    
-                                    // Status: always "punished" for punished rows
-                                    let statusLabel = 'punished';
-                                    let statusColor = '#f85149';
-                                    
-                                    // Format reason for display (Error Type column)
-                                    let reasonDisplay = event.reason || '-';
-                                    if (reasonDisplay === 'critical_failure') reasonDisplay = 'Critical failure';
-                                    else if (reasonDisplay === 'rate_limit') reasonDisplay = 'Rate limit';
-                                    else if (reasonDisplay === 'context_exhausted') reasonDisplay = 'Context exhausted';
-                                    else if (reasonDisplay === 'insufficient_quota') reasonDisplay = 'Insufficient quota';
-                                    else if (reasonDisplay === 'safeWrite') reasonDisplay = 'safeWrite error';
-                                    else if (reasonDisplay === '403') reasonDisplay = 'Forbidden (403)';
-                                    else if (reasonDisplay === '429') reasonDisplay = 'Rate limit exceeded';
-                                    else if (reasonDisplay === 'timeout') reasonDisplay = 'Timeout';
-                                    else reasonDisplay = reasonDisplay.replace(/_/g, ' ');
-                                    
-                                    // Countermeasure: the punishment type chosen
-                                    let countermeasureDisplay = punishmentType.replace('-', ' ').toUpperCase();
-                                    if (!isBan && !punishmentType.includes('cooldown') && !punishmentType.includes('flag') && !punishmentType.includes('degraded')) {
-                                        countermeasureDisplay = punishmentType.replace('-', ' ');
-                                    }
-                                    
-                                    const punishmentId = 'pun-' + (event.timestamp || Date.now());
-                                    
-                                    return `<tr data-row-key="${punishmentId}" style="border-bottom: 1px solid #21262d; background: rgba(248, 81, 73, 0.05);">
-                                        <td style="padding: 2px 6px; white-space: nowrap;"><span style="background: #f85149; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">punished</span></td>
-                                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeStr}</td>
-                                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
-                                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px; cursor: pointer;" title="Clicca per visualizzare nel tab Modelli" onclick="navigateToModel('${escapeHtml(provider)}', '${escapeHtml(model)}')">${escapeHtml(model)}</td>
-                                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
-                                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(reasonDisplay)}">${escapeHtml(reasonDisplay)}</td>
-                                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay)}</td>
-                                    </tr>`;
-                                }
+                    const dObj = new Date(event.timestamp || Date.now());
+                    const timeStr = dObj.toLocaleTimeString();
+                    
+                    const provider = event.provider || '-';
+                    const model = event.modelId || '-';
+                    const source = (event.source || 'prod').toUpperCase();
+                    
+                    // Determine punishment type (countermeasure)
+                    const punishmentType = event.subtype || event.type || 'punished';
+                    const isBan = punishmentType.includes('ban');
+                    
+                    // Status: always "punished" for punished rows
+                    let statusLabel = 'punished';
+                    let statusColor = '#f85149';
+                    
+                    // Format reason for display (Error Type column)
+                    let reasonDisplay = event.reason || '-';
+                    // Clean up reason display (don't map to generic names anymore)
+                    reasonDisplay = reasonDisplay.replace(/_/g, ' ');
+                    
+                    // Countermeasure: the punishment type chosen
+                    let countermeasureDisplay = punishmentType.replace('-', ' ').toUpperCase();
+                    
+                    const punishmentId = 'pun-' + (event.timestamp || Date.now());
+                    
+                    const sourceBadge = (source === 'TRAIN')
+                        ? '<span style="background: #238636; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">TRAIN</span>'
+                        : '<span style="background: #1f6feb; color: #fff; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">PROD</span>';
+                    
+                    return `<tr data-row-key="${punishmentId}" style="border-bottom: 1px solid #21262d; background: rgba(248, 81, 73, 0.05);">
+                        <td style="padding: 2px 6px; white-space: nowrap;">${sourceBadge}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-family: monospace; font-size: 11px;">${timeStr}</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; color: #8b949e; font-size: 10px;">[${escapeHtml(provider)}]</td>
+                        <td style="padding: 2px 6px; white-space: nowrap; font-weight: 600; color: #58a6ff; font-size: 11px; cursor: pointer;" title="Clicca per visualizzare nel tab Modelli" onclick="navigateToModel('${escapeHtml(provider)}', '${escapeHtml(model)}')">${escapeHtml(model)}</td>
+                        <td style="padding: 2px 6px; text-align: center; white-space: nowrap;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${escapeHtml(statusLabel)}</span></td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f85149; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(reasonDisplay)}">${escapeHtml(reasonDisplay)}</td>
+                        <td style="padding: 2px 6px; font-family: monospace; font-size: 10px; color: #f1c40f; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(countermeasureDisplay)}">${escapeHtml(countermeasureDisplay)}</td>
+                    </tr>`;
+                }
                 
                 const showZoo = document.getElementById('log-show-zoo')?.checked ?? true;
                 const showTrain = document.getElementById('log-show-train')?.checked ?? true;

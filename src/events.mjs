@@ -69,6 +69,7 @@ export function formatEventPayload(event) {
     cooldownMs: event.cooldownMs || 0,
     failures: event.failures,
     consecutive: event.consecutive || 0,
+    source: event.source || 'prod',
     context: event.context || {}
   };
 }
@@ -114,7 +115,7 @@ export function isCriticalFailure(statusCode, message = '', errorDetails = {}) {
  * @param {Object} params
  * @param {Object} [params.bandit] - Optional bandit instance for DB persistence
  */
-export function logPunishment({ bandit, type, provider, modelId, reason, cooldownMs, failures, consecutive }) {
+export function logPunishment({ bandit, type, provider, modelId, reason, cooldownMs, failures, consecutive, source = 'prod' }) {
   const timestamp = new Date().toISOString();
   let logLine;
 
@@ -140,10 +141,10 @@ export function logPunishment({ bandit, type, provider, modelId, reason, cooldow
   
   // Persist to database if bandit instance is available
   if (bandit) {
-    bandit.recordPunishmentEvent(type, provider, modelId, reason, cooldownMs, failures, consecutive);
+    bandit.recordPunishmentEvent(type, provider, modelId, reason, cooldownMs, failures, consecutive, source);
   }
   
   // Emit for WebSocket subscribers
   const events = createPunishmentEvents();
-  events.emit('event', formatEventPayload({ type, provider, modelId, reason, cooldownMs, failures, consecutive }));
+  events.emit('event', formatEventPayload({ type, provider, modelId, reason, cooldownMs, failures, consecutive, source }));
 }

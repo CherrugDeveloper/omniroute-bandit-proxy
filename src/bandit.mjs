@@ -650,7 +650,8 @@ export class DiscountedUCB1Bandit {
               cooldown_ms REAL DEFAULT 0,
               failures INTEGER DEFAULT 0,
               consecutive INTEGER DEFAULT 0,
-              created_at REAL DEFAULT (strftime('%s', 'now'))
+              created_at REAL DEFAULT (strftime('%s', 'now')),
+              source TEXT DEFAULT 'prod'
             )`);
           this.db.exec(`CREATE INDEX IF NOT EXISTS idx_punishment_events_provider ON punishment_events(provider)`);
           this.db.exec(`CREATE INDEX IF NOT EXISTS idx_punishment_events_model ON punishment_events(model_id)`);
@@ -721,13 +722,13 @@ export class DiscountedUCB1Bandit {
     ).run(Date.now(), statusCode, errorMessage, model, provider);
   }
 
-  recordPunishmentEvent(eventType, provider, modelId, reason, cooldownMs, failures, consecutive) {
+  recordPunishmentEvent(eventType, provider, modelId, reason, cooldownMs, failures, consecutive, source = 'prod') {
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO punishment_events (event_type, provider, model_id, reason, cooldown_ms, failures, consecutive, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO punishment_events (event_type, provider, model_id, reason, cooldown_ms, failures, consecutive, created_at, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(eventType, provider, modelId || null, reason || null, cooldownMs || 0, failures || 0, consecutive || 0, Date.now());
+      stmt.run(eventType, provider, modelId || null, reason || null, cooldownMs || 0, failures || 0, consecutive || 0, Date.now(), source);
     } catch (err) {
       console.error("[BANDIT] Errore registrazione evento punizione:", err.message);
     }
