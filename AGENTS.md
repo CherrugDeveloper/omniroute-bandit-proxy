@@ -1,37 +1,33 @@
-# OmniRoute Bandit Proxy Technical Guidelines
+# OmniRoute Bandit Proxy — AGENTS.md
 
-- **Bandit**: `DiscountedUCB1Bandit` uses 0.99 discount/event; `_rankCache` (30s TTL).
-- **DB**: `better-sqlite3`; schema migrations only `ADD COLUMN`.
-- **Training**: Isolated `models_train` table; production reads `models` + `0.3*models_train` (if `N < 1`).
-- **Error Handling**: 5 classification scopes (ban, cooldown, flag, etc.); `consecutive_5xx` triggers degraded mode.
-- **Quota**: Provider-level (not model), atomic checks of minute/day windows.
-- **Proxy/Sessions**: `SESSION_TTL_MS` = 30m; `STREAM_IDLE_MS` = 60s (reset on any chunk/heartbeat).
-- **Soft Bias**: `profileMultiplier` (multipliers stack) applies to UCB1 score.
-- **Testing**: `node:test` + in-memory `:memory:` DB.
-- **Gotcha**: Fallback chain in `config/bandit.json` bypasses UCB1.
-- **Recent Changes**: Exponential backoff cooldowns (15s→5m→30m→2h→permanent); `total_failures` tracking; emergency relaxation now respects cooldowns; consecutive fails reset on success; 3-strike aggressive punishment for critical failures
-- **Error Pattern**: `config/bandit.json` now maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to ban-model
-- **Dashboard**: `public/dashboard.html` - table dimension changes, column width adjustments, model name prefix stripping
-- **3-Strike System**: Aggressive punishment for critical failures (403 forbidden, 429 rate limit, safeWrite errors) - permanent ban after 3 consecutive critical failures; `consecutive_critical_failures` counter tracks the streak and resets on success. Timeout errors are classified as transient (cooldown-model), NOT critical.
-- **Unified History**: `models` and `provider_history` tables are kept in sync on bans/cooldowns via `recordFeedback()`. Model bans update `provider_history.needs_attention`/`permanent`; provider bans update `provider_history`; model cooldowns update `provider_history.cooldown_until`.
+Non-obvious, project-specific guidance for this codebase.
 
-## Build & Test Commands
+## Bandit Algorithm
+- `DiscountedUCB1Bandit` applies a **0.99 discount per event**; `_rankCache` has a **30s TTL**.
+- `_sanitizeModelId()` strips a duplicated provider prefix (e.g. `mistral/mistral-x` → `mistral-x`) only when the sanitized id exists in `catalog`; otherwise returns the original id so it can be tracked/banned.
 
-- `npm start` - Start the proxy server
-- `npm run dev` - Start development server with watch mode
-- `npm run check` - Syntax check all source files
-- `npm run test` - Run tests
+## Error Classification & Punishment
+- Error config lives in [`config/bandit.json`](config/bandit.json:1): `errorConfig.classification.transientErrors` and `permanentErrors` are pattern→action lists.
+- `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` maps to **ban-model** (scope: model).
+- **3-strike system**: 3 consecutive critical failures (403, 429, safeWrite errors) → permanent ban. `consecutive_critical_failures` counter resets on success.
+- Timeout errors are classified as **transient (cooldown-model)**, NOT critical.
+- `consecutive_5xx ≥ 3` triggers degraded mode.
+- Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
 
-## Git Workflow
+## Database & Training
+- [`better-sqlite3`](src/bandit.mjs:33); migrations are additive-only (`ADD COLUMN` in `_migrateDB`).
+- Isolated `models_train` table; production reads `models` + `0.3*models_train` (when `N < 1`).
+- Training daemon runs in isolated round-robin writes to `models_train`; controlled via [`scripts/train-ctl.sh`](scripts/train-ctl.sh:1).
+- `models` and `provider_history` tables stay in sync on bans/cooldowns via `recordFeedback()`: model bans update `provider_history.needs_attention`/`permanent`; model cooldowns update `provider_history.cooldown_until`.
 
-- Use conventional commit format: `type(scope): subject`
-- Types: feat, fix, docs, style, refactor, test, chore
-- Include detailed body describing functional changes
-- Reference source files using [filename:line] format
+## Quota
+- Provider-level (not model) quota; atomic minute+day window check.
+- Background roller (`_startBackgroundRoller`) rolls quota windows every **60s** even without incoming requests, so providers recover from rate-limit exhaustion without a new request.
 
-## Project Conventions
+## Proxy & Sessions
+- `SESSION_TTL_MS` = 30m; `STREAM_IDLE_MS` = 60s (resets on **any** chunk/heartbeat).
+- Token estimation = 4 chars/token.
+- Fallback chain in [`config/bandit.json`](config/bandit.json:2) **bypasses UCB1** entirely.
 
-- Use modern JavaScript (ES modules)
-- Follow consistent indentation and formatting
-- Add comments for complex logic
-- Keep functions focused and well-named
+## Profile Bias
+- `profileMultiplier` from [`src/modes-registry.mjs`](src/modes-registry.mjs:1) applies to UCB1 score; multipliers stack.

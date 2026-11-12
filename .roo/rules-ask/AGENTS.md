@@ -1,14 +1,24 @@
-# Ask Mode - OmniRoute Bandit Proxy AGENTS.md
+# Ask Mode — OmniRoute Bandit Proxy AGENTS.md
 
-- **Bandit**: `DiscountedUCB1Bandit` uses 0.99 discount/event; `_rankCache` (30s TTL).
-- **DB**: `better-sqlite3`; schema migrations only `ADD COLUMN`.
-- **Training**: Isolated `models_train` table; production reads `models` + `0.3*models_train` (if `N < 1`).
-- **Error Handling**: 5 classification scopes (ban, cooldown, flag, etc.); `consecutive_5xx` triggers degraded mode.
-- **Quota**: Provider-level (not model), atomic checks of minute/day windows.
-- **Proxy/Sessions**: `SESSION_TTL_MS` = 30m; `STREAM_IDLE_MS` = 60s (reset on any chunk/heartbeat).
-- **Soft Bias**: `profileMultiplier` (multipliers stack) applies to UCB1 score.
-- **Testing**: `node:test` + in-memory `:memory:` DB.
-- **Gotcha**: Fallback chain in `config/bandit.json` bypasses UCB1.
-- **Recent Changes**: Exponential backoff cooldowns (15s->5m->30m->2h->permanent); `total_failures` tracking; emergency relaxation now respects cooldowns; consecutive fails reset on success; 3-strike aggressive punishment for critical failures
-- **Error Pattern**: `config/bandit.json` now maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to ban-model
-- **3-Strike System**: Aggressive punishment for critical failures (403 forbidden, 429 rate limit, timeout, safeWrite errors) - permanent ban after 3 consecutive critical failures; `consecutive_critical_failures` counter tracks the streak and resets on success
+Non-obvious, project-specific guidance for questions about this codebase.
+
+## Bandit Algorithm
+- `DiscountedUCB1Bandit` uses **0.99 discount per event**; `_rankCache` 30s TTL.
+- `_sanitizeModelId()` strips a duplicated provider prefix only if the sanitized id exists in `catalog`; otherwise returns the original id.
+
+## Error Classification & Punishment
+- `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **ban-model**.
+- **3-strike system**: 3 consecutive critical failures (403, 429, safeWrite errors) → permanent ban. `consecutive_critical_failures` counter resets on success.
+- Timeout errors are **transient (cooldown-model)**, NOT critical.
+- `consecutive_5xx ≥ 3` triggers degraded mode.
+- Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
+
+## Database & Training
+- `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`).
+- Isolated `models_train` table; production reads `models` + `0.3*models_train` (when `N < 1`).
+- `models` and `provider_history` stay in sync on bans/cooldowns via `recordFeedback()`.
+
+## Proxy & Sessions
+- `SESSION_TTL_MS` = 30m; `STREAM_IDLE_MS` = 60s (resets on any chunk/heartbeat).
+- Token estimation = 4 chars/token.
+- Fallback chain in `config/bandit.json` **bypasses UCB1**.

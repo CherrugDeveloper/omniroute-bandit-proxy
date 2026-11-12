@@ -1,31 +1,27 @@
-# Orchestrator Mode - OmniRoute Bandit Proxy AGENTS.md
+# Orchestrator Mode — OmniRoute Bandit Proxy AGENTS.md
 
-## Multi-Domain Coordination & Operational Workflows
+Non-obvious, project-specific guidance for operational workflows.
 
-### 1. Service & Daemon Management
-- **Production Server**: Start via [`npm start`](package.json:1) or systemd service [`omniroute-bandit-proxy.service`](omniroute-bandit-proxy.service:1) binding to `127.0.0.1:8080`.
-- **Development Watcher**: Run via [`npm run dev`](package.json:1) (`--watch` mode).
-- **Training Daemon (`train-daemon.mjs`)**: Manages isolated round-robin training writes to `models_train` table. Controlled via [`scripts/train-ctl.sh`](scripts/train-ctl.sh:1).
-- **Mode Switching Utility**: [`scripts/switch-mode.sh`](scripts/switch-mode.sh:1) handles transitions between `prod`, `train-gentle`, `train`, and `stop`.
+## Service & Daemon Management
+- Production server binds to `127.0.0.1:8080`; start via [`npm start`](package.json:1) or [`omniroute-bandit-proxy.service`](omniroute-bandit-proxy.service:1).
+- Training daemon (`train-daemon.mjs`) manages isolated round-robin writes to `models_train`; controlled via [`scripts/train-ctl.sh`](scripts/train-ctl.sh:1). Modes: `prod`, `train-gentle`, `train`, `stop`.
+- Mode switching via [`scripts/switch-mode.sh`](scripts/switch-mode.sh:1).
 
-### 2. Monitoring & API Integration Workflows
-- **Dashboard UI**: Single-file web interface in [`public/dashboard.html`](public/dashboard.html:1) providing tabs for Live Logs, Models, Training, Modes, Provider Quota, and Script Manager (`GET /v1/scripts/*`).
-- **Health Verification**: Periodic probing via [`src/health-check.mjs`](src/health-check.mjs:1) and [`scripts/verify-server.mjs`](scripts/verify-server.mjs:1).
-- **Notifications**: [`src/notifier.mjs`](src/notifier.mjs:1) dispatches webhooks to Slack, Discord, Telegram, and generic endpoints with 5-min event+subject throttling.
+## Database & Training
+- `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`).
+- Isolated `models_train` table; production reads `models` + `0.3*models_train` (when `N < 1`).
+- `models` and `provider_history` stay in sync on bans/cooldowns via `recordFeedback()`.
+- Coordinate manual db scripts ([`scripts/check-db.mjs`](scripts/check-db.mjs:1), [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs:1)) to avoid lock contention with running proxy or training daemon.
 
-### 3. Cross-Domain Task Execution Rules
-- **Database Concurrency**: Coordinate any manual db scripts [`scripts/check-db.mjs`](scripts/check-db.mjs:1) / [`scripts/inspect-db.mjs`](scripts/inspect-db.mjs:1) to avoid lock contention with running proxy or training daemon.
-- **Environment Configuration**: Ensure required variables (e.g. `OMNIROUTE_API_KEY`, `DASHBOARD_TOKEN`) are properly configured from [`.env.example`](.env.example:1) before deployment or testing.
-- **Recent Changes**: Exponential backoff cooldowns now respect configured limits; `total_failures` tracking affects cooldown decisions.
+## Quota
+- Provider-level quota; atomic minute+day window check; background roller runs every 60s even without requests.
 
-### 4. Security & Error Pattern Updates
-- **Error Pattern**: `config/bandit.json` now maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to ban-model
+## Error Classification & Punishment
+- `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **ban-model**.
+- **3-strike system**: 3 consecutive critical failures (403, 429, safeWrite errors) → permanent ban. `consecutive_critical_failures` counter resets on success.
+- Timeout errors are **transient (cooldown-model)**, NOT critical.
+- `consecutive_5xx ≥ 3` triggers degraded mode.
+- Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
 
-### 5. Dashboard Updates
-- **Table Dimensions**: `public/dashboard.html` table height adjusted to 114px; column widths modified (Error Type 12%, Countermeasure 14%, Reason 30%); model names stripped of provider prefix
-
-### 6. 3-Strike Aggressive Punishment System
-- **Critical Failures**: 403 forbidden, 429 rate limit, timeout, safeWrite errors trigger aggressive tracking
-- **Temporary Tracking**: `consecutive_critical_failures` column tracks streak
-- **Permanent Ban**: After 3 consecutive critical failures, model is permanently banned
-- **Reset on Success**: Counter resets to 0 on successful requests
+## Dashboard
+- [`public/dashboard.html`](public/dashboard.html:1): table height 114px; column widths (Error Type 12%, Countermeasure 14%, Reason 30%); model names stripped of provider prefix.

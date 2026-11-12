@@ -1,18 +1,22 @@
-# Security Review Mode - OmniRoute Bandit Proxy AGENTS.md
+# Security Review Mode — OmniRoute Bandit Proxy AGENTS.md
 
-## Security Audit & Vulnerability Assessment
+Non-obvious, project-specific guidance for security audits.
 
-### 1. Authentication & API Protection
-- **Dashboard & Management Endpoints**: Protected via `DASHBOARD_TOKEN` token validation (`x-api-token` header or `?token=` query parameter).
-- **Proxy Upstream Auth**: Outbound requests to upstream LLM providers use provider-specific API keys managed securely via environment variables (e.g. `OMNIROUTE_API_KEY`).
+## Authentication & API Protection
+- Dashboard & management endpoints protected via `DASHBOARD_TOKEN` token validation (`x-api-token` header or `?token=` query parameter).
+- Proxy upstream auth uses provider-specific API keys via environment variables (e.g. `OMNIROUTE_API_KEY`).
 
-### 2. Input Validation & Proxy Safety
-- **Context Validation**: [`src/bandit.mjs`](src/bandit.mjs:1) validates request bodies and estimated tokens (`estimateTokens()`) against model `max_input_tokens` limits to prevent overflow attacks or excessive memory consumption.
-- **Error Sanitization**: Error classification (`_classifyError`) handles upstream responses robustly without exposing raw internal stack traces to downstream clients.
+## Input Validation & Proxy Safety
+- [`src/bandit.mjs`](src/bandit.mjs:1) validates request bodies and estimated tokens (`estimateTokens()`) against model `max_input_tokens` limits.
+- Error classification (`_classifyError`) handles upstream responses without exposing raw internal stack traces to downstream clients.
+- Token estimation = 4 chars/token.
 
-### 3. Data Protection & Logging
-- **Database Security**: SQLite via `better-sqlite3` stores interaction logs (`request_logs`), provider states, and training metrics locally. Ensure proper file system permissions on database files.
-- **Log Deduplication**: Ring buffer (`GET /v1/logs`) collapses consecutive identical log lines with a count suffix to prevent log flooding / denial of service via logging.
+## Data Protection & Logging
+- SQLite via `better-sqlite3` stores interaction logs (`request_logs`), provider states, and training metrics locally. Ensure proper file system permissions on database files.
+- Ring buffer (`GET /v1/logs`) collapses consecutive identical log lines with a count suffix to prevent log flooding / DoS via logging.
 
-### 4. Error Pattern Security
-- **New Error Classification**: `config/bandit.json` now maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to ban-model, providing additional protection against unsafe write operations.
+## Error Pattern Security
+- `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **ban-model**.
+
+## Quota
+- Provider-level quota; atomic minute+day window check; background roller runs every 60s even without requests.
