@@ -12,7 +12,8 @@
 - **Recent Changes**: Exponential backoff cooldowns (15s→5m→30m→2h→permanent); `total_failures` tracking; emergency relaxation now respects cooldowns; consecutive fails reset on success; 3-strike aggressive punishment for critical failures
 - **Error Pattern**: `config/bandit.json` now maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to ban-model
 - **Dashboard**: `public/dashboard.html` - table dimension changes, column width adjustments, model name prefix stripping
-- **3-Strike System**: Aggressive punishment for critical failures (403 forbidden, 429 rate limit, timeout, safeWrite errors) - permanent ban after 3 consecutive critical failures; `consecutive_critical_failures` counter tracks the streak and resets on success
+- **3-Strike System**: Aggressive punishment for critical failures (403 forbidden, 429 rate limit, safeWrite errors) - permanent ban after 3 consecutive critical failures; `consecutive_critical_failures` counter tracks the streak and resets on success. Timeout errors are classified as transient (cooldown-model), NOT critical.
+- **Unified History**: `models` and `provider_history` tables are kept in sync on bans/cooldowns via `recordFeedback()`. Model bans update `provider_history.needs_attention`/`permanent`; provider bans update `provider_history`; model cooldowns update `provider_history.cooldown_until`.
 
 ## Build & Test Commands
 

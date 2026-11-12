@@ -95,10 +95,8 @@ export function isCriticalFailure(statusCode, message = '', errorDetails = {}) {
     return /model_cooldown|cooling down/i.test(msg);
   }
   
-  // Timeout errors
-  if (/fetch timeout|timeout/i.test(msg)) {
-    return true;
-  }
+  // Timeout errors are classified as transient (cooldown-model), not critical.
+  // Removed timeout as critical failure to be consistent with bandit.mjs _isCriticalFailure().
   
   // safeWrite errors (OpenCode-specific)
   if (/safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized/i.test(msg)) {

@@ -1195,6 +1195,10 @@ export class DiscountedUCB1Bandit {
                                  VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0)
                                  ON CONFLICT(id) DO UPDATE SET permanent = 1, banned_since = ?`
                               ).run(sanitizedModelId, provider, Date.now(), Date.now());
+                              // Sync provider_history: mark provider as needing attention when a model is permanently banned
+                              this.db.prepare(
+                                `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+                              ).run(c.reason, `Model banned: ${sanitizedModelId} (${c.reason})`, provider);
                               console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
                               logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
                               break;
@@ -1255,6 +1259,10 @@ export class DiscountedUCB1Bandit {
                 // Apply cooldown to model
                 if (c.cooldownMs > 0) {
                   this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + c.cooldownMs, sanitizedModelId);
+                  // Sync provider_history: mark provider as having a model on cooldown
+                  this.db.prepare(
+                    `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+                  ).run(Date.now() + c.cooldownMs, c.reason, `Model cooldown: ${sanitizedModelId} (${c.reason})`, provider);
                   console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=model`);
                 } else if (isTransient) {
                   // For transient errors (server-error, timeout, unknown), set a default cooldown
@@ -1264,6 +1272,9 @@ export class DiscountedUCB1Bandit {
                   const cooldownMs = this._getModelCooldownMs(failCount + 1);
                   if (cooldownMs && cooldownMs > 0) {
                     this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
+                    this.db.prepare(
+                      `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+                    ).run(Date.now() + cooldownMs, c.reason, `Model cooldown: ${sanitizedModelId} (${c.reason})`, provider);
                     console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model (default)`);
                   }
                 }
@@ -1347,6 +1358,10 @@ export class DiscountedUCB1Bandit {
                 `UPDATE models SET permanent = 1, banned_since = ?, cooldown_until = 0, consecutive_critical_failures = ?
                  WHERE provider = ? AND is_paid = 1`
               ).run(Date.now(), newConsecutiveCritical, provider);
+              // Sync provider_history: mark provider as permanently banned when paid group is banned
+              this.db.prepare(
+                `UPDATE provider_history SET permanent = 1, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+              ).run('paid-group-ban', `3-strike paid-group ban on provider=${provider}`, provider);
               console.log(`[BANDIT-3STRIKE] PAID-GROUP-BAN | provider=${provider} | 3 consecutive critical failures on paid model=${modelId} | permanent ban applied to ALL paid models in provider | total_critical=${newConsecutiveCritical} | STATUS_CODE=${statusCode}`);
               logPunishment({ bandit: this, type: EVENT_TYPES.BAN_PAID_GROUP, provider, modelId, reason: '3-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             } else {
@@ -1365,6 +1380,10 @@ export class DiscountedUCB1Bandit {
                   `UPDATE models SET permanent = 1, banned_since = ?, consecutive_critical_failures = ?, cooldown_until = 0 WHERE id = ?`
                 ).run(Date.now(), newConsecutiveCritical, sanitizedModelId);
               }
+              // Sync provider_history: mark provider as needing attention when individual model is permanently banned
+              this.db.prepare(
+                `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+              ).run('3-strike-permanent-ban', `Model permanently banned: ${sanitizedModelId} (3-strike-rule)`, provider);
               console.log(`[BANDIT-3STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 3 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=3-strike-rule | STATUS_CODE=${statusCode}`);
               logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: '3-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             }
@@ -1393,6 +1412,10 @@ export class DiscountedUCB1Bandit {
             this.db.prepare(
               `UPDATE models SET permanent = 1, banned_since = ? WHERE id = ?`
             ).run(Date.now(), sanitizedModelId);
+            // Sync provider_history: mark provider as permanently banned when model escalates to permanent ban
+            this.db.prepare(
+              `UPDATE provider_history SET permanent = 1, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+            ).run('escalation-permanent-ban', `Model escalated to permanent ban: ${sanitizedModelId} (totalFailures=${totalFailures})`, provider);
             console.log(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
           logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: 'escalation', cooldownMs: 0, failures: totalFailures });
           }
@@ -1746,11 +1769,6 @@ export class DiscountedUCB1Bandit {
           return true;
         }
       }
-    }
-    
-    // Timeout - persistent timeouts indicate fundamental availability issues
-    if (/fetch timeout|timeout/i.test(message)) {
-      return true;
     }
     
     // safeWrite errors (OpenCode-specific)
@@ -3430,15 +3448,16 @@ export class DiscountedUCB1Bandit {
     const now = Date.now();
 
     // Use catalog as base so ALL catalog models (even uninitialized in models table) are counted
+    // Treat NULL permanent as 0 for banned checks.
     let baseQuery = `
       FROM catalog c
       LEFT JOIN models m ON c.id = m.id
     `;
 
-    let activeCondition = "(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND (m.permanent IS NULL OR m.permanent = 0) AND (m.degraded IS NULL OR m.degraded = 0)";
+    let activeCondition = "(m.cooldown_until <= ? OR m.cooldown_until IS NULL OR m.cooldown_until = 0) AND (COALESCE(m.permanent, 0) = 0) AND (COALESCE(m.degraded, 0) = 0)";
     let cooldownCondition = "m.cooldown_until > ?";
-    let degradedCondition = "m.degraded = 1";
-    let bannedCondition = "m.permanent = 1";
+    let degradedCondition = "COALESCE(m.degraded, 0) = 1";
+    let bannedCondition = "COALESCE(m.permanent, 0) = 1";
 
     if (source === "train") {
       baseQuery = `
