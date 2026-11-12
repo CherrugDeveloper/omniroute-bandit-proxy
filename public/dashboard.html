@@ -4821,18 +4821,6 @@
                     }
                 }
                 
-                // Process punishment events from active endpoint
-                if (d.punishmentEvents && d.punishmentEvents.length > 0) {
-                    for (const event of d.punishmentEvents.slice(-10)) {
-                        allRows.push({
-                            html: fmtPunishmentRow(event),
-                            timestamp: event.timestamp || Date.now(),
-                            isSelectionHistory: false,
-                            key: 'pun-' + (event.timestamp || Date.now())
-                        });
-                    }
-                }
-
                 // Sort all rows by timestamp descending (newest first)
                 allRows.sort((a, b) => b.timestamp - a.timestamp);
 

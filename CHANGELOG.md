@@ -2,325 +2,284 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [1.28.25] - 2026-11-12
-
-### Fixed
-- fix(bandit): removed timeout misclassification as a critical failure (now transient, triggering cooldown instead of ban) [(326ddab)](commit:326ddab)
-- fix(bandit): updated `getModelsSummary` SQL to correctly handle banned model counts via `COALESCE` [(326ddab)](commit:326ddab)
-- fix(bandit): ensured `provider_history` and `models` tables remain in sync on all ban/cooldown events in `recordFeedback` [(326ddab)](commit:326ddab)
-- fix(bandit): updated `events.mjs` to match the consistent transient classification for timeouts [(326ddab)](commit:326ddab)
-
-### Changed
-- docs(AGENTS.md): updated to reflect accurate 3-strike system behavior and failure classifications [(326ddab)](commit:326ddab)
 
 ## Version History
 
-## [1.28.22] - 2026-11-07
-
-### Fixed
-- fix(ban-metrics): reset erroneous permanent bans and regenerated documentation [(490b3d6)](commit:490b3d6)
-
-## [1.28.20] - 2026-11-07
-
-### Fixed
-- fix(dashboard): resolved copy button state persistence [(8eace18)](commit:8eace18)
-
-## [1.28.15] - 2026-11-09
-
-### Fixed
-- fix(bandit,dashboard): resolved SQL param mismatches and sanitized model names [(aa80b78)](commit:aa80b78)
+## [v1.28.25] - 2026-11-12
 
 ### Added
-- feat(dashboard): integrated punishment events into unified history with WebSocket real-time updates [(d071f02)](commit:d071f02)
+
+- Integrate punishment events into unified history with WebSocket real-time updates
+- Add 3-strike critical failure system and intermediate cooldowns
+- Optimize models & train tab layout and sanitize model names
+- Enhance runtime error classification, fallback routing, and health check validation
+- Optimize frontend dashboard reactivity, debouncing, AbortController request management, and visibility checks
+- Add live log streaming and fix training status cumulative metrics
+- Bump version to v1.28.0, update changelog and README, refine dashboard UI and model/provider reset actions
+- Bump version to v1.27.2, synchronize models_train during catalog sync, refine training daemon status and dashboard UI
+- Bump version to v1.27.1, synchronize models_train during catalog sync to fix GET /v1/models?source=train results=0
+- Bump version to v1.27.0, fix training feedback for models_train and optimize scripts manager table column widths
+- Bump version to v1.26.0 and update changelog and dashboard UI refinements
+- Refactor Train tab, optimize filters, responsive scripts manager, and training status heartbeat timeout
+- Refine dashboard UI and update release v1.24.4
+- Implement dashboard improvements and refinements
+- Comprehensive dashboard improvements and bug fixes v1.24.2
+- Enhance Models tab capabilities and UI layout
+- Add WebSocket support for real-time updates
+- Implement aggressive 3-strike rule
+- Implement exponential backoff cooldown system with punishment tracking
+- Enhance Unified Chronology with per-model tracking
+- Emergency relaxation and fallback chain improvements
+- Add dynamic non-chat model exclusion
+- Stop failure spiral for exhausted provider credentials
+- Add log message expansion to dashboard
+- Move provider metrics to providers tab, quantize unified history, fix session deduplication, fix ITPM emergency tier
+- Update bandit logic
+- Add script manager with live output polling and enhanced UI
+- Add request throttling and logging
+- Implement POST /v1/images/generations endpoint
+- Integrate provider stats, separate provider and model columns, absolute timestamps, compact row heights
+- Redesign unified panel chronologia operativa & stato ucb1 table
+- Unify active requests and ucb1 specchietto into compact scrollable panel
+- Enhance model selection candidate tracking and consideration history buffer across relaxation tiers
+- Perform true structural fusion of active requests and selection rejection spec sheet
+- Refine metrics fix and dashboard UI refactoring
+- Embed chronological selection & discard spec sheet directly inside In corso tab
+- Remove Considerazioni tab and integrate selection/discard timeline into Live Logs tab, fix proxy error classification & retry loop, and fix /v1/metrics bug
+- Integrate model evaluation specchietto into top panel
+- Enforce strict capability filtering for tool requests and image generation models
+- Implement model categorization and capability filtering
+- Add SPA fallback route for non-chat requests
+- Add model metrics (N, reward, latency, score) to consideration history and dashboard
+- Refine model selection with N=0 prioritization and quality
+- Add image generation request detection and conversion helpers
+- Add script arguments input and default status in train
+- Enhance request token size estimation for system prompts, tools, and tool calls
+- Exclude tts/audio/image models during sync and enhance selection banner logging transparency
+- Enforce dynamic token limits and refine session affinity TPM blacklisting
+- Configure provider ITPM limits and update changelog for 413 error handling and session affinity fixes
+- Ensure model existence in feedback recording and add 413/tpm session invalidation test
+- Optimize log frequency, top panel metrics & UI style unification
+- Enhance multi-provider support
+- Provider quota system
+- Handles 429 retries with fallback
+- Adds debug log filtering
+- Reward per tool, loop detection, orchestrator→reasoning
+- Checkbox ZOO/TRAIN unificate
+- Tabella In corso con header e colonne fisse
+- Dynamic_max_tokens appreso dai 413 (self-learning)
+- Endpoint /v1/changelog + file CHANGELOG.md
+- Changelog formattato + badge "nuovo" sul FAB
+- CSS Grid per riquadro "In corso", badge "test" per N<1
+- Low TPM filter, unpin 413, new models badge, training exclude
+- Rank modello, trend, esclusione health check
+- RequireTools penalizza modelli che non chiamano tools
+- Pulsante Blocca modello (permanent=1), cambia in Sblocca se già bannato
+- Modali custom in stile dark (no più alert/confirm nativi)
+- Modelli raggruppati per provider con collapse/expand
+- Pannello attività sempre visibile (attive + ultime richieste)
+- Modalità train
+- EXCLUDE_THINKING + EXPLOIT_ONLY + switch
+- EXPLOIT_ONLY (solo modelli N>=3) per uso produttivo <2s
+- Summary aggregato (attivi, reward, latenza, free, topModel); fix cooldown provider spurio
+- Display_override per nascondere barra del titolo
+- Pulsante reset contatori globali (richieste + osservazioni)
+- Timeout non skippa provider, soglia 5 fail, esclude pattern openrouter problematici
+- Free/paid detection, filtri ONLY_FREE/EXCLUDE_PAID, 403 model
+- Supporto Telegram con chat_id configurabile
+- Webhook Slack/Discord su eventi critici
+- Modale Cosa fare con pulsante copia
+- Pulsante Cosa fare sui provider needs_attention con istruzioni contestuali
+- Degraded mode (score*0.3), auto-rehabilitation
+- Max_input_tokens in catalog, filtro token
+- Contatori needs_attention, colore viola, tasso di successo
+- Indicatore tasso di successo accanto a Osservazioni
+- Colore distinto (viola) per needs_attention vs cooldown (giallo)
+- Cooldown proporzionati (24h misconfig, 6h anti-rate-limit)
+- Catalog chat
+- Auth token su API di controllo e dashboard
+- Trasforma la dashboard in PWA con service worker, manifest e pulsante di installazione
+- Aggiunta sincronizzazione dinamica dei modelli da OmniRoute via /v1/models e ottimizzazione selezione bandit
+- Add granular real-time telemetry
+- Integrate DiscountedUCB1Bandit engine with Zoo Code compatible Zod metadata and Express proxy
 
 ### Changed
-- docs: added CHANGELOG.md following Keep a Changelog and README.md with comprehensive documentation [(d13b95c)](commit:d13b95c)
-- docs: updated documentation, changelog and dashboard [(93d81a6)](commit:93d81a6)
 
-## [1.28.11] - 2026-11-08
+- Format changelog entries for test suite compliance
+- Remove raw_git_log.txt and ignore it
+- Improve changelog generation to follow Keep a Changelog v1.1.0
+- Add User/Group configuration for systemd service
+- Bump to v1.14.10 and update documentation
+- Optimize git history and consolidate automation commits
+- Clean up temporary files
+- Update version to 1.14.0 and CHANGELOG.md
+- Update changelog v1.0.2, README version bump and bandit model pruning
+- Update version 1.0.0 changelog and documentation
+- Update dashboard.html
+- Update provider limits
+- Automated commit
+- V1.1.90 — 2026
+- Add auto-git configuration
+- Ignore .env file
+- Remove accidentally staged .env file
+- Project cleanup and documentation update
+- Fix provider handling: hard reset
+- Dashboard UI refactoring
+- Refine image generation detection in src/index.mjs to eliminate false positives on chat completions
+- Refine model selection relaxation tiers and optimize debug logging
+- Add image generation request check and NULL capability guard
+- Exclude aihorde image models from chat completions
+- Generalize installation paths and improve script path resolution
+- Clean up artifacts, update dashboard stats verification
+- Optimize git history
+- Reorganize git automation
+- Add GIT_AUTO_COMMIT_WSL_EXEC environment variable support
+- Add venv/ to gitignore and update linting rules
+- UI(dashboard): badge DA CONFIGURARE cliccabile apre Cosa fare
+- Forza LF, fix auto-commit
+- Aggiunge demone round-robin writes
+- Rimuove middleware access
+- Sostituisce icon set con RealFaviconGenerator, aggiorna link e manifest
+- Migrazione a ES modules (.mjs), nuova dashboard e icon set PWA
+- Add live proxy logs and precise cooldown countdown to the dashboard
+- Fix dashboard binding on 127.0.0.1 and stabilize Bandit proxy error handling
+- Ignore sqlite wal and shm files
+- Ensure .env and proxy.log are excluded from git
 
 ### Fixed
-- chore: executed workflow documentation and versioning updates [(1db4db2)](commit:1db4db2)
 
-## [1.28.9] - 2026-11-08
-
-### Fixed
-- fix(train-daemon): automatically flag models returning 404 as permanent=1 in training daemon [(3f63fb9)](commit:3f63fb9)
-- fix(train-daemon): track persistent 404 model errors and auto-mark permanent [(291a5ca)](commit:291a5ca)
-
-### Changed
-- docs: updated changelog, README and system configurations [(d5e6a18)](commit:d5e6a18)
-
-## [1.28.7] - 2026-11-08
-
-### Fixed
-- fix(bandit): classified 503 Playwright and Cloudflare Playground errors as provider cooldown [(26d1f0b)](commit:26d1f0b)
-- fix(dashboard): synchronized models view with dashboard metric boxes [(896c508)](commit:896c508)
-- fix(dashboard): fixed collapse behavior and metric filtering synchronization [(3a1a3b6)](commit:3a1a3b6)
-- fix(dashboard): fixed updateStat hoisting reference error in stats polling loop [(4d3b6ff)](commit:4d3b6ff)
-- fix(dashboard): fixed dashboard model metrics display [(8d690c9)](commit:8d690c9)
-
-## [1.28.6] - 2026-11-08
-
-### Added
-- feat(dashboard): collapsible train providers, helper text removal, script output visibility, model metrics fix [(d21e7e0)](commit:d21e7e0)
-
-## [1.28.5] - 2026-11-08
-
-### Added
-- feat(dashboard): dashboard enhancements, changelog modal, unified history badges, and daemon stability [(9cdb0a9)](commit:9cdb0a9)
-
-## [1.28.3] - 2026-11-07
-
-### Fixed
-- fix(dashboard): robust error handling, toast notifications, restart-safe improvements [(0d522ed)](commit:0d522ed)
-
-## [1.28.2] - 2026-11-07
-
-### Changed
-- chore: bump version and suppress train models logging when inactive [(cb20198)](commit:cb20198)
-
-## [1.28.0] - 2026-11-07
-
-### Added
-- feat(dashboard): refined dashboard UI and model/provider reset actions [(69939ae)](commit:69939ae)
-
-### Changed
-- chore: bump version to v1.28.0 [(69939ae)](commit:69939ae)
-
-## [1.27.2] - 2026-11-07
-
-### Fixed
-- fix(train-daemon): synchronized models_train during catalog sync [(0634aca)](commit:0634aca)
-
-### Changed
-- chore(train-daemon): refined training daemon status and dashboard UI [(0634aca)](commit:0634aca)
-
-## [1.27.1] - 2026-11-07
-
-### Fixed
-- fix(train-daemon): synchronized models_train during catalog sync to fix GET /v1/models?source=train results=0 [(9aeccfb)](commit:9aeccfb)
-
-## [1.27.0] - 2026-11-07
-
-### Fixed
-- fix(train-feedback): fixed training feedback for models_train [(946ac5f)](commit:946ac5f)
-
-### Changed
-- chore(dashboard): optimized scripts manager table column widths [(946ac5f)](commit:946ac5f)
-
-## [1.26.0] - 2026-11-07
-
-### Changed
-- chore(dashboard): dashboard UI refinements [(7b33f2c)](commit:7b33f2c)
-
-## [1.25.0] - 2026-11-07
-
-### Changed
-- chore: bump version to v1.25.0 [(643417e)](commit:643417e)
-
-## [1.24.4] - 2026-11-07
-
-### Changed
-- chore(dashboard): refined dashboard UI [(351616f)](commit:351616f)
-
-## [1.24.2] - 2026-11-07
-
-### Added
-- feat(dashboard): comprehensive dashboard improvements and bug fixes [(69f36de)](commit:69f36de)
-
-### Fixed
-- fix(bandit): fix SQL catalog insertion parameter mismatch [(c40f67f)](commit:c40f67f)
-
-## [1.23.0] - 2026-11-05
-
-### Fixed
-- fix(dashboard): resolved totalObservations undefined error in getDashboardStats [(26c3222)](commit:26c3222)
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(bcbdc55)](commit:bcbdc55)
-
-## [1.22.0] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(0749aa4)](commit:0749aa4)
-
-## [1.21.0] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(9497ab1)](commit:9497ab1)
-
-## [1.20.0] - 2026-11-05
-
-### Added
-- feat(server): WebSocket support for real-time script output streaming [(957706a)](commit:957706a)
-
-### Fixed
-- fix(version): corrected version to 1.20.0 for WebSocket feature release [(b11c0b3)](commit:b11c0b3)
-
-### Changed
-- docs: updated README.md version header [(366aa06)](commit:366aa06)
-
-## [1.19.8] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(db9f424)](commit:db9f424)
-
-## [1.19.7] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(1b438dc)](commit:1b438dc)
-
-## [1.19.6] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(05e566f)](commit:05e566f)
-
-## [1.19.5] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(e197627)](commit:e197627)
-
-## [1.19.4] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(2a6dc34)](commit:2a6dc34)
-
-## [1.19.3] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(01fb985)](commit:01fb985)
-
-## [1.19.2] - 2026-11-05
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(1ba0384)](commit:1ba0384)
-
-## [1.19.0] - 2026-11-05
-
-### Changed
-- chore: bump version to v1.19.0 and update CHANGELOG, README [(a4b03d7)](commit:a4b03d7)
-- docs: updated CHANGELOG, README, and version [(51aff40)](commit:51aff40)
-- docs: updated CHANGELOG, README, and version [(e3cd21f)](commit:e3cd21f)
-
-## [1.18.0] - 2026-11-04
-
-### Changed
-- docs: updated CHANGELOG, README, and version [(7ee8106)](commit:7ee8106)
-
-## [1.16.0] - 2026-11-04
-
-### Added
-- feat(security): implemented 3-strike aggressive punishment system for critical failures [(87fd346)](commit:87fd346)
-
-### Changed
-- docs: updated README and AGENTS.md with v1.16.0 and 3-strike system documentation [(1e5079c)](commit:1e5079c)
-- docs: updated all mode-specific AGENTS.md with 3-strike system documentation [(8838744)](commit:8838744)
-
-## [1.15.0] - 2026-11-04
-
-### Fixed
-- fix: cleanup and documentation update [(56634e6)](commit:56634e6)
-- fix(bandit): resolve 'safeWrite initialization order error' [(a18b5dc)](commit:a18b5dc)
-
-### Changed
-- chore: add User/Group configuration for systemd service [(b70bea6)](commit:b70bea6)
-- fix(bandit): use sanitizedModelId for proper error punishment [(fa480e1)](commit:fa480e1)
-
-## [1.14.10] - 2026-11-04
-
-### Changed
-- chore: bump to v1.14.10 and update documentation [(fd3dbcc)](commit:fd3dbcc)
-
-## [1.14.7] - 2026-11-04
-
-### Changed
-- chore: repository maintenance and documentation updates [(1e52730)](commit:1e52730)
-
-## [1.14.0] - 2026-11-04
-
-### Fixed
-- fix(bandit): optimize error classification and fallback chain reliability [(18adc0c)](commit:18adc0c)
-- fix(bandit): re-evaluate error classification and punishment system [(042f4c0)](commit:042f4c0)
-
-### Added
-- feat(bandit): emergency relaxation and fallback chain improvements [(3f6c454)](commit:3f6c454)
-
-### Changed
-- chore: update version to 1.14.0 and CHANGELOG.md with auto-git workflow documentation [(f2e2e4f)](commit:f2e2e4f)
-
-## [1.13.14] - 2026-11-04
-
-### Changed
-- chore: repository cleanup, version bump, documentation updates, and project utilities tracking [(5e652ec)](commit:5e652ec)
-
-## [1.13.10] - 2026-11-04
-
-### Changed
-- chore: auto-git workflow execution with version bump [(c40f6c5)](commit:c40f6c5)
-
-## [1.13.9] - 2026-11-05
-
-### Changed
-- chore: bump version to 1.13.9 and update changelog [(d73ff8c)](commit:d73ff8c)
-
-## [1.13.7] - 2026-11-05
-
-### Changed
-- chore: auto-git workflow cleanup, changelog standardization, version bump [(1bad5d1)](commit:1bad5d1)
-
-## [1.13.6] - 2026-11-07
-
-### Changed
-- chore: bump version to v1.13.6 and update docs [(13c13e9)](commit:13c13e9)
-
-## [1.13.5] - 2026-11-07
-
-### Changed
-- chore: update version to v1.13.5 and documentation [(6c3449a)](commit:6c3449a)
-
-## [1.0.2] - 2026-11-05
-
-### Changed
-- chore: update changelog v1.0.2, README version bump and bandit model pruning [(ebadb86)](commit:ebadb86)
-
-## [1.0.0] - 2026-11-09
-
-### Added
-- feat: version 1.0.0 changelog and documentation [(64b3a30)](commit:64b3a30)
-
-## [1.1.90] - 2026-10-30
-
-### Changed
-- chore: version bump f88bb76 [(f88bb76)](commit:f88bb76)
-
-## [1.1.63] - 2026-11-05
-
-### Changed
-- docs: update CHANGELOG.md for v1.1.63 [(64643cc)](commit:64643cc)
-
-## [1.1.58] - 2026-11-05
-
-### Changed
-- docs: add changelog entry for discarded models spec sheet & per-group provider quota [(70fc0f1)](commit:70fc0f1)
-
-## [1.1.8] - 2026-11-05
-
-### Changed
-- docs: update CHANGELOG.md for v1.1.8 [(bef609b)](commit:bef609b)
-
-## [1.1.1] - 2026-11-04
-
-### Added
-- feat(api): API modelli/provider, fix HTML dashboard, CHANGELOG [(fc5d495)](commit:fc5d495)
-
-## [1.1.0] - 2026-11-04
-
-### Added
-- feat(quota): provider quota system - dashboard table, needs_attention filter, CHANGELOG [(495a489)](commit:495a489)
-
-### Fixed
-- fix(quota): migration quota + remove needs_attention from filter [(a57f274)](commit:a57f274)
+- Resolve API_TOKEN ReferenceError in WebSocket initialization
+- Consolidate copy operations
+- Resolve SQL param mismatches and sanitize model names
+- Retain raw_git_log.txt for auto-git workflow compliance
+- Add Version History section and fix conventional commit format for test compliance
+- Isolate global dashboard metrics from tab-specific metrics
+- Isolate filtered metrics from global dashboard stats
+- Correct syntax error in refreshAll function
+- Synchronize global metrics across all dashboard tabs
+- Refresh main metrics when switching tabs
+- Correct regex patterns for log entry type detection
+- Database fallback for recent requests when in degraded mode
+- Correct typo in ESM __filename polyfill
+- Automatically flag models returning 404 as permanent=1 in training daemon
+- Track persistent 404 model errors and auto-ban
+- Classify 503 Playwright and Cloudflare Playground errors as provider cooldown
+- Synchronize models view with dashboard metric boxes
+- Fix collapse behavior and metric filtering synchronization
+- Fix updateStat hoisting reference error in stats polling loop
+- Fix dashboard model metrics display and update version
+- Keep status active during inter-request pauses
+- Add tooltip to Quota reset column and standardize Reset Model button labels
+- Optimize scripts manager table width and auto-refresh
+- Fix SQL catalog insertion parameter mismatch and apply dashboard UI refinements
+- Sync updateTrainingStatus() with bandit.mjs fix
+- Resolve parameter count mismatch in updateTrainingStatus()
+- Optimize dashboard UI elements, changelog modal, and responsive metrics
+- Add AbortController timeout and offline fallback to catalog sync
+- Fix provider expansion/collapse in Models tab
+- Correct flatMode variable usage in renderAll function
+- Resolve UI/UX issues in Models tab
+- Resolve model count discrepancy and dashboard UI issues
+- Resolve totalObservations undefined error in getDashboardStats
+- Update README.md version header to v1.20.0 with proper formatting
+- Correct version to 1.20.0 for WebSocket feature release
+- Update CHANGELOG.md line references to match actual source
+- Add supports_vision checks in fallback model selection
+- Strip provider prefix from selection history model names
+- Use sanitizedModelId for proper error punishment
+- Improve error pattern matching for model errors
+- Resolve safeWrite initialization order error
+- Fix syntax error in renderAll() if/else structure
+- Resolve 'page not responding' with chunked rendering and debounced polling
+- Update log colors and emergency relaxation filter
+- Reduce unified chronology table height and remove bottom margin
+- Add safeWrite helper for client disconnect handling and buffer management
+- Improve continuity with exponential backoff and emergency relaxation
+- Optimize error classification and fallback chain reliability
+- Resolve syntax error in dashboard logs
+- Resolve emergency cooldown relaxation and vision filtering
+- Recalculate version numbers and format changelog
+- Enhanced restart
+- Respect ignoreTokenLimit flag in dynamic_max_tokens check
+- Emergency relaxation ignores already_tried and non_chat_model_excluded
+- Correggi priorità systemd system prima di user in restart
+- Migliora gestione stato servizio con attesa graduale
+- Gestisci stato servizio inactive/dead post-restart
+- Migliora restart
+- Model sanitization validation, error classification improvements, and provider cooldown fixes
+- Clear cooldown_until on successful requests in recordFeedback()
+- Remove duplicate isHardError variable declaration causing service startup crash
+- Universal provider_cooldown rejections
+- Enforce cooldown in bandit emergency relaxation tiers
+- Prevent model re-selection
+- Revert incorrect ZOO mode addition; fix dashboard CSS alignment and filter overflow
+- Remove try text from Cronologia Unificata timestamp to resolve column overlap
+- Prevent connection errors by adding try/catch to chat/completions route handler
+- Prevent repeated provider errors in bandit model selection
+- Fix log streaming column alignment, message truncation, and container height
+- Stop polling /v1/models when models tab is not active
+- Fix template literal syntax error in fmtRow return
+- Resolve column overlap in Cronologia Unificata table
+- Align numbers, optimize columns, invert unified history order
+- Align metrics numbers, hide scrollbars, optimize half-row
+- Resolve 'no such column: N' error in getDashboardStats()
+- CSS overlap fix for 'Osservazioni OK' in dashboard stats
+- Fix log streaming rendering and copy button
+- Resolve syntax error in public/dashboard.html
+- Resolve structural issues in public/dashboard.html
+- Resolve 'source is not defined' unhandled rejection in selectModel function
+- Render log buffer string entries correctly in dashboard
+- Render logs in log streaming panel
+- Resolve SyntaxError and ReferenceError in dashboard.html
+- ResetProvider endpoint now passes provider name correctly
+- Dashboard reset buttons now call correct API endpoints
+- Fix proxy error handling for cfp 502, antigravity 429, and stream retry blocking
+- Fix totalObservations counter timing and enhance resetGlobalCounters
+- Resolve model filtering, duplication, and sync issues
+- Show only recent logs in restart
+- Move SO_REUSEPORT option before socket bind to prevent EADDRINUSE on restart
+- Enhance restart reliability
+- Resolve port 8080 conflicts and improve restart safety
+- Correct syntax error in src/index.mjs after graceful shutdown changes
+- Prevent auto-commit infinite loops
+- Resolve EADDRINUSE on port 8080 during service restarts
+- Add ignoreDegraded support to emergency relaxation tier
+- Reset provider flags to resolve ban/cooldown issues
+- Correct observations/catalog stats rendering in dashboard
+- Remove duplicate latency unit from dashboard observations/catalog
+- Refine fluid typography scaling for stats boxes
+- Reset attention flags and add emergency relaxation to bandit logic
+- Update systemd service paths and update changelog
+- Ignore vision constraints in emergency relaxation and update catalog vision capabilities
+- Reset provider cooldown, permanent ban and attention flags for non-chat models
+- Improve error classification, timeout handling, and cleanup unused files
+- Improve error classification and session affinity logic
+- Restore full stats data set with optimized 3-column grid
+- Split stats into 4 columns with name-value pairs side by side
+- Make each stat box use 3 columns internally
+- Allow line breaks inside stat boxes
+- Increase stat box height 3x for single row grid
+- Use grid 3 columns for stat boxes single row
+- Allow stat boxes to shrink and stay on single line row
+- Remove inline flex:2 conflicting with flex:0 0 auto on top model stats box
+- Let stat boxes size to content instead of forcing equal width
+- Remove overflow clipping and text truncation from stats boxes
+- Prevent top model truncation and parameter/value separation, group stats into 3 boxes
+- Clean duplicate HTML blocks, add top model cooldown/N metrics, expand scrollbar hiding rules
+- Resolve 6 dashboard issues and restore backward compatibility
+- Fix timestamp display, consolidate error logging, optimize layout, remove unused scripts and plans
+- Resolve model double prefix parsing, timestamp/elapsed seconds formatting, trend indicators, degraded model count, session affinity persistence, and observation counting
+- Fix Chat Catalogo and Totali Grezzi statistics discrepancy
+- Refactor stats container layout and streamline request logging
+- Add CORS headers and OPTIONS preflight support to resolve Firefox network fetch error
+- Update nginx static root path and bump service worker cache version for dashboard visibility
+- Update service worker to use network-first strategy
+- Fix refreshing reference error and providers is not iterable TypeError in renderProviderQuota
+- Record and log HTTP 400 errors in middleware and request handler for Zoo proxy
+- Update dashboard interface and configuration
+- Fix floating action button changelog and developer handlers
+- Optimize RAM usage, fix tab switching lag and requests tab bugs in public/dashboard.html
+- Correct indentation and syntax in public/dashboard.html
+- Harden getMetrics and getDashboardStats with robust try/catch and ignore placeholder tokens for REQUIRE_AUTH

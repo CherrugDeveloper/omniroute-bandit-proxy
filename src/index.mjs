@@ -914,26 +914,18 @@ function trackRequestComplete(id, meta) {
 function createLogEntry(message) {
   const timestamp = new Date().toISOString();
 
-  // Determine source and type from message content
+  // Determine source and type from message content.
+  // NOTE: Punishment events (ban/cooldown/flag/degraded) are intentionally NOT classified here.
+  // They are emitted as structured events via logPunishment() in src/events.mjs through the
+  // EventEmitter singleton, which is the single source of truth for real-time punishment data.
+  // String-parsing here would create drift and duplicate entries in the dashboard.
   let source = 'system';
   let type = null;
   let provider = null;
   let status = null;
   let is_paid = false;
 
-  if (/\[BAN\]|\[BANNED\]|ban-provider|ban-model|ban_model|PAID-GROUP-BAN/i.test(message)) {
-    source = 'ban';
-    type = 'ban';
-  } else if (/\[COOLDOWN\]|cooldown-provider|cooldown-model|cooldown_model/i.test(message)) {
-    source = 'cooldown';
-    type = 'cooldown';
-  } else if (/\[FLAG\]|flag-provider|CRITICAL/i.test(message)) {
-    source = 'flag';
-    type = 'flag';
-  } else if (/\[DEGRADED\]|DEGRADED|degraded-model|degraded_model/i.test(message)) {
-    source = 'degraded';
-    type = 'degraded';
-  } else if (/\[TRAIN\]|\[TRAINING\]|training daemon|train-daemon/i.test(message)) {
+  if (/\[TRAIN\]|\[TRAINING\]|training daemon|train-daemon/i.test(message)) {
     source = 'training';
   } else if (/\[DEBUG\]|debug verbose/i.test(message)) {
     source = 'debug';

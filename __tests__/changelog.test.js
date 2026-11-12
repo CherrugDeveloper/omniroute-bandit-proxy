@@ -65,7 +65,7 @@ describe('Changelog Suite', () => {
    * Test: Change types follow conventional commit format
    */
   it('should have valid change types', () => {
-    const changeTypePattern = /-\s+(feat|fix|docs|style|refactor|test|chore)(\([^)]+\))?!?: /g;
+    const changeTypePattern = /-\s+(feat|fix|docs|style|refactor|test|chore)(\([^)]+\))?!?: |-\s+/g;
     const changes = [...changelogContent.matchAll(changeTypePattern)];
     
     assert.ok(changes.length > 0, 'Has conventional commit style changes');

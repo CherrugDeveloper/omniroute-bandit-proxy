@@ -1009,15 +1009,20 @@ export class DiscountedUCB1Bandit {
   _getModelCooldownMs(totalFailures) {
     // Exponential backoff: 30s → 5min → 30min → 2hr → permanent
     // totalFailures is the cumulative failure count across restarts
-    if (totalFailures >= 5) return null; // 5+ fails = permanent ban
+    if (totalFailures >= 10) return null; // 10+ fails = permanent ban
     const cooldowns = [
       0,                    // 0 failures - no cooldown
       30 * 1000,            // 1st failure → 30 seconds
-      5 * 60 * 1000,        // 2nd failure → 5 minutes
-      30 * 60 * 1000,       // 3rd failure → 30 minutes
-      2 * 60 * 60 * 1000    // 4th failure → 2 hours
+      2 * 60 * 1000,        // 2nd failure → 2 minutes
+      5 * 60 * 1000,        // 3rd failure → 5 minutes
+      15 * 60 * 1000,       // 4th failure → 15 minutes
+      30 * 60 * 1000,       // 5th failure → 30 minutes
+      1 * 60 * 60 * 1000,   // 6th failure → 1 hour
+      2 * 60 * 60 * 1000,   // 7th failure → 2 hours
+      6 * 60 * 60 * 1000,   // 8th failure → 6 hours
+      12 * 60 * 60 * 1000   // 9th failure → 12 hours
     ];
-    return cooldowns[Math.min(totalFailures, 4)];
+    return cooldowns[Math.min(totalFailures, 9)];
   }
 
   async resolveModelPrefix(modelId) {
@@ -1256,28 +1261,28 @@ export class DiscountedUCB1Bandit {
                     this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ? AND degraded = 0`).run(Date.now(), sanitizedModelId);
                   }
                 }
-                // Apply cooldown to model
-                if (c.cooldownMs > 0) {
-                  this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + c.cooldownMs, sanitizedModelId);
+                
+                // Determine cooldown duration: use config-specified, or default escalating if transient
+                let cooldownMs = c.cooldownMs;
+                if (!cooldownMs || cooldownMs <= 0) {
+                  if (isTransient) {
+                    const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(sanitizedModelId);
+                    const failCount = model ? model.fails : 0;
+                    cooldownMs = this._getModelCooldownMs(failCount + 1);
+                  }
+                }
+
+                // Apply cooldown to model if applicable
+                if (cooldownMs && cooldownMs > 0) {
+                  this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
                   // Sync provider_history: mark provider as having a model on cooldown
                   this.db.prepare(
                     `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
-                  ).run(Date.now() + c.cooldownMs, c.reason, `Model cooldown: ${sanitizedModelId} (${c.reason})`, provider);
-                  console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=model`);
-                } else if (isTransient) {
-                  // For transient errors (server-error, timeout, unknown), set a default cooldown
-                  // Use the model's cooldown based on its current fail count
-                  const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(sanitizedModelId);
-                  const failCount = model ? model.fails : 0;
-                  const cooldownMs = this._getModelCooldownMs(failCount + 1);
-                  if (cooldownMs && cooldownMs > 0) {
-                    this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
-                    this.db.prepare(
-                      `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
-                    ).run(Date.now() + cooldownMs, c.reason, `Model cooldown: ${sanitizedModelId} (${c.reason})`, provider);
-                    console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model (default)`);
-                  }
+                  ).run(Date.now() + cooldownMs, c.reason, `Model cooldown: ${sanitizedModelId} (${c.reason})`, provider);
+                  console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model`);
+                  logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs, failures: 0 });
                 }
+                
                 break;
               }
             }
