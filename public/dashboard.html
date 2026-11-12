@@ -5323,16 +5323,24 @@
                                 return r.json();
                             })
                             .then(d => {
-                                cl.innerHTML = renderChangelog(d.changelog || '');
-                                cl.dataset.loaded = '1';
-                                // Marca come letto
-                                const v = extractFirstVersion(d.changelog || '');
-                                if (v) {
-                                    localStorage.setItem('changelogLastRead', v);
-                                    document.getElementById('dev-fab')?.classList.remove('has-update');
+                                try {
+                                    cl.innerHTML = renderChangelog(d.changelog || '');
+                                    cl.dataset.loaded = '1';
+                                    // Marca come letto
+                                    const v = extractFirstVersion(d.changelog || '');
+                                    if (v) {
+                                        localStorage.setItem('changelogLastRead', v);
+                                        document.getElementById('dev-fab')?.classList.remove('has-update');
+                                    }
+                                } catch (e) {
+                                    console.error('Changelog render error:', e);
+                                    cl.textContent = 'Errore rendering changelog: ' + e.message;
                                 }
                             })
-                            .catch(() => { cl.textContent = 'Errore caricamento changelog.'; });
+                            .catch(e => {
+                                console.error('Changelog fetch error:', e);
+                                cl.textContent = 'Errore caricamento changelog: ' + e.message;
+                            });
                     } else {
                         // Già caricato: comunque marca come letto
                         const v = cl?.dataset.latestVersion;

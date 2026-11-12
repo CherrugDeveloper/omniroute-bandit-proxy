@@ -122,6 +122,13 @@ Error config lives in `config/bandit.json`. `errorConfig.classification.transien
 - Training daemon runs in isolated round-robin writes to `models_train`.
 - `models` and `provider_history` tables stay in sync on bans/cooldowns via `recordFeedback()`.
 
+## Reset Actions
+
+The dashboard reset endpoints (`POST /v1/reset/model/:id` and `POST /v1/reset/provider/:p`) comprehensively reset all tracking fields:
+
+- **Models**: Resets `N`, `sum_reward`, `fails`, `total_failures`, `cooldown_until`, `permanent`, `last_used_index`, `consecutive_5xx`, `consecutive_critical_failures`, `degraded`, `degraded_since`, `banned_since`, plus the corresponding row in the `models_train` table.
+- **Providers**: Resets `fails`, `cooldown_until`, `permanent`, `needs_attention`, `pointer`, `consecutive_failures`, `circuit_breaker_until`, `last_success_time`, `attention_reason`, `attention_message`, `total_failures` in `provider_history`.
+
 ## Development
 
 ```bash

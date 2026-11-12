@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+## [v1.29.1] - 2026-11-12
+
+### Fixed
+
+- Changelog loading error in dashboard: wrapped renderChangelog() in try/catch and exposed actual fetch error details
+- Models stats box reset: expanded resetModel() to reset all models table fields (N, sum_reward, total_failures, last_used_index, consecutive_5xx, consecutive_critical_failures, degraded, degraded_since, banned_since) plus corresponding models_train row
+- Provider stats box reset: expanded resetProvider() to reset all provider_history fields (pointer, consecutive_failures, circuit_breaker_until, last_success_time, attention_reason, attention_message, total_failures)
+
 ## [v1.29.0] - 2026-11-12
 
 ### Added

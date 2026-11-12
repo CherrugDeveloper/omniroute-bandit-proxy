@@ -2167,15 +2167,58 @@ export class DiscountedUCB1Bandit {
   }
 
   resetModel(modelId) {
-    this.db.prepare(
-      `UPDATE models SET fails = 0, cooldown_until = 0, permanent = 0, degraded = 0, consecutive_5xx = 0 WHERE id = ?`
-    ).run(modelId);
+    // Reset all operational and training metrics for the model
+    this.db.prepare(`
+      UPDATE models SET
+        N = 0,
+        sum_reward = 0,
+        fails = 0,
+        total_failures = 0,
+        cooldown_until = 0,
+        permanent = 0,
+        last_used_index = 0,
+        consecutive_5xx = 0,
+        consecutive_critical_failures = 0,
+        degraded = 0,
+        degraded_since = 0,
+        banned_since = 0
+      WHERE id = ?
+    `).run(modelId);
+    
+    // Reset corresponding training daemon entry if exists
+    this.db.prepare(`
+      UPDATE models_train SET
+        N = 0,
+        sum_reward = 0,
+        last_used_index = 0,
+        isTraining = 0,
+        executionTime = 0,
+        calledModels = 0,
+        okStatus = 0,
+        errorStatus = 0,
+        statusMessage = 'Reset',
+        updated_at = 0
+      WHERE id = ?
+    `).run(modelId);
   }
 
   resetProvider(provider) {
-    this.db.prepare(
-      `UPDATE provider_history SET fails = 0, cooldown_until = 0, permanent = 0, needs_attention = 0 WHERE provider = ?`
-    ).run(provider);
+    // Reset all provider history metrics
+    this.db.prepare(`
+      UPDATE provider_history SET
+        fails = 0,
+        cooldown_until = 0,
+        permanent = 0,
+        needs_attention = 0,
+        pointer = 0,
+        consecutive_failures = 0,
+        circuit_breaker_until = 0,
+        last_success_time = 0,
+        attention_reason = '',
+        attention_message = '',
+        total_failures = 0
+      WHERE provider = ?
+    `).run(provider);
   }
 
   resetProviderCooldown(provider) {
