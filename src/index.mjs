@@ -24,7 +24,7 @@ const __dirname = path.dirname(__filename);
 // WebSocket server instance and punishment event tracking
 let wss = null;
 const scriptOutputClients = new Map(); // pid -> Set of WebSocket connections
-const statsAggregator = null; // Stats aggregator singleton (real-time statistics from punishment event stream)
+let statsAggregator = null; // Stats aggregator singleton (real-time statistics from punishment event stream)
 
 // Centralized audit logger for script executions
 const auditLogPath = path.join(__dirname, "../scripts/audit.log");
