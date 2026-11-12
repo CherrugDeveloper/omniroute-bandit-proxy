@@ -1,0 +1,2246 @@
+Commit: fix(dashboard): resolve API_TOKEN ReferenceError in WebSocket initialization
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: chore: bump version to 1.28.20, fix copy button state persistence
+File: a/CHANGELOG.md
+File: a/package.json
+Commit: fix(frontend): consolidate copy-box-content event handlers and standardize timeout values
+File: a/public/dashboard.html
+Commit: fix(bandit,dashboard): resolve SQL param mismatches and sanitize model names
+File: a/.gitignore
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(gitignore): retain raw_git_log.txt for auto-git workflow compliance
+File: a/.gitignore
+File: a/public/dashboard.html
+Commit: fix(changelog): add Version History section and fix conventional commit format for test compliance
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/src/bandit.mjs
+File: a/src/events.mjs
+Commit: feat(dashboard): integrate punishment events into unified history with WebSocket real-time updates
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: docs: add CHANGELOG.md following Keep a Changelog and README.md with comprehensive documentation
+File: a/.gitignore
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix: isolate global dashboard metrics from tab-specific renders
+File: a/public/dashboard.html
+Commit: fix(dashboard): isolate filtered metrics from global dashboard stats
+File: a/public/dashboard.html
+Commit: fix(dashboard): correct syntax error in refreshAll function
+File: a/public/dashboard.html
+Commit: fix(dashboard): synchronize global metrics across all dashboard tabs
+File: a/public/dashboard.html
+Commit: fix(dashboard): refresh main metrics when switching tabs
+File: a/public/dashboard.html
+Commit: fix(log-filtering): correct regex patterns for log entry type detection
+File: a/src/index.mjs
+Commit: fix: database fallback for recent requests when in-memory buffer is empty
+File: a/scripts/debug-request-logs.mjs
+File: a/src/index.mjs
+File: a/src/request-tracker.mjs
+Commit: docs: enhance API documentation with examples and endpoint details
+File: a/README.md
+File: a/examples/monitor.mjs
+File: a/examples/stats.mjs
+Commit: docs: update README with comprehensive documentation including 3-strike system and event system
+File: a/README.md
+File: a/package.json
+Commit: fix: correct typo in ESM __filename polyfill (__filename__ -> __filename)
+File: a/src/index.mjs
+Commit: fix(gitignore): retain raw_git_log.txt for workflow compliance
+File: a/.gitignore
+File: a/CHANGELOG.md
+Commit: docs: generate complete project documentation
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+Commit: feat(punishment): add 3-strike rule, event system, and training feedback metrics
+File: a/__tests__/training-feedback.test.js
+File: a/plans/punishment-dashboard-optimization.md
+File: a/plans/test-suite-fix.md
+File: a/plans/training-feedback-metrics-plan.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/events.mjs
+File: a/src/index.mjs
+File: a/src/provider-quota.mjs
+Commit: chore(changelog): format changelog entries for test suite compliance
+File: a/CHANGELOG.md
+Commit: chore(release): release v1.28.15 - update documentation, changelog and dashboard
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/plans/optimize-models-dashboard.md
+File: a/public/dashboard.html
+Commit: feat(dashboard): optimize models & train tab layout and sanitize model names
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/plans/optimize-models-dashboard.md
+File: a/public/dashboard.html
+Commit: feat(proxy): enhance runtime error classification, fallback routing, and health check validation
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/__tests__/proxy-improvements.test.js
+File: a/package.json
+Commit: feat(dashboard): optimize frontend dashboard reactivity, debouncing, AbortController request management, and visibility checks
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: fix(auto-git): execute workflow documentation and versioning updates for v1.28.11
+File: a/CHANGELOG.md
+File: a/config/modes.discovered.json
+File: a/config/modes.signatures.json
+File: a/package.json
+Commit: fix(train): automatically flag models returning 404 as permanent=1 in training daemon and update docs/changelog
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/config/modes.discovered.json
+File: a/package.json
+Commit: chore: remove raw_git_log.txt and ignore it
+File: a/.gitignore
+Commit: fix(training): track persistent 404 model errors and auto-mark permanent in train-daemon
+File: a/config/modes.discovered.json
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+Commit: chore(release): release v1.28.9 - update changelog, README and system configurations
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/config/modes.discovered.json
+File: a/config/modes.signatures.json
+File: a/package.json
+Commit: fix(bandit): classify 503 Playwright and Cloudflare Playground errors as provider cooldown
+File: a/config/bandit.json
+File: a/src/bandit.mjs
+Commit: fix(dashboard): synchronize models view with dashboard metric boxes
+File: a/CHANGELOG.md
+File: a/config/modes.discovered.json
+File: a/config/modes.signatures.json
+File: a/public/dashboard.html
+Commit: fix(dashboard): fix collapse behavior and metric filtering synchronization
+File: a/.gitignore
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: fix(dashboard): fix updateStat hoisting reference error in stats polling loop
+File: a/public/dashboard.html
+Commit: fix(dashboard): fix dashboard model metrics display and update version to 1.28.7
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: feat(dashboard): release v1.28.6 - collapsible train providers, helper text removal, script output visibility, model metrics fix
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(dashboard): release v1.28.5 - dashboard enhancements, changelog modal, unified history badges, and daemon stability
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: fix(training): keep status active during inter-cycle pauses and extend daemon liveness tolerance
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+Commit: chore(git): update .gitignore and include raw git log
+File: a/.gitignore
+Commit: feat(training): Add live log streaming and fix training status cumulative metrics
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: chore(release): v1.28.3 - robust error handling, toast notifications, restart-safe improvements
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/scripts/restart-safe.sh
+File: a/src/index.mjs
+Commit: chore: bump version to 1.28.2 and suppress train models logging when inactive
+File: a/src/index.mjs
+Commit: fix(dashboard): add tooltip to Quota reset column and standardize Reset Model button labels
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(dashboard): add tooltip to Quota reset column and standardize Reset Model button labels
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+Commit: feat(release): bump version to v1.28.0, update changelog and README, refine dashboard UI and model/provider reset actions
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/__tests__/changelog.test.js
+File: a/package.json
+File: a/public/dashboard.html
+Commit: feat(release): bump version to v1.27.2, synchronize models_train during catalog sync, refine training daemon status and dashboard UI
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+Commit: feat(release): bump version to v1.27.1, synchronize models_train during catalog sync to fix GET /v1/models?source=train results=0
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/src/bandit.mjs
+Commit: feat(release): bump version to v1.27.0, fix training feedback for models_train and optimize scripts manager table column widths
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(release): bump version to v1.26.0 and update changelog and dashboard UI refinements
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: fix(dashboard): optimize scripts manager table width and auto-activate quick action panel when running
+File: a/public/dashboard.html
+Commit: chore: bump version to v1.25.0
+File: a/CHANGELOG.md
+File: a/package.json
+Commit: style(dashboard): refine Scripts Manager running badge logic
+File: a/public/dashboard.html
+Commit: feat(dashboard): refactor Train tab, optimize filters, responsive scripts manager, and training status heartbeat timeout
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(dashboard): refine dashboard UI and update release v1.24.4
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/plans/dashboard-improvements.md
+File: a/src/index.mjs
+Commit: fix(bandit,dashboard): fix SQL catalog insertion parameter mismatch and apply dashboard UI refinements
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(dashboard): refine dashboard UI with container-scoped resets, clean train tab, and improved daemon controls
+File: a/CHANGELOG.md
+File: a/package.json
+Commit: feat(dashboard): implement dashboard improvements and refinements
+File: a/plans/dashboard-improvements.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(dashboard): comprehensive dashboard improvements and bug fixes v1.24.2
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/plans/dashboard-improvements.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: docs(change): update CHANGELOG.md with dashboard real-time updates
+File: a/CHANGELOG.md
+Commit: feat(dashboard): add real-time training status polling and scripts tab navigation
+File: a/public/dashboard.html
+Commit: fix(train-daemon): sync updateTrainingStatus() with bandit.mjs fix
+File: a/CHANGELOG.md
+File: a/scripts/train-daemon.mjs
+Commit: fix(sql): resolve parameter count mismatch in updateTrainingStatus()
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/plans/dashboard-ui-fixes.md
+File: a/plans/fix-startup-fetch-timeout.md
+File: a/plans/metrics-unified-history-fix.md
+File: a/plans/models-ui-data-fix.md
+File: a/plans/paid-model-group-punishment.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(dashboard): optimize dashboard UI elements, changelog modal, and responsive metrics
+File: a/plans/dashboard-ui-fixes.md
+File: a/public/dashboard.html
+Commit: fix(bandit): add AbortController timeout and offline fallback to catalog sync
+File: a/CHANGELOG.md
+File: a/plans/fix-startup-fetch-timeout.md
+File: a/src/bandit.mjs
+Commit: feat(dashboard): enhance Models tab capabilities and UI layout
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/plans/models-ui-data-fix.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(dashboard): enhance Models tab capabilities and UI layout
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(dashboard): fix provider expansion/collapse in Models tab
+File: a/public/dashboard.html
+Commit: fix(dashboard): correct flatMode variable usage in renderAll function
+File: a/public/dashboard.html
+Commit: fix(models): resolve 5 UI/UX issues in Models tab
+File: a/public/dashboard.html
+Commit: fix: resolve model count discrepancy and dashboard UI issues
+File: a/public/dashboard.html
+Commit: fix(dashboard): fix provider expand/collapse and half-screen responsive table columns
+File: a/CHANGELOG.md
+File: a/package-lock.json
+File: a/package.json
+File: a/public/dashboard.html
+Commit: docs: integrate auto-git.md into global ~/.roo/commands/ and remove project copy
+File: a/.roo/commands/auto-git.md
+Commit: refactor(commands): convert auto-git.mjs to markdown documentation
+File: a/.roo/commands/auto-git.md
+File: a/scripts/auto-git.mjs
+Commit: chore: update CHANGELOG, README, and version to v1.23.0
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/config/provider-limits.json
+File: a/package.json
+File: a/public/dashboard.html
+File: a/scripts/reset-oc.mjs
+Commit: docs: normalize CHANGELOG.md formatting and add fix entry
+File: a/CHANGELOG.md
+Commit: fix(bandit): resolve totalObservations undefined error in getDashboardStats
+File: a/config/modes.signatures.json
+File: a/src/bandit.mjs
+Commit: chore: update CHANGELOG, README, and version according to Keep a Changelog 1.1.0
+File: a/CHANGELOG.md
+File: a/config/modes.signatures.json
+File: a/package.json
+File: a/public/dashboard.html
+Commit: chore: update CHANGELOG, README, and version to v1.22.0
+File: a/.roo/commands/auto-git.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/scripts/auto-git.mjs
+Commit: chore: update CHANGELOG, README, and version to v1.21.0
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package-lock.json
+File: a/package.json
+File: a/src/index.mjs
+Commit: fix: update README.md version header to v1.20.0 with proper formatting
+File: a/README.md
+Commit: fix: correct version to 1.20.0 for WebSocket feature release
+File: a/package.json
+Commit: feat: add WebSocket support for real-time script output streaming
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+Commit: chore: update CHANGELOG, README, and version to v1.19.8
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+Commit: chore: update CHANGELOG, README, and version to v1.19.7
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/__tests__/changelog.test.js
+File: a/package-lock.json
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: chore: update CHANGELOG, README, and version to v1.19.6
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/scripts/auto-git.mjs
+Commit: chore: update CHANGELOG, README, and version to v1.19.5
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/scripts/auto-git.mjs
+Commit: chore: update CHANGELOG, README, and version to v1.19.4
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+Commit: refactor(auto-git): improve changelog generation to follow Keep a Changelog v1.1.0
+File: a/scripts/auto-git.mjs
+Commit: chore: update CHANGELOG, README, and version to v1.19.3
+File: a/.roo/commands/auto-git.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/scripts/auto-git.mjs
+File: a/src/bandit.mjs
+Commit: chore: update CHANGELOG, README, and version to v1.19.2
+File: a/.roo/commands/auto-git.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/plans/paid-model-group-punishment.md
+File: a/public/dashboard.html
+File: a/scripts/auto-git.mjs
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/modes-registry.mjs
+Commit: chore: update CHANGELOG, README, and version to 1.20.0
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/scripts/auto-git.sh
+File: a/src/bandit.mjs
+Commit: chore: update CHANGELOG, README, and version to 1.19.0
+File: a/__tests__/paid-model-group-punishment.test.js
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: chore: update CHANGELOG, README, and version to 1.19.0
+File: a/src/bandit.mjs
+Commit: chore: bump version to v1.19.0 and update CHANGELOG, README
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/config/bandit.json
+File: a/package.json
+File: a/src/bandit.mjs
+Commit: chore: update CHANGELOG, README, and version to 1.18.0
+File: a/.gitignore
+File: a/.roo/commands/auto-git.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/__tests__/monitor.test.js
+File: a/__tests__/request-tracker-memory.test.js
+File: a/__tests__/request-tracker.test.js
+File: a/package-lock.json
+File: a/package.json
+File: a/plans/metrics-unified-history-fix.md
+File: a/scripts/auto-git.sh
+File: a/src/bandit.mjs
+File: a/src/request-tracker.mjs
+Commit: chore: remove project-level auto-git.md, use global version
+File: a/.roo/commands/auto-git.md
+Commit: docs: create enhanced auto-git.md, update CHANGELOG and README
+File: a/.roo/commands/auto-git.md
+File: a/CHANGELOG.md
+File: a/README.md
+Commit: fix(docs): update CHANGELOG.md line references to match actual source
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(proxy): add supports_vision checks in fallback model selection
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/src/index.mjs
+Commit: feat(bandit): implement aggressive 3-strike punishment system and exponential backoff
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/__tests__/punishment-system.test.js
+File: a/config/bandit.json
+File: a/src/bandit.mjs
+Commit: docs: update all mode-specific AGENTS.md with 3-strike system documentation
+File: a/.roo/rules-architect/AGENTS.md
+File: a/.roo/rules-ask/AGENTS.md
+File: a/.roo/rules-code/AGENTS.md
+File: a/.roo/rules-debug/AGENTS.md
+File: a/.roo/rules-orchestrator/AGENTS.md
+Commit: docs: update README and AGENTS.md with v1.16.0 and 3-strike system
+File: a/AGENTS.md
+File: a/README.md
+Commit: feat(bandit): implement 3-strike aggressive punishment system for critical failures
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/src/bandit.mjs
+Commit: fix(dashboard): strip provider prefix from selection history model names
+File: a/public/dashboard.html
+Commit: feat(bandit): implement exponential backoff cooldown system with punishment tracking
+File: a/__tests__/bandit-config.test.js
+File: a/__tests__/monitor.test.js
+File: a/__tests__/punishment-system.test.js
+File: a/__tests__/request-tracker.test.js
+File: a/rebase-script.sh
+File: a/src/bandit.mjs
+Commit: chore(service): add User/Group configuration for systemd service
+File: a/omniroute-bandit-proxy.service
+Commit: fix(bandit): use sanitizedModelId for proper error punishment
+File: a/src/bandit.mjs
+Commit: fix(config): improve error pattern matching for model errors
+File: a/config/bandit.json
+Commit: fix(streaming): resolve safeWrite initialization order error
+File: a/src/index.mjs
+Commit: chore(repo): cleanup and documentation update for v1.15.0
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup
+File: a/README.md
+File: a/plans/auto-git-plan.md
+Commit: docs: update AGENTS.md files with recent changes - exponential backoff, total_failures, error patterns, dashboard updates
+File: a/.roo/rules-architect/AGENTS.md
+File: a/.roo/rules-ask/AGENTS.md
+File: a/.roo/rules-code/AGENTS.md
+File: a/.roo/rules-debug/AGENTS.md
+File: a/.roo/rules-orchestrator/AGENTS.md
+File: a/.roo/rules-security-review/AGENTS.md
+File: a/AGENTS.md
+Commit: feat(bandit): implemented exponential backoff cooldowns and total_failures tracking for consecutive 5xx errors
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/config/bandit.json
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(dashboard): fix syntax error in renderAll() if/else structure
+File: a/public/dashboard.html
+Commit: fix(dashboard): resolve 'page not responding' with chunked rendering and debounced polling
+File: a/public/dashboard.html
+Commit: chore(repo): squash consecutive generic commits v1.14.7 to v1.14.10
+File: a/CHANGELOG.md.backup
+File: a/src/index.mjs
+File: a/src/notifier.mjs
+Commit: chore(version): bump to v1.14.10 and update documentation\n\n- Updated CHANGELOG.md with new version entry v1.14.10\n- Updated README.md to reflect v1.14.10\n- Updated package.json version to 1.14.10
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: chore: optimize git history and consolidate automation commits - Squash consecutive generic/automated commits (v1.13.6 to v1.13.7 workflow) - Update documentation structure and changelog formatting - Consolidate auto-git workflow updates and version bumps - Update dashboard configuration and project rules - Clean up temporary files and planning artifacts - Update bandit model pruning and README references - Consolidate provider metrics and documentation updates
+File: a/.roo/rules-architect/AGENTS.md
+File: a/.roo/rules-ask/AGENTS.md
+File: a/.roo/rules-code/AGENTS.md
+File: a/.roo/rules-debug/AGENTS.md
+File: a/AGENTS.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/docs/provider-status.md
+File: a/package.json
+Commit: chore(repo): auto-git workflow execution v1.13.14 Repository cleanup, version bump, documentation updates, and project utilities tracking
+File: a/plans/auto-git-plan.md
+File: a/rebase-script.sh
+Commit: fix(dashboard,bandit): update log colors and emergency relaxation filter
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/plans/changelog-fix.md
+File: a/scripts/clear-all-attention.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: chore(repo): clean up temporary files
+File: a/CHANGELOG.md.backup.20261103
+Commit: chore(repo): auto-git workflow v1.14.7 - repository maintenance and documentation updates
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup.20261103
+File: a/README.md
+File: a/__tests__/itpm-quota.test.js
+File: a/config/bandit.json
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(dashboard): reduce unified chronology table height and remove bottom margin
+File: a/public/dashboard.html
+Commit: feat(dashboard): enhance Unified Chronology with per-model selection history
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: chore(build): deduplicate CHANGELOG.md entries and update project version
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/src/index.mjs
+Commit: fix(streaming): add safeWrite helper for client disconnect handling and buffer management
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/src/index.mjs
+Commit: fix(bandit): improve continuity with exponential backoff and emergency relaxation
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: feat(bandit): emergency relaxation and fallback chain improvements
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/config/bandit.json
+File: a/package.json
+File: a/scripts/check-bans.mjs
+File: a/scripts/check-schema.mjs
+File: a/src/bandit.mjs
+File: a/src/health-check.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): optimize error classification and fallback chain reliability
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(dashboard): fix - show x/y non-active counts in detail lines, restore percentage display
+File: a/public/dashboard.html
+Commit: feat(dashboard): add dynamic non-active stats and colorize badges
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: feat(proxy): stop failure spiral for exhausted provider credentials
+File: a/CHANGELOG.md
+File: a/docs/provider-status.md
+File: a/src/bandit.mjs
+Commit: chore(repo): update version to 1.14.0 and CHANGELOG.md with auto-git workflow documentation
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/plans/auto-git-plan.md
+File: a/public/dashboard.html
+Commit: fix(bandit): re-evaluate error classification and punishment system
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup.20261102_142219
+File: a/src/bandit.mjs
+File: a/src/provider-quota.mjs
+Commit: fix(dashboard,bandit): update log colors and emergency relaxation filter
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(ui): resolve syntax error in dashboard logs
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(ui): resolve syntax error in dashboard logs
+File: a/public/dashboard.html
+Commit: feat(ui): add log message expansion to dashboard
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: feat(dashboard,proxy): move provider metrics to provider box, add color-coded log filters, fix session dedup and TDZ errors
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: feat: move provider metrics to providers tab, quantize unified history, fix session deduplication, fix ITPM emergency tier
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/request-tracker.mjs
+Commit: docs: rewrite README.md to reflect actual project capabilities; dashboard: add provider % metrics, redesign pricing filter, add filter tooltips
+File: a/README.md
+File: a/public/dashboard.html
+Commit: chore: auto-git workflow execution with version bump to v1.13.10
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup.20261102_142219
+File: a/README.md
+File: a/package.json
+Commit: feat: active events display, metric percentages, unified history row height, and train-daemon functionality
+File: a/CHANGELOG.md.backup.20261101
+File: a/CHANGELOG.md.backup.20261102
+File: a/CHANGELOG.md.backup.pre_update
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: chore: bump version to 1.13.9 and update changelog
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup.20261102
+File: a/package.json
+Commit: feat: merge training status into top model card
+File: a/CHANGELOG.md
+File: a/package.json
+File: a/public/dashboard.html
+Commit: chore(docs): auto-git workflow v1.13.7 - cleanup, changelog standardization, version bump
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup.20261101
+File: a/CHANGELOG.md.backup.pre_update
+File: a/README.md
+File: a/package.json
+File: a/plans/changelog-fix.md
+File: a/public/dashboard.html
+Commit: chore: bump version to v1.13.6 and update docs
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup.20261101
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: docs: update version to v1.13.5 and documentation
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup.2026-11-01
+File: a/README.md
+File: a/package.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): resolve emergency cooldown relaxation and vision filtering
+File: a/scripts/fix-vision.mjs
+File: a/scripts/inspect-detailed.mjs
+File: a/scripts/inspect-summary.mjs
+File: a/scripts/reset-providers.mjs
+File: a/src/bandit.mjs
+Commit: fix(changelog,docs): recalculate version numbers and format changelog
+File: a/CHANGELOG.md
+File: a/package.json
+Commit: chore(docs,src): update changelog v1.0.2, README version bump and bandit model pruning
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(scripts): enhanced restart-safe.sh with sudo and facial recognition support
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/scripts/restart-safe.sh
+Commit: fix: respect ignoreTokenLimit flag in dynamic_max_tokens check
+File: a/src/bandit.mjs
+Commit: fix(scripts): fix check-nvidia.mjs double database connection bug
+File: a/scripts/check-nvidia.mjs
+Commit: fix(bandit): emergency relaxation ignores already_tried and non_chat_model_excluded
+File: a/src/bandit.mjs
+Commit: docs(CHANGELOG,README): update version 1.0.0 changelog and documentation
+File: a/.roo/commands/auto-git.md
+File: a/CHANGELOG.md
+File: a/CHANGELOG.md.backup.2026-11-01
+File: a/README.md
+Commit: docs(roo): ripristina auto-git.md globale e sincronizza documentazione workflow git automatizzato
+File: a/.roo/commands/auto-git.md
+Commit: feat(src,docs): update bandit logic
+File: a/CHANGELOG.md
+File: a/docs/auto-git-modifications.md
+File: a/src/bandit.mjs
+Commit: chore: automated update
+File: a/CHANGELOG.md
+Commit: chore: update dashboard.html
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/public/dashboard.html
+Commit: feat(src): fix error classification
+File: a/src/bandit.mjs
+Commit: chore(scripts): update omniroute-bandit-proxy.service
+File: a/omniroute-bandit-proxy.service
+File: a/scripts/restart-safe.sh
+Commit: chore: update documentation
+File: a/docs/auto-git-modifications.md
+Commit: chore(src,config): update provider limits
+File: a/config/provider-limits.json
+File: a/src/bandit.mjs
+Commit: feat(src): automated commit
+File: a/src/bandit.mjs
+Commit: fix(ops): correggi priorità systemd system prima di user in restart-safe.sh
+File: a/README.md
+File: a/docs/restart-procedure.md
+File: a/public/dashboard.html
+File: a/scripts/restart-safe.sh
+Commit: fix(ops): migliora gestione stato servizio con attesa graduale
+File: a/scripts/restart-safe.sh
+Commit: fix(ops): gestisci stato servizio inactive/dead post-start in restart-safe.sh
+File: a/scripts/restart-safe.sh
+Commit: fix(ops): migliora restart-safe.sh con rilevamento binding porta multi-metodo e controllo stato failed
+File: a/scripts/restart-safe.sh
+Commit: chore(src,config,changelog): automated commit
+File: a/.roo/commands/auto-git.md
+File: a/.roo/commands/auto-git.sh
+File: a/.roo/skills/auto-git/SKILL.md
+File: a/CHANGELOG.md
+File: a/config/bandit.json
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/provider-quota.mjs
+Commit: fix: model sanitization validation, error classification improvements, and provider cooldown fixes
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix: clear cooldown_until on successful requests in recordFeedback()
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix: remove duplicate isHardError variable declaration causing service startup crash
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: fix: universal provider_cooldown rejections - fix noteProviderFail error type filtering, reduce maxAttempts, set EXPLOIT_ONLY=false, add provider cooldown reset via health check
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/src/health-check.mjs
+File: a/src/index.mjs
+Commit: fix(proxy): fail fast on model-not-found errors and fix status reporting
+File: a/src/index.mjs
+Commit: fix: enforce cooldown in bandit emergency relaxation tiers
+File: a/src/bandit.mjs
+Commit: fix: prevent model re-selection loop in bandit emergency relaxation
+File: a/src/bandit.mjs
+Commit: fix: revert incorrect ZOO mode addition; fix dashboard CSS alignment and filter overflow
+File: a/public/dashboard.html
+Commit: chore: v1.1.90 — 2026-10-30
+File: a/.roo/commands/auto-git.md
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/health-check.mjs
+File: a/src/index.mjs
+Commit: fix(dashboard): remove try text from Cronologia Unificata timestamp to resolve column overlap
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): prevent connection errors by adding try/catch to chat/completions route handler
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix: prevent repeated provider errors in bandit model selection
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix(dashboard): fix log streaming column alignment, message truncation, and container height
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): stop polling /v1/models when models tab is not active
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): fix template literal syntax error in fmtRow return
+File: a/public/dashboard.html
+Commit: fix(dashboard): resolve column overlap in Cronologia Unificata table
+File: a/public/dashboard.html
+Commit: feat(bandit-proxy): add auto-git workflow and cleanup test files
+File: a/.roo/commands/auto-git.sh
+File: a/AGENTS.md
+File: a/CHANGELOG.md
+File: a/__tests__/capability-filtering.test.mjs
+File: a/__tests__/error-handling-and-filtering.test.mjs
+File: a/__tests__/feedback-logging.test.mjs
+File: a/__tests__/image-generation.test.mjs
+File: a/__tests__/modes-registry.test.mjs
+File: a/__tests__/session-affinity-nuanced.test.mjs
+File: a/__tests__/session-affinity.test.mjs
+File: a/__tests__/token-compression.test.mjs
+File: a/__tests__/upstream-retry.test.mjs
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/tests/bandit-filtering-relaxation.test.mjs
+File: a/tests/bandit.test.mjs
+File: a/tests/integration-proxy-full.test.mjs
+File: a/tests/log-noise.test.mjs
+Commit: fix(dashboard): align numbers, optimize columns, invert unified history order
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): align metrics numbers, hide scrollbars, optimize half-screen view
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix: resolve 'no such column: N' error in getDashboardStats()
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix: CSS overlap fix for 'Osservazioni OK' in dashboard stats (display: inline-flex with gap)
+File: a/public/dashboard.html
+Commit: fix(dashboard): fix log streaming rendering and copy button
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: chore: add auto-git command and skill definitions, update changelog and readme
+File: a/.roo/commands/auto-git.md
+File: a/.roo/commands/auto-git.sh
+File: a/.roo/skills/auto-git/SKILL.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): resolve syntax error in public/dashboard.html
+File: a/public/dashboard.html
+Commit: fix(dashboard): resolve structural issues in public/dashboard.html
+File: a/public/dashboard.html
+Commit: feat(dashboard): comprehensive dashboard overhaul with enhanced metrics, logs, unified history, and controls
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix: resolve 'source is not defined' unhandled rejection in selectModel function
+File: a/src/index.mjs
+Commit: fix: render log buffer string entries correctly in dashboard
+File: a/public/dashboard.html
+Commit: fix(dashboard): render logs in log streaming panel
+File: a/public/dashboard.html
+Commit: fix(dashboard): resolve SyntaxError and ReferenceError in dashboard.html
+File: a/public/dashboard.html
+Commit: fix: resetProvider endpoint now passes provider name correctly
+File: a/src/index.mjs
+Commit: fix: dashboard reset buttons now call correct API endpoints
+File: a/public/dashboard.html
+Commit: feat: separate reset endpoints for models and providers
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): fix proxy error handling for cfp 502, antigravity 429, and stream retry blocking
+File: a/__tests__/feedback-logging.test.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/tests/bandit.test.mjs
+Commit: fix(bandit): fix totalObservations counter timing and enhance resetGlobalCounters
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/src/bandit.mjs
+File: a/tests/integration-proxy-full.test.mjs
+Commit: Remove project-local auto-git.md (moved to global)
+File: a/.roo/commands/auto-git.md
+Commit: fix(bandit): resolve model filtering, duplication, and sync issues
+File: a/scripts/check-catalog.mjs
+File: a/scripts/check-nvidia.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(script): show only recent logs in restart-safe to avoid displaying historical errors
+File: a/scripts/restart-safe.sh
+Commit: fix(server): move SO_REUSEPORT option before socket bind to prevent EADDRINUSE on restart
+File: a/src/index.mjs
+Commit: fix(scripts): enhance restart-safe with failed state reset and active job handling
+File: a/scripts/restart-safe.sh
+Commit: chore: update documentation, service config, and maintenance scripts
+File: a/.roo/commands/auto-git.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/docs/restart-procedure.md
+File: a/omniroute-bandit-proxy.service
+File: a/scripts/free-port-emergency.sh
+File: a/scripts/restart-safe.sh
+Commit: fix(restart): resolve port 8080 conflicts and improve restart safety
+File: a/CHANGELOG.md
+File: a/scripts/restart.sh
+Commit: fix: correct syntax error in src/index.mjs after graceful shutdown changes
+File: a/src/index.mjs
+Commit: fix: prevent auto-git from skipping production scripts during cleanup
+File: a/.roo/commands/auto-git.md
+Commit: fix: resolve EADDRINUSE on port 8080 during service restarts
+File: a/omniroute-bandit-proxy.service
+File: a/scripts/restart.sh
+File: a/src/index.mjs
+Commit: chore(automation): improve auto-git staging workflow description
+File: a/.roo/commands/auto-git.md
+Commit: fix(bandit): add ignoreDegraded support to emergency relaxation tier
+File: a/.roo/commands/auto-git.md
+File: a/scripts/inspect-bans.mjs
+File: a/src/bandit.mjs
+File: a/tests/bandit-filtering-relaxation.test.mjs
+Commit: fix(db): reset provider flags to resolve ban/cooldown issues
+File: a/scripts/fix-db.mjs
+Commit: chore: configure auto-git command in .roo/commands/auto-git.md
+File: a/.roo/commands/auto-git.md
+File: a/public/dashboard.html
+Commit: fix: correct observations/catalog stats rendering in dashboard
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix: remove duplicate latency unit from dashboard observations/catalog
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix: use viewport-based scaling for stats boxes in dashboard
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix: refine fluid typography scaling for stats boxes
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: chore: ignore .env file
+File: a/.gitignore
+Commit: chore: remove accidentally staged .env file
+File: a/.env
+Commit: feat: implement fluid typography for dashboard stats
+File: a/.env
+File: a/.gitignore
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix: reset attention flags and add emergency relaxation to bandit logic
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix: update systemd service paths and update changelog
+File: a/CHANGELOG.md
+File: a/omniroute-bandit-proxy.service
+Commit: fix(bandit): ignore vision constraints in emergency relaxation and update catalog vision capabilities
+File: a/scripts/fix-vision.mjs
+File: a/src/bandit.mjs
+Commit: chore: cleanup and maintenance
+File: a/.roo/commands/cleanup.md
+File: a/CHANGELOG.md
+File: a/tests/bandit.test.mjs
+Commit: chore: project cleanup and documentation update
+File: a/.roo/commands/auto-git.sh
+File: a/.roo/commands/cleanup.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/scripts/auto-git.mjs
+File: a/scripts/fix-db.mjs
+Commit: docs: update project documentation and architectural plans\n\nStaged files:\n- .roo/commands/auto-git.md
+File: a/.roo/commands/auto-git.md
+Commit: docs: update project documentation and architectural plans\n\nStaged files:\n- .roo/commands/auto-git.md\n- .roo/commands/auto-git.sh\n- scripts/auto-git.mjs\n- scripts/fix-db.mjs
+File: a/.roo/commands/auto-git.md
+File: a/.roo/commands/auto-git.sh
+File: a/scripts/auto-git.mjs
+File: a/scripts/fix-db.mjs
+Commit: chore(scripts): update automation and utility scripts\n\nStaged files:\n- .roo/commands/auto-git.sh\n- scripts/auto-git.mjs
+File: a/.roo/commands/auto-git.sh
+File: a/scripts/auto-git.mjs
+Commit: fix(db): reset provider cooldown, permanent ban and attention flags for no-think, cfp, xao, xai-oauth, openrouter
+File: a/scripts/fix-db.mjs
+Commit: Fix provider handling: hard-exclude dva for vision, change 402/403 non-resetting quota to 24h cooldown
+File: a/src/bandit.mjs
+Commit: feat(bandit,index): implement vision capability support and catalog migration
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): improve error classification, timeout handling, and cleanup unused files
+File: a/CHANGELOG.md
+File: a/plans/dashboard-modification-plan.md
+File: a/scripts/test-target.sh
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit,index): improve error classification and session affinity logic
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/config/provider-limits.json
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: dashboard: 2-col internal grid per stats box, Top model name on second line
+File: a/public/dashboard.html
+Commit: dashboard: 1 row 4 col stats grid, separate Provider box, copy-all button unified table, fix status rejection logic
+File: a/public/dashboard.html
+Commit: dashboard: 4-col grid, models+providers 2-col inside same box, keep all data, reduced padding
+File: a/public/dashboard.html
+Commit: dashboard: compact 2-column stats grid, split models/providers, reduce padding
+File: a/public/dashboard.html
+Commit: fix(dashboard): restore full stats data set with optimized 3-column grid and variable widths
+File: a/public/dashboard.html
+Commit: fix(dashboard): split stats into 4 columns with name value pairs side by side
+File: a/public/dashboard.html
+Commit: fix(dashboard): make each stat box use 3 columns internally
+File: a/public/dashboard.html
+Commit: fix(dashboard): allow line breaks inside stat boxes
+File: a/public/dashboard.html
+Commit: fix(dashboard): increase stat box height 3x for single row grid
+File: a/public/dashboard.html
+Commit: fix(dashboard): use grid 3 columns for stat boxes single row
+File: a/public/dashboard.html
+Commit: fix(dashboard): allow stat boxes to shrink and stay on single line row
+File: a/public/dashboard.html
+Commit: fix(dashboard): remove inline flex:2 conflicting with flex:0 0 auto on top model stats box
+File: a/public/dashboard.html
+Commit: fix(dashboard): let stat boxes size to content instead of forcing equal width
+File: a/public/dashboard.html
+Commit: fix(dashboard): remove overflow clipping and text truncation from stats boxes
+File: a/public/dashboard.html
+Commit: fix(dashboard): prevent top model truncation and parameter/value separation, group stats into 3 boxes
+File: a/public/dashboard.html
+Commit: fix(dashboard): clean duplicate HTML blocks, add top model cooldown/N metrics, expand scrollbar hiding rules
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(dashboard,bandit): resolve 6 dashboard issues and restore backward compatibility
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat: implement 5 enhancements - auto-clear needs_attention after health checks, provider circuit breaker, improved token estimation, fallback model scoring, per-provider health check frequency
+File: a/.env.example
+File: a/__tests__/token-compression.test.mjs
+File: a/src/bandit.mjs
+File: a/src/health-check.mjs
+File: a/src/index.mjs
+Commit: feat(dashboard): add script manager with live output polling and enhanced UI
+File: a/public/dashboard.html
+Commit: fix(dashboard,proxy): fix timestamp display, consolidate error logging, optimize layout, remove unused scripts and plans
+File: a/CHANGELOG.md
+File: a/plans/dashboard-modification-plan.md
+File: a/plans/dashboard-specchietto-integration.md
+File: a/plans/image-generation-endpoint.md
+File: a/plans/model-categorization-and-filtering-spec.md
+File: a/plans/performance-analysis.md
+File: a/public/dashboard.html
+File: a/scripts/diag-tokenlimit.mjs
+Commit: fix(dashboard,proxy): resolve model double prefix parsing, timestamp/elapsed seconds formatting, trend indicators, degraded model count, session affinity persistence, and observation counting
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/tests/integration-proxy-full.test.mjs
+Commit: Fix dynamic_max_tokens bug and dashboard polling; reset corrupted model limits
+File: a/public/dashboard.html
+File: a/scripts/diag-tokenlimit.mjs
+File: a/src/bandit.mjs
+Commit: docs: update CHANGELOG.md and README.md for log-noise reduction feature
+File: a/CHANGELOG.md
+File: a/README.md
+Commit: feat(log-noise): add request throttling and log-noise filtering to reduce console spam and improve polling efficiency
+File: a/.env.example
+File: a/src/index.mjs
+File: a/src/log-throttle.mjs
+File: a/tests/log-noise.test.mjs
+Commit: fix(src): resolve false-positive image generation detection
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/src/index.mjs
+Commit: feat(api): implement POST /v1/images/generations endpoint
+File: a/src/index.mjs
+Commit: fix(dashboard): fix Chat Catalogo and Totali Grezzi statistics discrepancy
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(dashboard,bandit): refactor stats container layout and streamline request logging
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: Fix dashboard layout, log table columns, reset counters button, and stats text format
+File: a/public/dashboard.html
+Commit: fix(cors): add CORS headers and OPTIONS preflight support to resolve Firefox network fetch error
+File: a/src/index.mjs
+Commit: fix: update nginx static root path and bump service worker cache version for dashboard visibility
+File: a/nginx.conf
+File: a/public/sw.js
+Commit: fix(sw): update service worker to use network-first strategy for dashboard and HTML assets
+File: a/public/sw.js
+Commit: feat(dashboard): integrate provider stats, separate provider and model columns, absolute timestamps, compact row heights
+File: a/public/dashboard.html
+Commit: Refine image generation detection in src/index.mjs to eliminate false positives on chat completions
+File: a/__tests__/image-generation.test.mjs
+File: a/src/index.mjs
+Commit: Fix dashboard reset button, request logging, and 400 validation errors
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: Update dashboard UI: unified card, icon reset button, model stats clarity, remove consideration tab and title, real model/provider and timestamps
+File: a/public/dashboard.html
+Commit: feat: capture failing models and 400 errors explicitly in request logs and dashboard specchietto
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(dashboard): fix refreshing reference error and providers is not iterable TypeError in renderProviderQuota
+File: a/public/dashboard.html
+Commit: fix(src): record and log HTTP 400 errors in middleware and request handler for Zoo proxy
+File: a/src/index.mjs
+Commit: feat(dashboard): redesign unified panel cronologia operativa & stato ucb1 table
+File: a/public/dashboard.html
+Commit: Refactor dashboard unified panel: flat header, single scrollable row list without double titles or collapsible toggles
+File: a/public/dashboard.html
+Commit: feat(dashboard): unify active requests and ucb1 specchietto into compact scrollable panel
+File: a/public/dashboard.html
+Commit: fix(dashboard): update dashboard interface and configuration
+File: a/public/dashboard.html
+Commit: feat: enhance model selection candidate tracking and consideration history buffer across relaxation tiers
+File: a/src/bandit.mjs
+Commit: fix(dashboard): fix floating action button changelog and developer handlers
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: perf(dashboard): optimize DOM reflow, debouncing, memory management, and sanitization
+File: a/CHANGELOG.md
+File: a/plans/performance-analysis.md
+Commit: fix(dashboard): optimize RAM usage, fix tab switching lag and requests tab bugs in public/dashboard.html
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: perf(dashboard): optimize RAM usage via consolidated polling and DOM patching
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): correct indentation and syntax in public/dashboard.html
+File: a/public/dashboard.html
+Commit: feat(dashboard): fix syntax errors in public/dashboard.html and update changelog
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: docs(changelog): update for dashboard refactor
+File: a/CHANGELOG.md
+Commit: refactor(dashboard): improve UI efficiency and event handling
+File: a/public/dashboard.html
+Commit: docs: update CHANGELOG.md for v1.1.63
+File: a/CHANGELOG.md
+Commit: refactor(bandit): refine model selection relaxation tiers and optimize debug logging
+File: a/plans/chat-completions-image-generation-detection.md
+File: a/plans/fallback-processing-image-generation.md
+File: a/plans/model-selection-image-generation.md
+File: a/plans/model-selection-refinement.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): harden getMetrics and getDashboardStats with robust try/catch and ignore placeholder tokens for REQUIRE_AUTH
+File: a/src/bandit.mjs
+Commit: fix(dashboard): fix auth placeholder bypass and dashboard stats database resilience
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(dashboard): bypass service worker caching and installation for /v1/ API endpoints
+File: a/public/sw.js
+Commit: fix(dashboard): enhance JSON safety and data rendering in public/dashboard.html
+File: a/public/dashboard.html
+Commit: fix(bandit): refine error handling and ranking in src/bandit.mjs
+File: a/src/bandit.mjs
+Commit: fix(dashboard): resolve dashboard regressions in version display, metrics, logs, and conditional auth
+File: a/src/index.mjs
+Commit: fix(dashboard): resolve silent 401 failures and improve token prompting in dashboard
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: fix(dashboard): handle authentication 401 errors, token persistence, and auth prompts
+File: a/public/dashboard.html
+Commit: fix(logging): fix log buffer pointer corruption in ring buffer and restore log streaming
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: fix(dashboard): resolve application version, metrics panel, and log viewer issues
+File: a/src/index.mjs
+Commit: fix(dashboard): fix TypeError assignment to constant variable API_TOKEN restoring dashboard functionality
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: feat(dashboard): perform true structural fusion of active requests and selection rejection spec sheet
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: feat(dashboard): deeply merge active requests history and selection rejection spec sheet into unified persistent component
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: feat(dashboard): refine metrics fix and dashboard UI refactoring
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(dashboard): fix metrics polling/API and optimize vertical spacing for dashboard tools
+File: a/public/dashboard.html
+Commit: feat(dashboard): embed chronological selection & discard spec sheet directly inside ⚡ In corso tab
+File: a/public/dashboard.html
+Commit: feat(dashboard): remove Considerazioni tab and integrate selection/discard timeline into Live Logs tab, fix proxy error classification & retry loop, and fix /v1/metrics bug
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: feat(dashboard): integrate model evaluation specchietto into top panel
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/plans/dashboard-specchietto-integration.md
+File: a/public/dashboard.html
+Commit: docs: add changelog entry for v1.1.58 (discarded models spec sheet & per-group provider quota)
+File: a/CHANGELOG.md
+Commit: feat: add chronological discarded models spec sheet and per-group provider quota handling
+File: a/config/provider-limits.json
+File: a/public/dashboard.html
+File: a/src/provider-quota.mjs
+Commit: fix(dashboard): handle 401 unauthorized and token prompting for metrics polling
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): fix consideration fetch via apiFetch and add 401 handling
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): fix dashboard metrics remaining at 0 with null-coalescing and debug logging
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: fix(proxy): fix sessionKey assignment to constant variable error in src/index.mjs
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: fix(bandit): include non-chat models in catalog sync, update capability classification, reset rank cache and update metadata
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix(notifier): prevent telegram url parameter mutation and update changelog
+File: a/CHANGELOG.md
+File: a/src/notifier.mjs
+Commit: feat(proxy,ui): update dashboard UI polling/timeout logic and conditional session affinity bypass, update changelog
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: fix(dashboard): prevent 404 on tab refresh using hash-based routing
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(proxy): fix streaming retry block by eagerly reading first upstream chunk before sending headers
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: fix(dashboard): optimize RAM and CPU usage by reducing polling frequency and capping log size
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(spa): add server-side SPA fallbacks and enhance client-side route synchronization
+File: a/.htaccess
+File: a/CHANGELOG.md
+File: a/firebase.json
+File: a/netlify.toml
+File: a/nginx.conf
+File: a/public/dashboard.html
+File: a/vercel.json
+Commit: fix(bandit): prevent image-generation models from being selected for text requests in isModelAvailable
+File: a/src/bandit.mjs
+Commit: fix: correct parameter order in selectModel call to prevent image-generation model selection for text requests
+File: a/__tests__/image-generation.test.mjs
+File: a/src/index.mjs
+Commit: Add image generation request check and NULL capability guard
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(bandit): enforce strict capability filtering for tool requests and image generation models
+File: a/__tests__/capability-filtering.test.mjs
+Commit: fix(proxy): fix image-generation model fallback loop in chat completions
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: feat(bandit): implement round-robin exploration for unvisited models and fix image-generation filtering
+File: a/CHANGELOG.md
+File: a/__tests__/capability-filtering.test.mjs
+Commit: fix(bandit): strictly filter out image-generation models and permanently ban 400 capability mismatches
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: feat(bandit): implement model categorization and capability filtering
+File: a/CHANGELOG.md
+File: a/__tests__/capability-filtering.test.mjs
+File: a/plans/model-categorization-and-filtering-spec.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): exclude image-generation models from chat completions and handle 400 bans
+File: a/CHANGELOG.md
+File: a/__tests__/image-generation.test.mjs
+Commit: feat(proxy): add SPA fallback route for non-API requests and update changelog
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: fix: filter out image-generation models for chat completions and make active requests panel scrollable with attempt rows
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/request-tracker.mjs
+Commit: feat(bandit/dashboard): add model metrics (N, reward, latency, score) to consideration history and dashboard
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(bandit/dashboard): refine model selection with N=0 prioritization and quality-to-speed metrics, add vertical consideration panel and 100ms polling
+File: a/CHANGELOG.md
+File: a/plans/model-selection-refinement.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): exclude image-generation models in emergency last-resort fallback selection and update changelog
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix(bandit): improve model filtering relaxation tiers and fallback passes
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: chore: exclude aihorde image models from chat completions, update tests and CHANGELOG
+File: a/CHANGELOG.md
+File: a/__tests__/image-generation.test.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): relax tool and token filtering constraints during model selection recovery
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/tests/bandit-filtering-relaxation.test.mjs
+Commit: fix(bandit): exclude image-generation models from chat completions and tool usage
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(proxy): add image generation request detection and conversion helpers
+File: a/src/index.mjs
+Commit: feat(image-generation): add image generation detection, routing, and support for /v1/images/generations
+File: a/.roo/rules-architect/AGENTS.md
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/__tests__/error-handling-and-filtering.test.mjs
+File: a/__tests__/feedback-logging.test.mjs
+File: a/__tests__/image-generation.test.mjs
+File: a/__tests__/itpm-quota.test.js
+File: a/docs/image-generation.md
+File: a/plans/chat-completions-image-generation-detection.md
+File: a/plans/fallback-processing-image-generation.md
+File: a/plans/image-generation-endpoint.md
+File: a/plans/model-selection-image-generation.md
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/tests/bandit-filtering-relaxation.test.mjs
+File: a/tests/bandit.test.mjs
+File: a/tests/integration-proxy-full.test.mjs
+Commit: fix(bandit): classify Playwright browser launch 502 errors as ban-provider
+File: a/CHANGELOG.md
+File: a/__tests__/error-handling-and-filtering.test.mjs
+File: a/src/bandit.mjs
+Commit: feat(dashboard,scripts): add script arguments input and default status in train-ctl
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/scripts/train-ctl.sh
+Commit: feat: enhance request token size estimation for system prompts, tools, and tool calls
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix(bandit): improve robust handling and cooldown for 413 ITPM / TPM exceeded errors
+File: a/CHANGELOG.md
+File: a/__tests__/itpm-quota.test.js
+File: a/src/bandit.mjs
+File: a/src/provider-quota.mjs
+Commit: fix(bandit): improve error recognition for 429 quota and 503 queue timeouts, and enhance dashboard model selection UI
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(bandit): exclude tts/audio/image models during sync and enhance selection banner logging transparency
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix: prevent infinite selection loop on models exceeding ITPM/413 token limits
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix(bandit): robust classification for rate-limit queue timeouts and high-demand 503 errors
+File: a/CHANGELOG.md
+File: a/__tests__/error-handling-and-filtering.test.mjs
+File: a/src/bandit.mjs
+Commit: feat(proxy): enforce dynamic token limits and refine session affinity TPM blacklisting
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: docs: update changelog and clean up design plans
+File: a/CHANGELOG.md
+File: a/docs/logging-metrics-fix.md
+File: a/plans/itpm-tracking-design.md
+Commit: test(quota): add test case for 413 TPM-exceeded dynamic max tokens adjustment and model filtering
+File: a/__tests__/itpm-quota.test.js
+Commit: feat(itpm): configure provider ITPM limits and update changelog for 413 error handling and session affinity fixes
+File: a/CHANGELOG.md
+File: a/config/provider-limits.json
+Commit: fix(bandit): pre-filter models exceeding provider ITPM quota before UCB1 selection
+File: a/CHANGELOG.md
+File: a/__tests__/itpm-quota.test.js
+File: a/plans/itpm-tracking-design.md
+Commit: fix(bandit): prevent zero-cooldown loops on 500 errors and enforce strict tool filtering
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix: invalidate session affinity on model errors and failures
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: chore: cleanup obsolete scripts and plans, update changelog and docs
+File: a/CHANGELOG.md
+File: a/plans/auto-git-workflow-design.md
+File: a/plans/consolidated-logging-design.md
+File: a/plans/fix-model-selection-dashboard-metrics.md
+File: a/plans/reduce-dashboard-stats-log-verbosity.md
+File: a/scripts/clean-cjs-tests.mjs
+File: a/scripts/test-final.mjs
+File: a/scripts/verify-dashboard-stats.mjs
+File: a/scripts/verify-server.mjs
+File: a/scripts/wrapper-test.sh
+File: a/src/index.mjs
+File: a/src/index.mjs.backup
+File: a/src/remove_duplicates.mjs
+File: a/tests/minimal-test-fallback.mjs
+File: a/tests/reproduce-issue.test.mjs
+File: a/tests/test-429-fallback.mjs
+File: a/tests/test-fallback-fix.mjs
+File: a/tests/test-fallback-tools-fix.mjs
+File: a/tests/test-retry-fix.test.mjs
+File: a/tests/url-sanitization.test.mjs
+Commit: fix(bandit): prevent selection of cooling down and token-exceeded models
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix(bandit): dynamically extract and persist model token limits from 413 errors
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: feat(bandit,session): ensure model existence in feedback recording and add 413/tpm session invalidation test
+File: a/CHANGELOG.md
+File: a/__tests__/session-affinity.test.mjs
+File: a/src/bandit.mjs
+Commit: feat(dashboard): optimize log frequency, top panel metrics & UI style unification
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: fix(bandit,dashboard): handle TPM/token limit errors and refine dashboard metrics styling
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix: resolve CFP browser, Antigravity catalog, and Groq TPM token limit errors
+File: a/CHANGELOG.md
+File: a/__tests__/error-handling-and-filtering.test.mjs
+File: a/src/bandit.mjs
+Commit: fix(bandit): refine error classification and token limit validation & update docs
+File: a/CHANGELOG.md
+File: a/README.md
+File: a/src/bandit.mjs
+File: a/tests/bandit.test.mjs
+Commit: fix(bandit): permanent ban and proactive filtering for environment and missing model errors
+File: a/CHANGELOG.md
+File: a/tests/bandit.test.mjs
+Commit: fix(dashboard & bandit): fix metrics display, reset buttons, and upstream error classification
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: feat(dashboard): add color-coded badges to model statistics
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: fix(dashboard): move Monitorati metric to the left of dashboard summary
+File: a/public/dashboard.html
+Commit: fix(bandit,proxy): fix session affinity blacklist check and 413/TPM error handling
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix: improve error classification and session affinity handling for TPM and 413/429 limits
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(service): fix unreplaced placeholders in omniroute-bandit-proxy.service and service restart logic
+File: a/omniroute-bandit-proxy.service
+Commit: docs: update CHANGELOG.md for v1.1.8
+File: a/CHANGELOG.md
+Commit: refactor: generalize installation paths and improve script path resolution
+File: a/.roo/commands/git-auto-commit.sh
+File: a/.roo/commands/test.sh
+File: a/README.md
+File: a/omniroute-bandit-proxy.service
+File: a/scripts/switch-mode.sh
+File: a/scripts/train-ctl.sh
+Commit: fix(bandit): enable optimistic exploration for unobserved catalog models in selectModel()
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/tests/bandit.test.mjs
+Commit: fix(proxy): replace recursive compressBody with iterative loop and update changelog
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: refactor(proxy): enhance dashboard, quota checks, bandit reliability and operational scripts
+File: a/.gitignore
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/scripts/check-db.mjs
+File: a/scripts/clean-cjs-tests.mjs
+File: a/scripts/inspect-db.mjs
+File: a/scripts/restart.sh
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/provider-quota.mjs
+Commit: chore: clean up artifacts, update dashboard stats verification, and update changelog
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/scripts/verify-dashboard-stats.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/tests/bandit.test.mjs
+Commit: feat: clean up unused skill scripts, add update_changelog custom tool, and update CHANGELOG.md
+File: a/.roo/skills/generate-slash-command/SKILL.md
+File: a/.roo/skills/generate-slash-command/assets/command-template.md
+File: a/.roo/skills/generate-slash-command/assets/wrapper-template.sh
+File: a/.roo/skills/generate-slash-command/scripts/generate-slash-command.sh
+File: a/.roo/skills/git-auto-commit/CHANGES.md
+File: a/.roo/skills/git-auto-commit/SKILL.md
+File: a/.roo/skills/git-auto-commit/scripts/fix-conflicts.py
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/.roo/tools/update_changelog.ts
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat: enhance bandit routing, health checks, retry handling, and add comprehensive test suite
+File: a/.gitignore
+File: a/docs/logging-metrics-fix.md
+File: a/package.json
+File: a/scripts/verify-dashboard-stats.mjs
+File: a/src/bandit.mjs
+File: a/src/health-check.mjs
+File: a/src/index.mjs
+File: a/tests/integration-proxy-full.test.mjs
+File: a/tests/reproduce-issue.test.mjs
+File: a/tests/test-retry-fix.test.mjs
+File: a/tests/url-sanitization.test.mjs
+Commit: chore: clean up temporary test scripts, artifacts and auto-git script
+File: a/cleanup.bat
+File: a/debug_regex.sh
+File: a/find_conflicts.py
+File: a/fix_line_196.py
+File: a/fix_regex.sh
+File: a/scripts/auto-git.mjs
+File: a/test-git-auto-commit.txt
+File: a/test.js
+File: a/test.txt
+File: a/test_debug.txt
+File: a/test_fixed_regex.sh
+File: a/test_quota.sh
+File: a/test_regex.sh
+File: a/test_regex_fixed.sh
+File: a/test_regex_simple.sh
+Commit: chore(scripts): update automation and utility scripts\n\nStaged files:\n- scripts/auto-git.mjs
+File: a/scripts/auto-git.mjs
+Commit: docs: update project documentation and architectural plans\n\nStaged files:\n- .roo/commands/git-auto-commit.md\n- package.json\n- plans/auto-git-workflow-design.md\n- scripts/auto-git.mjs
+File: a/.roo/commands/git-auto-commit.md
+File: a/package.json
+File: a/plans/auto-git-workflow-design.md
+File: a/scripts/auto-git.mjs
+Commit: feat: enhance multi-armed bandit proxy routing, error classification, and metrics dashboard
+File: a/.env.example
+File: a/.roo/commands/simple.md
+File: a/.roo/commands/simple2.md
+File: a/.roo/commands/test.md
+File: a/.roo/commands/wrapper-test.md
+File: a/.roo/mcp.json
+File: a/.roo/rules-architect/AGENTS.md
+File: a/.roo/rules-ask/AGENTS.md
+File: a/.roo/rules-code/AGENTS.md
+File: a/.roo/rules-debug/AGENTS.md
+File: a/.roo/rules-orchestrator/AGENTS.md
+File: a/.roo/rules-security-review/AGENTS.md
+File: a/AGENTS.md
+File: a/__tests__/feedback-logging.test.mjs
+File: a/__tests__/modes-registry.test.mjs
+File: a/__tests__/session-affinity-nuanced.test.mjs
+File: a/__tests__/session-affinity.test.mjs
+File: a/__tests__/token-compression.test.mjs
+File: a/__tests__/upstream-retry.test.mjs
+File: a/omniroute-bandit-proxy.service
+File: a/package-lock.json
+File: a/package.json
+File: a/plans/fix-model-selection-dashboard-metrics.md
+File: a/public/dashboard.html
+File: a/scripts/test-final.mjs
+File: a/scripts/test-target.sh
+File: a/scripts/verify-server.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/request-tracker.mjs
+File: a/tests/bandit-filtering-relaxation.test.mjs
+File: a/tests/bandit.test.mjs
+File: a/tests/minimal-test-fallback.mjs
+File: a/tests/test-fallback-tools-fix.mjs
+Commit: fix: resolve git-utils.sh merge conflicts and syntax errors
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: test: add test file for git-auto-commit
+File: a/.roo/skills/git-auto-commit/scripts/fix-conflicts.py
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/config/bandit.json
+File: a/debug_regex.sh
+File: a/find_conflicts.py
+File: a/fix_line_196.py
+File: a/fix_regex.sh
+File: a/scripts/inspect-db.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/provider-quota.mjs
+File: a/src/remove_duplicates.mjs
+File: a/test-git-auto-commit.txt
+File: a/test.txt
+File: a/test_fixed_regex.sh
+File: a/test_regex.sh
+File: a/test_regex_fixed.sh
+File: a/test_regex_simple.sh
+File: a/tests/bandit.test.mjs
+File: a/tests/test-fallback-fix.mjs
+File: a/tests/test-fallback-tools-fix.mjs
+Commit: ci(scripts): git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: Merge branch 'main' of https://github.com/CherrugDeveloper/omniroute-bandit-proxy
+Commit: ci(scripts): git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: test(test_debug.txt ): test_debug.txt
+File: a/test_debug.txt
+Commit: test: message
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/test_debug.txt
+Commit: ci:scripts: fix auto-squash unbound variable error
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: ci:git-auto-commit: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: docs:git-utils.sh scripts: wrapper-test.sh
+File: a/.roo/commands/simple.md
+File: a/.roo/commands/simple2.md
+File: a/.roo/commands/test.md
+File: a/.roo/commands/test.sh
+File: a/.roo/commands/wrapper-test.md
+File: a/.roo/commands/wrapper-test.sh
+File: a/.roo/skills/generate-slash-command/SKILL.md
+File: a/.roo/skills/generate-slash-command/assets/command-template.md
+File: a/.roo/skills/generate-slash-command/assets/wrapper-template.sh
+File: a/.roo/skills/generate-slash-command/scripts/generate-slash-command.sh
+File: a/.roo/skills/git-auto-commit/CHANGES.md
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/scripts/test-target.sh
+File: a/scripts/wrapper-test.sh
+Commit: ci:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: ci(scripts): git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: ci(scripts): git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: test(test_debug.txt ): test_debug.txt
+File: a/test_debug.txt
+Commit: test: message
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/test_debug.txt
+Commit: ci:git-auto-commit: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+Commit: ci:scripts: fix auto-squash unbound variable error
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: ci:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: ci:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: ci:git-auto-commit: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+Commit: ci:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/CHANGES.md
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: docs:git-utils.sh scripts: wrapper-test.sh
+File: a/.roo/commands/simple.md
+File: a/.roo/commands/simple2.md
+File: a/.roo/commands/test.md
+File: a/.roo/commands/test.sh
+File: a/.roo/commands/wrapper-test.md
+File: a/.roo/commands/wrapper-test.sh
+File: a/.roo/skills/generate-slash-command/SKILL.md
+File: a/.roo/skills/generate-slash-command/assets/command-template.md
+File: a/.roo/skills/generate-slash-command/assets/wrapper-template.sh
+File: a/.roo/skills/generate-slash-command/scripts/generate-slash-command.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/scripts/test-target.sh
+File: a/scripts/wrapper-test.sh
+Commit: ci:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: ci:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: refactor: reorganize git-auto-commit skill and command files
+File: a/.roo/commands/git-auto-commit.md
+File: a/.roo/commands/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/SKILL.md
+Commit: chore(git-auto-commit): add GIT_AUTO_COMMIT_WSL_EXEC environment variable support
+File: a/.roo/skills/git-auto-commit/SKILL.md
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: chore: optimize git-auto-commit script
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: docs:.roo: .env.example
+File: a/.env.example
+File: a/.roo/commands/git-auto-commit.md
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/plans/consolidated-logging-design.md
+File: a/plans/reduce-dashboard-stats-log-verbosity.md
+File: a/public/dashboard.html
+File: a/scripts/restart.sh
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/index.mjs.backup
+File: a/test.js
+Commit: chore: add GIT_AUTO_COMMIT_WSL_EXEC to documentation
+File: a/.roo/commands/git-auto-commit.md
+Commit: chore: fix git-auto-commit command metadata
+File: a/.roo/commands/git-auto-commit.md
+Commit: ci:scripts: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/scripts/restart.sh
+File: a/scripts/train-ctl.sh
+Commit: chore: sync local branch with remote and cleanup files
+File: a/CHANGELOG.md
+File: a/cleanup.bat
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/provider-quota.mjs
+File: a/test.txt
+File: a/test10.txt
+File: a/test11.txt
+File: a/test12.txt
+File: a/test13.txt
+File: a/test14.txt
+File: a/test2.txt
+File: a/test3.txt
+File: a/test4.txt
+File: a/test5.txt
+File: a/test6.txt
+File: a/test7.txt
+File: a/test8.txt
+File: a/test9.txt
+File: a/test_quota.sh
+File: a/tests/bandit.test.cjs
+File: a/tests/minimal-test-fallback.cjs
+File: a/tests/test-429-fallback.cjs
+File: a/tests/test-fallback-direct.cjs
+File: a/verification.txt
+Commit: v1.1.1: API modelli/provider, fix HTML dashboard, CHANGELOG
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat: provider quota system - dashboard table, needs_attention filter, CHANGELOG v1.1.0
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat: provider quota system - dashboard table, needs_attention filter, CHANGELOG v1.1.0
+File: a/CHANGELOG.md
+File: a/src/bandit.mjs
+Commit: fix(bandit): migrazione quota + rimuovi needs_attention dal filter
+File: a/src/bandit.mjs
+Commit: fix(index): strip reasoning_details/reasoning_content/reasoning dalle richieste
+File: a/src/index.mjs
+Commit: fix(bandit): 403 Key limit exceeded → cooldown-provider con reset time
+File: a/src/bandit.mjs
+Commit: wip(quota): abbozzo sistema quota provider (non integrato)
+File: a/config/provider-limits.json
+File: a/src/provider-quota.mjs
+Commit: chore(scripts): train-ctl.sh eseguibile
+File: a/scripts/train-ctl.sh
+Commit: fix(bandit): ban-model con UPSERT su models
+File: a/src/bandit.mjs
+Commit: fix(index): fallback non loopa se già tentato o non disponibile
+File: a/src/index.mjs
+Commit: revert(index): c6483bd di nuovo rotto, ripristino 57697e2
+File: a/src/index.mjs
+Commit: fix(index): fallback non loopa se già tentato o non disponibile
+File: a/src/index.mjs
+Commit: revert(index): 98a9fe5 rompeva la sintassi
+File: a/src/index.mjs
+Commit: fix(index): fallback non loopa se già tentato o non disponibile
+File: a/src/index.mjs
+Commit: fix(bandit): selectModel carica anche i modelli permanent=1
+File: a/src/bandit.mjs
+Commit: fix(bandit): isModelAvailable controlla permanent e degraded
+File: a/src/bandit.mjs
+Commit: fix(index): estrai la riga data: che contiene "error" (non il keepalive)
+File: a/src/index.mjs
+Commit: fix(bandit,index): 410 model-shutdown ban + SSE error propaga status
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(dashboard): aggiunge graffa mancante else if SYSTEM_LINE_RE
+File: a/public/dashboard.html
+Commit: chore: normalizza line ending (LF forzato per tutti i text file)
+File: a/.gitattributes
+Commit: fix(dashboard): log system non ereditano source zoo/train
+File: a/public/dashboard.html
+Commit: fix(bandit): _classifyError riconosce 502 'CLI not found' / 'not configured'
+File: a/src/bandit.mjs
+Commit: fix(index): log raw SSE error per diagnosi gemini/mistral
+File: a/src/index.mjs
+Commit: fix(bandit): _classifyError riconosce 'unknown provider' e 'no longer available'
+File: a/src/bandit.mjs
+Commit: fix(bandit): needs_attention non blocca, solo cooldown_until
+File: a/src/bandit.mjs
+Commit: fix(bandit): getModelMaxInput usa dynamic_max_tokens per models
+File: a/src/bandit.mjs
+Commit: docs: AGENTS.md per agenti AI (Roo, Zoo, ecc.)
+File: a/AGENTS.md
+Commit: chore(gitignore): ignore training.log.old, analysis reports
+File: a/.gitignore
+Commit: chore: Roo rules + utility scripts (check-db, clean-cjs, verify-server)
+File: a/.roo/rules-architect/AGENTS.md
+File: a/.roo/rules-ask/AGENTS.md
+File: a/.roo/rules-code/AGENTS.md
+File: a/.roo/rules-debug/AGENTS.md
+File: a/.roo/rules-orchestrator/AGENTS.md
+File: a/.roo/rules-security-review/AGENTS.md
+File: a/scripts/check-db.mjs
+File: a/scripts/clean-cjs-tests.mjs
+File: a/scripts/verify-server.mjs
+Commit: fix(index): selectModel con 5 argomenti (rimosso null legacy)
+File: a/src/index.mjs
+Commit: fix(bandit): getUnhealthyModels args, unlock reset needs_attention
+File: a/src/bandit.mjs
+Commit: test: final verification
+File: a/verification.txt
+Commit: test:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/test14.txt
+Commit: test:test13.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test13.txt
+Commit: test:test12.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test12.txt
+Commit: test:test11.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test11.txt
+Commit: test:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/test10.txt
+Commit: test:test9.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test9.txt
+Commit: test:test7.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test7.txt
+File: a/test8.txt
+Commit: test:test6.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test6.txt
+Commit: test:test5.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test5.txt
+Commit: test:test4.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test4.txt
+Commit: test:test3.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test3.txt
+Commit: test:test2.txt: git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/test2.txt
+Commit: test:test.txt: test.txt
+File: a/test.txt
+Commit: ci:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: ci:scripts: git-utils.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+Commit: docs:.roo: git-auto-commit.md
+File: a/.roo/commands/git-auto-commit.md
+File: a/.roo/skills/git-auto-commit/SKILL.md
+File: a/.roo/skills/git-auto-commit/scripts/git-auto-commit.sh
+File: a/.roo/skills/git-auto-commit/scripts/lib/git-utils.sh
+File: a/src/index.mjs
+Commit: chore(.gitignore): add venv/ to gitignore and update linting rules
+File: a/.gitignore
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/tests/test-fallback-fix.mjs
+Commit: chore:
+File: a/.gitignore
+File: a/LICENSE
+File: a/README.md
+File: a/package-lock.json
+File: a/package.json
+File: a/scripts/restart.sh
+File: a/src/bandit.mjs
+Commit: test(bandit): adds rate-limit fallback coverage
+File: a/tests/bandit.test.cjs
+File: a/tests/minimal-test-fallback.cjs
+File: a/tests/minimal-test-fallback.mjs
+File: a/tests/test-429-fallback.cjs
+File: a/tests/test-429-fallback.mjs
+File: a/tests/test-fallback-direct.cjs
+Commit: fix(index): improves affinity loop diagnostics
+File: a/src/index.mjs
+Commit: feat(bandit): handles 429 retries with fallback
+File: a/CHANGELOG.md
+File: a/config/bandit.json
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(dashboard): adds debug log filtering
+File: a/public/dashboard.html
+Commit: fix(tools): ignores failed write calls
+File: a/src/index.mjs
+Commit: fix(context): compresses oversized requests
+File: a/src/index.mjs
+Commit: chore(scripts): updates control scripts
+File: a/scripts/restart.sh
+File: a/scripts/switch-mode.sh
+File: a/scripts/train-ctl.sh
+Commit: fix(bandit): cooldown simmetrico provider+modelli, soft/hard, no loop unlock
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+File: a/scripts/train-ctl.sh
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): unlock simmetrico provider+modelli, soft/hard cooldown
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(bandit+dashboard): reward per tool, loop detection, orchestrator→reasoning
+File: a/config/modes.json
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: feat(dashboard): checkbox ZOO/TRAIN unificate (log + In corso)
+File: a/public/dashboard.html
+Commit: fix(dashboard): rimuove "In corso" duplicato, colonne "In corso" più larghe
+File: a/public/dashboard.html
+Commit: fix(bandit+dashboard): migrazione dynamic_max_tokens fuori dal blocco is_paid
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(dashboard): tabella In corso con header e colonne fisse
+File: a/CHANGELOG.md
+File: a/public/dashboard.html
+Commit: feat(bandit): dynamic_max_tokens appreso dai 413 (self-learning)
+File: a/src/bandit.mjs
+Commit: fix(affinity): struggling detection solo sull'ultimo tool_result
+File: a/src/index.mjs
+Commit: fix(dashboard): fmtInfo con colonne uniformi (avg=-, new)
+File: a/public/dashboard.html
+Commit: feat(backend): endpoint /v1/changelog + file CHANGELOG.md
+File: a/CHANGELOG.md
+File: a/src/index.mjs
+Commit: feat(dashboard): changelog formattato + badge "nuovo" sul FAB
+File: a/public/dashboard.html
+Commit: fix(train-daemon): aggiunto header x-source: training
+File: a/scripts/train-daemon.mjs
+Commit: feat(dashboard): CSS Grid per riquadro "In corso", badge "test" per N<1
+File: a/public/dashboard.html
+Commit: fix(dashboard): dev-card con DOMContentLoaded, scroll tab Modalità
+File: a/public/dashboard.html
+Commit: fix(dashboard): rimosso script duplicato dev-card (listener doppi)
+File: a/public/dashboard.html
+Commit: feat: low TPM filter, unpin 413, new models badge, training exclude
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(dashboard): padding-top per PWA window-controls-overlay
+File: a/public/dashboard.html
+Commit: feat(dashboard+bandit): rank modello, trend, esclusione health check
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+Commit: wip: info N/avg/trend, ranking, distinzione zoo/training
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix: gestione errori provider saturi, timeout proporzionale, summarizer TPM
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/modes-registry.mjs
+Commit: feat: session affinity, mode routing, training isolation, debug toggle
+File: a/.gitignore
+File: a/README.md
+File: a/config/modes.json
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/modes-registry.mjs
+Commit: chore(scripts): rende eseguibili tutti gli script (bit 755 tracciato in git)
+File: a/scripts/restart.sh
+File: a/scripts/switch-mode.sh
+File: a/scripts/train-ctl.sh
+File: a/scripts/train-daemon.mjs
+Commit: chore(scripts): update restart, switch-mode, train-ctl, and train-daemon scripts
+File: a/scripts/restart.sh
+File: a/scripts/switch-mode.sh
+File: a/scripts/train-ctl.sh
+File: a/scripts/train-daemon.mjs
+Commit: fix(bandit): esclude FIM models dal pool tool-capable (diff imprecisi)
+File: a/src/bandit.mjs
+Commit: fix(proxy): rimuove tools dal body per summarization (no più tool_calls su condense)
+File: a/src/index.mjs
+Commit: fix(proxy): non richiede tool_calls per richieste di summarization
+File: a/src/index.mjs
+Commit: fix(proxy): rimosso reference a model out-of-scope in validateStreamAccumulated
+File: a/src/index.mjs
+Commit: fix(proxy): rimuove if(stream) duplicato; fix accumulated->raw; log 503; auto-compress per-model
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(proxy): auto-compress per-model invece di max-catalog
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: chore(scripts): restart.sh con feedback log su stdout
+File: a/scripts/restart.sh
+Commit: fix(bandit): stima token ÷4 (JSON) per supportare contesti 100k+
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): distingue demo-limit da input-too-long (cfp flag-provider)
+File: a/src/bandit.mjs
+Commit: feat(proxy): requireTools penalizza modelli che non chiamano tools
+File: a/src/index.mjs
+Commit: fix(bandit): ripristina hasCatalogIsFree + supports_tools popolato dal payload
+File: a/src/bandit.mjs
+Commit: fix(bandit): rimuove graffa di troppo in _classifyError; riconosce prompt-too-long
+File: a/src/bandit.mjs
+Commit: feat(dashboard): pulsante Blocca modello (permanent=1), cambia in Sblocca se già bannato
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(dashboard): modali custom in stile dark (no più alert/confirm nativi)
+File: a/public/dashboard.html
+Commit: fix(proxy): riconosce 'run out of usage' come errore (non premia la risposta)
+File: a/src/index.mjs
+Commit: fix(dashboard): script completo pulito con renderAll unificata
+File: a/public/dashboard.html
+Commit: feat(dashboard): modelli raggruppati per provider con collapse/expand
+File: a/public/dashboard.html
+Commit: feat(dashboard): modelli raggruppati per provider con collapse/expand
+File: a/public/dashboard.html
+Commit: fix(proxy): rimuove else duplicato e righe irraggiungibili dopo continue
+File: a/src/index.mjs
+Commit: feat(dashboard): pannello attività sempre visibile (attive + ultime richieste)
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: fix(dashboard): success rate invece di avg tentativi; top model mostra avg
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(dashboard): pannello richieste in-flight (modello, tentativo, tempo)
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: fix(dashboard): avg tentativi invece di successo %; fix(bandit): vLLM tool_choice → ban-model
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(bandit): key-quota-exceeded → cooldown solo paid, free restano attivi
+File: a/src/bandit.mjs
+Commit: fix(bandit): Key limit exceeded → flag-provider (non banna ogni modello)
+File: a/src/bandit.mjs
+Commit: feat(scripts): modalità train-gentle per training in parallelo all'uso reale
+File: a/scripts/switch-mode.sh
+Commit: feat(bandit): EXCLUDE_THINKING + EXPLOIT_ONLY + switch-mode.sh per prod/train
+File: a/src/bandit.mjs
+Commit: feat(scripts): switch-mode.sh per alternare prod/train con un comando
+File: a/scripts/switch-mode.sh
+Commit: feat(bandit): EXPLOIT_ONLY (solo modelli N>=3) per uso produttivo <2s
+File: a/src/bandit.mjs
+Commit: chore(gitignore): ignora file di backup
+File: a/.gitignore
+Commit: feat(metrics): summary aggregato (attivi, reward, latenza, free, topModel); fix cooldown provider spurio
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(pwa): theme-color coerente + fix training (timeout no-skip-provider, exclude pattern)
+File: a/public/dashboard.html
+File: a/public/manifest.json
+File: a/src/index.mjs
+Commit: feat(pwa): display_override per nascondere barra del titolo (window-controls-overlay)
+File: a/public/manifest.json
+Commit: feat(dashboard): pulsante reset contatori globali (richieste + osservazioni)
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(training): timeout non skippa provider, soglia 5 fail, esclude pattern openrouter problematici
+File: a/scripts/train-daemon.mjs
+Commit: fix(training): rimuove filtro cooldown da loadModels (il proxy lo gestisce); EXCLUDE_PROVIDERS e circuit-breaker 404
+File: a/scripts/train-daemon.mjs
+Commit: feat(bandit): free/paid detection, filtri ONLY_FREE/EXCLUDE_PAID, 403 model-level non banna provider, catalogRawCount
+File: a/public/dashboard.html
+Commit: feat(bandit): free/paid detection, filtri ONLY_FREE/EXCLUDE_PAID, is_paid su 402, catalogRawCount
+File: a/.env.example
+File: a/public/dashboard.html
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+Commit: fix: 403 model-level non banna più l'intero provider; il daemon salta i modelli in timeout nel ciclo corrente
+File: a/scripts/train-daemon.mjs
+File: a/src/bandit.mjs
+Commit: ui(dashboard): badge DA CONFIGURARE cliccabile apre Cosa fare (rimuove pulsante ridondante)
+File: a/public/dashboard.html
+Commit: feat(notifier): supporto Telegram con chat_id configurabile
+File: a/.env.example
+File: a/src/index.mjs
+File: a/src/notifier.mjs
+Commit: feat(notifier): webhook Slack/Discord su eventi critici
+File: a/.env.example
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+File: a/src/notifier.mjs
+Commit: fix(bandit): validation error → ban-model invece di rate-limit
+File: a/src/bandit.mjs
+Commit: feat(dashboard): modale Cosa fare con pulsante copia (rimuove alert non copiabile)
+File: a/public/dashboard.html
+Commit: fix(bandit): _flagProviderAttention ora imposta correttamente il flag (era invertito)
+File: a/src/bandit.mjs
+Commit: fix(bandit): isModelAvailable filtra anche cooldown modello e provider
+File: a/src/bandit.mjs
+Commit: fix(training): daemon salta tutti i modelli di un provider dopo primo 404
+File: a/scripts/train-daemon.mjs
+Commit: fix(dashboard): messaggio più chiaro quando attention_message è vuoto
+File: a/public/dashboard.html
+Commit: feat(dashboard): pulsante Cosa fare sui provider needs_attention con istruzioni contestuali
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: fix(bandit): provider granulare per ID senza slash (evita che un modello rotto banni l'intero gruppo default)
+File: a/src/bandit.mjs
+Commit: fix(training): hard-fail su x-force-model non disponibile, skip :batch/tts/lyria nel daemon
+File: a/scripts/train-daemon.mjs
+File: a/src/index.mjs
+Commit: chore: forza LF, fix auto-registrazione modelli forzati, script eseguibili
+File: a/.gitattributes
+File: a/scripts/train-ctl.sh
+File: a/scripts/train-daemon.mjs
+Commit: fix(bandit): recordFeedback auto-registra modelli non presenti (fix training daemon via x-force-model)
+File: a/src/bandit.mjs
+Commit: chore(gitignore): ignora file temporanei SQLite
+File: a/.gitignore
+Commit: feat(bandit): degraded mode (score*0.3), auto-riabilitazione, catalogRawCount in metrics
+File: a/src/bandit.mjs
+Commit: chore(env): documenta variabili HEALTH_CHECK_*
+File: a/.env.example
+Commit: feat(bandit): degraded mode - modelli con 5xx mantengono priorita ridotta (score*0.3) e si riabilitano al primo successo
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/health-check.mjs
+File: a/src/index.mjs
+Commit: fix(bandit): ban permanente modello dopo 3 errori transitori consecutivi (soglia 5xx)
+File: a/src/bandit.mjs
+Commit: fix(bandit): isModelAvailable accetta un solo parametro SQL
+File: a/src/bandit.mjs
+Commit: feat(bandit): max_input_tokens in catalog, filtro token, x-force-model, auto-compress
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: feat(dashboard): contatori needs_attention, colore viola, tasso di successo
+File: a/public/dashboard.html
+Commit: chore(training): aggiunge demone round-robin con start/stop/status/logs
+File: a/.gitignore
+File: a/scripts/train-ctl.sh
+File: a/scripts/train-daemon.mjs
+Commit: feat(dashboard): indicatore tasso di successo accanto a Osservazioni
+File: a/public/dashboard.html
+Commit: feat(dashboard): colore distinto (viola) per needs_attention vs cooldown (giallo)
+File: a/public/dashboard.html
+Commit: feat(dashboard): auto-refresh 2.5s, layout full-height senza scroll, rimozione colonna cooldown ridondante
+File: a/public/dashboard.html
+Commit: test: aggiunge suite di unit test per bandit.mjs (classifyError, selectModel, recordFeedback, meta)
+File: a/package.json
+File: a/tests/bandit.test.mjs
+Commit: docs: riscrive README allineata al codice attuale, aggiunge licenza MIT
+File: a/LICENSE
+File: a/README.md
+Commit: fix(bandit): 5xx su modello non uccide più l'intero provider; aggiunto pattern 402 payment
+File: a/src/bandit.mjs
+Commit: fix(dashboard): aggiunge pulsante Aggiorna Dati mancante
+File: a/public/dashboard.html
+Commit: chore(log): rimuove middleware access-log duplicato
+File: a/src/index.mjs
+Commit: fix(dashboard): script completo, valori numerici normalizzati, banner 401 non distruttivo
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+Commit: feat(bandit): cooldown proporzionati (24h misconfig, 6h anti-abuse), riconosce bug upstream e reset_seconds, safety provider 30m
+File: a/src/bandit.mjs
+Commit: feat(bandit): catalog chat-only, lazy registration, provider cooldown su quota o fail ripetuti; fix abort spurio
+File: a/public/dashboard.html
+File: a/src/bandit.mjs
+File: a/src/index.mjs
+Commit: chore(icons): sostituisce icon set con RealFaviconGenerator, aggiorna link e manifest
+File: a/public/dashboard.html
+File: a/public/icons/android-icon-144x144.png
+File: a/public/icons/android-icon-192x192.png
+File: a/public/icons/android-icon-36x36.png
+File: a/public/icons/android-icon-48x48.png
+File: a/public/icons/android-icon-72x72.png
+File: a/public/icons/android-icon-96x96.png
+File: a/public/icons/apple-icon-114x114.png
+File: a/public/icons/apple-icon-120x120.png
+File: a/public/icons/apple-icon-144x144.png
+File: a/public/icons/apple-icon-152x152.png
+File: a/public/icons/apple-icon-180x180.png
+File: a/public/icons/apple-icon-57x57.png
+File: a/public/icons/apple-icon-60x60.png
+File: a/public/icons/apple-icon-72x72.png
+File: a/public/icons/apple-icon-76x76.png
+File: a/public/icons/apple-icon-precomposed.png
+File: a/public/icons/apple-icon.png
+File: a/public/icons/apple-touch-icon.png
+File: a/public/icons/browserconfig.xml
+File: a/public/icons/favicon-16x16.png
+File: a/public/icons/favicon-32x32.png
+File: a/public/icons/favicon-96x96.png
+File: a/public/icons/favicon.ico
+File: a/public/icons/favicon.svg
+File: a/public/icons/manifest.json
+File: a/public/icons/ms-icon-144x144.png
+File: a/public/icons/ms-icon-150x150.png
+File: a/public/icons/ms-icon-310x310.png
+File: a/public/icons/ms-icon-70x70.png
+File: a/public/icons/web-app-manifest-192x192.png
+File: a/public/icons/web-app-manifest-512x512.png
+File: a/public/manifest.json
+Commit: fix(dashboard): no-cache HTML, rimozione onclick inline residui, fetchLogs robusto a 401
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: feat(security): auth token su API di controllo e dashboard
+File: a/.env.example
+File: a/public/dashboard.html
+File: a/src/index.mjs
+Commit: Migrazione a ES modules (.mjs), nuova dashboard e icon set PWA
+File: a/.env.example
+File: a/.gitignore
+File: a/package.json
+File: a/public/dashboard.html
+File: a/public/icons/android-icon-144x144.png
+File: a/public/icons/android-icon-192x192.png
+File: a/public/icons/android-icon-36x36.png
+File: a/public/icons/android-icon-48x48.png
+File: a/public/icons/android-icon-72x72.png
+File: a/public/icons/android-icon-96x96.png
+File: a/public/icons/apple-icon-114x114.png
+File: a/public/icons/apple-icon-120x120.png
+File: a/public/icons/apple-icon-144x144.png
+File: a/public/icons/apple-icon-152x152.png
+File: a/public/icons/apple-icon-180x180.png
+File: a/public/icons/apple-icon-57x57.png
+File: a/public/icons/apple-icon-60x60.png
+File: a/public/icons/apple-icon-72x72.png
+File: a/public/icons/apple-icon-76x76.png
+File: a/public/icons/apple-icon-precomposed.png
+File: a/public/icons/apple-icon.png
+File: a/public/icons/browserconfig.xml
+File: a/public/icons/favicon-16x16.png
+File: a/public/icons/favicon-32x32.png
+File: a/public/icons/favicon-96x96.png
+File: a/public/icons/favicon.ico
+File: a/public/icons/manifest.json
+File: a/public/icons/ms-icon-144x144.png
+File: a/public/icons/ms-icon-150x150.png
+File: a/public/icons/ms-icon-310x310.png
+File: a/public/icons/ms-icon-70x70.png
+File: a/public/manifest.json
+File: a/src/bandit.js
+File: a/src/bandit.mjs
+File: a/src/index.js
+File: a/src/index.mjs
+Commit: fix(proxy): add AbortController timeout, client disconnect handler (499), and immediate bandit fallback
+File: a/src/index.js
+Commit: feat: trasforma la dashboard in PWA con service worker, manifest e pulsante di installazione
+File: a/public/manifest.json
+File: a/public/sw.js
+File: a/src/index.js
+Commit: feat: aggiunta sincronizzazione dinamica dei modelli da OmniRoute via /v1/models e ottimizzazione selezione bandit
+File: a/src/bandit.js
+File: a/src/index.js
+Commit: Add provider-level health tracking, exponential cooldown, and n+1 rotation pointer with updated dashboard UI
+File: a/src/bandit.js
+File: a/src/index.js
+Commit: Add live proxy logs and precise cooldown countdown to the dashboard
+File: a/src/index.js
+Commit: Fix dashboard binding on 127.0.0.1 and stabilize Bandit proxy error handling
+File: a/src/index.js
+Commit: chore: ignore sqlite wal and shm files
+File: a/bandit_state.db-shm
+File: a/bandit_state.db-wal
+Commit: feat(telemetry): add granular real-time logging for UCB1 evaluation, scores, rewards, and feedback metrics
+File: a/src/bandit.js
+File: a/src/index.js
+Commit: chore: ensure .env and proxy.log are excluded from git
+File: a/.gitignore
+Commit: feat: integrate DiscountedUCB1Bandit engine with Zoo Code compatible Zod metadata and Express proxy
+File: a/.env.example
+File: a/.gitignore
+File: a/README.md
+File: a/bandit_state.db
+File: a/bandit_state.db-shm
+File: a/bandit_state.db-wal
+File: a/config/bandit.json
+File: a/package-lock.json
+File: a/package.json
+File: a/src/bandit.js
+File: a/src/index.js
