@@ -2,11 +2,14 @@
  * High-priority event system for critical punishment events.
  * Bypasses log buffer polling to deliver immediate visibility
  * for ban/cooldown events to the dashboard.
- * 
+ *
  * Based on AGENTS.md rules:
  * - 3-strike system: Aggressive punishment for critical failures (403, 429, timeout, safeWrite errors)
- * - Permanent ban after 3 consecutive critical failures (paid models punished as group)
+ * - Permanent ban after 5 consecutive critical failures (paid models punished as group)
  * - Exponential backoff cooldowns (15s→5m→30m→2h→permanent)
+ *
+ * Reverse chronological logging: events are stored in a ring buffer and
+ * can be retrieved in reverse chronological order (newest first).
  */
 
 import { EventEmitter } from 'node:events';
@@ -24,6 +27,19 @@ export const EVENT_TYPES = {
   DEGRADED_MODEL: 'degraded',
   CRITICAL_FAILURE: 'critical-failure'
 };
+
+/**
+ * Maximum number of events to keep in the reverse-chronological ring buffer.
+ * Dashboard reads from this buffer for real-time history display.
+ */
+const MAX_EVENT_BUFFER = 1000;
+
+/**
+ * Global ring buffer of punishment events, newest first.
+ * Each event has a monotonically increasing sequence number.
+ */
+const eventBuffer = [];
+let eventSequence = 0;
 
 /**
  * Creates a singleton event emitter for punishment events
@@ -56,13 +72,15 @@ export function emitPunishmentEvent(event) {
 /**
  * Creates a WebSocket-compatible event payload for dashboard clients
  * @param {Object} event - Raw event data
+ * @param {number} [event.sequence] - Monotonic sequence number for ordering
  * @returns {Object} Formatted event for WS transmission
  */
 export function formatEventPayload(event) {
   return {
     type: 'punishment',
     subtype: event.type,
-    timestamp: Date.now(),
+    timestamp: event.timestamp || Date.now(),
+    sequence: event.sequence,
     provider: event.provider,
     modelId: event.modelId || null,
     reason: event.reason,
@@ -77,9 +95,9 @@ export function formatEventPayload(event) {
 /**
  * Classifies an error as critical for the 3-strike system
  * Based on AGENTS.md: 403 forbidden, 429 rate limit, timeout, safeWrite errors
- * @param {number} statusCode 
- * @param {string} message 
- * @param {object} errorDetails 
+ * @param {number} statusCode
+ * @param {string} message
+ * @param {object} errorDetails
  * @returns {boolean}
  */
 export function isCriticalFailure(statusCode, message = '', errorDetails = {}) {
@@ -98,10 +116,8 @@ export function isCriticalFailure(statusCode, message = '', errorDetails = {}) {
   // Timeout errors are classified as transient (cooldown-model), not critical.
   // Removed timeout as critical failure to be consistent with bandit.mjs _isCriticalFailure().
   
-  // safeWrite errors (OpenCode-specific)
-  if (/safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized/i.test(msg)) {
-    return true;
-  }
+  // safeWrite errors are now classified as transient (cooldown-model), not critical.
+  // SafeWrite is an infrastructure initialization error, not a model fault.
   
   return false;
 }
@@ -110,11 +126,15 @@ export function isCriticalFailure(statusCode, message = '', errorDetails = {}) {
  * Logs a punishment event to the console for immediate visibility
  * Also broadcasts to connected dashboard clients via WebSocket
  * Persists to database if bandit instance is provided
+ * Events are stored in a ring buffer for reverse-chronological retrieval.
  * @param {Object} params
  * @param {Object} [params.bandit] - Optional bandit instance for DB persistence
+ * @param {number} [params.sequence] - Optional pre-assigned sequence number
  */
-export function logPunishment({ bandit, type, provider, modelId, reason, cooldownMs, failures, consecutive, source = 'prod' }) {
-  const timestamp = new Date().toISOString();
+export function logPunishment({ bandit, type, provider, modelId, reason, cooldownMs, failures, consecutive, source = 'prod', sequence }) {
+  const timestamp = Date.now();
+  const isoTimestamp = new Date(timestamp).toISOString();
+  const seq = sequence !== undefined ? sequence : ++eventSequence;
   let logLine;
 
   if (type === EVENT_TYPES.BAN_PROVIDER) {
@@ -122,7 +142,7 @@ export function logPunishment({ bandit, type, provider, modelId, reason, cooldow
   } else if (type === EVENT_TYPES.BAN_MODEL) {
     logLine = `[BANDIT-EMERGENCY] BAN-MODEL | model=${modelId} | ${reason} | failures=${failures}`;
   } else if (type === EVENT_TYPES.BAN_PAID_GROUP) {
-    logLine = `[BANDIT-3STRIKE] PAID-GROUP-BAN | provider=${provider} | 3 consecutive critical failures | model=${modelId}`;
+    logLine = `[BANDIT-3STRIKE] PAID-GROUP-BAN | provider=${provider} | 5 consecutive critical failures | model=${modelId}`;
   } else if (type === EVENT_TYPES.COOLDOWN_PROVIDER) {
     logLine = `[BANDIT] cooldown-provider | provider=${provider} | ${reason} | ${Math.round(cooldownMs/1000)}s | failures=${failures}`;
   } else if (type === EVENT_TYPES.COOLDOWN_MODEL) {
@@ -130,19 +150,73 @@ export function logPunishment({ bandit, type, provider, modelId, reason, cooldow
   } else if (type === EVENT_TYPES.FLAG_PROVIDER) {
     logLine = `[BANDIT] flag-provider | provider=${provider} | ${reason}`;
   } else if (type === EVENT_TYPES.CRITICAL_FAILURE) {
-    logLine = `[BANDIT-3STRIKE] CRITICAL | model=${modelId} | status=X | reason=${reason} | consecutive=${consecutive}/3`;
+    logLine = `[BANDIT-3STRIKE] CRITICAL | model=${modelId} | status=X | reason=${reason} | consecutive=${consecutive}/5`;
   } else {
     logLine = `[BANDIT] ${type} | provider=${provider} | model=${modelId} | ${reason}`;
   }
 
   console.log(logLine);
-  
+
+  // Build event record for ring buffer
+  const eventRecord = {
+    type,
+    provider,
+    modelId,
+    reason,
+    cooldownMs: cooldownMs || 0,
+    failures: failures || 0,
+    consecutive: consecutive || 0,
+    source,
+    timestamp,
+    isoTimestamp,
+    sequence: seq
+  };
+
+  // Insert at front of buffer (newest first) - reverse chronological order
+  eventBuffer.unshift(eventRecord);
+  if (eventBuffer.length > MAX_EVENT_BUFFER) {
+    eventBuffer.pop();
+  }
+
   // Persist to database if bandit instance is available
   if (bandit) {
     bandit.recordPunishmentEvent(type, provider, modelId, reason, cooldownMs, failures, consecutive, source);
   }
-  
-  // Emit for WebSocket subscribers
+
+  // Emit for WebSocket subscribers (newest first ordering)
   const events = createPunishmentEvents();
-  events.emit('event', formatEventPayload({ type, provider, modelId, reason, cooldownMs, failures, consecutive, source }));
+  events.emit('event', formatEventPayload({ ...eventRecord, sequence: seq }));
+}
+
+/**
+ * Retrieves punishment events in reverse chronological order (newest first).
+ * @param {number} limit - Maximum number of events to return
+ * @returns {Array} Array of event payloads, newest first
+ */
+export function getRecentEvents(limit = 100) {
+  return eventBuffer.slice(0, limit).map(e => formatEventPayload(e));
+}
+
+/**
+ * Returns the total count of events in the buffer.
+ * @returns {number}
+ */
+export function getEventCount() {
+  return eventBuffer.length;
+}
+
+/**
+ * Returns the current sequence number (for assigning to new events).
+ * @returns {number}
+ */
+export function getNextSequence() {
+  return eventSequence + 1;
+}
+
+/**
+ * Clears the event buffer (useful for testing or reset).
+ */
+export function clearEventBuffer() {
+  eventBuffer.length = 0;
+  eventSequence = 0;
 }

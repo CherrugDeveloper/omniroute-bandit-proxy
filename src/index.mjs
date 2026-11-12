@@ -15,6 +15,7 @@ import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebug
 import fs from "node:fs";
 import * as WebSocket from "ws";
 import { createPunishmentEvents, formatEventPayload } from "./events.mjs";
+import { getStatsAggregator, shutdownStatsAggregator } from "./stats-aggregator.mjs";
 EventEmitter.defaultMaxListeners = 50;
 // Define ES module __dirname and __filename at the top (before they are used)
 const __filename = fileURLToPath(import.meta.url);
@@ -23,7 +24,7 @@ const __dirname = path.dirname(__filename);
 // WebSocket server instance and punishment event tracking
 let wss = null;
 const scriptOutputClients = new Map(); // pid -> Set of WebSocket connections
-const punishmentEventClients = new Set(); // Dashboard clients listening for punishment events
+const statsAggregator = null; // Stats aggregator singleton (real-time statistics from punishment event stream)
 
 // Centralized audit logger for script executions
 const auditLogPath = path.join(__dirname, "../scripts/audit.log");
@@ -3252,6 +3253,10 @@ async function startServer(attempt = 1) {
         
         // Set up punishment event emitter to broadcast to dashboard clients
         const punishmentEvents = createPunishmentEvents();
+        
+        // Initialize stats aggregator singleton
+        statsAggregator = getStatsAggregator();
+        
         punishmentEvents.on('event', (event) => {
           const payload = formatEventPayload(event);
           punishmentEventClients.forEach(ws => {
@@ -3259,6 +3264,8 @@ async function startServer(attempt = 1) {
               ws.send(JSON.stringify(payload));
             }
           });
+          // Update real-time statistics aggregator
+          statsAggregator._processEvent(event);
         });
         
         wss.on("connection", (ws, req) => {

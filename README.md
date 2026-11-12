@@ -105,10 +105,14 @@ The dashboard provides real-time monitoring of:
 Error config lives in `config/bandit.json`. `errorConfig.classification.transientErrors` and `permanentErrors` are pattern→action lists.
 
 - `safeWrite` errors map to **ban-model** (scope: model)
-- **3-strike system**: 3 consecutive critical failures (403, 429, safeWrite errors) → permanent ban. `consecutive_critical_failures` counter resets on success.
+- **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. `consecutive_critical_failures` counter resets on success.
+- `safeWrite` infrastructure errors are classified as **transient (cooldown-model)**, NOT critical.
 - Timeout errors are **transient (cooldown-model)**, NOT critical.
 - `consecutive_5xx ≥ 3` triggers degraded mode.
 - Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
+- Cascade ban guard prevents re-banning models already permanently banned.
+- Emergency rejection downgrades to cooldown-model (no permanent ban).
+- **Real-time statistics**: StatsAggregator maintains live punishment event counters and unified history.
 
 ## Database
 

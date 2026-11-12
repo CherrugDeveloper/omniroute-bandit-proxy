@@ -1302,14 +1302,14 @@ export class DiscountedUCB1Bandit {
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0, consecutive_critical_failures = 0, cooldown_until = 0
            WHERE id = ?`
         ).run(reward, sanitizedModelId);
-        console.log(`[BANDIT-3STRIKE] RESET | model=${modelId} | UCB1 updated sum_reward+=${reward} N++ | reason=success`);
+        console.log(`[BANDIT-5STRIKE] RESET | model=${modelId} | UCB1 updated sum_reward+=${reward} N++ | reason=success`);
       } else {
         // Training feedback: only update operational metrics, NOT UCB1 scores
         this.db.prepare(
           `UPDATE models SET fails = 0, consecutive_5xx = 0, consecutive_critical_failures = 0, cooldown_until = 0
            WHERE id = ?`
         ).run(sanitizedModelId);
-        console.log(`[BANDIT-3STRIKE] RESET | model=${modelId} | operational metrics reset only (no UCB1 pollution) | reason=training-success`);
+        console.log(`[BANDIT-5STRIKE] RESET | model=${modelId} | operational metrics reset only (no UCB1 pollution) | reason=training-success`);
       }
       this.db.prepare(
         "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
@@ -1346,29 +1346,30 @@ export class DiscountedUCB1Bandit {
         const errorMessage = errorDetails?.message || errorDetails?.error || String(errorDetails) || "Unknown error";
         const isCriticalFailure = this._isCriticalFailure(statusCode, errorMessage, errorDetails);
         
-        // Track consecutive critical failures for 3-strike rule
+        // Track consecutive critical failures for 5-strike rule
         if (isCriticalFailure) {
           const newConsecutiveCritical = currentConsecutiveCritical + 1;
-          console.log(`[BANDIT-3STRIKE] INCREMENT | model=${modelId} | consecutive_critical_failures: ${currentConsecutiveCritical} -> ${newConsecutiveCritical} | status=${statusCode} | reason=${errorDetails?.reason || 'unknown'}`);
+          console.log(`[BANDIT-5STRIKE] INCREMENT | model=${modelId} | consecutive_critical_failures: ${currentConsecutiveCritical} -> ${newConsecutiveCritical} | status=${statusCode} | reason=${errorDetails?.reason || 'unknown'}`);
           
-          // Check for 3-strike rule: permanent ban after 3 consecutive critical failures
-          if (newConsecutiveCritical >= 3) {
+          // Check for 5-strike rule: permanent ban after 5 consecutive critical failures
+          if (newConsecutiveCritical >= 5) {
             // Check if this is a paid model - if so, punish the entire paid sub-group for that provider
             const modelRow = this.db.prepare("SELECT is_paid FROM models WHERE id = ?").get(sanitizedModelId);
             const isPaidModel = modelRow && modelRow.is_paid === 1;
             
             if (isPaidModel) {
               // PUNISH ENTIRE PAID SUB-GROUP: Ban all paid models from this provider
+              // Cascade guard: Only ban if this is not a cascade reaction (simple check for now)
               this.db.prepare(
                 `UPDATE models SET permanent = 1, banned_since = ?, cooldown_until = 0, consecutive_critical_failures = ?
-                 WHERE provider = ? AND is_paid = 1`
+                 WHERE provider = ? AND is_paid = 1 AND permanent = 0`
               ).run(Date.now(), newConsecutiveCritical, provider);
               // Sync provider_history: mark provider as permanently banned when paid group is banned
               this.db.prepare(
                 `UPDATE provider_history SET permanent = 1, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
-              ).run('paid-group-ban', `3-strike paid-group ban on provider=${provider}`, provider);
-              console.log(`[BANDIT-3STRIKE] PAID-GROUP-BAN | provider=${provider} | 3 consecutive critical failures on paid model=${modelId} | permanent ban applied to ALL paid models in provider | total_critical=${newConsecutiveCritical} | STATUS_CODE=${statusCode}`);
-              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_PAID_GROUP, provider, modelId, reason: '3-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
+              ).run('paid-group-ban', `5-strike paid-group ban on provider=${provider}`, provider);
+              console.log(`[BANDIT-5STRIKE] PAID-GROUP-BAN | provider=${provider} | 5 consecutive critical failures on paid model=${modelId} | permanent ban applied to ALL paid models in provider | total_critical=${newConsecutiveCritical} | STATUS_CODE=${statusCode}`);
+              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_PAID_GROUP, provider, modelId, reason: '5-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             } else {
               // Non-paid model: just ban the individual model
               // Use INSERT OR REPLACE for new models, UPDATE preserves metrics for existing models
@@ -1388,14 +1389,14 @@ export class DiscountedUCB1Bandit {
               // Sync provider_history: mark provider as needing attention when individual model is permanently banned
               this.db.prepare(
                 `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
-              ).run('3-strike-permanent-ban', `Model permanently banned: ${sanitizedModelId} (3-strike-rule)`, provider);
-              console.log(`[BANDIT-3STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 3 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=3-strike-rule | STATUS_CODE=${statusCode}`);
-              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: '3-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
+              ).run('5-strike-permanent-ban', `Model permanently banned: ${sanitizedModelId} (5-strike-rule)`, provider);
+              console.log(`[BANDIT-5STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 5 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=5-strike-rule | STATUS_CODE=${statusCode}`);
+              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: '5-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             }
           } else {
             // Just increment the counter, don't ban yet
             this.db.prepare(`UPDATE models SET consecutive_critical_failures = ? WHERE id = ?`).run(newConsecutiveCritical, sanitizedModelId);
-            console.log(`[BANDIT-3STRIKE] COUNT | model=${modelId} | consecutive_critical_failures=${newConsecutiveCritical}/3 | STATUS_CODE=${statusCode} | not yet permanent ban`);
+            console.log(`[BANDIT-5STRIKE] COUNT | model=${modelId} | consecutive_critical_failures=${newConsecutiveCritical}/5 | STATUS_CODE=${statusCode} | not yet permanent ban`);
           }
         } else {
           // Non-critical failure: reset consecutive_critical_failures counter
@@ -2952,31 +2953,20 @@ export class DiscountedUCB1Bandit {
           });
           
           // Persist punishment state to models table for dashboard metrics
+          // EMERGENCY REJECTION: Never auto-ban models - log only and apply cooldown at most.
+          // This prevents cascade bans when the emergency tier rejects models.
           if (countermeasure === 'ban-model') {
+            // Downgrade emergency ban-model to cooldown-model to prevent cascade bans
             const sanitizedModelId = this._sanitizeModelId(model.id);
             const provider = model.provider;
-            // Check if model is already permanently banned - if so, don't increment consecutive_critical_failures
-            // to avoid the infinite ban loop after database resets
-            const modelRow = this.db.prepare("SELECT permanent FROM models WHERE id = ?").get(sanitizedModelId);
-            const isModelPermanent = modelRow && modelRow.permanent === 1;
-            
-            let newConsecutive = 0;
-            if (!isModelPermanent) {
-              // Increment consecutive_critical_failures for 3-strike system only for non-permanently-banned models
-              const currentFailRow = this.db.prepare("SELECT consecutive_critical_failures FROM models WHERE id = ?").get(sanitizedModelId);
-              const currentConsecutive = currentFailRow?.consecutive_critical_failures || 0;
-              newConsecutive = currentConsecutive + 1;
-            }
+            const cooldownMs = 300000; // 5 minute cooldown for emergency rejections
             this.db.prepare(
-              `INSERT INTO models (id, provider, N, sum_reward, fails, total_failures, cooldown_until, permanent, last_used_index, consecutive_critical_failures, banned_since)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET
-                 permanent = excluded.permanent,
-                 banned_since = excluded.banned_since,
-                 consecutive_critical_failures = CASE WHEN models.consecutive_critical_failures IS NULL THEN 1 ELSE models.consecutive_critical_failures + 1 END`
-            ).run(sanitizedModelId, provider, 0, 0, 0, 0, 0, 1, 0, newConsecutive, Date.now());
-            console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${model.id} provider=${provider} reason=${rejectionReason} scope=emergency-rejection consecutive=${newConsecutive}`);
-            logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider: provider, modelId: sanitizedModelId, reason: rejectionReason, cooldownMs: 0, failures: 1 });
+              `INSERT OR IGNORE INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, total_failures, permanent)
+               VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`
+            ).run(sanitizedModelId, provider);
+            this.db.prepare("UPDATE models SET fails = fails + 1, cooldown_until = ?, permanent = 0 WHERE id = ?").run(Date.now() + cooldownMs, sanitizedModelId);
+            console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${model.id} provider=${provider} reason=${rejectionReason} scope=emergency-rejection (downgraded from ban-model, no permanent ban) cooldownMs=${cooldownMs}`);
+            logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_MODEL, provider: provider, modelId: sanitizedModelId, reason: rejectionReason, cooldownMs: cooldownMs, failures: 1 });
           } else if (countermeasure === 'cooldown-model') {
             // Ensure model exists in models table, then update
             const sanitizedModelId = this._sanitizeModelId(model.id);

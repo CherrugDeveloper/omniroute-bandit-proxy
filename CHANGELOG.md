@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+## [v1.29.0] - 2026-11-12
+
+### Added
+
+- StatsAggregator for real-time punishment event statistics and unified history aggregation
+
+### Changed
+
+- Reclassified safeWrite infrastructure errors from permanentErrors to transientErrors in config/bandit.json
+- Increased critical failure threshold from 3 to 5 strikes (5-strike rule) in src/bandit.mjs
+- Added cascade ban guard (AND permanent = 0) to prevent re-banning already permanently banned models
+- Downgraded emergency rejection countermeasure from ban-model to cooldown-model to prevent cascade auto-bans
+- Implemented reverse chronological ring buffer (1000 events) for event history in src/events.mjs
+- Added sequence numbers to event payloads
+
+### Fixed
+
+- Emergency rejection cascade auto-banning models instead of issuing temporary cooldowns
+
 ## [v1.28.25] - 2026-11-12
 
 ### Added
