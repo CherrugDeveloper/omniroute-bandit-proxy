@@ -2932,10 +2932,18 @@ export class DiscountedUCB1Bandit {
           if (countermeasure === 'ban-model') {
             const sanitizedModelId = this._sanitizeModelId(model.id);
             const provider = model.provider;
-            // Increment consecutive_critical_failures for 3-strike system
-            const currentFailRow = this.db.prepare("SELECT consecutive_critical_failures FROM models WHERE id = ?").get(sanitizedModelId);
-            const currentConsecutive = currentFailRow?.consecutive_critical_failures || 0;
-            const newConsecutive = currentConsecutive + 1;
+            // Check if model is already permanently banned - if so, don't increment consecutive_critical_failures
+            // to avoid the infinite ban loop after database resets
+            const modelRow = this.db.prepare("SELECT permanent FROM models WHERE id = ?").get(sanitizedModelId);
+            const isModelPermanent = modelRow && modelRow.permanent === 1;
+            
+            let newConsecutive = 0;
+            if (!isModelPermanent) {
+              // Increment consecutive_critical_failures for 3-strike system only for non-permanently-banned models
+              const currentFailRow = this.db.prepare("SELECT consecutive_critical_failures FROM models WHERE id = ?").get(sanitizedModelId);
+              const currentConsecutive = currentFailRow?.consecutive_critical_failures || 0;
+              newConsecutive = currentConsecutive + 1;
+            }
             this.db.prepare(
               `INSERT INTO models (id, provider, N, sum_reward, fails, total_failures, cooldown_until, permanent, last_used_index, consecutive_critical_failures, banned_since)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
