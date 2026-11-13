@@ -24,6 +24,13 @@ class ProviderQuota {
                 ).all();
                 for (const row of providers) {
                     if (this._closing) return;
+                    // Conditional roll: only roll providers with pending quota or recent activity.
+                    // Skipping idle providers avoids unnecessary DB writes and keeps the
+                    // background roller lightweight when traffic is low.
+                    if (!this._hasPendingQuota(row.provider, false) &&
+                        !this._hasPendingQuota(row.provider, true)) {
+                        continue;
+                    }
                     this._rollWindows(row.provider, false);
                     if (this._closing) return;
                     this._rollWindows(row.provider, true);
@@ -42,6 +49,48 @@ class ProviderQuota {
             clearInterval(this._bgTimer);
             this._bgTimer = null;
         }
+    }
+
+    _hasPendingQuota(provider, isPaid) {
+        const group = isPaid ? 'paid' : 'free';
+        const minuteCol = `calls_last_minute_${group}`;
+        const todayCol = `calls_today_${group}`;
+        const resetCol = `quota_resets_at_${group}`;
+
+        const cols = this.db.pragma("table_info(provider_history)");
+        const hasGroupCols = cols.some(c => c.name === minuteCol);
+
+        const now = Date.now();
+
+        if (!hasGroupCols) {
+            const row = this.db.prepare(
+                `SELECT calls_last_minute, calls_today, quota_resets_at FROM provider_history WHERE provider = ?`
+            ).get(provider);
+            if (!row) return false;
+            if (row.quota_resets_at && row.quota_resets_at > now) return true;
+            const limit = this.providerLimits[provider];
+            if (!limit) return false;
+            if (row.calls_last_minute >= limit.rpm) return true;
+            if (row.calls_today >= limit.rpd) return true;
+            return false;
+        }
+
+        const row = this.db.prepare(
+            `SELECT ${minuteCol}, ${todayCol}, ${resetCol} FROM provider_history WHERE provider = ?`
+        ).get(provider);
+        if (!row) return false;
+
+        const providerLimit = this.providerLimits[provider];
+        if (!providerLimit) return false;
+
+        const groupLimits = providerLimit.groups && providerLimit.groups[group] ? providerLimit.groups[group] : providerLimit;
+        const rpmLimit = groupLimits.rpm || providerLimit.rpm || 100;
+        const rpdLimit = groupLimits.rpd || providerLimit.rpd || 1000;
+
+        if ((row[resetCol] && row[resetCol] > now)) return true;
+        if (row[minuteCol] >= rpmLimit) return true;
+        if (row[todayCol] >= rpdLimit) return true;
+        return false;
     }
 
     _loadProviderLimits() {
@@ -187,6 +236,7 @@ class ProviderQuota {
         const startedCol = `calls_minute_started_${group}`;
         const todayCol = `calls_today_${group}`;
         const dateCol = `calls_today_date_${group}`;
+        const quotaDay = this._getQuotaDay(now);
 
         this.db.prepare(
             `INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent) VALUES (?, 0, 0, 0, 0)`
@@ -194,7 +244,6 @@ class ProviderQuota {
 
         const cols = this.db.pragma("table_info(provider_history)");
         const hasGroupCols = cols.some(c => c.name === minuteCol);
-        const quotaDay = this._getQuotaDay(now);
 
         if (!hasGroupCols) {
             const providerRow = this.db.prepare(

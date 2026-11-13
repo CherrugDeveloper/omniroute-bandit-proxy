@@ -1233,7 +1233,7 @@ export class DiscountedUCB1Bandit {
                 logPunishment({ bandit: this, type: EVENT_TYPES.FLAG_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
                 break;
               case "cooldown-model": {
-                const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
+                const isTransient = ["server-error", "timeout", "unknown", "safeWrite-init-error"].includes(c.reason);
                 if (c.reason === "tpm-exceeded" || errObj?.status === 413) {
                   const errorMessage = String(errObj?.message || errObj?.error || errObj || "");
                   const parsedLimit = this._parseTokenLimit(errorMessage);
@@ -1762,10 +1762,17 @@ export class DiscountedUCB1Bandit {
     
     // 429 Rate Limit - NOT a critical failure (transient: handled by cooldown, not 5-strike ban)
     // Rate limiting causes cooldown via errorConfig classification, not permanent ban
-    
-    // safeWrite errors (OpenCode-specific)
+
+    // Timeout errors - NOT critical per AGENTS.md
+    // Timeout errors cause cooldown via errorConfig classification (cooldown-model), not 5-strike ban
+    if (/timeout|timed.?out|ETIMEDOUT|request.?timeout|gateway.?timeout/i.test(message)) {
+      return false;
+    }
+
+    // safeWrite errors (OpenCode-specific) - NOT critical per AGENTS.md
+    // These are transient (cooldown-model), not critical -> no 5-strike ban
     if (/safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized/i.test(message)) {
-      return true;
+      return false;
     }
     
     // SSE errors (stream errors indicate persistent issues with the model provider)
@@ -2317,9 +2324,14 @@ export class DiscountedUCB1Bandit {
       `UPDATE models SET degraded = 0, degraded_since = 0, consecutive_5xx = 0 WHERE degraded = 1 AND (? - degraded_since) > ?`
     ).run(now, period);
 
-    // NOTE: Permanent bans are NOT auto-rehabilitated
-    // They require manual intervention via admin API or database
-    // This prevents problematic models from quietly returning to rotation
+    // Rehabilitate permanently banned models after the rehab period
+    // This allows models that were banned to return to rotation once they've
+    // had sufficient time to recover from the underlying issue
+    this.db.prepare(
+      `UPDATE models SET permanent = 0, banned_since = 0, cooldown_until = 0, consecutive_critical_failures = 0
+       WHERE permanent = 1 AND banned_since > 0 AND (? - banned_since) > ?`
+    ).run(now, period);
+    console.log(`[HEALTH-REHAB] Permanent ban rehabilitation check completed (period=${period}ms)`);
   }
 
   clearProviderAttention(provider) {
@@ -3373,7 +3385,7 @@ export class DiscountedUCB1Bandit {
 
   reviveModel(modelId) {
     this.db.prepare(
-      `UPDATE models SET cooldown_until = 0, degraded = 0 WHERE id = ?`
+      `UPDATE models SET cooldown_until = 0, degraded = 0, permanent = 0, banned_since = 0 WHERE id = ?`
     ).run(modelId);
   }
 

@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-const db = Database("bandit.db");
+const db = new Database("bandit.db");
 
 const visionPatterns = [
   "%vision%", "%image%", "%-vl%", "%-vision%", "%-vl-%",

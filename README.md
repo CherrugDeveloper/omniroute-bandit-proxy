@@ -20,6 +20,8 @@ The OmniRoute Bandit Proxy is a Multi-Armed Bandit (MAB) reverse proxy for LLM t
 | **Error Classification** | Transient vs. permanent errors mapped to actions (cooldown-model, cooldown-provider, ban-model, ban-provider, flag-provider) |
 | **Training Daemon** | Isolated round-robin writes to `models_train` table; production reads `models` + `0.3*models_train` when N < 1 |
 | **Log Streaming** | `/v1/training/log-stream` endpoint detects file truncation/rotation and resets read position |
+| **Provider Quota** | Background roller conditionally skips idle providers via `_hasPendingQuota()` check |
+| **Stream Backpressure** | `safeWrite()` drain waits with configurable timeout (`STREAM_DRAIN_MS`, default 30s) |
 
 ====
 | **Real-time Events** | WebSocket-based punishment event stream with StatsAggregator singleton for dashboard updates |

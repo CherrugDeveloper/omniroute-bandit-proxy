@@ -42,6 +42,50 @@ const eventBuffer = [];
 let eventSequence = 0;
 
 /**
+ * Initializes the in-memory ring buffer by loading recent events from the
+ * punishment_events database table. This ensures events survive server
+ * restarts and remain visible in the dashboard Logs tab.
+ * @param {Object} bandit - Bandit instance with getRecentPunishmentEvent
+ */
+export function initializeEventBuffer(bandit) {
+  if (!bandit || typeof bandit.getRecentPunishmentEvents !== 'function') {
+    return;
+  }
+  try {
+    const rows = bandit.getRecentPunishmentEvents(MAX_EVENT_BUFFER);
+    // Clear existing buffer and repopulate from DB (newest first)
+    eventBuffer.length = 0;
+    for (const row of rows) {
+      eventBuffer.push({
+        type: row.type,
+        provider: row.provider,
+        modelId: row.modelId,
+        reason: row.reason,
+        cooldownMs: row.cooldownMs || 0,
+        failures: row.failures || 0,
+        consecutive: row.consecutive || 0,
+        source: row.source || 'prod',
+        timestamp: row.timestamp || Date.now(),
+        isoTimestamp: new Date(row.timestamp || Date.now()).toISOString(),
+        sequence: ++eventSequence,
+      });
+    }
+    // Re-sort newest first (DB query already does ORDER BY created_at DESC)
+    eventBuffer.sort((a, b) => b.timestamp - a.timestamp);
+    // Truncate to MAX_EVENT_BUFFER
+    if (eventBuffer.length > MAX_EVENT_BUFFER) {
+      eventBuffer.length = MAX_EVENT_BUFFER;
+    }
+    // Set sequence counter to max so new events continue incrementing
+    if (eventBuffer.length > 0) {
+      eventSequence = Math.max(...eventBuffer.map(e => e.sequence));
+    }
+  } catch (err) {
+    console.error("[EVENTS] Failed to initialize event buffer from DB:", err.message);
+  }
+}
+
+/**
  * Creates a singleton event emitter for punishment events
  * @returns {EventEmitter}
  */

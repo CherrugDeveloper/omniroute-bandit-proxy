@@ -186,7 +186,7 @@ if run_systemctl restart "$SERVICE"; then
   fi
   
   # Wait for port bind
-  wait_for_port_bind 127.0.0.1 8080
+  wait_for_port_release 127.0.0.1 8080
   
   # Attendi fino a 30s che il servizio sia attivo con polling incrementale e check TCP
   active=false

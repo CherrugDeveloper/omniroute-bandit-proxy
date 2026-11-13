@@ -251,8 +251,8 @@ export class HealthChecker {
 
       if (!r.ok) return false;
       const data = await r.json().catch(() => null);
-      // Considera OK solo se c'è una risposta strutturata
-      return !!(data && (data.choices || data.error === undefined));
+      // Considera OK solo se c'è una risposta strutturata con choices e nessun errore
+      return !!(data && data.choices && Array.isArray(data.choices) && data.error === undefined);
     } catch {
       return false;
     } finally {

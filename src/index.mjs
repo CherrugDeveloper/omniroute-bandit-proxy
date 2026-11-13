@@ -14,7 +14,7 @@ import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryS
 import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebugEnabled, isDebugVerboseEnabled, readDebugVerboseTtlMs, createTtlFlag, isPollingPath } from "./log-throttle.mjs";
 import fs from "node:fs";
 import * as WebSocket from "ws";
-import { createPunishmentEvents, formatEventPayload } from "./events.mjs";
+import { createPunishmentEvents, formatEventPayload, initializeEventBuffer } from "./events.mjs";
 import { getStatsAggregator, shutdownStatsAggregator } from "./stats-aggregator.mjs";
 EventEmitter.defaultMaxListeners = 50;
 // Define ES module __dirname and __filename at the top (before they are used)
@@ -577,6 +577,9 @@ app.use((req, res, next) => {
 // Static files served after API routes
 
 const bandit = new DiscountedUCB1Bandit();
+
+// Wire ring buffer persistence: load recent punishment events from DB into memory on startup
+initializeEventBuffer(bandit);
 
 const notifier = new Notifier({
   urls: (process.env.WEBHOOK_URLS || "").split(",").map(s => s.trim()).filter(Boolean),
@@ -2143,6 +2146,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const STREAM_IDLE_MS = Math.max(1, parseInt(process.env.STREAM_IDLE_MS || "300000", 10));
   const isSummarizer = (profile === 'summarizer');
   const STREAM_MAX_MS = Math.max(1, parseInt(process.env.STREAM_MAX_MS || (isSummarizer ? "60000" : "600000"), 10));
+  const STREAM_DRAIN_MS = Math.max(1, parseInt(process.env.STREAM_DRAIN_MS || "30000", 10));
   let idleTimer = null;
   let hardCapTimer = null;
   let lastMeaningfulByte = Date.now();
@@ -2344,7 +2348,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   
     const pinnedValid = pinnedEntry
       && !excluded.has(pinnedEntry.model)
-      && bandit.isModelAvailable(pinnedEntry.model)
+      && bandit.isModelAvailable(pinnedEntry.model, estimatedTokens)
       && pinnedTokenCapacityValid
       && pinnedSupportsVision;
   
@@ -2550,7 +2554,13 @@ trackRequestUpdate(requestId, {
                   console.warn(`[FALLBACK] Pass 3: Final emergency fallback tier across all fallback models`);
                   for (const fallbackModel of fallbackModels) {
                     if (fallbackTried.has(fallbackModel)) continue;
-        
+
+                    // Check if model is available (not banned/cooldown)
+                    if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) {
+                      console.log(`[FALLBACK] Pass 3: Skipping unavailable fallback model ${fallbackModel}`);
+                      continue;
+                    }
+
                     // Check if model supports vision when required
                     if (requireVision) {
                       const modelInfoVision = bandit.db.prepare(
@@ -2587,6 +2597,12 @@ trackRequestUpdate(requestId, {
                   console.warn(`[FALLBACK] Pass 4: Resetting fallbackTried and picking suitable non-chat fallback model`);
                   fallbackTried.clear();
                   for (const fallbackModel of fallbackModels) {
+                    // Check if model is available (not banned/cooldown)
+                    if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) {
+                      console.log(`[FALLBACK] Pass 4: Skipping unavailable fallback model ${fallbackModel}`);
+                      continue;
+                    }
+
                     // Check if model supports vision when required
                     if (requireVision) {
                       const modelInfoVision = bandit.db.prepare(
@@ -2880,26 +2896,36 @@ trackRequestUpdate(requestId, {
           }
           const ok = res.write(data);
           if (!ok) {
-            // Buffer full, wait for drain
+            // Buffer full, wait for drain with timeout to prevent hanging forever on backpressure
             return new Promise((resolve, reject) => {
               const onDrain = () => {
+                clearTimeout(drainTimeout);
                 res.off('drain', onDrain);
                 res.off('error', onError);
                 res.off('close', onClose);
                 resolve(true);
               };
               const onError = (err) => {
+                clearTimeout(drainTimeout);
                 res.off('drain', onDrain);
                 res.off('error', onError);
                 res.off('close', onClose);
                 reject(err);
               };
               const onClose = () => {
+                clearTimeout(drainTimeout);
                 res.off('drain', onDrain);
                 res.off('error', onError);
                 res.off('close', onClose);
                 reject(new Error('client-disconnected'));
               };
+              const drainTimeout = setTimeout(() => {
+                res.off('drain', onDrain);
+                res.off('error', onError);
+                res.off('close', onClose);
+                console.error(`[BACKPRESSURE] ${model}: drain timeout after ${STREAM_DRAIN_MS}ms, aborting write`);
+                reject(new Error('drain-timeout'));
+              }, STREAM_DRAIN_MS);
               res.once('drain', onDrain);
               res.once('error', onError);
               res.once('close', onClose);
