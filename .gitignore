@@ -29,6 +29,10 @@ package-lock.json
 old_changelog.txt
 .train-daemon.pid
 scripts/.script-output-*.json
+# Temporary changelog generation scripts (delete after use)
+generate-changelog.mjs
+sync-tags.mjs
+git_log_with_hashes.txt
 
 # Workflow retention (not ignored)
 # raw_git_log.txt is retained by the auto-git workflow
@@ -40,6 +44,9 @@ scripts/.script-output-*.json
 # Logs
 *.log
 logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS
 .DS_Store

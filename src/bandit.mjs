@@ -2227,6 +2227,29 @@ export class DiscountedUCB1Bandit {
     ).run(provider);
   }
 
+  resetProviderHistoryAll() {
+    // Reset all provider history to clear cooldowns, bans, attention flags
+    this.db.prepare(`
+      UPDATE provider_history SET
+        fails = 0,
+        cooldown_until = 0,
+        permanent = 0,
+        needs_attention = 0,
+        pointer = 0,
+        consecutive_failures = 0,
+        circuit_breaker_until = 0,
+        last_success_time = 0,
+        attention_reason = '',
+        attention_message = '',
+        total_failures = 0
+    `).run();
+  }
+
+  resetPunishmentEvents() {
+    // Clear all punishment events history
+    this.db.prepare("DELETE FROM punishment_events").run();
+  }
+
   resetGlobalCounters() {
     this.db.prepare("UPDATE meta SET value = 0 WHERE key = 'totalRequests'").run();
     this.db.prepare("UPDATE meta SET value = 0 WHERE key = 'totalObservations'").run();

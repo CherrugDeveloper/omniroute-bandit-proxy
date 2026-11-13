@@ -1556,6 +1556,12 @@ app.post("/v1/reset/model", requireAuth, (req, res) => {
     for (const m of models) {
       bandit.resetModel(m.id);
     }
+    // Reset provider_history to clear cooldowns, bans, and attention flags
+    bandit.resetProviderHistoryAll();
+    // Reset punishment_events to clear punishment history
+    bandit.resetPunishmentEvents();
+    // Reset global counters and request logs
+    bandit.resetGlobalCounters();
     res.json({ ok: true, count: models.length });
   } catch (e) {
     console.error("[API] Errore reset tutti i modelli:", e.message);
@@ -3256,6 +3262,7 @@ async function startServer(attempt = 1) {
         
         // Initialize stats aggregator singleton
         statsAggregator = getStatsAggregator();
+        const punishmentEventClients = new Set();
         
         punishmentEvents.on('event', (event) => {
           const payload = formatEventPayload(event);

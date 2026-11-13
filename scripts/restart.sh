@@ -142,7 +142,7 @@ case "${1:-}" in
     if run_systemctl restart "$SERVICE"; then
       sleep 1
       # Get PID before restart
-      old_pid=$(systemctl show -p MainPID "$SERVICE" 2>/dev/null | cut -d= -f2 || echo "")
+      old_pid=$(run_systemctl show -p MainPID "$SERVICE" 2>/dev/null | cut -d= -f2 || echo "")
       if [ -n "$old_pid" ] && [ "$old_pid" != "0" ]; then
         wait_for_pid_termination "$old_pid" 30
       fi
@@ -185,8 +185,8 @@ if run_systemctl restart "$SERVICE"; then
     wait_for_pid_termination "$old_pid" 30
   fi
   
-  # Wait for port release
-  wait_for_port_release 127.0.0.1 8080
+  # Wait for port bind
+  wait_for_port_bind 127.0.0.1 8080
   
   # Attendi fino a 30s che il servizio sia attivo con polling incrementale e check TCP
   active=false
