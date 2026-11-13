@@ -1609,13 +1609,17 @@ export class DiscountedUCB1Bandit {
     if (status === 403 && /account disabled|banned/i.test(message)) {
       return { action: "ban-provider", scope: "provider", reason: "provider-banned", category: "PERMANENT" };
     }
-    // Non-Resetting Key/Quota Limits
+    // Key limit exceeded / total limit / hard limit / lifetime limit
     if (status === 403 || /Key limit exceeded|total limit|hard limit|lifetime limit/i.test(message)) {
+      // Check if this is a non-resetting permanent limit
       const isNonResetting = /does not reset|never resets|no reset|lifetime|permanent/i.test(message);
+      
       if (isNonResetting) {
+        // Permanent ban for non-resetting limits (account banned, lifetime quota exhaustion)
         return { action: "ban-provider", scope: "provider", reason: "quota-exhausted", category: "PERMANENT" };
       } else {
-        return { action: "ban-provider", reason: "key-limit-exceeded", category: "PERMANENT" };
+        // Transient cooldown for resetting key limits (most common case - use cooldown-model)
+        return { action: "cooldown-model", scope: "model", reason: "key-limit-exceeded", category: "TRANSIENT", cooldownMs: 300000 };
       }
     }
 

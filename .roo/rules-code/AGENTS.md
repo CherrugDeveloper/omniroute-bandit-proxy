@@ -7,7 +7,8 @@ Non-obvious, project-specific guidance for code changes.
 - `_sanitizeModelId()` strips a duplicated provider prefix (e.g. `mistral/mistral-x` → `mistral-x`) only if the sanitized id exists in `catalog`; otherwise returns the original id so it can be tracked/banned.
 
 ## Error Classification & Punishment
-- `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **cooldown-model** (transient error, scope: model).
+- `config/bandit.json` pattern order matters — first match wins; Playwright/Cloudflare 502/503 must precede generic `5xx|server-error`.
+- `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` → **cooldown-model** (transient, scope: model) — NOT critical.
 - **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. Counter resets on success. `safeWrite` errors are NOT critical.
 - Timeout errors are **transient (cooldown-model)**, NOT critical.
 - `consecutive_5xx ≥ 3` triggers degraded mode.
@@ -19,6 +20,7 @@ Non-obvious, project-specific guidance for code changes.
 - `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`).
 - Isolated `models_train` table; production reads `models` + `0.3*models_train` (when `N < 1`).
 - `models` and `provider_history` stay in sync on bans/cooldowns via `recordFeedback()`.
+- `recordFeedback()` wraps non-object errorDetails into `{message, status}` so `_classifyError()` always runs.
 
 ## Proxy & Sessions
 - `SESSION_TTL_MS` = 30m; `STREAM_IDLE_MS` = 60s (resets on any chunk/heartbeat).

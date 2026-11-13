@@ -1222,6 +1222,9 @@ app.get('/v1/training/log-stream', requireAuth, (req, res) => {
       lastSize = 0;
     }
     
+    // Track file size to detect truncation/rotation
+    let lastKnownSize = lastSize;
+    
     let fd = null;
     let isClosed = false;
     
@@ -1234,6 +1237,14 @@ app.get('/v1/training/log-stream', requireAuth, (req, res) => {
         }
         
         const stats = fs.statSync(logFile);
+        
+        // Detect truncation/rotation: if current size < lastSize, file was reset
+        if (stats.size < lastSize) {
+          lastSize = 0;
+          lastKnownSize = 0;
+          console.log(`[LOG-STREAM] Log file truncated/rotated, resetting read position to 0`);
+        }
+        
         if (stats.size > lastSize) {
           if (fd === null) {
             fd = fs.openSync(logFile, 'r');
@@ -1246,6 +1257,7 @@ app.get('/v1/training/log-stream', requireAuth, (req, res) => {
             res.write(chunk);
           }
           lastSize = stats.size;
+          lastKnownSize = stats.size;
         }
       } catch (e) {
         // Ignore errors, will retry
@@ -2288,6 +2300,9 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const isBanned = isAskLoop || record.severe || record.fails >= 3;
       if (isBanned) {
         console.log(`[AFFINITY] Attempt ${attempt}: 🚫 ${entry.model} BANNED in session ${sessionKey.slice(0,8)} (reason: ${reason}, fails: ${record.fails}, severe: ${record.severe})`);
+      } else {
+        // Cascade guard: model not yet banned but failing - log for visibility
+        console.log(`[AFFINITY] Attempt ${attempt}: ⚠️ ${entry.model} struggling (fails=${record.fails}/3, reason=${reason}) - excluded for this request`);
       }
     }
   }

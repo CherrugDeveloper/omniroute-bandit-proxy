@@ -12,6 +12,7 @@ Non-obvious, project-specific guidance for debugging.
 ## Database & State
 - `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`).
 - `models` and `provider_history` tables stay in sync on bans/cooldowns via `recordFeedback()`: model bans update `provider_history.needs_attention`/`permanent`; model cooldowns update `provider_history.cooldown_until`.
+- `recordFeedback()` wraps non-object errorDetails into `{message, status}` so `_classifyError()` always runs.
 
 ## Proxy & Sessions
 - `SESSION_TTL_MS` = 30m; `STREAM_IDLE_MS` = 60s (resets on any chunk/heartbeat).

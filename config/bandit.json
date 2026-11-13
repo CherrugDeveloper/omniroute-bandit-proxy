@@ -45,7 +45,7 @@
         { "pattern": "catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|model is unavailable|model not a valid model ID|invalid model|not available in active live catalog", "action": "ban-model", "scope": "model" },
         { "pattern": "Assignment to constant variable", "action": "ban-model", "scope": "model" },
         { "pattern": "OpenCode's free tier can only be used from within OpenCode", "action": "ban-model", "scope": "model" },
-        { "pattern": "403|Key limit exceeded|total limit|hard limit|lifetime limit", "action": "ban-provider", "scope": "provider", "reason": "key-limit-exceeded", "status": 403 }
+        { "pattern": "403|lifetime limit|never resets|does not reset|no reset", "action": "ban-provider", "scope": "provider", "reason": "key-limit-exceeded", "status": 403 }
       ]
     }
   }

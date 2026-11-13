@@ -19,6 +19,8 @@ The OmniRoute Bandit Proxy is a Multi-Armed Bandit (MAB) reverse proxy for LLM t
 | **Exponential Backoff** | Cooldowns: 15s → 5m → 30m → 2h → permanent |
 | **Error Classification** | Transient vs. permanent errors mapped to actions (cooldown-model, cooldown-provider, ban-model, ban-provider, flag-provider) |
 | **Training Daemon** | Isolated round-robin writes to `models_train` table; production reads `models` + `0.3*models_train` when N < 1 |
+| **Log Streaming** | `/v1/training/log-stream` endpoint detects file truncation/rotation and resets read position |
+======= REPLACE
 | **Real-time Events** | WebSocket-based punishment event stream with StatsAggregator singleton for dashboard updates |
 | **Image Generation** | Detection and filtering of image-only models from chat routing |
 
@@ -303,6 +305,12 @@ Connect to `ws://localhost:3000` for real-time punishment events:
 ### Cascade Guards
 
 Emergency rejection handling skips additional punishment when a model is already rejected due to cooldown or circuit breaker state (`model_cooldown`, `provider_cooled_down_this_request`, `provider_circuit_breaker`, `provider_cooldown`). This prevents a single provider failure from triggering simultaneous cooldowns across hundreds of models.
+
+### 403 Key Limit Classification
+
+Transient resetting key limits (most common) → `cooldown-model` (5 minute cooldown).
+Non-resetting permanent limits (`lifetime limit`, `never resets`, `no reset`) → `ban-provider` (permanent).
+Config pattern order matters — first match wins.
 
 ### Degraded Mode
 

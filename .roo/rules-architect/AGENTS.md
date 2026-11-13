@@ -11,6 +11,7 @@ Non-obvious, project-specific guidance for architectural decisions.
 - `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`).
 - Isolated `models_train` table; production reads `models` + `0.3*models_train` (when `N < 1`).
 - `models` and `provider_history` stay in sync on bans/cooldowns via `recordFeedback()`: model bans update `provider_history.needs_attention`/`permanent`; model cooldowns update `provider_history.cooldown_until`.
+- `recordFeedback()` wraps non-object errorDetails into `{message, status}` so `_classifyError()` always runs.
 
 ## Error Classification & Punishment
 - `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **cooldown-model** (transient, scope: model).
