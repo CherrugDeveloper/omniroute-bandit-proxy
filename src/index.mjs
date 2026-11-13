@@ -1596,8 +1596,9 @@ app.post("/v1/reset/model", requireAuth, (req, res) => {
     for (const m of models) {
       bandit.resetModel(m.id);
     }
-    // Reset provider_history to clear cooldowns, bans, and attention flags
-    bandit.resetProviderHistoryAll();
+    // Reset only models box data: models + models_train tables.
+    // Provider history (cooldowns, bans, attention flags) is intentionally NOT touched
+    // here — use /v1/reset/provider for provider-scoped resets.
     // Reset punishment_events to clear punishment history
     bandit.resetPunishmentEvents();
     // Reset global counters and request logs
