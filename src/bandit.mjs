@@ -2202,6 +2202,48 @@ export class DiscountedUCB1Bandit {
         total_failures = 0
       WHERE provider = ?
     `).run(provider);
+
+    // Reset all models belonging to this provider (models + models_train)
+    const modelsForProvider = this.db.prepare(
+      `SELECT id FROM models WHERE provider = ?`
+    ).all(provider);
+
+    const resetModelStmt = this.db.prepare(`
+      UPDATE models SET
+        N = 0,
+        sum_reward = 0,
+        fails = 0,
+        total_failures = 0,
+        cooldown_until = 0,
+        permanent = 0,
+        last_used_index = 0,
+        consecutive_5xx = 0,
+        consecutive_critical_failures = 0,
+        degraded = 0,
+        degraded_since = 0,
+        banned_since = 0
+      WHERE id = ?
+    `);
+
+    const resetModelTrainStmt = this.db.prepare(`
+      UPDATE models_train SET
+        N = 0,
+        sum_reward = 0,
+        last_used_index = 0,
+        isTraining = 0,
+        executionTime = 0,
+        calledModels = 0,
+        okStatus = 0,
+        errorStatus = 0,
+        statusMessage = 'Reset',
+        updated_at = 0
+      WHERE id = ?
+    `);
+
+    for (const m of modelsForProvider) {
+      resetModelStmt.run(m.id);
+      resetModelTrainStmt.run(m.id);
+    }
   }
 
   resetProviderCooldown(provider) {
