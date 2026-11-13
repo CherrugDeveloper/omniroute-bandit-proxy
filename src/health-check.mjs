@@ -20,7 +20,7 @@ export function sanitizeBaseUrl(urlStr, defaultUrl = "http://127.0.0.1:20128/v1"
     const parsed = new URL(trimmed);
     return parsed.toString().replace(/\/+$/, "");
   } catch (err) {
-    console.error(`[CONFIG] Invalid base URL "${urlStr}": ${err.message}. Falling back to "${fallback}"`);
+    slogError(`[CONFIG] Invalid base URL "${urlStr}": ${err.message}. Falling back to "${fallback}"`);
     try {
       return new URL(fallback).toString().replace(/\/+$/, "");
     } catch {
@@ -81,7 +81,7 @@ export class HealthChecker {
     this.rehabTimer = setInterval(() => this._runRehabilitation(), this.rehabIntervalMs);
     if (this.rehabTimer.unref) this.rehabTimer.unref();
 
-    console.log(
+    slogInfo(
       `[HEALTH] Health check attivo (intervallo: ${this.intervalMs / 1000}s, batch: ${this.batchSize}, timeout: ${this.timeoutMs / 1000}s, rehab intervallo: ${this.rehabIntervalMs / 1000}s)`
     );
   }
@@ -105,9 +105,9 @@ export class HealthChecker {
       this.bandit._checkRehabilitation();
       this.stats.rehabRuns++;
       this.stats.lastRehabRun = Date.now();
-      if (this.verbose) console.log("[HEALTH] Rehabilitation check completed");
+      if (this.verbose) slogInfo("[HEALTH] Rehabilitation check completed");
     } catch (e) {
-      console.error(`[HEALTH] Errore durante rehabilitation check: ${e.message}`);
+      slogError(`[HEALTH] Errore durante rehabilitation check: ${e.message}`);
     }
   }
 
@@ -149,7 +149,7 @@ export class HealthChecker {
       await this._tick();
     } catch (e) {
       this.stats.lastError = { time: Date.now(), message: e.message };
-      console.error(`[HEALTH] Errore critico durante il ciclo: ${e.message}`);
+      slogError(`[HEALTH] Errore critico durante il ciclo: ${e.message}`);
     } finally {
       this._scheduleNext();
     }
@@ -157,7 +157,7 @@ export class HealthChecker {
 
   async _tick() {
     if (this.inFlight) {
-      if (this.verbose) console.log("[HEALTH] Ciclo precedente ancora in corso, salto");
+      if (this.verbose) slogInfo("[HEALTH] Ciclo precedente ancora in corso, salto");
       return;
     }
     this.inFlight = true;
@@ -171,7 +171,7 @@ export class HealthChecker {
       }
 
       if (this.verbose) {
-        console.log(`[HEALTH] Ciclo: ${candidates.length} modelli da testare`);
+        slogInfo(`[HEALTH] Ciclo: ${candidates.length} modelli da testare`);
       }
 
       let revived = 0;
@@ -181,7 +181,7 @@ export class HealthChecker {
         const providerInterval = this.providerIntervals[m.provider] || this.intervalMs;
         const lastCheck = this.lastProviderCheck.get(m.provider) || 0;
         if (Date.now() - lastCheck < providerInterval) {
-          if (this.verbose) console.log(`[HEALTH] Skip ${m.id}: provider ${m.provider} last checked ${Math.ceil((Date.now() - lastCheck) / 1000 / 60)}m ago, need ${Math.ceil(providerInterval / 1000 / 60)}min wait`);
+          if (this.verbose) slogInfo(`[HEALTH] Skip ${m.id}: provider ${m.provider} last checked ${Math.ceil((Date.now() - lastCheck) / 1000 / 60)}m ago, need ${Math.ceil(providerInterval / 1000 / 60)}min wait`);
           continue;
         }
 
@@ -197,18 +197,18 @@ export class HealthChecker {
           try {
             this.bandit.clearProviderAttention(m.provider);
           } catch (e) {
-            console.error(`[HEALTH] Errore nel clearing attention flag per ${m.provider}: ${e.message}`);
+            slogError(`[HEALTH] Errore nel clearing attention flag per ${m.provider}: ${e.message}`);
           }
           // Reset provider-level cooldown when a model from that provider is reachable
           try {
             this.bandit.resetProviderCooldown(m.provider);
           } catch (e) {
-            console.error(`[HEALTH] Errore nel reset cooldown provider per ${m.provider}: ${e.message}`);
+            slogError(`[HEALTH] Errore nel reset cooldown provider per ${m.provider}: ${e.message}`);
           }
           revived++;
-          console.log(`[HEALTH] ✅ ${m.id} riabilitato (era ${stato})`);
+          slogInfo(`[HEALTH] ✅ ${m.id} riabilitato (era ${stato})`);
         } else if (this.verbose) {
-          console.log(`[HEALTH] ❌ ${m.id} ancora non disponibile`);
+          slogInfo(`[HEALTH] ❌ ${m.id} ancora non disponibile`);
         }
 
         // Update last check time for this provider
@@ -221,7 +221,7 @@ export class HealthChecker {
       this.stats.lastRun = Date.now();
 
       if (this.verbose) {
-        console.log(`[HEALTH] Ciclo chiuso: ${revived}/${candidates.length} riabilitati`);
+        slogInfo(`[HEALTH] Ciclo chiuso: ${revived}/${candidates.length} riabilitati`);
       }
     } finally {
       this.inFlight = false;

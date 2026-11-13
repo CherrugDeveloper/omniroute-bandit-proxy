@@ -8,6 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { info as slogInfo, error as slogError } from "./structured-logger.mjs";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -40,15 +42,15 @@ export function initRegistry() {
       ...m,
       re: new RegExp(m.match, 'i'),
     }));
-    console.log(`[MODES] Registry caricato: ${registry.modes.length} modalità`);
+    slogInfo(`[MODES] Registry caricato: ${registry.modes.length} modalità`);
   } catch (e) {
-    console.error(`[MODES] Errore caricamento registry: ${e.message}`);
+    slogError(`[MODES] Errore caricamento registry: ${e.message}`);
     registry = { modes: [], compiled: [] };
   }
 
   signatures = loadJson(SIGNATURES_PATH) || {};
   discovered = loadJson(DISCOVERED_PATH) || {};
-  console.log(`[MODES] Signatures: ${Object.keys(signatures).length} | Discovered: ${Object.keys(discovered).length}`);
+  slogInfo(`[MODES] Signatures: ${Object.keys(signatures).length} | Discovered: ${Object.keys(discovered).length}`);
 }
 function loadJson(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); }
@@ -144,7 +146,7 @@ export function labelDiscovered(sig, modeName, profile) {
   delete discovered[sig];
   scheduleSave('signatures');
   scheduleSave('discovered');
-  console.log(`[MODES] Labeled ${sig} → ${modeName} (${profile})`);
+  slogInfo(`[MODES] Labeled ${sig} → ${modeName} (${profile})`);
   return { ok: true };
 }
 export function registrySignatures() {
@@ -161,7 +163,7 @@ export function dismissDiscovered(sig) {
   if (!discovered[sig]) return false;
   delete discovered[sig];
   scheduleSave('discovered');
-  console.log(`[MODES] dismissed ${sig}`);
+  slogInfo(`[MODES] dismissed ${sig}`);
   return true;
 }
 export function registryStats() {
@@ -185,7 +187,7 @@ function scheduleSave(which) {
         fs.writeFileSync(DISCOVERED_PATH, JSON.stringify(discovered, null, 2));
         saveDiscoveredTimer = null;
       }
-    } catch (e) { console.error(`[MODES] save ${which} failed: ${e.message}`); }
+    } catch (e) { slogError(`[MODES] save ${which} failed: ${e.message}`); }
   };
   const timer = setTimeout(fn, 3000);
   timer.unref();

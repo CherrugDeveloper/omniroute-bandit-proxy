@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { error as slogError } from "./structured-logger.mjs";
+
 
 class ProviderQuota {
     constructor(db) {
@@ -37,7 +39,7 @@ class ProviderQuota {
                 }
             } catch (err) {
                 if (!this._closing) {
-                    console.error("[PROVIDER_QUOTA] Background roll error:", err.message);
+                    slogError("[PROVIDER_QUOTA] Background roll error:", err.message);
                 }
             }
         }, 60000); // every 60s
@@ -100,7 +102,7 @@ class ProviderQuota {
             const content = fs.readFileSync(configPath, "utf8");
             return JSON.parse(content).providers;
         } catch (err) {
-            console.error("[PROVIDER_QUOTA] Error loading provider limits:", err.message);
+            slogError("[PROVIDER_QUOTA] Error loading provider limits:", err.message);
             return {};
         }
     }

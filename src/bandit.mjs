@@ -6,6 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ProviderQuota from './provider-quota.mjs';
 import { logPunishment, EVENT_TYPES } from './events.mjs';
+import { info as slogInfo, error as slogError, warn as slogWarn, debug as slogDebug } from "./structured-logger.mjs";
+
 
 
 export class DiscountedUCB1Bandit {
@@ -29,7 +31,7 @@ export class DiscountedUCB1Bandit {
   }
 
   constructor(dbPath = "bandit.db") {
-    if (typeof DEBUG !== 'undefined' && DEBUG) console.log(`[DIAGNOSTIC] Initializing database at ${dbPath}`);
+    if (typeof DEBUG !== 'undefined' && DEBUG) slogInfo(`[DIAGNOSTIC] Initializing database at ${dbPath}`);
     this.db = new Database(dbPath);
     this.db.function('REGEXP', (pattern, text) => {
       return new RegExp(pattern, 'i').test(String(text || '')) ? 1 : 0;
@@ -39,9 +41,9 @@ export class DiscountedUCB1Bandit {
       this.db.pragma('busy_timeout = 5000');
       const mode = this.db.pragma('journal_mode', { simple: true });
       const timeout = this.db.pragma('busy_timeout', { simple: true });
-      console.log(`[BANDIT] DB pragma configured - journal_mode: ${mode}, busy_timeout: ${timeout}`);
+      slogInfo(`[BANDIT] DB pragma configured - journal_mode: ${mode}, busy_timeout: ${timeout}`);
     } catch (e) {
-      console.error(`[BANDIT] Error setting DB pragmas: ${e.message}`);
+      slogError(`[BANDIT] Error setting DB pragmas: ${e.message}`);
     }
     this.discountFactor = 0.99;
     this.notifier = null;
@@ -49,7 +51,7 @@ export class DiscountedUCB1Bandit {
     this.pricingFilter = String(process.env.PRICING_FILTER || "none").toLowerCase();
     const validFilters = ["none", "free-only", "paid-only", "exclude-paid"];
     if (!validFilters.includes(this.pricingFilter)) {
-      console.warn(`[BANDIT] Invalid PRICING_FILTER value '${this.pricingFilter}', defaulting to 'none'`);
+      slogWarn(`[BANDIT] Invalid PRICING_FILTER value '${this.pricingFilter}', defaulting to 'none'`);
       this.pricingFilter = "none";
     }
     this.exploitOnly = String(process.env.EXPLOIT_ONLY || "false").toLowerCase() === "true";
@@ -79,10 +81,10 @@ export class DiscountedUCB1Bandit {
       `);
       const result = stmt.run(thirtyDaysAgo);
       if (result.changes > 0) {
-        console.log(`[BANDIT] Pruned ${result.changes} inactive models.`);
+        slogInfo(`[BANDIT] Pruned ${result.changes} inactive models.`);
       }
     } catch (e) {
-      console.error(`[BANDIT] Error pruning models: ${e.message}`);
+      slogError(`[BANDIT] Error pruning models: ${e.message}`);
     }
   }
 
@@ -93,7 +95,7 @@ export class DiscountedUCB1Bandit {
       const configContent = fs.readFileSync(configPath, "utf8");
       return JSON.parse(configContent);
     } catch (err) {
-      console.error("[BANDIT] Error reading bandit config:", err.message);
+      slogError("[BANDIT] Error reading bandit config:", err.message);
       return { fallbackModels: [], errorConfig: { degradationThreshold: 3, rehabilitationPeriodMs: 172800000, classification: { transientErrors: [], permanentErrors: [] } } };
     }
   }
@@ -182,7 +184,7 @@ export class DiscountedUCB1Bandit {
         CREATE INDEX IF NOT EXISTS idx_models_cooldown ON models(cooldown_until);
       `);
     } catch (err) {
-      console.error("[BANDIT] Errore inizializzazione DB:", err.message);
+      slogError("[BANDIT] Errore inizializzazione DB:", err.message);
       throw err;
     }
   }
@@ -193,11 +195,11 @@ export class DiscountedUCB1Bandit {
       const hasLastUsedIndex = modelColumns.some(col => col.name === "last_used_index");
 
       if (!hasLastUsedIndex) {
-        console.log("[BANDIT] Migrazione: aggiungo last_used_index a models");
+        slogInfo("[BANDIT] Migrazione: aggiungo last_used_index a models");
         try {
           this.db.exec(`ALTER TABLE models ADD COLUMN last_used_index INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna last_used_index:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna last_used_index:", err.message);
           throw err;
         }
       }
@@ -206,11 +208,11 @@ export class DiscountedUCB1Bandit {
       const hasPointer = providerColumns.some(col => col.name === "pointer");
 
       if (!hasPointer) {
-        console.log("[BANDIT] Migrazione: aggiungo pointer a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo pointer a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN pointer INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna pointer:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna pointer:", err.message);
           throw err;
         }
       }
@@ -218,11 +220,11 @@ export class DiscountedUCB1Bandit {
       const hasNeedsAttention = providerColumns.some(col => col.name === "needs_attention");
 
       if (!hasNeedsAttention) {
-        console.log("[BANDIT] Migrazione: aggiungo needs_attention a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo needs_attention a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN needs_attention INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna needs_attention:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna needs_attention:", err.message);
           throw err;
         }
       }
@@ -231,11 +233,11 @@ export class DiscountedUCB1Bandit {
       const hasMaxInput = catalogColumns.some(col => col.name === "max_input_tokens");
 
       if (!hasMaxInput) {
-        console.log("[BANDIT] Migrazione: aggiungo max_input_tokens a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo max_input_tokens a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN max_input_tokens INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna max_input_tokens:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna max_input_tokens:", err.message);
           throw err;
         }
       }
@@ -253,158 +255,158 @@ export class DiscountedUCB1Bandit {
       const hasTotalFailures = modelColumns.some(col => col.name === "total_failures");
 
       if (!hasTotalFailures) {
-        console.log("[BANDIT] Migrazione: aggiungo total_failures a models");
+        slogInfo("[BANDIT] Migrazione: aggiungo total_failures a models");
         try {
           this.db.exec(`ALTER TABLE models ADD COLUMN total_failures INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna total_failures:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna total_failures:", err.message);
           throw err;
         }
       }
 
       if (!hasBannedSince) {
-        console.log("[BANDIT] Migrazione: aggiungo banned_since a models");
+        slogInfo("[BANDIT] Migrazione: aggiungo banned_since a models");
         try {
           this.db.exec(`ALTER TABLE models ADD COLUMN banned_since REAL DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna banned_since:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna banned_since:", err.message);
           throw err;
         }
       }
 
       if (!hasIsTraining) {
-        console.log("[BANDIT] Migrazione: aggiungo isTraining a models_train");
+        slogInfo("[BANDIT] Migrazione: aggiungo isTraining a models_train");
         try {
           this.db.exec(`ALTER TABLE models_train ADD COLUMN isTraining INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna isTraining:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna isTraining:", err.message);
           throw err;
         }
       }
 
       if (!hasExecutionTime) {
-        console.log("[BANDIT] Migrazione: aggiungo executionTime a models_train");
+        slogInfo("[BANDIT] Migrazione: aggiungo executionTime a models_train");
         try {
           this.db.exec(`ALTER TABLE models_train ADD COLUMN executionTime INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna executionTime:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna executionTime:", err.message);
           throw err;
         }
       }
 
       if (!hasCalledModels) {
-        console.log("[BANDIT] Migrazione: aggiungo calledModels a models_train");
+        slogInfo("[BANDIT] Migrazione: aggiungo calledModels a models_train");
         try {
           this.db.exec(`ALTER TABLE models_train ADD COLUMN calledModels INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna calledModels:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna calledModels:", err.message);
           throw err;
         }
       }
 
       if (!hasOkStatus) {
-        console.log("[BANDIT] Migrazione: aggiungo okStatus a models_train");
+        slogInfo("[BANDIT] Migrazione: aggiungo okStatus a models_train");
         try {
           this.db.exec(`ALTER TABLE models_train ADD COLUMN okStatus INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna okStatus:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna okStatus:", err.message);
           throw err;
         }
       }
 
       if (!hasErrorStatus) {
-        console.log("[BANDIT] Migrazione: aggiungo errorStatus a models_train");
+        slogInfo("[BANDIT] Migrazione: aggiungo errorStatus a models_train");
         try {
           this.db.exec(`ALTER TABLE models_train ADD COLUMN errorStatus INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna errorStatus:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna errorStatus:", err.message);
           throw err;
         }
       }
 
       if (!hasStatusMessage) {
-        console.log("[BANDIT] Migrazione: aggiungo statusMessage a models_train");
+        slogInfo("[BANDIT] Migrazione: aggiungo statusMessage a models_train");
         try {
           this.db.exec(`ALTER TABLE models_train ADD COLUMN statusMessage TEXT DEFAULT 'Idle'`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna statusMessage:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna statusMessage:", err.message);
           throw err;
         }
       }
 
       const hasUpdatedAt = trainColumns.some(col => col.name === "updated_at");
       if (!hasUpdatedAt) {
-        console.log("[BANDIT] Migrazione: aggiungo updated_at a models_train");
+        slogInfo("[BANDIT] Migrazione: aggiungo updated_at a models_train");
         try {
           this.db.exec(`ALTER TABLE models_train ADD COLUMN updated_at REAL DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna updated_at:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna updated_at:", err.message);
           throw err;
         }
       }
 
       const hasSupportsTools = catalogColumns.some(col => col.name === "supports_tools");
       if (!hasSupportsTools) {
-        console.log("[BANDIT] Migrazione: aggiungo supports_tools a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo supports_tools a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_tools INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna supports_tools:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna supports_tools:", err.message);
           throw err;
         }
       }
 
       const hasSupportsImageGeneration = catalogColumns.some(col => col.name === "supports_image_generation");
       if (!hasSupportsImageGeneration) {
-        console.log("[BANDIT] Migrazione: aggiungo supports_image_generation a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo supports_image_generation a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_image_generation INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna supports_image_generation:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna supports_image_generation:", err.message);
           throw err;
         }
       }
 
       const hasCapability = catalogColumns.some(col => col.name === "capability");
       if (!hasCapability) {
-        console.log("[BANDIT] Migrazione: aggiungo capability a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo capability a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN capability TEXT DEFAULT 'chat_completion'`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna capability:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna capability:", err.message);
           throw err;
         }
       }
 
       const hasSupportsChat = catalogColumns.some(col => col.name === "supports_chat");
       if (!hasSupportsChat) {
-        console.log("[BANDIT] Migrazione: aggiungo supports_chat a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo supports_chat a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_chat INTEGER DEFAULT 1`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna supports_chat:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna supports_chat:", err.message);
           throw err;
         }
       }
 
       const hasSupportsAudioGeneration = catalogColumns.some(col => col.name === "supports_audio_generation");
       if (!hasSupportsAudioGeneration) {
-        console.log("[BANDIT] Migrazione: aggiungo supports_audio_generation a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo supports_audio_generation a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_audio_generation INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna supports_audio_generation:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna supports_audio_generation:", err.message);
           throw err;
         }
       }
 
       const hasSupportsVision = catalogColumns.some(col => col.name === "supports_vision");
       if (!hasSupportsVision) {
-        console.log("[BANDIT] Migrazione: aggiungo supports_vision a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo supports_vision a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN supports_vision INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna supports_vision:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna supports_vision:", err.message);
           throw err;
         }
       }
@@ -413,11 +415,11 @@ export class DiscountedUCB1Bandit {
       const hasConsecutiveFailures = providerCols.some(col => col.name === "consecutive_failures");
 
       if (!hasConsecutiveFailures) {
-        console.log("[BANDIT] Migrazione: aggiungo consecutive_failures a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo consecutive_failures a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN consecutive_failures INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna consecutive_failures:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna consecutive_failures:", err.message);
           throw err;
         }
       }
@@ -425,11 +427,11 @@ export class DiscountedUCB1Bandit {
       const hasCircuitBreakerUntil = providerCols.some(col => col.name === "circuit_breaker_until");
 
       if (!hasCircuitBreakerUntil) {
-        console.log("[BANDIT] Migrazione: aggiungo circuit_breaker_until a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo circuit_breaker_until a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN circuit_breaker_until REAL DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna circuit_breaker_until:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna circuit_breaker_until:", err.message);
           throw err;
         }
       }
@@ -437,11 +439,11 @@ export class DiscountedUCB1Bandit {
       const hasLastSuccessTime = providerCols.some(col => col.name === "last_success_time");
 
       if (!hasLastSuccessTime) {
-        console.log("[BANDIT] Migrazione: aggiungo last_success_time a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo last_success_time a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN last_success_time REAL DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna last_success_time:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna last_success_time:", err.message);
           throw err;
         }
       }
@@ -449,41 +451,41 @@ export class DiscountedUCB1Bandit {
       const requestLogsColumns = this.db.pragma("table_info(request_logs)");
       const hasStatusCode = requestLogsColumns.some(col => col.name === "status_code");
       if (!hasStatusCode) {
-        console.log("[BANDIT] Migrazione: aggiungo status_code a request_logs");
+        slogInfo("[BANDIT] Migrazione: aggiungo status_code a request_logs");
         try {
           this.db.exec(`ALTER TABLE request_logs ADD COLUMN status_code INTEGER`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna status_code:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna status_code:", err.message);
           throw err;
         }
       }
       const hasErrorMessage = requestLogsColumns.some(col => col.name === "error_message");
       if (!hasErrorMessage) {
-        console.log("[BANDIT] Migrazione: aggiungo error_message a request_logs");
+        slogInfo("[BANDIT] Migrazione: aggiungo error_message a request_logs");
         try {
           this.db.exec(`ALTER TABLE request_logs ADD COLUMN error_message TEXT`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna error_message:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna error_message:", err.message);
           throw err;
         }
       }
       const hasModelLog = requestLogsColumns.some(col => col.name === "model");
       if (!hasModelLog) {
-        console.log("[BANDIT] Migrazione: aggiungo model a request_logs");
+        slogInfo("[BANDIT] Migrazione: aggiungo model a request_logs");
         try {
           this.db.exec(`ALTER TABLE request_logs ADD COLUMN model TEXT`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna model:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna model:", err.message);
           throw err;
         }
       }
       const hasProviderLog = requestLogsColumns.some(col => col.name === "provider");
       if (!hasProviderLog) {
-        console.log("[BANDIT] Migrazione: aggiungo provider a request_logs");
+        slogInfo("[BANDIT] Migrazione: aggiungo provider a request_logs");
         try {
           this.db.exec(`ALTER TABLE request_logs ADD COLUMN provider TEXT`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna provider:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna provider:", err.message);
           throw err;
         }
       }
@@ -505,76 +507,76 @@ export class DiscountedUCB1Bandit {
         if (!has) {
           try {
             this.db.exec(`ALTER TABLE provider_history ADD COLUMN ${colDef}`);
-            console.log(`[BANDIT] Migrazione: aggiungo ${colName} a provider_history`);
+            slogInfo(`[BANDIT] Migrazione: aggiungo ${colName} a provider_history`);
           } catch (e) {
-            console.error(`[BANDIT] Errore aggiunta ${colName}:`, e.message);
+            slogError(`[BANDIT] Errore aggiunta ${colName}:`, e.message);
           }
         }
       }
 
       const hasCatalogIsFree = catalogColumns.some(col => col.name === "is_free");
       if (!hasCatalogIsFree) {
-        console.log("[BANDIT] Migrazione: aggiungo is_free a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo is_free a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN is_free INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna is_free:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna is_free:", err.message);
           throw err;
         }
       }
 
       const hasCatalogIsPaid = catalogColumns.some(col => col.name === "is_paid");
       if (!hasCatalogIsPaid) {
-        console.log("[BANDIT] Migrazione: aggiungo is_paid a catalog");
+        slogInfo("[BANDIT] Migrazione: aggiungo is_paid a catalog");
         try {
           this.db.exec(`ALTER TABLE catalog ADD COLUMN is_paid INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna is_paid a catalog:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna is_paid a catalog:", err.message);
           throw err;
         }
       }
 
       const hasModelsIsPaid = modelColumns.some(col => col.name === "is_paid");
       if (!hasModelsIsPaid) {
-        console.log("[BANDIT] Migrazione: aggiungo is_paid a models");
+        slogInfo("[BANDIT] Migrazione: aggiungo is_paid a models");
         try {
           this.db.exec(`ALTER TABLE models ADD COLUMN is_paid INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna is_paid:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna is_paid:", err.message);
           throw err;
         }
       }
 
       const hasDynMax = modelColumns.some(col => col.name === "dynamic_max_tokens");
       if (!hasDynMax) {
-        console.log("[BANDIT] Migrazione: aggiungo dynamic_max_tokens a models");
+        slogInfo("[BANDIT] Migrazione: aggiungo dynamic_max_tokens a models");
         try {
           this.db.exec(`ALTER TABLE models ADD COLUMN dynamic_max_tokens INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna dynamic_max_tokens:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna dynamic_max_tokens:", err.message);
           throw err;
         }
       }
 
       const hasConsecutive5xx = modelColumns.some(col => col.name === "consecutive_5xx");
       if (!hasConsecutive5xx) {
-        console.log("[BANDIT] Migrazione: aggiungo consecutive_5xx a models");
+        slogInfo("[BANDIT] Migrazione: aggiungo consecutive_5xx a models");
         try {
           this.db.exec(`ALTER TABLE models ADD COLUMN consecutive_5xx INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna consecutive_5xx:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna consecutive_5xx:", err.message);
           throw err;
         }
       }
 
       const hasDegraded = modelColumns.some(col => col.name === "degraded");
       if (!hasDegraded) {
-        console.log("[BANDIT] Migrazione: aggiungo degraded/degraded_since a models");
+        slogInfo("[BANDIT] Migrazione: aggiungo degraded/degraded_since a models");
         try {
           this.db.exec(`ALTER TABLE models ADD COLUMN degraded INTEGER DEFAULT 0`);
           this.db.exec(`ALTER TABLE models ADD COLUMN degraded_since REAL DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonne degraded:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonne degraded:", err.message);
           throw err;
         }
       }
@@ -582,23 +584,23 @@ export class DiscountedUCB1Bandit {
       // Add consecutive_critical_failures column for 3-strike aggressive punishment
       const hasConsecutiveCriticalFailures = modelColumns.some(col => col.name === "consecutive_critical_failures");
       if (!hasConsecutiveCriticalFailures) {
-        console.log("[BANDIT] Migrazione: aggiungo consecutive_critical_failures a models");
+        slogInfo("[BANDIT] Migrazione: aggiungo consecutive_critical_failures a models");
         try {
           this.db.exec(`ALTER TABLE models ADD COLUMN consecutive_critical_failures INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna consecutive_critical_failures:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna consecutive_critical_failures:", err.message);
           throw err;
         }
       }
 
       const hasAttentionReason = providerColumns.some(col => col.name === "attention_reason");
       if (!hasAttentionReason) {
-        console.log("[BANDIT] Migrazione: aggiungo attention_reason/attention_message a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo attention_reason/attention_message a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_reason TEXT DEFAULT ''`);
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_message TEXT DEFAULT ''`);
         } catch (err) {
-          console.error("[BANDIT] Errore migrazione attention_reason:", err.message);
+          slogError("[BANDIT] Errore migrazione attention_reason:", err.message);
           throw err;
         }
       }
@@ -606,40 +608,40 @@ export class DiscountedUCB1Bandit {
       // Migrazione: total_failures e punishment_log per provider_history
       const hasTotalFailuresProv = providerCols.some(col => col.name === "total_failures");
       if (!hasTotalFailuresProv) {
-        console.log("[BANDIT] Migrazione: aggiungo total_failures a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo total_failures a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN total_failures INTEGER DEFAULT 0`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna total_failures:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna total_failures:", err.message);
         }
       }
 
       const hasPunishmentLog = providerCols.some(col => col.name === "punishment_log");
       if (!hasPunishmentLog) {
-        console.log("[BANDIT] Migrazione: aggiungo punishment_log a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo punishment_log a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN punishment_log TEXT DEFAULT '[]'`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna punishment_log:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna punishment_log:", err.message);
         }
       }
 
       const hasLastPunishment = providerCols.some(col => col.name === "last_punishment");
       if (!hasLastPunishment) {
-        console.log("[BANDIT] Migrazione: aggiungo last_punishment a provider_history");
+        slogInfo("[BANDIT] Migrazione: aggiungo last_punishment a provider_history");
         try {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN last_punishment TEXT`);
         } catch (err) {
-          console.error("[BANDIT] Errore aggiunta colonna last_punishment:", err.message);
+          slogError("[BANDIT] Errore aggiunta colonna last_punishment:", err.message);
         }
       }
 
-      console.log("[BANDIT] Migrazione database completata");
+      slogInfo("[BANDIT] Migrazione database completata");
 
       // Create punishment_events table for persisting punishment events
       const punishmentEventsTable = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='punishment_events'").get();
       if (!punishmentEventsTable) {
-        console.log("[BANDIT] Creazione tabella punishment_events");
+        slogInfo("[BANDIT] Creazione tabella punishment_events");
         try {
           this.db.exec(`CREATE TABLE punishment_events (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -657,11 +659,11 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`CREATE INDEX IF NOT EXISTS idx_punishment_events_model ON punishment_events(model_id)`);
           this.db.exec(`CREATE INDEX IF NOT EXISTS idx_punishment_events_created ON punishment_events(created_at)`);
         } catch (err) {
-          console.error("[BANDIT] Errore creazione tabella punishment_events:", err.message);
+          slogError("[BANDIT] Errore creazione tabella punishment_events:", err.message);
         }
       }
     } catch (err) {
-      console.error("[BANDIT] Errore durante migrazione:", err.message);
+      slogError("[BANDIT] Errore durante migrazione:", err.message);
       throw err;
     }
   }
@@ -688,7 +690,7 @@ export class DiscountedUCB1Bandit {
   _registerModelUse(modelId, provider) {
     const originalModelId = modelId;
     modelId = this._sanitizeModelId(modelId);
-    console.log(`[DEBUG] _registerModelUse: original=${originalModelId}, sanitized=${modelId}`);
+    slogInfo(`[DEBUG] _registerModelUse: original=${originalModelId}, sanitized=${modelId}`);
     this.db.prepare(
       `INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
        VALUES (?, 0, 0, 0, 0)`
@@ -730,7 +732,7 @@ export class DiscountedUCB1Bandit {
       `);
       stmt.run(eventType, provider, modelId || null, reason || null, cooldownMs || 0, failures || 0, consecutive || 0, Date.now(), source);
     } catch (err) {
-      console.error("[BANDIT] Errore registrazione evento punizione:", err.message);
+      slogError("[BANDIT] Errore registrazione evento punizione:", err.message);
     }
   }
 
@@ -745,7 +747,7 @@ export class DiscountedUCB1Bandit {
       `);
       return stmt.all(limit);
     } catch (err) {
-      console.error("[BANDIT] Errore recupero eventi punizione:", err.message);
+      slogError("[BANDIT] Errore recupero eventi punizione:", err.message);
       return [];
     }
   }
@@ -918,20 +920,20 @@ export class DiscountedUCB1Bandit {
           WHERE NOT EXISTS (SELECT 1 FROM models_train WHERE models_train.id = c.id)
         `).run();
         const modelsCount = this.db.prepare("SELECT COUNT(*) as count FROM models").get().count;
-        console.log(`[BANDIT] Models table synchronized: ${modelsCount} models (catalog: ${inserted})`);
+        slogInfo(`[BANDIT] Models table synchronized: ${modelsCount} models (catalog: ${inserted})`);
         
         this._rankCache = { at: 0, map: new Map() };
       this._setMeta("catalogRawCount", raw);
       this._setMeta("catalogTotal", inserted);
       this._setMeta("lastSyncTimestamp", Date.now());
-      console.log(`[BANDIT] Catalog sincronizzato: ${inserted} modelli totali (inclusi chat e non-chat, esclusi ${skipped} ignorati su ${raw} totali)`);
+      slogInfo(`[BANDIT] Catalog sincronizzato: ${inserted} modelli totali (inclusi chat e non-chat, esclusi ${skipped} ignorati su ${raw} totali)`);
     } catch (err) {
-      console.warn("[BANDIT] Attenzione: Impossibile sincronizzare i modelli da remoto:", err.message);
+      slogWarn("[BANDIT] Attenzione: Impossibile sincronizzare i modelli da remoto:", err.message);
       const cachedCount = this.db.prepare("SELECT COUNT(*) as count FROM catalog").get().count;
       if (cachedCount > 0) {
-        console.log(`[BANDIT] Utilizzo della cache locale: ${cachedCount} modelli trovati nel catalogo SQLite.`);
+        slogInfo(`[BANDIT] Utilizzo della cache locale: ${cachedCount} modelli trovati nel catalogo SQLite.`);
       } else {
-        console.warn("[BANDIT] Attenzione: Nessun modello in cache nel database SQLite.");
+        slogWarn("[BANDIT] Attenzione: Nessun modello in cache nel database SQLite.");
       }
     }
   }
@@ -1150,8 +1152,8 @@ export class DiscountedUCB1Bandit {
 
   recordFeedback(modelId, success, reward = 1.0, errorDetails = null, opts = {}) {
     const sanitizedModelId = this._sanitizeModelId(modelId);
-    console.log(`[DEBUG] recordFeedback: modelId=${modelId}, sanitized=${sanitizedModelId}`);
-    console.log(`[BANDIT-RECORD-FEEDBACK] modelId=${modelId} success=${success} reward=${reward} source=${opts.source}`);
+    slogInfo(`[DEBUG] recordFeedback: modelId=${modelId}, sanitized=${sanitizedModelId}`);
+    slogInfo(`[BANDIT-RECORD-FEEDBACK] modelId=${modelId} success=${success} reward=${reward} source=${opts.source}`);
     try {
       console.time(`recordFeedback-${modelId}`);
       const tx = this.db.transaction(() => {
@@ -1176,25 +1178,25 @@ export class DiscountedUCB1Bandit {
             const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(sanitizedModelId);
             const provider = cat?.provider || existingModel?.provider || opts.provider || 'unknown';
             if (provider) {
-              console.log(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
+              slogInfo(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
               const c = this._classifyError(errObj, provider);
               if (!c) {
-                console.error(`[BANDIT-ERROR] Failed to classify error for model=${modelId}, provider=${provider}`);
+                slogError(`[BANDIT-ERROR] Failed to classify error for model=${modelId}, provider=${provider}`);
                 return;
               }
-              console.log(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
+              slogInfo(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
               switch (c.action) {
               case "ban-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
-                  console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
+                  slogInfo(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
                 }
                 this._banProvider(provider);
-                console.log(`[BANDIT-CONSEQUENCE] ban-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
+                slogInfo(`[BANDIT-CONSEQUENCE] ban-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
                 logPunishment({ bandit: this, type: EVENT_TYPES.BAN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
                 break;
               case "ban-model":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
-                  console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
+                  slogInfo(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
                 }
                 this.db.prepare(
                   `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index)
@@ -1205,31 +1207,31 @@ export class DiscountedUCB1Bandit {
                 this.db.prepare(
                   `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
                 ).run(c.reason, `Model banned: ${sanitizedModelId} (${c.reason})`, provider);
-                console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
+                slogInfo(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
                 logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
                 break;
               case "cooldown-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
-                  console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
+                  slogInfo(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
                 }
                 if (c.reason === "no-credit" || /402|payment|credit|funds/i.test(String(errObj?.status || "") + " " + String(errObj?.message || ""))) {
                   this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(sanitizedModelId);
                 }
                 this._forceProviderCooldown(provider, c.cooldownMs, c.reason);
-                console.log(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=provider`);
+                slogInfo(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=provider`);
                 logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: c.cooldownMs || 0, failures: 0 });
                 break;
               case "cooldown-paid-only":
                 this._cooldownPaidOnly(provider, c.cooldownMs);
-                console.log(`[BANDIT-CONSEQUENCE] cooldown-paid-only | model=${modelId} provider=${provider} cooldownMs=${c.cooldownMs} scope=provider`);
+                slogInfo(`[BANDIT-CONSEQUENCE] cooldown-paid-only | model=${modelId} provider=${provider} cooldownMs=${c.cooldownMs} scope=provider`);
                 logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason || 'cooldown-paid-only', cooldownMs: c.cooldownMs || 0, failures: 0 });
                 break;
               case "flag-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
-                  console.log(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
+                  slogInfo(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
                 }
                 this._flagProviderAttention(provider, c.reason, errObj.message || errObj.error || "");
-                console.log(`[BANDIT-CONSEQUENCE] flag-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
+                slogInfo(`[BANDIT-CONSEQUENCE] flag-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
                 logPunishment({ bandit: this, type: EVENT_TYPES.FLAG_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
                 break;
               case "cooldown-model": {
@@ -1254,7 +1256,7 @@ export class DiscountedUCB1Bandit {
                   const modelRow = this.db.prepare(`SELECT consecutive_5xx FROM models WHERE id = ?`).get(sanitizedModelId);
                   if (modelRow && modelRow.consecutive_5xx >= 3) {
                     this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ?`).run(Date.now(), sanitizedModelId);
-                    console.log(`[BANDIT-CONSEQUENCE] degraded | model=${modelId} provider=${provider} reason=consecutive_5xx count=${modelRow.consecutive_5xx} scope=model`);
+                    slogInfo(`[BANDIT-CONSEQUENCE] degraded | model=${modelId} provider=${provider} reason=consecutive_5xx count=${modelRow.consecutive_5xx} scope=model`);
                     logPunishment({ bandit: this, type: EVENT_TYPES.DEGRADED_MODEL, provider, modelId: sanitizedModelId, reason: 'consecutive_5xx', cooldownMs: 0, failures: 0 });
                   }
                 }
@@ -1280,7 +1282,7 @@ export class DiscountedUCB1Bandit {
                   this.db.prepare(
                     `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
                   ).run(Date.now() + cooldownMs, c.reason, `Model cooldown: ${sanitizedModelId} (${c.reason})`, provider);
-                  console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model`);
+                  slogInfo(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model`);
                   logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs, failures: 0 });
                 }
                 
@@ -1303,14 +1305,14 @@ export class DiscountedUCB1Bandit {
           `UPDATE models SET sum_reward = sum_reward + ?, N = N + 1, fails = 0, last_used_index = last_used_index + 1, consecutive_5xx = 0, consecutive_critical_failures = 0, cooldown_until = 0
            WHERE id = ?`
         ).run(reward, sanitizedModelId);
-        console.log(`[BANDIT-5STRIKE] RESET | model=${modelId} | UCB1 updated sum_reward+=${reward} N++ | reason=success`);
+        slogInfo(`[BANDIT-5STRIKE] RESET | model=${modelId} | UCB1 updated sum_reward+=${reward} N++ | reason=success`);
       } else {
         // Training feedback: only update operational metrics, NOT UCB1 scores
         this.db.prepare(
           `UPDATE models SET fails = 0, consecutive_5xx = 0, consecutive_critical_failures = 0, cooldown_until = 0
            WHERE id = ?`
         ).run(sanitizedModelId);
-        console.log(`[BANDIT-5STRIKE] RESET | model=${modelId} | operational metrics reset only (no UCB1 pollution) | reason=training-success`);
+        slogInfo(`[BANDIT-5STRIKE] RESET | model=${modelId} | operational metrics reset only (no UCB1 pollution) | reason=training-success`);
       }
       this.db.prepare(
         "UPDATE request_logs SET ended_at = ?, status_code = ?, error_message = ?, model = ?, provider = ? WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
@@ -1328,7 +1330,7 @@ export class DiscountedUCB1Bandit {
       this.db.prepare(`UPDATE models SET cooldown_until = 0 WHERE id = ?`).run(sanitizedModelId);
       if (source === 'training') {
         this._recordTrainingFeedback(sanitizedModelId, true, reward);
-        console.log(`[BANDIT-TRAIN] Recorded training feedback for model=${modelId} success=true reward=${reward} source=training`);
+        slogInfo(`[BANDIT-TRAIN] Recorded training feedback for model=${modelId} success=true reward=${reward} source=training`);
       }
       } else {
         // On failure: increment both fails (consecutive) and total_failures (cumulative for escalation)
@@ -1350,7 +1352,7 @@ export class DiscountedUCB1Bandit {
         // Track consecutive critical failures for 5-strike rule
         if (isCriticalFailure) {
           const newConsecutiveCritical = currentConsecutiveCritical + 1;
-          console.log(`[BANDIT-5STRIKE] INCREMENT | model=${modelId} | consecutive_critical_failures: ${currentConsecutiveCritical} -> ${newConsecutiveCritical} | status=${statusCode} | reason=${errorDetails?.reason || 'unknown'}`);
+          slogInfo(`[BANDIT-5STRIKE] INCREMENT | model=${modelId} | consecutive_critical_failures: ${currentConsecutiveCritical} -> ${newConsecutiveCritical} | status=${statusCode} | reason=${errorDetails?.reason || 'unknown'}`);
           
           // Check for 5-strike rule: permanent ban after 5 consecutive critical failures
           if (newConsecutiveCritical >= 5) {
@@ -1369,7 +1371,7 @@ export class DiscountedUCB1Bandit {
               this.db.prepare(
                 `UPDATE provider_history SET permanent = 1, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
               ).run('paid-group-ban', `5-strike paid-group ban on provider=${provider}`, provider);
-              console.log(`[BANDIT-5STRIKE] PAID-GROUP-BAN | provider=${provider} | 5 consecutive critical failures on paid model=${modelId} | permanent ban applied to ALL paid models in provider | total_critical=${newConsecutiveCritical} | STATUS_CODE=${statusCode}`);
+              slogInfo(`[BANDIT-5STRIKE] PAID-GROUP-BAN | provider=${provider} | 5 consecutive critical failures on paid model=${modelId} | permanent ban applied to ALL paid models in provider | total_critical=${newConsecutiveCritical} | STATUS_CODE=${statusCode}`);
               logPunishment({ bandit: this, type: EVENT_TYPES.BAN_PAID_GROUP, provider, modelId, reason: '5-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             } else {
               // Non-paid model: just ban the individual model
@@ -1391,18 +1393,18 @@ export class DiscountedUCB1Bandit {
               this.db.prepare(
                 `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
               ).run('5-strike-permanent-ban', `Model permanently banned: ${sanitizedModelId} (5-strike-rule)`, provider);
-              console.log(`[BANDIT-5STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 5 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=5-strike-rule | STATUS_CODE=${statusCode}`);
+              slogInfo(`[BANDIT-5STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 5 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=5-strike-rule | STATUS_CODE=${statusCode}`);
               logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: '5-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             }
           } else {
             // Just increment the counter, don't ban yet
             this.db.prepare(`UPDATE models SET consecutive_critical_failures = ? WHERE id = ?`).run(newConsecutiveCritical, sanitizedModelId);
-            console.log(`[BANDIT-5STRIKE] COUNT | model=${modelId} | consecutive_critical_failures=${newConsecutiveCritical}/5 | STATUS_CODE=${statusCode} | not yet permanent ban`);
+            slogInfo(`[BANDIT-5STRIKE] COUNT | model=${modelId} | consecutive_critical_failures=${newConsecutiveCritical}/5 | STATUS_CODE=${statusCode} | not yet permanent ban`);
           }
         } else {
           // Non-critical failure: reset consecutive_critical_failures counter
           if (currentConsecutiveCritical > 0) {
-            console.log(`[BANDIT-3STRIKE] RESET | model=${modelId} | consecutive_critical_failures reset to 0 | reason=non-critical-failure | status=${statusCode}`);
+            slogInfo(`[BANDIT-3STRIKE] RESET | model=${modelId} | consecutive_critical_failures reset to 0 | reason=non-critical-failure | status=${statusCode}`);
           }
           this.db.prepare(`UPDATE models SET consecutive_critical_failures = 0 WHERE id = ?`).run(sanitizedModelId);
         }
@@ -1411,7 +1413,7 @@ export class DiscountedUCB1Bandit {
         const cooldownMs = this._getModelCooldownMs(totalFailures);
         if (cooldownMs && cooldownMs > 0) {
           this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
-          console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} cooldownMs=${cooldownMs} scope=model`);
+          slogInfo(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} cooldownMs=${cooldownMs} scope=model`);
         } else if (cooldownMs === null) {
           // Permanent ban at 5+ total failures (if not already banned by 3-strike rule)
           const currentModel = this.db.prepare("SELECT permanent FROM models WHERE id = ?").get(sanitizedModelId);
@@ -1423,7 +1425,7 @@ export class DiscountedUCB1Bandit {
             this.db.prepare(
               `UPDATE provider_history SET permanent = 1, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
             ).run('escalation-permanent-ban', `Model escalated to permanent ban: ${sanitizedModelId} (totalFailures=${totalFailures})`, provider);
-            console.log(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
+            slogInfo(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
           logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: 'escalation', cooldownMs: 0, failures: totalFailures });
           }
         }
@@ -1433,7 +1435,7 @@ export class DiscountedUCB1Bandit {
         ).run(Date.now(), statusCode, errorMessage, sanitizedModelId, provider);
         if (source === 'training') {
           this._recordTrainingFeedback(sanitizedModelId, false, reward);
-          console.log(`[BANDIT-TRAIN] Recorded training feedback for model=${modelId} success=false reward=${reward} source=training`);
+          slogInfo(`[BANDIT-TRAIN] Recorded training feedback for model=${modelId} success=false reward=${reward} source=training`);
         }
       }
       const result = { success, reward, errorDetails };
@@ -1443,8 +1445,8 @@ export class DiscountedUCB1Bandit {
       console.timeEnd(`recordFeedback-${modelId}`);
       return result;
     } catch (err) {
-      console.error(`[BANDIT-RECORD-FEEDBACK] ERROR for model=${modelId}:`, err?.message || err);
-      console.error(`[BANDIT-RECORD-FEEDBACK] Stack:`, err?.stack || String(err));
+      slogError(`[BANDIT-RECORD-FEEDBACK] ERROR for model=${modelId}:`, err?.message || err);
+      slogError(`[BANDIT-RECORD-FEEDBACK] Stack:`, err?.stack || String(err));
       // Never let DB errors crash the server - just log and continue
       return { success, reward, errorDetails, dbError: err?.message };
     }
@@ -1453,13 +1455,13 @@ export class DiscountedUCB1Bandit {
   _classifyError(errorDetails, provider) {
     const status = errorDetails.status || 0;
     const message = errorDetails.message || "";
-    console.log(`[BANDIT-CLASSIFY] status=${status} message=${message.substring(0, 120)} provider=${provider || "unknown"}`);
+    slogInfo(`[BANDIT-CLASSIFY] status=${status} message=${message.substring(0, 120)} provider=${provider || "unknown"}`);
     const reason = errorDetails.reason || "unknown";
     const is429 = status === 429;
     const resolvedProvider = provider || errorDetails.provider || (errorDetails.modelId ? errorDetails.modelId.split('/')[0] : '');
     
     // DIAGNOSTIC: log full error details for debugging
-    console.log(`[BANDIT-CLASSIFY-DIAG] errorDetails=${JSON.stringify(errorDetails).substring(0, 500)}`);
+    slogInfo(`[BANDIT-CLASSIFY-DIAG] errorDetails=${JSON.stringify(errorDetails).substring(0, 500)}`);
 
     // Load config-driven error classification
     const config = this.getBanditConfig();
@@ -1471,7 +1473,7 @@ export class DiscountedUCB1Bandit {
     for (const pattern of transientPatterns) {
       const regex = new RegExp(pattern.pattern, 'i');
       if (regex.test(message) || (pattern.status && pattern.status === status)) {
-        console.log(`[BANDIT-CLASSIFY] Matched transient pattern: ${pattern.pattern} -> ${pattern.action}`);
+        slogInfo(`[BANDIT-CLASSIFY] Matched transient pattern: ${pattern.pattern} -> ${pattern.action}`);
         // Parse "reset after Xs/m/h" from message if present (for ITPM/TPM limits)
         let cooldownMs = pattern.duration || 30000;
         const resetMatch = message.match(/reset after (\d+)(s|m|h)/i);
@@ -1496,7 +1498,7 @@ export class DiscountedUCB1Bandit {
     for (const pattern of permanentPatterns) {
       const regex = new RegExp(pattern.pattern, 'i');
       if (regex.test(message) || (pattern.status && pattern.status === status)) {
-        console.log(`[BANDIT-CLASSIFY] Matched permanent pattern: ${pattern.pattern} -> ${pattern.action}`);
+        slogInfo(`[BANDIT-CLASSIFY] Matched permanent pattern: ${pattern.pattern} -> ${pattern.action}`);
         return {
           action: pattern.action || "ban-model",
           scope: pattern.scope || "model",
@@ -1716,7 +1718,7 @@ export class DiscountedUCB1Bandit {
 
     // Default case
     const defaultReason = reason === "unknown" ? "classification-fallback" : reason;
-    console.log(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${defaultReason} cooldownMs=15000`);
+    slogInfo(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${defaultReason} cooldownMs=15000`);
     return {
       action: "cooldown-model",
       reason: defaultReason,
@@ -1972,7 +1974,7 @@ export class DiscountedUCB1Bandit {
       if (newFailures >= threshold) {
         circuitOpen = true;
         circuitBreakerUntil = now + 5 * 60 * 1000;
-        console.log(`[BANDIT] Circuit breaker OPENED for provider ${provider} after ${newFailures} consecutive failures`);
+        slogInfo(`[BANDIT] Circuit breaker OPENED for provider ${provider} after ${newFailures} consecutive failures`);
       }
     }
 
@@ -1993,7 +1995,7 @@ export class DiscountedUCB1Bandit {
   _triggerFallback(modelId) {
     const fallbackModels = this.getFallbackModels();
     if (fallbackModels.length > 0) {
-      console.log(`[BANDIT] Triggering fallback for model ${modelId}`);
+      slogInfo(`[BANDIT] Triggering fallback for model ${modelId}`);
       return fallbackModels[0];
     }
     return null;
@@ -2013,19 +2015,19 @@ export class DiscountedUCB1Bandit {
     ).get(modelId);
     
     if (!catalogModel) {
-      if (DEBUG) console.log(`[BANDIT][FALLBACK] Model ${modelId} not found in catalog`);
+      if (DEBUG) slogInfo(`[BANDIT][FALLBACK] Model ${modelId} not found in catalog`);
       return { modelId, score: -Infinity, reasons: ['not_in_catalog'], available: false };
     }
     
     // Check token limit
     if (estimatedTokens > catalogModel.max_input_tokens) {
-      if (DEBUG) console.log(`[BANDIT][FALLBACK] Model ${modelId} token limit exceeded: ${estimatedTokens} > ${catalogModel.max_input_tokens}`);
+      if (DEBUG) slogInfo(`[BANDIT][FALLBACK] Model ${modelId} token limit exceeded: ${estimatedTokens} > ${catalogModel.max_input_tokens}`);
       return { modelId, score: -Infinity, reasons: ['token_limit_exceeded'], available: false };
     }
     
     // Check tool requirement
     if (requireTools && !catalogModel.supports_tools) {
-      if (DEBUG) console.log(`[BANDIT][FALLBACK] Model ${modelId} doesn't support tools`);
+      if (DEBUG) slogInfo(`[BANDIT][FALLBACK] Model ${modelId} doesn't support tools`);
       return { modelId, score: -Infinity, reasons: ['tools_not_supported'], available: false };
     }
     
@@ -2082,7 +2084,7 @@ export class DiscountedUCB1Bandit {
     }
     
     if (DEBUG) {
-      console.log(`[BANDIT][FALLBACK] Model ${modelId} score: ${score.toFixed(4)}, reasons: ${reasons.join(', ')}`);
+      slogInfo(`[BANDIT][FALLBACK] Model ${modelId} score: ${score.toFixed(4)}, reasons: ${reasons.join(', ')}`);
     }
     
     return {
@@ -2104,7 +2106,7 @@ export class DiscountedUCB1Bandit {
     
     const fallbackModels = this.getFallbackModels();
     if (fallbackModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT][FALLBACK] No fallback models configured`);
+      if (DEBUG) slogInfo(`[BANDIT][FALLBACK] No fallback models configured`);
       return null;
     }
     
@@ -2112,7 +2114,7 @@ export class DiscountedUCB1Bandit {
     
     for (const modelId of fallbackModels) {
       if (excludeSet.has(modelId)) {
-        if (DEBUG) console.log(`[BANDIT][FALLBACK] Skipping excluded model: ${modelId}`);
+        if (DEBUG) slogInfo(`[BANDIT][FALLBACK] Skipping excluded model: ${modelId}`);
         continue;
       }
       
@@ -2123,7 +2125,7 @@ export class DiscountedUCB1Bandit {
     }
     
     if (scoredModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT][FALLBACK] No available fallback models after scoring`);
+      if (DEBUG) slogInfo(`[BANDIT][FALLBACK] No available fallback models after scoring`);
       return null;
     }
     
@@ -2132,9 +2134,9 @@ export class DiscountedUCB1Bandit {
     
     const best = scoredModels[0];
     if (DEBUG) {
-      console.log(`[BANDIT][FALLBACK] Selected best fallback model: ${best.modelId} (score: ${best.score.toFixed(4)})`);
+      slogInfo(`[BANDIT][FALLBACK] Selected best fallback model: ${best.modelId} (score: ${best.score.toFixed(4)})`);
       if (best.reasons.length > 0) {
-        console.log(`[BANDIT][FALLBACK] Selection reasons: ${best.reasons.join(', ')}`);
+        slogInfo(`[BANDIT][FALLBACK] Selection reasons: ${best.reasons.join(', ')}`);
       }
     }
     
@@ -2291,7 +2293,7 @@ export class DiscountedUCB1Bandit {
       `UPDATE models SET permanent = 0, banned_since = 0, cooldown_until = 0, consecutive_critical_failures = 0
        WHERE permanent = 1 AND banned_since > 0 AND (? - banned_since) > ?`
     ).run(now, period);
-    console.log(`[HEALTH-REHAB] Permanent ban rehabilitation check completed (period=${period}ms)`);
+    slogInfo(`[HEALTH-REHAB] Permanent ban rehabilitation check completed (period=${period}ms)`);
   }
 
   clearProviderAttention(provider) {
@@ -2315,7 +2317,7 @@ export class DiscountedUCB1Bandit {
            FROM models`
         ).all() || []).map(m => ({ ...m, id: this._sanitizeModelId(m.id) }));
       } catch (e) {
-        console.warn("[BANDIT] getMetrics models query error:", e.message);
+        slogWarn("[BANDIT] getMetrics models query error:", e.message);
       }
 
       let providers = [];
@@ -2325,14 +2327,14 @@ export class DiscountedUCB1Bandit {
            FROM provider_history`
         ).all() || [];
       } catch (e) {
-        console.warn("[BANDIT] getMetrics providers query error:", e.message);
+        slogWarn("[BANDIT] getMetrics providers query error:", e.message);
       }
 
       let stats = { modelsActive: 0, avgReward: 0, avgLatencySec: 0, freeActive: 0, topModel: null };
       try {
         stats = this.getDashboardStats() || stats;
       } catch (e) {
-        console.warn("[BANDIT] getMetrics getDashboardStats error:", e.message);
+        slogWarn("[BANDIT] getMetrics getDashboardStats error:", e.message);
       }
 
       const summary = {
@@ -2348,7 +2350,7 @@ export class DiscountedUCB1Bandit {
       }
       return { models, providers, summary };
     } catch (e) {
-      console.error("[BANDIT] Critical error in getMetrics:", e.message);
+      slogError("[BANDIT] Critical error in getMetrics:", e.message);
       return { models: [], providers: [], summary: { activeCount: 0, avgReward: 0, avgLatencySec: 0, freeActive: 0, topModel: null } };
     }
   }
@@ -2360,7 +2362,7 @@ export class DiscountedUCB1Bandit {
          FROM models`
       ).all() || [];
     } catch (e) {
-      console.warn("[BANDIT] getAllModels error:", e.message);
+      slogWarn("[BANDIT] getAllModels error:", e.message);
       return [];
     }
   }
@@ -2372,7 +2374,7 @@ export class DiscountedUCB1Bandit {
          FROM provider_history`
       ).all() || [];
     } catch (e) {
-      console.warn("[BANDIT] getAllProviders error:", e.message);
+      slogWarn("[BANDIT] getAllProviders error:", e.message);
       return [];
     }
   }
@@ -2380,7 +2382,7 @@ export class DiscountedUCB1Bandit {
   getDashboardStats() {
     try {
       const totalRequests = this._getMeta("totalRequests") || 0;
-      if (typeof DEBUG !== 'undefined' && DEBUG) console.log(`[DEBUG DashboardStats Validation] totalRequests from meta: ${totalRequests}`);
+      if (typeof DEBUG !== 'undefined' && DEBUG) slogInfo(`[DEBUG DashboardStats Validation] totalRequests from meta: ${totalRequests}`);
       // Note: totalObservations (from meta) is used by the bandit algorithm for UCB1 calculations.
       // For dashboard display, we use totalObservationsFromLogs which comes from request_logs table
       // and represents the actual count of completed requests.
@@ -2397,7 +2399,7 @@ export class DiscountedUCB1Bandit {
         `).get();
         if (res) stats = res;
       } catch (e) {
-        console.warn("[BANDIT] getDashboardStats models query error:", e.message);
+        slogWarn("[BANDIT] getDashboardStats models query error:", e.message);
       }
 
       let latency = { avgLatency: 0 };
@@ -2416,7 +2418,7 @@ export class DiscountedUCB1Bandit {
           latency = latencyResult;
         }
       } catch (e) {
-        console.warn("[BANDIT] Errore calcolo latenza (request_logs mancante?):", e.message);
+        slogWarn("[BANDIT] Errore calcolo latenza (request_logs mancante?):", e.message);
       }
 
       // freeActive: check both model-level and provider-level status
@@ -2438,7 +2440,7 @@ export class DiscountedUCB1Bandit {
             AND (ph.needs_attention IS NULL OR ph.needs_attention = 0)
         `).get(Date.now(), Date.now()) || { count: 0 };
       } catch (e) {
-        console.warn("[BANDIT] getDashboardStats freeActive query error:", e.message);
+        slogWarn("[BANDIT] getDashboardStats freeActive query error:", e.message);
       }
 
       let topModel = null;
@@ -2486,7 +2488,7 @@ export class DiscountedUCB1Bandit {
           };
         }
       } catch (e) {
-        console.warn("[BANDIT] getDashboardStats topModel query error:", e.message);
+        slogWarn("[BANDIT] getDashboardStats topModel query error:", e.message);
       }
 
       let catalogCounts = { total: 0, free: 0 };
@@ -2497,14 +2499,14 @@ export class DiscountedUCB1Bandit {
         `).get();
         if (catRes) catalogCounts = catRes;
       } catch (e) {
-        console.warn("[BANDIT] getDashboardStats catalogCounts query error:", e.message);
+        slogWarn("[BANDIT] getDashboardStats catalogCounts query error:", e.message);
       }
 
       let modelsSummary = { total: 0, active: 0, cooldown: 0, banned: 0, degraded: 0, attention: 0 };
             try {
               modelsSummary = this.getModelsSummary("prod") || modelsSummary;
             } catch (e) {
-              console.warn("[BANDIT] getDashboardStats getModelsSummary error:", e.message);
+              slogWarn("[BANDIT] getDashboardStats getModelsSummary error:", e.message);
             }
             // Ensure totalModels uses modelsSummary.total for consistent counting from catalog
             // This fixes the discrepancy where totalModels counted only initialized models (from models table)
@@ -2515,7 +2517,7 @@ export class DiscountedUCB1Bandit {
       try {
         providersList = this.getProviders() || [];
       } catch (e) {
-        console.warn("[BANDIT] getDashboardStats getProviders error:", e.message);
+        slogWarn("[BANDIT] getDashboardStats getProviders error:", e.message);
       }
 
       const providersActive = providersList.filter(p => !p.permanent && !p.needs_attention && p.cooldownRemaining === 0).length;
@@ -2531,7 +2533,7 @@ export class DiscountedUCB1Bandit {
         `).get();
         if (catalogProvidersResult) catalogProviders = catalogProvidersResult.count;
       } catch (e) {
-        console.warn("[BANDIT] getDashboardStats catalogProviders error:", e.message);
+        slogWarn("[BANDIT] getDashboardStats catalogProviders error:", e.message);
       }
 
       // Compute success rate from models table
@@ -2545,7 +2547,7 @@ export class DiscountedUCB1Bandit {
         `).get();
         if (srRes) successRateStats = srRes;
       } catch (e) {
-        console.warn("[BANDIT] getDashboardStats successRateStats error:", e.message);
+        slogWarn("[BANDIT] getDashboardStats successRateStats error:", e.message);
       }
       // Count successful observations from request_logs and total observations
       try {
@@ -2563,7 +2565,7 @@ export class DiscountedUCB1Bandit {
           successRateStats.totalObservations = 0;
         }
       } catch (e) {
-        console.warn("[BANDIT] getDashboardStats successfulObservations error:", e.message);
+        slogWarn("[BANDIT] getDashboardStats successfulObservations error:", e.message);
       }
 
       return {
@@ -2598,7 +2600,7 @@ export class DiscountedUCB1Bandit {
           : 0
       };
     } catch (e) {
-      console.error("[BANDIT] Critical error in getDashboardStats:", e.message);
+      slogError("[BANDIT] Critical error in getDashboardStats:", e.message);
       return {
         totalRequests: 0,
         totalObservations: 0,
@@ -2644,7 +2646,7 @@ export class DiscountedUCB1Bandit {
       `SELECT provider, max_input_tokens, supports_chat, supports_image_generation, supports_audio_generation, capability FROM catalog WHERE id = ?`
     ).get(sanitizedModelId);
 
-    console.log(`[DEBUG] isModelAvailable: modelId=${modelId}, sanitized=${sanitizedModelId}, found=${!!model}`);
+    slogInfo(`[DEBUG] isModelAvailable: modelId=${modelId}, sanitized=${sanitizedModelId}, found=${!!model}`);
 
     if (!requireImageGeneration && catModel) {
       const lowerId = modelId.toLowerCase();
@@ -2866,7 +2868,7 @@ export class DiscountedUCB1Bandit {
       FROM models m
       LEFT JOIN catalog c ON m.id = c.id
     `).all();
-    if (DEBUG) console.log(`[BANDIT][DEBUG] selectModel: catalog=${catalogModels.length} db=${dbModels.length} excluded=${excludeSet.size} tokens=${estimatedTokens} tools=${requireTools}`);
+    if (DEBUG) slogInfo(`[BANDIT][DEBUG] selectModel: catalog=${catalogModels.length} db=${dbModels.length} excluded=${excludeSet.size} tokens=${estimatedTokens} tools=${requireTools}`);
     // Combine catalog and db models, preferring db models when there's a conflict
     const modelMap = new Map();
     // Skip catalog models with falsy id
@@ -3024,7 +3026,7 @@ export class DiscountedUCB1Bandit {
 
         if (rejectionReason) {
           if (tierName === 'emergency') {
-            console.log(`[BANDIT][EMERGENCY] Model ${model.id} rejected: ${rejectionReason}`);
+            slogInfo(`[BANDIT][EMERGENCY] Model ${model.id} rejected: ${rejectionReason}`);
           }
           // Map rejection reason to countermeasure
           let countermeasure = '';
@@ -3062,10 +3064,10 @@ export class DiscountedUCB1Bandit {
           // on cooldown. Model-level punishments (recordFeedback) are still applied so
           // individual models can be tracked independently even when their provider cools down.
           if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown' || rejectionReason === 'auth-expired') {
-            console.log(`[BANDIT-CASCADE-GUARD] Skipping provider-level punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (provider already on cooldown/circuit/auth-expired)`);
+            slogInfo(`[BANDIT-CASCADE-GUARD] Skipping provider-level punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (provider already on cooldown/circuit/auth-expired)`);
             // Continue to model-level punishment below instead of returning false
           } else {
-            console.log(`[BANDIT-CASCADE-GUARD] Applying punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason}`);
+            slogInfo(`[BANDIT-CASCADE-GUARD] Applying punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason}`);
           }
 
           // Persist punishment state to models table for dashboard metrics
@@ -3081,7 +3083,7 @@ export class DiscountedUCB1Bandit {
                VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0)`
             ).run(sanitizedModelId, provider);
             this.db.prepare("UPDATE models SET fails = fails + 1, cooldown_until = ?, permanent = 0 WHERE id = ?").run(Date.now() + cooldownMs, sanitizedModelId);
-            console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${model.id} provider=${provider} reason=${rejectionReason} scope=emergency-rejection (downgraded from ban-model, no permanent ban) cooldownMs=${cooldownMs}`);
+            slogInfo(`[BANDIT-CONSEQUENCE] cooldown-model | model=${model.id} provider=${provider} reason=${rejectionReason} scope=emergency-rejection (downgraded from ban-model, no permanent ban) cooldownMs=${cooldownMs}`);
             logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_MODEL, provider: provider, modelId: sanitizedModelId, reason: rejectionReason, cooldownMs: cooldownMs, failures: 1 });
           } else if (countermeasure === 'cooldown-model') {
             // Ensure model exists in models table, then apply cooldown only.
@@ -3096,11 +3098,11 @@ export class DiscountedUCB1Bandit {
             ).run(sanitizedModelId, provider);
             const cooldownMs = 300000; // 5 minute cooldown for emergency rejections
             this.db.prepare("UPDATE models SET cooldown_until = ? WHERE id = ?").run(Date.now() + cooldownMs, sanitizedModelId);
-            console.log(`[BANDIT-CONSEQUENCE] cooldown-model | model=${model.id} provider=${provider} reason=${rejectionReason} cooldownMs=${cooldownMs} scope=emergency-rejection (no fail escalation)`);
+            slogInfo(`[BANDIT-CONSEQUENCE] cooldown-model | model=${model.id} provider=${provider} reason=${rejectionReason} cooldownMs=${cooldownMs} scope=emergency-rejection (no fail escalation)`);
             logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_MODEL, provider: provider, modelId: sanitizedModelId, reason: rejectionReason, cooldownMs: cooldownMs, failures: 1 });
           } else if (countermeasure === 'cooldown-provider') {
             this._forceProviderCooldown(model.provider, this._getModelCooldownMs(1), rejectionReason);
-            console.log(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${model.id} provider=${model.provider} reason=${rejectionReason} scope=emergency-rejection`);
+            slogInfo(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${model.id} provider=${model.provider} reason=${rejectionReason} scope=emergency-rejection`);
             logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_PROVIDER, provider: model.provider, modelId: model.id, reason: rejectionReason, cooldownMs: 0, failures: 1 });
           }
           return false;
@@ -3139,19 +3141,19 @@ export class DiscountedUCB1Bandit {
 
     // Tier 1: Capability Relaxation (Ignore Tool requirements)
     if (availableModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT] Relaxation Tier 1: Ignoring tool requirements`);
+      if (DEBUG) slogInfo(`[BANDIT] Relaxation Tier 1: Ignoring tool requirements`);
       availableModels = filterModels('tier1', { ignoreTools: true });
     }
 
     // Tier 2: Policy Relaxation (Ignore excludePaid, onlyFree, excludeThinking)
     if (availableModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT] Relaxation Tier 2: Ignoring usage policies`);
+      if (DEBUG) slogInfo(`[BANDIT] Relaxation Tier 2: Ignoring usage policies`);
       availableModels = filterModels('tier2', { ignoreTools: true, ignorePolicies: true });
     }
 
     // Tier 3: Resource Relaxation (Ignore token limits)
     if (availableModels.length === 0) {
-      if (DEBUG) console.log(`[BANDIT] Relaxation Tier 3: Ignoring token limits`);
+      if (DEBUG) slogInfo(`[BANDIT] Relaxation Tier 3: Ignoring token limits`);
       availableModels = filterModels('tier3', { ignoreTokenLimit: true, ignoreTools: true, ignorePolicies: true });
     }
 
@@ -3162,7 +3164,7 @@ export class DiscountedUCB1Bandit {
     // Note: We respect dynamic_max_tokens here because they are learned limits from actual 413 errors.
     // We DO respect provider quota exhaustion to prevent selecting exhausted providers.
     if (availableModels.length === 0) {
-      console.warn(`[BANDIT] Warning: All models filtered. Applying emergency relaxation (respecting cooldowns).`);
+      slogWarn(`[BANDIT] Warning: All models filtered. Applying emergency relaxation (respecting cooldowns).`);
       // Relax policies/tools/token limits, but respect cooldowns and permanent bans
       // We explicitly ignore degraded status too in emergency to prioritize continuity.
       // But we do NOT ignore quota exhaustion - we handle it at the provider level.
@@ -3185,7 +3187,7 @@ export class DiscountedUCB1Bandit {
 
     // Absolute last resort: if still 0 models (e.g. all excluded), pick from all models ignoring all constraints and exclusion (respecting image generation requirement)
     if (availableModels.length === 0) {
-      console.warn(`[BANDIT] Warning: All models excluded or unavailable. Picking from all catalog/db models as absolute last resort.`);
+      slogWarn(`[BANDIT] Warning: All models excluded or unavailable. Picking from all catalog/db models as absolute last resort.`);
       const isImageGenModel = (model) => {
         if (!model || !model.id) return false;
         const isAihordeModel = model.provider === 'aihorde' || model.id.toLowerCase().startsWith("aihorde/") || model.id.toLowerCase().includes("aihorde");
@@ -3271,7 +3273,7 @@ export class DiscountedUCB1Bandit {
     this.lastSelectionHistory = selectionHistory;
     
     if (DEBUG) {
-      console.log(`[BANDIT][SELECT] Selected model: ${bestModel.id} (provider: ${bestModel.provider}, score: ${bestScore.toFixed(4)}, available: ${availableModels.length}/${models.length})`);
+      slogInfo(`[BANDIT][SELECT] Selected model: ${bestModel.id} (provider: ${bestModel.provider}, score: ${bestScore.toFixed(4)}, available: ${availableModels.length}/${models.length})`);
     }
 
     return bestModel.id;
@@ -3353,7 +3355,7 @@ export class DiscountedUCB1Bandit {
     try {
       this.db.prepare(`UPDATE models_train SET executionTime = 0, calledModels = 0, okStatus = 0, errorStatus = 0, statusMessage = 'Reset' WHERE id = 'train-daemon'`).run();
     } catch (e) {
-      console.warn("[BANDIT] resetTrainingStatus error:", e.message);
+      slogWarn("[BANDIT] resetTrainingStatus error:", e.message);
     }
   }
 
@@ -3752,7 +3754,7 @@ export class DiscountedUCB1Bandit {
         statusMessage
       };
     } catch (e) {
-      console.warn("[BANDIT] getTrainingStatus error:", e.message);
+      slogWarn("[BANDIT] getTrainingStatus error:", e.message);
       return { isTraining: false, executionTime: 0, calledModels: 0, okStatus: 0, errorStatus: 0, cycleCount: 0, lastRun: null, statusMessage: 'Error querying training status' };
     }
   }
@@ -3778,7 +3780,7 @@ export class DiscountedUCB1Bandit {
           last_used_index = last_used_index + 1
       `).run('train-daemon', '', 0, 0, lastUsedIndex, isTraining ? 1 : 0, executionTime, calledModels, okStatus, errorStatus, statusMessage, now);
     } catch (e) {
-      console.error("[BANDIT] updateTrainingStatus error:", e.message);
+      slogError("[BANDIT] updateTrainingStatus error:", e.message);
     }
   }
 

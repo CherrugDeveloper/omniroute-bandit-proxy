@@ -23,7 +23,7 @@ export class Notifier {
     this._lastCleanup = Date.now();
 
     if (this.enabled) {
-      console.log(`[NOTIFIER] Attivo su ${this.urls.length} webhook (throttle ${this.throttleMs / 1000}s)`);
+      slogInfo(`[NOTIFIER] Attivo su ${this.urls.length} webhook (throttle ${this.throttleMs / 1000}s)`);
       this._startCleanupInterval();
     }
   }
@@ -41,7 +41,7 @@ export class Notifier {
         }
       }
       if (cleaned > 0) {
-        console.log(`[NOTIFIER] Cleaned ${cleaned} expired throttle entries`);
+        slogInfo(`[NOTIFIER] Cleaned ${cleaned} expired throttle entries`);
       }
     }, 5 * 60 * 1000).unref();
   }

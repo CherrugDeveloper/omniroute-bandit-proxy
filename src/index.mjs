@@ -1,7 +1,7 @@
 import express from "express";
 import { createHash } from "node:crypto";
 import * as tracker from "./request-tracker.mjs";
-console.log("[STARTUP] Server loading index.mjs");
+slogInfo("[STARTUP] Server loading index.mjs");
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import "dotenv/config";
@@ -35,7 +35,7 @@ const auditLogger = {
     try {
       fs.appendFileSync(auditLogPath, logLine);
     } catch (e) {
-      console.error("[AUDIT] Failed to write audit log:", e.message);
+      slogError("[AUDIT] Failed to write audit log:", e.message);
     }
   }
 };
@@ -60,7 +60,7 @@ app.use((req, res, next) => {
   // one line per request — including every dashboard poll.  Opt-in via
   // CORS_DEBUG=true (default: silent).
   if (isCorsDebugEnabled()) {
-    console.log(`[CORS/DEBUG] Incoming ${req.method} ${req.path} from origin: ${req.headers.origin || 'direct/same-origin'}`);
+    slogInfo(`[CORS/DEBUG] Incoming ${req.method} ${req.path} from origin: ${req.headers.origin || 'direct/same-origin'}`);
   }
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -112,7 +112,7 @@ export function isImageGenerationRequest(body) {
 
    // R1 - the requested model is an image-generation model: always an image request.
    if (isImageModel) {
-     console.log(`[DEBUG] isImageGenerationRequest: image model id (${modelId}) -> true`);
+     slogInfo(`[DEBUG] isImageGenerationRequest: image model id (${modelId}) -> true`);
      return true;
    }
 
@@ -125,25 +125,25 @@ export function isImageGenerationRequest(body) {
        (body.response_format && !['b64_json', 'url'].includes(body.response_format));
 
      if (hasInvalidImageParams) {
-       console.log(`[DEBUG] isImageGenerationRequest: prompt without messages but invalid image params -> false`);
+       slogInfo(`[DEBUG] isImageGenerationRequest: prompt without messages but invalid image params -> false`);
        return false;
      }
 
      // Image-specific parameters (n / size / response_format) confirm the intent.
      if (hasImageParams) {
-       console.log(`[DEBUG] isImageGenerationRequest: prompt without messages + image params -> true`);
+       slogInfo(`[DEBUG] isImageGenerationRequest: prompt without messages + image params -> true`);
        return true;
      }
 
      // No model at all: cannot be a routed chat completion -> treat as image request.
      if (!modelId) {
-       console.log(`[DEBUG] isImageGenerationRequest: prompt without messages and without model -> true`);
+       slogInfo(`[DEBUG] isImageGenerationRequest: prompt without messages and without model -> true`);
        return true;
      }
 
      // A chat model (gpt-4o, ...) with a `prompt` field and no image params is a
      // regular chat request: NEVER classify it as image generation (false positive).
-     console.log(`[DEBUG] isImageGenerationRequest: prompt + chat model (${modelId}) without image params -> false (not image gen)`);
+     slogInfo(`[DEBUG] isImageGenerationRequest: prompt + chat model (${modelId}) without image params -> false (not image gen)`);
      return false;
    }
 
@@ -168,12 +168,12 @@ export function isImageGenerationRequest(body) {
        ];
 
        if (explicitImagePhrases.some(phrase => contentLower.includes(phrase))) {
-         console.log(`[DEBUG] isImageGenerationRequest: explicit phrase match: ${contentLower}`);
+         slogInfo(`[DEBUG] isImageGenerationRequest: explicit phrase match: ${contentLower}`);
          return true;
        }
 
        if (STRICT_IMAGE_INTENT_RE.test(content)) {
-         console.log(`[DEBUG] isImageGenerationRequest: strict verb+noun intent match: ${contentLower.slice(0, 160)}`);
+         slogInfo(`[DEBUG] isImageGenerationRequest: strict verb+noun intent match: ${contentLower.slice(0, 160)}`);
          return true;
        }
      }
@@ -335,7 +335,7 @@ function validateStreamAccumulated(raw, opts = {}) {
             if (requireTools) {
               const toolCallMatches = raw.match(/"tool_calls"/g);
               const toolNames = [...raw.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map(m => m[1]).slice(0, 5);
-              console.log(`[RESPONSE-STREAM] tool_calls found: ${toolCallMatches?.length || 0} | names: ${toolNames.join(", ")}`);
+              slogInfo(`[RESPONSE-STREAM] tool_calls found: ${toolCallMatches?.length || 0} | names: ${toolNames.join(", ")}`);
             }
   if (!raw || raw.length === 0) return "empty stream";
     if (/^\s*data:\s*\{\s*"error"/m.test(raw)) {
@@ -359,7 +359,7 @@ function validateStreamAccumulated(raw, opts = {}) {
         const errObj = parsed.error || {};
         innerMessage = errObj.message || "";
         if (innerMessage && typeof innerMessage.trim !== 'function') {
-           console.error(`[DEBUG SSE ERROR] innerMessage is not a string with trim: ${typeof innerMessage}, value: ${JSON.stringify(innerMessage)}`);
+           slogError(`[DEBUG SSE ERROR] innerMessage is not a string with trim: ${typeof innerMessage}, value: ${JSON.stringify(innerMessage)}`);
            innerMessage = String(innerMessage);
         }
         code = errObj.code || "";
@@ -369,7 +369,7 @@ function validateStreamAccumulated(raw, opts = {}) {
         else if (/does not exist|not found|no longer available/i.test(innerMessage)) status = 404;
         else if (/quota|rate limit/i.test(innerMessage)) status = 429;
       } catch (_) {}
-      console.error(`[SSE ERROR RAW] ${payload.slice(0, 600)}`);
+      slogError(`[SSE ERROR RAW] ${payload.slice(0, 600)}`);
       return { reason: "SSE contains error", status, message: innerMessage || payload.slice(0, 500) };
     }
   // Estrai l'ultimo data: {...} utile e verifica se ha contenuto
@@ -557,7 +557,7 @@ app.use((req, res, next) => {
       `[DASHBOARD_STATS_DEBUG] isApi=${isApi}, isPolling=${isPolling}, condition=${isApi && !isPolling}`
     );
     if (log && (isDebugVerbose() || process.env.DASHBOARD_STATS_DEBUG === 'true')) {
-      console.log(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
+      slogInfo(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
     }
   }
   if (isApi && !isPolling) {
@@ -566,9 +566,9 @@ app.use((req, res, next) => {
       suffix = req.get('x-source') === 'training' ? ' [TRAIN]' : ' [ZOO]';
     }
     if (isDebugVerbose()) {
-      console.log(`[DEBUG] Incoming ${req.method} ${req.path}${suffix} source=${req.get('x-source') || '-'} client=${req.ip || req.connection?.remoteAddress || '?'}`);
+      slogInfo(`[DEBUG] Incoming ${req.method} ${req.path}${suffix} source=${req.get('x-source') || '-'} client=${req.ip || req.connection?.remoteAddress || '?'}`);
     } else {
-      console.log(`[PROXY] ${req.method} ${req.path}${suffix}`);
+      slogInfo(`[PROXY] ${req.method} ${req.path}${suffix}`);
     }
   }
   next();
@@ -636,11 +636,11 @@ function requireAuth(req, res, next) {
   const validToken = (process.env.DASHBOARD_TOKEN || "").trim() || (process.env.OMNIROUTE_API_KEY || "").trim();
   const match = token === validToken || (process.env.DASHBOARD_TOKEN && token === process.env.DASHBOARD_TOKEN.trim()) || (process.env.OMNIROUTE_API_KEY && token === process.env.OMNIROUTE_API_KEY.trim());
   if (isDebugVerbose()) {
-    console.log(`[DEBUG AUTH] Checking auth for ${req.path}: REQUIRE_AUTH=${REQUIRE_AUTH}, tokenProvided=${Boolean(token)}, match=${match}`);
+    slogInfo(`[DEBUG AUTH] Checking auth for ${req.path}: REQUIRE_AUTH=${REQUIRE_AUTH}, tokenProvided=${Boolean(token)}, match=${match}`);
   }
   if (!match) {
     if (isDebugVerbose()) {
-      console.warn(`[DEBUG server] Unauthorized access attempt to ${req.path}. Token provided: ${Boolean(token)}, expected length: ${validToken.length}, received length: ${token ? token.length : 0}`);
+      slogWarn(`[DEBUG server] Unauthorized access attempt to ${req.path}. Token provided: ${Boolean(token)}, expected length: ${validToken.length}, received length: ${token ? token.length : 0}`);
     }
     return res.status(401).json({ error: { message: "Unauthorized" } });
   }
@@ -1025,7 +1025,7 @@ function pushLog(message) {
 function logSuccess(model, dur, opts = {}) {
   const { stream, toolNames, hasWritten, rewardScore, baseReward } = opts;
   const tag = stream ? "[SUCCESS-STREAM]" : "[SUCCESS]";
-  console.log(`${tag} ${model} in ${dur.toFixed(2)}s ` +
+  slogInfo(`${tag} ${model} in ${dur.toFixed(2)}s ` +
               `(reward: ${(rewardScore || 0).toFixed(3)} = base ${(baseReward || 0).toFixed(3)} ` +
               `x ${(toolNames ? 0.6 : 1).toFixed(1)} tool=${toolNames?.[0] || 'none'} hasWritten=${hasWritten ?? '?'})`);
 }
@@ -1078,14 +1078,14 @@ console.warn = (...args) => {
 app.use((req, res, next) => {
   if (req.method === "POST" && req.path.includes("/chat/completions")) {
     if (!req.body || typeof req.body !== "object") {
-      console.warn(`[API] 400 Error: Invalid request body from ${req.ip || req.connection?.remoteAddress}`);
+      slogWarn(`[API] 400 Error: Invalid request body from ${req.ip || req.connection?.remoteAddress}`);
       // Don't insert into request_logs here - started_at will be set after model selection
       bandit._incrMeta("totalRequests");
       bandit.recordRequestError(400, "Invalid request body");
       return res.status(400).json({ error: { message: "Invalid request body" } });
     }
     if (!req.body.messages && !req.body.prompt && !req.body.model) {
-      console.warn(`[API] 400 Error: Missing required fields from ${req.ip || req.connection?.remoteAddress}`);
+      slogWarn(`[API] 400 Error: Missing required fields from ${req.ip || req.connection?.remoteAddress}`);
       // Don't insert into request_logs here - started_at will be set after model selection
       bandit._incrMeta("totalRequests");
       bandit.recordRequestError(400, "Missing required fields");
@@ -1140,7 +1140,7 @@ app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
   const desired = req.body?.verbose;
   const next = typeof desired === 'boolean' ? desired : !debugFlag.isEnabled();
   debugFlag.set(next);
-  console.log(`[DEBUG] verbose=${debugFlag.isEnabled()}`);
+  slogInfo(`[DEBUG] verbose=${debugFlag.isEnabled()}`);
   res.json({ verbose: debugFlag.isEnabled() });
 });
 
@@ -1156,7 +1156,7 @@ app.post('/v1/config/pricing-filter', requireAuth, express.json(), (req, res) =>
   const { filter } = req.body;
   try {
     bandit.setPricingFilter(filter);
-    console.log(`[CONFIG] pricingFilter set to ${filter}`);
+    slogInfo(`[CONFIG] pricingFilter set to ${filter}`);
     res.json({ pricingFilter: bandit.pricingFilter });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -1175,7 +1175,7 @@ app.post('/v1/config/toggle-bool', requireAuth, express.json(), (req, res) => {
     default: return res.status(400).json({ error: 'Invalid flag' });
   }
   
-  console.log(`[CONFIG] ${flag} set to ${enabled}`);
+  slogInfo(`[CONFIG] ${flag} set to ${enabled}`);
   res.json({ [flag]: bandit[flag] });
 });
 
@@ -1183,7 +1183,7 @@ app.get('/v1/training/status', requireAuth, (req, res) => {
   try {
     res.json(bandit.getTrainingStatus());
   } catch (e) {
-    console.error("[API] Errore /v1/training/status:", e.message);
+    slogError("[API] Errore /v1/training/status:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1214,7 +1214,7 @@ app.get('/v1/training/daemon-status', requireAuth, (req, res) => {
       pidFileExists: fs.existsSync(pidFile)
     });
   } catch (e) {
-    console.error("[API] Errore /v1/training/daemon-status:", e.message);
+    slogError("[API] Errore /v1/training/daemon-status:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1262,7 +1262,7 @@ app.get('/v1/training/log-stream', requireAuth, (req, res) => {
         if (stats.size < lastSize) {
           lastSize = 0;
           lastKnownSize = 0;
-          console.log(`[LOG-STREAM] Log file truncated/rotated, resetting read position to 0`);
+          slogInfo(`[LOG-STREAM] Log file truncated/rotated, resetting read position to 0`);
         }
         
         if (stats.size > lastSize) {
@@ -1300,7 +1300,7 @@ app.get('/v1/training/log-stream', requireAuth, (req, res) => {
     });
     
   } catch (e) {
-    console.error("[API] Errore /v1/training/log-stream:", e.message);
+    slogError("[API] Errore /v1/training/log-stream:", e.message);
     if (!res.headersSent) {
       res.status(500).json({ error: e.message });
     }
@@ -1333,7 +1333,7 @@ app.get("/v1/metrics", requireAuth, (req, res) => {
   try {
     res.json(bandit.getMetrics());
   } catch (e) {
-    console.error("[API] Errore /v1/metrics:", e.message);
+    slogError("[API] Errore /v1/metrics:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1350,11 +1350,11 @@ app.get("/v1/dashboard/stats", requireAuth, (req, res) => {
       })}`
     );
     if (log) {
-      console.log(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
+      slogInfo(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
     }
     res.json(stats);
   } catch (e) {
-    console.error("[API] Errore /v1/dashboard/stats:", e.message);
+    slogError("[API] Errore /v1/dashboard/stats:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1363,7 +1363,7 @@ app.get("/v1/consideration", requireAuth, (req, res) => {
   try {
     res.json({ consideration: bandit.getLastSelectionHistory() });
   } catch (e) {
-    console.error("[API] Errore /v1/consideration:", e.message);
+    slogError("[API] Errore /v1/consideration:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1372,7 +1372,7 @@ app.get("/v1/consideration-logs", requireAuth, (req, res) => {
   try {
     res.json({ consideration: bandit.getLastSelectionHistory() });
   } catch (e) {
-    console.error("[API] Errore /v1/consideration-logs:", e.message);
+    slogError("[API] Errore /v1/consideration-logs:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1404,13 +1404,13 @@ app.get("/v1/models", requireAuth, (req, res) => {
         `[API] GET /v1/models source=${source} results=${models.length}`
       );
       if (log) {
-        console.log(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
+        slogInfo(message + (suppressed > 0 ? ` (soppresse ${suppressed} richieste precedenti)` : ""));
       }
     }
 
     res.json({ models });
   } catch (e) {
-    console.error("[API] Errore /v1/models:", e.message);
+    slogError("[API] Errore /v1/models:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1421,7 +1421,7 @@ app.get("/v1/models/summary", requireAuth, (req, res) => {
     const summary = bandit.getModelsSummary(source);
     res.json(summary);
   } catch (e) {
-    console.error("[API] Errore /v1/models/summary:", e.message);
+    slogError("[API] Errore /v1/models/summary:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1431,7 +1431,7 @@ app.get("/v1/providers", requireAuth, (req, res) => {
     const providers = bandit.getProviders();
     res.json({ providers });
   } catch (e) {
-    console.error("[API] Errore /v1/providers:", e.message);
+    slogError("[API] Errore /v1/providers:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1441,7 +1441,7 @@ app.get("/v1/quota", requireAuth, (req, res) => {
     const quotaData = bandit.quota.snapshot();
     res.json({ quota: quotaData });
   } catch (e) {
-    console.error("[API] Errore /v1/quota:", e.message);
+    slogError("[API] Errore /v1/quota:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1464,7 +1464,7 @@ app.get("/v1/logs", requireAuth, (req, res) => {
   try {
     res.json(logBuffer);
   } catch (e) {
-    console.error("[API] Errore /v1/logs:", e.message);
+    slogError("[API] Errore /v1/logs:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1556,7 +1556,7 @@ app.get("/v1/active", requireAuth, (req, res) => {
       punishmentEvents: punishmentEvents
     });
   } catch (e) {
-    console.error("[API] Errore /v1/active:", e.message);
+    slogError("[API] Errore /v1/active:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1566,7 +1566,7 @@ app.post("/v1/reset/model/:id", requireAuth, (req, res) => {
     bandit.resetModel(req.params.id);
     res.json({ ok: true });
   } catch (e) {
-    console.error("[API] Errore reset model:", e.message);
+    slogError("[API] Errore reset model:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1576,7 +1576,7 @@ app.post("/v1/block/model/:id", requireAuth, (req, res) => {
     const ok = bandit.blockModel(req.params.id);
     res.json({ ok });
   } catch (e) {
-    console.error("[API] Errore block model:", e.message);
+    slogError("[API] Errore block model:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1586,7 +1586,7 @@ app.post("/v1/unblock/model/:id", requireAuth, (req, res) => {
     const ok = bandit.unblockModel(req.params.id);
     res.json({ ok });
   } catch (e) {
-    console.error("[API] Errore unblock model:", e.message);
+    slogError("[API] Errore unblock model:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1597,7 +1597,7 @@ app.post("/v1/reset/counters", requireAuth, (req, res) => {
     recentRequests.clear();
     res.json({ ok: true });
   } catch (e) {
-    console.error("[API] Errore reset counters:", e.message);
+    slogError("[API] Errore reset counters:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1607,7 +1607,7 @@ app.post("/v1/reset/training", requireAuth, (req, res) => {
     bandit.resetTrainingStatus();
     res.json({ ok: true });
   } catch (e) {
-    console.error("[API] Errore reset training:", e.message);
+    slogError("[API] Errore reset training:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1617,7 +1617,7 @@ app.post("/v1/reset/provider/:p", requireAuth, (req, res) => {
     bandit.resetProvider(req.params.p);
     res.json({ ok: true });
   } catch (e) {
-    console.error("[API] Errore reset provider:", e.message);
+    slogError("[API] Errore reset provider:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1640,7 +1640,7 @@ app.post("/v1/reset/model", requireAuth, (req, res) => {
     bandit.resetGlobalCounters();
     res.json({ ok: true, count: models.length });
   } catch (e) {
-    console.error("[API] Errore reset tutti i modelli:", e.message);
+    slogError("[API] Errore reset tutti i modelli:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1653,7 +1653,7 @@ app.post("/v1/reset/provider", requireAuth, (req, res) => {
     }
     res.json({ ok: true, count: providers.length });
   } catch (e) {
-    console.error("[API] Errore reset tutti i provider:", e.message);
+    slogError("[API] Errore reset tutti i provider:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1663,7 +1663,7 @@ app.post("/v1/provider/retry/:p", requireAuth, (req, res) => {
     const ok = bandit.clearProviderAttention(req.params.p);
     res.json({ ok });
   } catch (e) {
-    console.error("[API] Errore retry provider:", e.message);
+    slogError("[API] Errore retry provider:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1673,7 +1673,7 @@ app.post("/v1/provider/ignore/:p", requireAuth, (req, res) => {
     const ok = bandit.ignoreProvider(req.params.p);
     res.json({ ok });
   } catch (e) {
-    console.error("[API] Errore ignore provider:", e.message);
+    slogError("[API] Errore ignore provider:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1702,7 +1702,7 @@ app.get("/v1/scripts", requireAuth, (req, res) => {
       });
     res.json({ scripts });
   } catch (e) {
-    console.error("[API] Errore lettura script:", e.message);
+    slogError("[API] Errore lettura script:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1780,7 +1780,7 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
             // Broadcast via WebSocket
             broadcastScriptOutput(child.pid, { type: "output", data: currentOutput });
           } catch (err) {
-            console.error("[API] Errore scrittura output script in tempo reale:", err.message);
+            slogError("[API] Errore scrittura output script in tempo reale:", err.message);
           }
         };
     
@@ -1821,7 +1821,7 @@ app.post("/v1/scripts/execute", requireAuth, express.json(), (req, res) => {
     
         res.json(output);
       } catch (e) {
-        console.error("[API] Errore esecuzione script:", e.message);
+        slogError("[API] Errore esecuzione script:", e.message);
     
         // Audit log: script execution failed
         auditLogger.write({
@@ -1849,7 +1849,7 @@ app.get("/v1/scripts/output/:pid", requireAuth, (req, res) => {
     const output = JSON.parse(fs.readFileSync(outputFile, "utf8"));
     res.json(output);
   } catch (e) {
-    console.error("[API] Errore lettura output script:", e.message);
+    slogError("[API] Errore lettura output script:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1886,7 +1886,7 @@ app.post("/v1/images/generations", async (req, res) => {
 
     if (!selected) {
       const errMsg = "No image generation models available";
-      console.warn(`[API] 503 Error: ${errMsg}`);
+      slogWarn(`[API] 503 Error: ${errMsg}`);
       trackRequestUpdate(requestId, { status: "error-503", lastError: errMsg });
       return res.status(503).json({ error: { message: errMsg } });
     }
@@ -1894,7 +1894,7 @@ app.post("/v1/images/generations", async (req, res) => {
     // TODO: Implement upstream call and response formatting
     res.status(501).json({ error: { message: "Not implemented yet" } });
   } catch (e) {
-    console.error("[API] Errore images/generations:", e.message);
+    slogError("[API] Errore images/generations:", e.message);
     res.status(500).json({ error: { message: e.message } });
   }
 });
@@ -1931,12 +1931,12 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     // === Image generation requests are not allowed via chat completions ===
     if (isImageGenerationRequest(req.body)) {
       const errMsg = "Image generation requests are not supported via chat completions endpoint. Use /v1/images/generations instead.";
-      console.warn(`[API] 400 Error: ${errMsg}`);
+      slogWarn(`[API] 400 Error: ${errMsg}`);
       // DIAGNOSTIC: dump the offending payload shape to identify the false-positive trigger
-      console.warn(`[DIAG-IMGGEN] model=${req.body?.model} keys=${JSON.stringify(Object.keys(req.body || {}))} hasPrompt=${!!req.body?.prompt} hasMessages=${Array.isArray(req.body?.messages) ? req.body.messages.length : "none"} n=${JSON.stringify(req.body?.n)} size=${JSON.stringify(req.body?.size)} response_format=${JSON.stringify(req.body?.response_format)}`);
+      slogWarn(`[DIAG-IMGGEN] model=${req.body?.model} keys=${JSON.stringify(Object.keys(req.body || {}))} hasPrompt=${!!req.body?.prompt} hasMessages=${Array.isArray(req.body?.messages) ? req.body.messages.length : "none"} n=${JSON.stringify(req.body?.n)} size=${JSON.stringify(req.body?.size)} response_format=${JSON.stringify(req.body?.response_format)}`);
       if (Array.isArray(req.body?.messages) && req.body.messages.length > 0) {
         const lastUser = req.body.messages.filter(m => m.role === "user").pop();
-        console.warn(`[DIAG-IMGGEN] lastUserContent=${JSON.stringify(String(lastUser?.content || "").slice(0, 300))}`);
+        slogWarn(`[DIAG-IMGGEN] lastUserContent=${JSON.stringify(String(lastUser?.content || "").slice(0, 300))}`);
       }
       bandit.recordRequestError(400, errMsg, req.body?.model || null, null);
       trackRequestUpdate(requestId, { status: "error-400", lastError: errMsg, model: req.body?.model || null });
@@ -1959,10 +1959,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const tokenScale = Math.max(1, Math.min(3, Math.ceil((estimatedTokens || 0) / 100000)));
   const upstreamTimeoutMs = baseTimeout * tokenScale;
   if (tokenScale > 1 && isDebugVerbose()) {
-    console.log(`[TIMEOUT] scala ${tokenScale}x → ${upstreamTimeoutMs}ms (tokens=${estimatedTokens})`);
+    slogInfo(`[TIMEOUT] scala ${tokenScale}x → ${upstreamTimeoutMs}ms (tokens=${estimatedTokens})`);
   }
   const autoCompress = String(req.get("x-auto-compress") || "").toLowerCase() === "true";
-  if (isDebugVerbose()) console.log(`[CONTEXT] autoCompress=${autoCompress} header="${req.get("x-auto-compress") || "<assente>"}" tokens=${estimatedTokens} maxCatalog=${bandit.maxCatalogInput()}`);
+  if (isDebugVerbose()) slogInfo(`[CONTEXT] autoCompress=${autoCompress} header="${req.get("x-auto-compress") || "<assente>"}" tokens=${estimatedTokens} maxCatalog=${bandit.maxCatalogInput()}`);
 
     // === MAX_CONTEXT_TOKENS check (con compress d'emergenza se autoCompress) ===
     if (estimatedTokens > MAX_CONTEXT_TOKENS) {
@@ -1970,14 +1970,14 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         const compressed = compressBody(req.body, MAX_CONTEXT_TOKENS - 500);
         if (compressed && compressed.body) {
           const newTokens = bandit.estimateTokens(compressed.body);
-          console.log(`[CONTEXT] Globale ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → compresso a ${newTokens}`);
+          slogInfo(`[CONTEXT] Globale ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → compresso a ${newTokens}`);
           req.body = compressed.body;
           estimatedTokens = newTokens;
         }
       }
       if (estimatedTokens > MAX_CONTEXT_TOKENS) {
         const errMsg = `Context too large (${estimatedTokens} tokens). Max ${MAX_CONTEXT_TOKENS}. Compress or start new chat.`;
-        console.warn(`[REJECT] Contesto ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → 413`);
+        slogWarn(`[REJECT] Contesto ${estimatedTokens} > ${MAX_CONTEXT_TOKENS} → 413`);
         bandit.recordRequestError(413, errMsg, req.body?.model || null, null);
         trackRequestUpdate(requestId, { status: "error-413", lastError: errMsg, model: req.body?.model || null });
         return res.status(413).json({
@@ -1997,18 +1997,18 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     convHeader: req.get("x-conversation-id") || req.get("x-session-id") || null,
     firstMsgHash: req.body?.messages?.[0]?.content?.substring?.(0, 60) || null
   };
-  if (isDebugVerbose()) console.log(`[SESSION] ${JSON.stringify(sessionDebug)}`);
+  if (isDebugVerbose()) slogInfo(`[SESSION] ${JSON.stringify(sessionDebug)}`);
   const maxCatalog = bandit.maxCatalogInput();
 
   if (autoCompress && maxCatalog > 0 && estimatedTokens > maxCatalog) {
-    console.log(`[CONTEXT] Richiesta ${estimatedTokens} token > max catalogo ${maxCatalog}, tentativo di compressione`);
+    slogInfo(`[CONTEXT] Richiesta ${estimatedTokens} token > max catalogo ${maxCatalog}, tentativo di compressione`);
     const compressed = compressBody(req.body, maxCatalog);
     if (compressed) {
       req.body = compressed.body;
       estimatedTokens = bandit.estimateTokens(req.body);
-      console.log(`[CONTEXT] Compresso: ${compressed.omitted} messaggi rimossi, ora ${estimatedTokens} token`);
+      slogInfo(`[CONTEXT] Compresso: ${compressed.omitted} messaggi rimossi, ora ${estimatedTokens} token`);
     } else {
-      console.warn(`[CONTEXT] Compressione non possibile, procedo con contesto originale`);
+      slogWarn(`[CONTEXT] Compressione non possibile, procedo con contesto originale`);
     }
   }
   // Header x-force-model: bypassa UCB1 al primo tentativo (per training manuale)
@@ -2024,7 +2024,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     const usr = req.body?.messages?.find(m => m.role === "user");
     const sysPreview = (typeof sys?.content === "string" ? sys.content : JSON.stringify(sys?.content || "")).slice(0, 120);
     const usrPreview = (typeof usr?.content === "string" ? usr.content : JSON.stringify(usr?.content || "")).slice(0, 80);
-    if (isDebugVerbose()) console.log(`[SESSION-KEY] ${sessionKey.slice(0,8)} | sys="${sysPreview}" | usr="${usrPreview}"`);
+    if (isDebugVerbose()) slogInfo(`[SESSION-KEY] ${sessionKey.slice(0,8)} | sys="${sysPreview}" | usr="${usrPreview}"`);
   }
 
   // === MODE / PROFILE ===
@@ -2063,7 +2063,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     }
   }
   if (isStruggling) {
-    console.log(`[AFFINITY] Attempt ${attempt}: ⚠ Session struggling (${strugglingReason})`);
+    slogInfo(`[AFFINITY] Attempt ${attempt}: ⚠ Session struggling (${strugglingReason})`);
   }
     // === LOOP DETECTION: 3+ ask_followup_question consecutivi negli assistant ===
     let isAskLoop = false;
@@ -2079,7 +2079,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         if (allAsks) {
           isAskLoop = true;
           loopModelHint = 'ask_followup_question×3';
-          console.log(`[AFFINITY] Attempt ${attempt}: ⚠ Loop detected: 3 ask_followup_question consecutivi → changing model`);
+          slogInfo(`[AFFINITY] Attempt ${attempt}: ⚠ Loop detected: 3 ask_followup_question consecutivi → changing model`);
         }
       }
     }
@@ -2093,13 +2093,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
       return /<tool_result>/i.test(c);
     }).length;
-    if (isDebugVerbose()) console.log(`[MSGS] total=${allMsgs.length} asst_tc=${asstTcCount} tool_result_msgs=${toolResultCount} lastRole=${lastMsg?.role} lastContent="${lastContent.slice(0, 250).replace(/\n/g, ' ')}"`);
+    if (isDebugVerbose()) slogInfo(`[MSGS] total=${allMsgs.length} asst_tc=${asstTcCount} tool_result_msgs=${toolResultCount} lastRole=${lastMsg?.role} lastContent="${lastContent.slice(0, 250).replace(/\n/g, ' ')}"`);
   }
   // === MSGS-ERR: dump diagnostico ===
   if (isDebugVerbose()) {
     const rolesSummary = {};
     for (const mm of allMsgs) rolesSummary[mm.role] = (rolesSummary[mm.role] || 0) + 1;
-    console.log(`[MSGS] total=${allMsgs.length} roles=${JSON.stringify(rolesSummary)}`);
+    slogInfo(`[MSGS] total=${allMsgs.length} roles=${JSON.stringify(rolesSummary)}`);
 
     // Ultimi 3 messaggi role:tool — mostro il loro contenuto
     const toolMsgs = allMsgs.filter(m => m.role === 'tool');
@@ -2108,19 +2108,19 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const tm = lastTools[i];
       const c = typeof tm.content === 'string' ? tm.content : JSON.stringify(tm.content || '');
       const preview = c.slice(0, 300).replace(/\n/g, ' ');
-      console.log(`[MSGS-TOOL#${i + 1}] name=${tm.name || '?'} content="${preview}"`);
+      slogInfo(`[MSGS-TOOL#${i + 1}] name=${tm.name || '?'} content="${preview}"`);
     }
   }
 
   const profile = modeResult.profile;
   if (modeResult.mode) {
-    if (isDebugVerbose()) console.log(`[MODE] ${modeResult.mode} → profile=${profile} (${modeResult.source}${modeResult.sig ? ' sig=' + modeResult.sig.slice(0,8) : ''})`);
+    if (isDebugVerbose()) slogInfo(`[MODE] ${modeResult.mode} → profile=${profile} (${modeResult.source}${modeResult.sig ? ' sig=' + modeResult.sig.slice(0,8) : ''})`);
   } else if (modeResult.source === 'unknown') {
-    if (isDebugVerbose()) console.log(`[MODE] unknown → registrata per labeling (sig=${modeResult.sig.slice(0,8)})`);
+    if (isDebugVerbose()) slogInfo(`[MODE] unknown → registrata per labeling (sig=${modeResult.sig.slice(0,8)})`);
   }
 
   if (forceModel) {
-    if (isDebugVerbose()) console.log(`[FORCE] Modello forzato: ${forceModel}`);
+    if (isDebugVerbose()) slogInfo(`[FORCE] Modello forzato: ${forceModel}`);
   }
 
   const excluded = new Set();
@@ -2145,7 +2145,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const requireVision = !!hasImageBlocks;
 
   if (hasTools && isSummarization) {
-    console.log(`[TOOLS] Richiesta di summarization rilevata → rimuovo tools dal body`);
+    slogInfo(`[TOOLS] Richiesta di summarization rilevata → rimuovo tools dal body`);
     // Per summarization, il modello deve rispondere con TESTO.
     // Se gli passiamo i tools, tende a chiamarli anche se non serve.
     delete req.body.tools;
@@ -2153,7 +2153,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     delete req.body.parallel_tool_calls;
   }
   if (requireTools) {
-    console.log(`[TOOLS] Richiesta con ${req.body.tools.length} tools → solo modelli tool-capable`);
+    slogInfo(`[TOOLS] Richiesta con ${req.body.tools.length} tools → solo modelli tool-capable`);
   }
   const cooledDownThisRequest = new Set();
   let controller = null;
@@ -2198,13 +2198,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     );
 
     if (n === PROVIDER_FAIL_THRESHOLD && isHardError) {
-      console.log(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta (errore hard: ${errorType}) → cooldown 5min`);
+      slogInfo(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta (errore hard: ${errorType}) → cooldown 5min`);
       try {
         bandit._forceProviderCooldown(prov, 5 * 60 * 1000, "cascade-fail");
         cooledDownThisRequest.add(prov);
       } catch (_) {}
     } else if (n === PROVIDER_FAIL_THRESHOLD) {
-      console.log(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta (errore transitorio: ${errorType}) → solo model-level cooldown, nessun provider cooldown`);
+      slogInfo(`[BANDIT] Provider ${prov} ha fallito ${n} volte in questa richiesta (errore transitorio: ${errorType}) → solo model-level cooldown, nessun provider cooldown`);
     }
 
     // Update consecutive failures in database for circuit breaker ONLY for hard errors
@@ -2213,7 +2213,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       try {
         bandit._updateConsecutiveProviderFailures(prov, n);
       } catch (e) {
-        console.error(`[BANDIT] Errore aggiornamento consecutive failures per provider ${prov}: ${e.message}`);
+        slogError(`[BANDIT] Errore aggiornamento consecutive failures per provider ${prov}: ${e.message}`);
       }
     }
   }
@@ -2236,7 +2236,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       retriesExhausted = true;
     }
     if (clientDisconnected) {
-      console.log(`[BANDIT] Client disconnesso, stop retry (dopo ${attempt - 1} tentativi)`);
+      slogInfo(`[BANDIT] Client disconnesso, stop retry (dopo ${attempt - 1} tentativi)`);
       cleanup();
       return;
     }
@@ -2247,24 +2247,24 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       if (fallbackModels.length > 0) {
         const fallbackModel = fallbackModels[0];
           if (fallbackTried.has(fallbackModel) || !bandit.isModelAvailable(fallbackModel, 0, false, true)) {
-            console.error(`[FALLBACK] ${fallbackModel} non disponibile o già tentato → 503`);
+            slogError(`[FALLBACK] ${fallbackModel} non disponibile o già tentato → 503`);
             trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available", model });
             cleanup();
             return res.status(503).json({ error: { message: "No models available", status: 503 } });
           }
           fallbackTried.add(fallbackModel);
-        console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${fallbackModel} due to retries exhausted for ${model}`);
+        slogInfo(`[FALLBACK] Attempt ${attempt}: Fallback to ${fallbackModel} due to retries exhausted for ${model}`);
         model = fallbackModel;
         retriesExhausted = false; // Reset flag after fallback
       } else {
-        console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
+        slogError(`[FALLBACK] Attempt ${attempt}: No fallback models configured`);
         trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available", model });
         cleanup();
         return res.status(503).json({ error: { message: "No models available", status: 503 } });
       }
     }
     if (Date.now() - startedAt > MAX_TOTAL_MS) {
-      console.warn(`[BANDIT] Limite tempo totale (${MAX_TOTAL_MS}ms) raggiunto dopo ${attempt} tentativi`);
+      slogWarn(`[BANDIT] Limite tempo totale (${MAX_TOTAL_MS}ms) raggiunto dopo ${attempt} tentativi`);
       trackRequestUpdate(requestId, { status: "error-504", lastError: "Gateway timeout: nessun modello disponibile in tempo utile", model });
       cleanup();
       return res.status(504).json({ error: { message: "Gateway timeout: nessun modello disponibile in tempo utile", status: 504 } });
@@ -2289,7 +2289,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   const catalogCount = bandit.db.prepare("SELECT COUNT(*) as total FROM catalog").get().total;
   if (monitoredCount < catalogCount) {
     sessionKey = null;
-    console.log(`[AFFINITY DISABLE] Monitored models (${monitoredCount}) < catalog models (${catalogCount}), bypassing session affinity`);
+    slogInfo(`[AFFINITY DISABLE] Monitored models (${monitoredCount}) < catalog models (${catalogCount}), bypassing session affinity`);
   }
 
   // === SESSION AFFINITY ===
@@ -2316,17 +2316,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         record.severe = true;
       }
 
-      console.log(`[AFFINITY] Attempt ${attempt}: Unpin ${entry.model} (${reason}, fails=${record.fails}) → exclude and select another`);
+      slogInfo(`[AFFINITY] Attempt ${attempt}: Unpin ${entry.model} (${reason}, fails=${record.fails}) → exclude and select another`);
       excluded.add(entry.model);       // Force UCB1 to choose another
       sessionModels.delete(sessionKey);
 
       // Ban only if persistent (fails >= 3) or severe (status 400, 422, loop, etc.)
       const isBanned = isAskLoop || record.severe || record.fails >= 3;
       if (isBanned) {
-        console.log(`[AFFINITY] Attempt ${attempt}: 🚫 ${entry.model} BANNED in session ${sessionKey.slice(0,8)} (reason: ${reason}, fails: ${record.fails}, severe: ${record.severe})`);
+        slogInfo(`[AFFINITY] Attempt ${attempt}: 🚫 ${entry.model} BANNED in session ${sessionKey.slice(0,8)} (reason: ${reason}, fails: ${record.fails}, severe: ${record.severe})`);
       } else {
         // Cascade guard: model not yet banned but failing - log for visibility
-        console.log(`[AFFINITY] Attempt ${attempt}: ⚠️ ${entry.model} struggling (fails=${record.fails}/3, reason=${reason}) - excluded for this request`);
+        slogInfo(`[AFFINITY] Attempt ${attempt}: ⚠️ ${entry.model} struggling (fails=${record.fails}/3, reason=${reason}) - excluded for this request`);
       }
     }
   }
@@ -2372,7 +2372,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     if (pinnedValid) {
         model = pinnedEntry.model;
         pinnedEntry.ts = Date.now();        // rinnova TTL (sliding)
-        console.log(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
+        slogInfo(`[AFFINITY] ↻ ${model} (sessione ${sessionKey.slice(0, 8)})`);
         // Populate selection history for pinned model to show in dashboard unified table
         // The pinned model is "selected" via session affinity, so record it as such
         if (model) {
@@ -2406,17 +2406,17 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
         }
       } else {
       if (pinnedEntry && requireVision && !pinnedSupportsVision) {
-        console.log(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (vision required but model lacks vision support)`);
+        slogInfo(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (vision required but model lacks vision support)`);
         sessionModels.delete(sessionKey);
         excluded.add(pinnedEntry.model);
       }
       if (pinnedEntry && !pinnedTokenCapacityValid) {
-        console.log(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (token capacity insufficient: tokens=${estimatedTokens} > max=${pinnedMaxInput})`);
+        slogInfo(`[AFFINITY] ✗ pin ${pinnedEntry.model} rimosso (token capacity insufficient: tokens=${estimatedTokens} > max=${pinnedMaxInput})`);
         sessionModels.delete(sessionKey);
         excluded.add(pinnedEntry.model);
       }
       if (requireVision) {
-        console.log(`[VISION] Richiesta con image blocks → solo modelli vision-capable`);
+        slogInfo(`[VISION] Richiesta con image blocks → solo modelli vision-capable`);
       }
       const selResult = await bandit.selectModel(excluded, estimatedTokens, requireTools, false, requireVision, profile, cooledDownThisRequest);
       model = selResult;
@@ -2426,7 +2426,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   
       // FIX: skip models that are in cooldown / banned / failed in this request
       if (model && !bandit.isModelAvailable(model, estimatedTokens)) {
-        console.log(`[BANDIT] Attempt ${attempt}: Model ${model} not available (cooldown/banned) → exclude and continue`);
+        slogInfo(`[BANDIT] Attempt ${attempt}: Model ${model} not available (cooldown/banned) → exclude and continue`);
         excluded.add(model);
         continue;
       }
@@ -2437,7 +2437,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
           sessionModels.delete(firstKey);
           sessionBlacklist.delete(firstKey);
         }
-        console.log(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
+        slogInfo(`[AFFINITY] ⊕ pin ${model} (sessione ${sessionKey.slice(0, 8)})`);
       }
     }
   }
@@ -2447,7 +2447,7 @@ if (model) {
   try {
     bandit.recordRequestStarted(model, bandit._getProvider(model));
   } catch (err) {
-    console.error(`[CRASH] recordRequestStarted failed: ${err.message}`, err.stack);
+    slogError(`[CRASH] recordRequestStarted failed: ${err.message}`, err.stack);
     // Continue without recording - this shouldn't crash the server
   }
 }
@@ -2460,14 +2460,14 @@ trackRequestUpdate(requestId, {
   sessionKey
 });
     if (!model) {
-      console.warn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, requireVision=${requireVision}, tokens=${estimatedTokens}, excluded=${excluded.size})`);
+      slogWarn(`[BANDIT] Attempt ${attempt}: selectModel returned null - no models available or filtering exhausted all models (requireTools=${requireTools}, requireVision=${requireVision}, tokens=${estimatedTokens}, excluded=${excluded.size})`);
       try {
         await notifier.notify("system.no_models", "Nessun modello disponibile: tutti in cooldown/ban o needs_attention", {
           estimatedTokens,
           attempt
         });
       } catch (err) {
-        console.error(`[NOTIFIER] Failed to send no_models notification: ${err.message}`);
+        slogError(`[NOTIFIER] Failed to send no_models notification: ${err.message}`);
       }
 
       // Check if fallback models are available
@@ -2479,13 +2479,13 @@ trackRequestUpdate(requestId, {
                 for (const fallbackModel of fallbackModels) {
                   // Skip if already tried
                   if (fallbackTried.has(fallbackModel)) {
-                    console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: already tried`);
+                    slogInfo(`[FALLBACK] Skipping fallback model ${fallbackModel}: already tried`);
                     continue;
                   }
         
                   // Check if model is available (passing estimatedTokens for token capacity check, bypassCooldown=true)
                   if (!bandit.isModelAvailable(fallbackModel, estimatedTokens, false, true)) {
-                    console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: not available in catalog/status or exceeds token limit`);
+                    slogInfo(`[FALLBACK] Skipping fallback model ${fallbackModel}: not available in catalog/status or exceeds token limit`);
                     continue;
                   }
         
@@ -2496,7 +2496,7 @@ trackRequestUpdate(requestId, {
                     ).get(fallbackModel);
         
                     if (!modelInfo || modelInfo.supports_tools !== 1) {
-                      console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: does not support tools (required)`);
+                      slogInfo(`[FALLBACK] Skipping fallback model ${fallbackModel}: does not support tools (required)`);
                       continue;
                     }
                   }
@@ -2508,7 +2508,7 @@ trackRequestUpdate(requestId, {
                     ).get(fallbackModel);
         
                     if (!modelInfoVision || modelInfoVision.supports_vision !== 1) {
-                      console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: does not support vision (required)`);
+                      slogInfo(`[FALLBACK] Skipping fallback model ${fallbackModel}: does not support vision (required)`);
                       continue;
                     }
                   }
@@ -2523,7 +2523,7 @@ trackRequestUpdate(requestId, {
                     /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
                     /image/i.test(lowerFallbackId);
                   if (isNonChatFallback) {
-                    console.log(`[FALLBACK] Skipping fallback model ${fallbackModel}: non-chat / image / audio / embedding model`);
+                    slogInfo(`[FALLBACK] Skipping fallback model ${fallbackModel}: non-chat / image / audio / embedding model`);
                     continue;
                   }
         
@@ -2534,7 +2534,7 @@ trackRequestUpdate(requestId, {
 
         // Pass 2: if requireTools=true and Pass 1 found nothing, relax tool requirement for fallback models
                 if (!selectedFallbackModel && requireTools) {
-                  console.log(`[FALLBACK] Pass 2: Relaxing tool requirement for fallback models (requireTools=true)`);
+                  slogInfo(`[FALLBACK] Pass 2: Relaxing tool requirement for fallback models (requireTools=true)`);
                   for (const fallbackModel of fallbackModels) {
                     if (fallbackTried.has(fallbackModel)) continue;
                     if (!bandit.isModelAvailable(fallbackModel, estimatedTokens, false, true)) continue;
@@ -2560,7 +2560,7 @@ trackRequestUpdate(requestId, {
                       /image/i.test(lowerFallbackId);
                     if (isNonChatFallback) continue;
         
-                    console.warn(`[FALLBACK] Emergency relaxation: bypassing tool requirement for fallback model ${fallbackModel}`);
+                    slogWarn(`[FALLBACK] Emergency relaxation: bypassing tool requirement for fallback model ${fallbackModel}`);
                     selectedFallbackModel = fallbackModel;
                     break;
                   }
@@ -2568,13 +2568,13 @@ trackRequestUpdate(requestId, {
 
         // Pass 3: Final emergency fallback tier across all fallback models (ignoring token limits and tool requirements, but strictly excluding image/non-chat models)
                 if (!selectedFallbackModel) {
-                  console.warn(`[FALLBACK] Pass 3: Final emergency fallback tier across all fallback models`);
+                  slogWarn(`[FALLBACK] Pass 3: Final emergency fallback tier across all fallback models`);
                   for (const fallbackModel of fallbackModels) {
                     if (fallbackTried.has(fallbackModel)) continue;
 
                     // Check if model is available (not banned/cooldown)
                     if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) {
-                      console.log(`[FALLBACK] Pass 3: Skipping unavailable fallback model ${fallbackModel}`);
+                      slogInfo(`[FALLBACK] Pass 3: Skipping unavailable fallback model ${fallbackModel}`);
                       continue;
                     }
 
@@ -2585,7 +2585,7 @@ trackRequestUpdate(requestId, {
                       ).get(fallbackModel);
         
                       if (!modelInfoVision || modelInfoVision.supports_vision !== 1) {
-                        console.log(`[FALLBACK] Pass 3: Skipping fallback model ${fallbackModel}: no vision support (required)`);
+                        slogInfo(`[FALLBACK] Pass 3: Skipping fallback model ${fallbackModel}: no vision support (required)`);
                         continue;
                       }
                     }
@@ -2599,11 +2599,11 @@ trackRequestUpdate(requestId, {
                       /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
                       /image/i.test(lowerFallbackId);
                     if (isNonChatFallback) {
-                      console.log(`[FALLBACK] Pass 3: Skipping non-chat/image fallback model ${fallbackModel}`);
+                      slogInfo(`[FALLBACK] Pass 3: Skipping non-chat/image fallback model ${fallbackModel}`);
                       continue;
                     }
         
-                    console.warn(`[FALLBACK] Final emergency fallback tier: picking fallback model ${fallbackModel}`);
+                    slogWarn(`[FALLBACK] Final emergency fallback tier: picking fallback model ${fallbackModel}`);
                     selectedFallbackModel = fallbackModel;
                     break;
                   }
@@ -2611,12 +2611,12 @@ trackRequestUpdate(requestId, {
 
         // Pass 4: Absolute last resort fallback (reset fallbackTried and pick first non-chat fallback model)
                 if (!selectedFallbackModel && fallbackModels.length > 0) {
-                  console.warn(`[FALLBACK] Pass 4: Resetting fallbackTried and picking suitable non-chat fallback model`);
+                  slogWarn(`[FALLBACK] Pass 4: Resetting fallbackTried and picking suitable non-chat fallback model`);
                   fallbackTried.clear();
                   for (const fallbackModel of fallbackModels) {
                     // Check if model is available (not banned/cooldown)
                     if (!bandit.isModelAvailable(fallbackModel, estimatedTokens)) {
-                      console.log(`[FALLBACK] Pass 4: Skipping unavailable fallback model ${fallbackModel}`);
+                      slogInfo(`[FALLBACK] Pass 4: Skipping unavailable fallback model ${fallbackModel}`);
                       continue;
                     }
 
@@ -2627,7 +2627,7 @@ trackRequestUpdate(requestId, {
                       ).get(fallbackModel);
         
                       if (!modelInfoVision || modelInfoVision.supports_vision !== 1) {
-                        console.log(`[FALLBACK] Pass 4: Skipping fallback model ${fallbackModel}: no vision support (required)`);
+                        slogInfo(`[FALLBACK] Pass 4: Skipping fallback model ${fallbackModel}: no vision support (required)`);
                         continue;
                       }
                     }
@@ -2641,7 +2641,7 @@ trackRequestUpdate(requestId, {
                       /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|playground|aihorde|tts|speech|stt|whisper|voice|audio|embed|embedding|rerank|moderation)([-_/]|$)/i.test(lowerFallbackId) ||
                       /image/i.test(lowerFallbackId);
                     if (isNonChatFallback) {
-                      console.log(`[FALLBACK] Pass 4: Skipping non-chat/image fallback model ${fallbackModel}`);
+                      slogInfo(`[FALLBACK] Pass 4: Skipping non-chat/image fallback model ${fallbackModel}`);
                       continue;
                     }
                     selectedFallbackModel = fallbackModel;
@@ -2651,43 +2651,43 @@ trackRequestUpdate(requestId, {
 
         if (selectedFallbackModel) {
           fallbackTried.add(selectedFallbackModel);
-          console.log(`[FALLBACK] Attempt ${attempt}: Fallback to ${selectedFallbackModel} due to no available models (filtering exhausted all models)`);
+          slogInfo(`[FALLBACK] Attempt ${attempt}: Fallback to ${selectedFallbackModel} due to no available models (filtering exhausted all models)`);
           model = selectedFallbackModel;
         } else {
-          console.error(`[FALLBACK] Attempt ${attempt}: All fallback options are exhausted / no suitable fallback models found (requireTools=${requireTools}, requireVision=${requireVision}, tried=${Array.from(fallbackTried).join(', ')})`);
+          slogError(`[FALLBACK] Attempt ${attempt}: All fallback options are exhausted / no suitable fallback models found (requireTools=${requireTools}, requireVision=${requireVision}, tried=${Array.from(fallbackTried).join(', ')})`);
           trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available (filtering exhausted all models, fallback options exhausted)", model });
           cleanup();
           return res.status(503).json({ error: { message: "No models available (filtering exhausted all models, fallback options exhausted)", status: 503 } });
         }
       } else {
-        console.error(`[FALLBACK] Attempt ${attempt}: No fallback models configured (no models available, filtering exhausted all models)`);
+        slogError(`[FALLBACK] Attempt ${attempt}: No fallback models configured (no models available, filtering exhausted all models)`);
         trackRequestUpdate(requestId, { status: "error-503", lastError: "No models available (no fallback models configured)", model });
         cleanup();
         return res.status(503).json({ error: { message: "No models available (no fallback models configured)", status: 503 } });
       }
     }
 
-    if (isDebugVerbose()) console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt}) - source=${feedbackSource}`);
+    if (isDebugVerbose()) slogInfo(`[BANDIT] Selezionato ${model} (tentativo ${attempt}) - source=${feedbackSource}`);
 
     // === AUTO-COMPRESS per il modello specifico ===
     let requestBody = req.body;
     if (autoCompress) {
       const modelMaxInput = bandit.getModelMaxInput(model);   // nuovo metodo
       if (modelMaxInput > 0 && estimatedTokens > modelMaxInput) {
-        console.log(`[CONTEXT] Richiesta ${estimatedTokens} tok > ${model} max ${modelMaxInput} tok → comprimo`);
+        slogInfo(`[CONTEXT] Richiesta ${estimatedTokens} tok > ${model} max ${modelMaxInput} tok → comprimo`);
         const compressed = compressBody(req.body, modelMaxInput - 500);
         if (compressed) {
           requestBody = compressed.body;
           const newTokens = bandit.estimateTokens(requestBody);
-          console.log(`[CONTEXT] Compresso: ${compressed.omitted} messaggi rimossi, ora ${newTokens} tok`);
+          slogInfo(`[CONTEXT] Compresso: ${compressed.omitted} messaggi rimossi, ora ${newTokens} tok`);
           estimatedTokens = newTokens;
         } else {
-          console.warn(`[CONTEXT] Compressione impossibile per ${model}, salto`);
+          slogWarn(`[CONTEXT] Compressione impossibile per ${model}, salto`);
           // Se il modello che ha fallito era il pin della sessione → unpin
           if (sessionKey) {
             const entry = sessionModels.get(sessionKey);
             if (entry && entry.model === model) {
-              console.log(`[AFFINITY] ✗ pin ${model} fallito → unpin`);
+              slogInfo(`[AFFINITY] ✗ pin ${model} fallito → unpin`);
               sessionModels.delete(sessionKey);
             }
           }
@@ -2733,7 +2733,7 @@ trackRequestUpdate(requestId, {
     controller = new AbortController();
 
     timeoutHandle = setTimeout(() => {
-      console.warn(`[TIMEOUT] ${model} superato timeout (${upstreamTimeoutMs}ms)`);
+      slogWarn(`[TIMEOUT] ${model} superato timeout (${upstreamTimeoutMs}ms)`);
       controller.abort();
     }, upstreamTimeoutMs);
 
@@ -2756,11 +2756,11 @@ trackRequestUpdate(requestId, {
       if (!r.ok || r.status === 499) {
         const txt = await r.text().catch(() => "");
         if (isDebugVerbose()) {
-          console.error(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
+          slogError(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
         }
-        console.error(`[UPSTREAM ${r.status}] ${model}: ${sanitizeErrorBody(txt.substring(0, 200))}`);
+        slogError(`[UPSTREAM ${r.status}] ${model}: ${sanitizeErrorBody(txt.substring(0, 200))}`);
         const feedback = bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
-        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource} category=${feedback.category || 'UNKNOWN'}`);
+        slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource} category=${feedback.category || 'UNKNOWN'}`);
 
         // Track last error status for final response
         lastErrorStatus = r.status;
@@ -2773,7 +2773,7 @@ trackRequestUpdate(requestId, {
         const isModelNotFound = r.status === 404 ||
           /catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(txt);
         if (isModelNotFound) {
-          console.error(`[FATAL] Model ${model} not found (status ${r.status}). Not retrying - returning 404 to client.`);
+          slogError(`[FATAL] Model ${model} not found (status ${r.status}). Not retrying - returning 404 to client.`);
           // Update request tracker BEFORE returning so the dashboard shows the correct error status
           trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 200), model });
           cleanup();
@@ -2790,7 +2790,7 @@ trackRequestUpdate(requestId, {
           const entry = sessionModels.get(sessionKey);
           if (entry && entry.model === model) {
             sessionModels.delete(sessionKey);
-            console.log(`[AFFINITY] ✗ pin ${model} rimosso (upstream error status ${r.status})`);
+            slogInfo(`[AFFINITY] ✗ pin ${model} rimosso (upstream error status ${r.status})`);
           }
         }
 
@@ -2800,7 +2800,7 @@ trackRequestUpdate(requestId, {
           const retryAfterHeader = r.headers.get('Retry-After');
           if (retryAfterHeader) {
             retryAfter = parseInt(retryAfterHeader, 10) * 1000; // Convert to milliseconds
-            console.log(`[RETRY] Retry-After header: ${retryAfterHeader}s → ${retryAfter}ms`);
+            slogInfo(`[RETRY] Retry-After header: ${retryAfterHeader}s → ${retryAfter}ms`);
           }
         }
 
@@ -2820,7 +2820,7 @@ trackRequestUpdate(requestId, {
               record.lastReason = 'tpm-exceeded';
             }
             bl.set(model, record);
-            console.log(`[AFFINITY] 🚫 model ${model} bannato in sessione ${sessionKey.slice(0, 8)} (TPM/413 limit exceeded, status=${r.status})`);
+            slogInfo(`[AFFINITY] 🚫 model ${model} bannato in sessione ${sessionKey.slice(0, 8)} (TPM/413 limit exceeded, status=${r.status})`);
           }
         }
 
@@ -2831,7 +2831,7 @@ trackRequestUpdate(requestId, {
             const entry = sessionModels.get(sessionKey);
             if (entry && entry.model === model) {
               sessionModels.delete(sessionKey);
-              console.log(`[AFFINITY] ✗ pin ${model} rimosso (context window exceeded)`);
+              slogInfo(`[AFFINITY] ✗ pin ${model} rimosso (context window exceeded)`);
             }
           }
         }
@@ -2841,15 +2841,15 @@ trackRequestUpdate(requestId, {
               const baseDelay = Math.max(retryAfter, retryDelay);
               const exponentialFactor = Math.pow(2, attempt - 1);
               retryDelay = Math.min(baseDelay * exponentialFactor, 60000); // Cap at 60 seconds
-              console.log(`[RETRY] Attempt ${attempt}: 429 Error for ${model}. Retrying in ${retryDelay}ms (Retry-After: ${retryAfter}ms, exponential factor: ${exponentialFactor}x)`);
+              slogInfo(`[RETRY] Attempt ${attempt}: 429 Error for ${model}. Retrying in ${retryDelay}ms (Retry-After: ${retryAfter}ms, exponential factor: ${exponentialFactor}x)`);
               await new Promise(resolve => setTimeout(resolve, retryDelay));
             }
 
         noteProviderFail(model, `status-${r.status}`);
         excluded.add(model);
-        console.log(`[FAILURE] Attempt ${attempt}: ${model} failed with status ${r.status}. Error: ${txt.slice(0, 100)}`);
+        slogInfo(`[FAILURE] Attempt ${attempt}: ${model} failed with status ${r.status}. Error: ${txt.slice(0, 100)}`);
         trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 100) });
-        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource}`);
+        slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource}`);
         continue;
       }
 
@@ -2861,9 +2861,9 @@ trackRequestUpdate(requestId, {
         try {
           firstChunkResult = await reader.read();
         } catch (e) {
-          console.error(`[STREAM READ ERR] ${model}: ${e.message}`);
+          slogError(`[STREAM READ ERR] ${model}: ${e.message}`);
           bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
-          console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=${e.message} source=${feedbackSource}`);
+          slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=${e.message} source=${feedbackSource}`);
           noteProviderFail(model, 'stream-read-error');
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
@@ -2871,9 +2871,9 @@ trackRequestUpdate(requestId, {
         }
 
         if (firstChunkResult.done) {
-          console.error(`[STREAM EMPTY] ${model}: empty stream received`);
+          slogError(`[STREAM EMPTY] ${model}: empty stream received`);
           bandit.recordFeedback(model, false, 0, { message: "empty stream" }, { source: feedbackSource });
-          console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=empty stream source=${feedbackSource}`);
+          slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=empty stream source=${feedbackSource}`);
           noteProviderFail(model, 'empty-stream');
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
@@ -2882,9 +2882,9 @@ trackRequestUpdate(requestId, {
 
         const firstChunkText = dec.decode(firstChunkResult.value, { stream: true });
         if (firstChunkText.includes('"error"') || firstChunkText.includes('"code"') || firstChunkText.includes('rate_limit') || firstChunkText.includes('exceeded')) {
-          console.error(`[STREAM ERR] ${model}: ${sanitizeErrorBody(firstChunkText.substring(0, 200))}`);
+          slogError(`[STREAM ERR] ${model}: ${sanitizeErrorBody(firstChunkText.substring(0, 200))}`);
           bandit.recordFeedback(model, false, 0, { message: firstChunkText }, { source: feedbackSource });
-          console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream error source=${feedbackSource}`);
+          slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream error source=${feedbackSource}`);
           noteProviderFail(model, 'stream-error');
           excluded.add(model);
           try { reader.cancel().catch(() => {}); } catch (_) {}
@@ -2893,7 +2893,7 @@ trackRequestUpdate(requestId, {
 
         // Se gli header sono già stati inviati (stream già aperto), non possiamo ritentare
         if (res.headersSent) {
-          console.error(`[RETRY BLOCKED] headers già inviati per ${model}, stream chiuso`);
+          slogError(`[RETRY BLOCKED] headers già inviati per ${model}, stream chiuso`);
           bandit.recordFeedback(model, false, 0, { message: "stream already started" }, { source: feedbackSource });
           noteProviderFail(model, 'stream-already-started');
           excluded.add(model);
@@ -2940,7 +2940,7 @@ trackRequestUpdate(requestId, {
                 res.off('drain', onDrain);
                 res.off('error', onError);
                 res.off('close', onClose);
-                console.error(`[BACKPRESSURE] ${model}: drain timeout after ${STREAM_DRAIN_MS}ms, aborting write`);
+                slogError(`[BACKPRESSURE] ${model}: drain timeout after ${STREAM_DRAIN_MS}ms, aborting write`);
                 reject(new Error('drain-timeout'));
               }, STREAM_DRAIN_MS);
               res.once('drain', onDrain);
@@ -2957,13 +2957,13 @@ trackRequestUpdate(requestId, {
         let accumulated = firstChunkText;
         await safeWrite(firstChunkText);
         hardCapTimer = setTimeout(() => {
-          console.error(`[TIMEOUT] ${model}: stream superato hard cap ${STREAM_MAX_MS/1000}s → abort`);
-          console.error(`[HARDCAP] timer fired, controller.signal.aborted=${controller?.signal?.aborted}, STREAM_MAX_MS=${STREAM_MAX_MS}`);
+          slogError(`[TIMEOUT] ${model}: stream superato hard cap ${STREAM_MAX_MS/1000}s → abort`);
+          slogError(`[HARDCAP] timer fired, controller.signal.aborted=${controller?.signal?.aborted}, STREAM_MAX_MS=${STREAM_MAX_MS}`);
           try {
             if (controller && !controller.signal.aborted) {
               controller.abort(new Error('stream-hard-cap'));
             }
-          } catch (e) { console.error(`[HARDCAP] abort failed: ${e.message}`); }
+          } catch (e) { slogError(`[HARDCAP] abort failed: ${e.message}`); }
           try { reader.cancel().catch(() => {}); } catch (_) {}
         }, STREAM_MAX_MS);
         if (hardCapTimer.unref) hardCapTimer.unref();
@@ -2973,12 +2973,12 @@ trackRequestUpdate(requestId, {
           if (idleTimer) clearTimeout(idleTimer);
           idleTimer = setTimeout(() => {
             const elapsed = Math.round((Date.now() - lastMeaningfulByte) / 1000);
-            console.error(`[TIMEOUT] ${model}: stream idle ${elapsed}s senza contenuto → abort`);
+            slogError(`[TIMEOUT] ${model}: stream idle ${elapsed}s senza contenuto → abort`);
             try {
               if (controller && !controller.signal.aborted) {
                 controller.abort(new Error('stream-idle-timeout'));
               }
-            } catch (e) { console.error(`[TIMEOUT] abort failed: ${e.message}`); }
+            } catch (e) { slogError(`[TIMEOUT] abort failed: ${e.message}`); }
             try { reader.cancel().catch(() => {}); } catch (_) {}
           }, STREAM_IDLE_MS);
           if (idleTimer.unref) idleTimer.unref();
@@ -3007,7 +3007,7 @@ trackRequestUpdate(requestId, {
 
               if (firstChunk && (chunk.includes('"error"') || chunk.includes('"code"'))) {
                 streamFailed = true;
-                console.error(`[STREAM ERR] ${model}: ${sanitizeErrorBody(chunk.substring(0, 200))}`);
+                slogError(`[STREAM ERR] ${model}: ${sanitizeErrorBody(chunk.substring(0, 200))}`);
                 await safeWrite(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`);
                 break;
               }
@@ -3024,7 +3024,7 @@ trackRequestUpdate(requestId, {
             const streamInvalid = validateStreamAccumulated(accumulated, { requireTools });
             if (requireTools) {
               const tcMatches = accumulated.match(/"tool_calls"/g);
-              console.log(`[RESPONSE-STREAM] ${model} | tool_calls found: ${tcMatches?.length || 0}`);
+              slogInfo(`[RESPONSE-STREAM] ${model} | tool_calls found: ${tcMatches?.length || 0}`);
             }
               if (streamInvalid) {
                 const details = (typeof streamInvalid === "object" && streamInvalid !== null)
@@ -3035,14 +3035,14 @@ trackRequestUpdate(requestId, {
                   details.status = r.status;
                 }
                 const displayMsg = details.message || details.reason || String(streamInvalid);
-                console.error(`[STREAM INVALID] ${model}: ${displayMsg}`);
+                slogError(`[STREAM INVALID] ${model}: ${displayMsg}`);
                 bandit.recordFeedback(model, false, 0, details, { source: feedbackSource });
-                console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream-invalid source=${feedbackSource}`);
+                slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream-invalid source=${feedbackSource}`);
                 
                 // FIX: Invalidate session affinity if model returns 404 "model does not exist" error
                 // This prevents the session from being pinned to a non-existent model
                 if (sessionKey && (details.status === 404 || /does not exist|model_not_found|model does not exist/i.test(displayMsg))) {
-                  console.log(`[AFFINITY] Invalidating session ${sessionKey.slice(0,8)} due to model-not-found error for ${model}`);
+                  slogInfo(`[AFFINITY] Invalidating session ${sessionKey.slice(0,8)} due to model-not-found error for ${model}`);
                   sessionModels.delete(sessionKey);
                   sessionBlacklist.delete(sessionKey);
                 }
@@ -3079,7 +3079,7 @@ trackRequestUpdate(requestId, {
           cleanup();
           return;
         } catch (e) {
-          console.error(`[STREAM ABORT] ${model}: ${e.message}`);
+          slogError(`[STREAM ABORT] ${model}: ${e.message}`);
           // Skip bandit feedback for client disconnects/aborts - these are not model failures
           const isClientDisconnect = e.name === 'AbortError' ||
                                      e.message.includes('client-disconnected') ||
@@ -3092,15 +3092,15 @@ trackRequestUpdate(requestId, {
               const entry = sessionModels.get(sessionKey);
               if (entry && entry.model === model) {
                 sessionModels.delete(sessionKey);
-                console.log(`[AFFINITY] ✗ pin ${model} rimosso (stream abort/error)`);
+                slogInfo(`[AFFINITY] ✗ pin ${model} rimosso (stream abort/error)`);
               }
             }
             bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
-            console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream abort source=${feedbackSource}`);
+            slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream abort source=${feedbackSource}`);
             noteProviderFail(model, 'stream-abort');
             excluded.add(model);
           } else {
-            console.log(`[BANDIT] Skipping model punishment for client disconnect`);
+            slogInfo(`[BANDIT] Skipping model punishment for client disconnect`);
           }
           reader.cancel().catch(() => {});
           if (!res.writableEnded) res.end();
@@ -3117,16 +3117,16 @@ trackRequestUpdate(requestId, {
           const tc = msg?.tool_calls;
           const content = msg?.content;
           if (isDebugVerbose()) {
-            console.log(`[RESPONSE] ${model} | tool_calls: ${tc?.length || 0} | content: ${(content || "").substring(0, 100)} ${tc && tc.length > 0 ? `tool chiamati: ${tc.map(t => t.function?.name).join(", ")}` : ''}`);
+            slogInfo(`[RESPONSE] ${model} | tool_calls: ${tc?.length || 0} | content: ${(content || "").substring(0, 100)} ${tc && tc.length > 0 ? `tool chiamati: ${tc.map(t => t.function?.name).join(", ")}` : ''}`);
           }
         }
         if (invalidReason) {
-          console.error(`[APP ERR] ${model}: ${invalidReason}`);
+          slogError(`[APP ERR] ${model}: ${invalidReason}`);
           if (sessionKey) {
             const entry = sessionModels.get(sessionKey);
             if (entry && entry.model === model) {
               sessionModels.delete(sessionKey);
-              console.log(`[AFFINITY] ✗ pin ${model} rimosso (response invalidation)`);
+              slogInfo(`[AFFINITY] ✗ pin ${model} rimosso (response invalidation)`);
             }
           }
           // Pass status code to recordFeedback for proper error classification
@@ -3134,7 +3134,7 @@ trackRequestUpdate(requestId, {
             ? { ...invalidReason, status: r.status }
             : { message: invalidReason, status: r.status };
           bandit.recordFeedback(model, false, 0, errorDetails, { source: feedbackSource });
-          console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=validation source=${feedbackSource}`);
+          slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=validation source=${feedbackSource}`);
           noteProviderFail(model, 'response-validation');
           excluded.add(model);
           continue;
@@ -3158,19 +3158,19 @@ trackRequestUpdate(requestId, {
         const entry = sessionModels.get(sessionKey);
         if (entry && entry.model === model) {
           sessionModels.delete(sessionKey);
-          console.log(`[AFFINITY] ✗ pin ${model} rimosso (fetch error / timeout)`);
+          slogInfo(`[AFFINITY] ✗ pin ${model} rimosso (fetch error / timeout)`);
         }
       }
 
       if (e.name === "AbortError") {
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-        console.error(`[ABORT] ${model}: timeout or client disconnect`);
+        slogError(`[ABORT] ${model}: timeout or client disconnect`);
         // Skip bandit feedback for client disconnects/aborts - these are not model failures
-        console.log(`[BANDIT] Skipping model punishment for client disconnect`);
+        slogInfo(`[BANDIT] Skipping model punishment for client disconnect`);
       } else {
-        console.error(`[FETCH ERR] ${model}: ${e.message}`);
+        slogError(`[FETCH ERR] ${model}: ${e.message}`);
         bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
-        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=fetch error source=${feedbackSource}`);
+        slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=fetch error source=${feedbackSource}`);
       }
       noteProviderFail(model, 'fetch-error');
       excluded.add(model);
@@ -3189,8 +3189,8 @@ trackRequestUpdate(requestId, {
 
   res.status(finalStatus).json({ error: { message: finalMessage, status: finalStatus, category: lastErrorCategory } });
     } catch (error) {
-      console.error("[ROUTE HANDLER] Unhandled exception in /v1/chat/completions:", error?.message || error);
-      console.error("[ROUTE HANDLER] Stack:", error?.stack || String(error));
+      slogError("[ROUTE HANDLER] Unhandled exception in /v1/chat/completions:", error?.message || error);
+      slogError("[ROUTE HANDLER] Stack:", error?.stack || String(error));
       // Send error response to client instead of crashing the server
       cleanup();
       res.status(500).json({
@@ -3234,11 +3234,11 @@ let unhandledRejectionCount = 0;
 process.on("unhandledRejection", (reason) => {
   unhandledRejectionCount++;
   const msg = reason?.message || reason?.stack || String(reason);
-  console.error(`[UNHANDLED REJECTION #${unhandledRejectionCount}]`, msg);
+  slogError(`[UNHANDLED REJECTION #${unhandledRejectionCount}]`, msg);
   // Non terminiamo il processo: un errore in una richiesta non deve uccidere il proxy.
   // Se gli errori sono troppi (>20 in 60s), allora c'è un bug serio → crash pulito.
   if (unhandledRejectionCount > 20) {
-    console.error("[FATAL] Troppi unhandled rejection, disabilito ulteriore gestione per evitare crash loop");
+    slogError("[FATAL] Troppi unhandled rejection, disabilito ulteriore gestione per evitare crash loop");
     // process.exit(1) rimosso: un singolo errore non deve uccidere il proxy
     unhandledRejectionCount = 0; // reset per consentire il continuo funzionamento
   }
@@ -3247,8 +3247,8 @@ process.on("unhandledRejection", (reason) => {
 });
 
 process.on("uncaughtException", (error) => {
-  console.error("[UNCAUGHT EXCEPTION]", error?.message);
-  console.error("[UNCAUGHT EXCEPTION] Stack:", error?.stack);
+  slogError("[UNCAUGHT EXCEPTION]", error?.message);
+  slogError("[UNCAUGHT EXCEPTION] Stack:", error?.stack);
   // Non crashare immediatamente: prova a chiudere graceful e riavviare
   // Un errore in una singola richiesta non deve uccidere l'intero proxy
   try {
@@ -3257,7 +3257,7 @@ process.on("uncaughtException", (error) => {
   if (server) {
     try {
       server.close(() => {
-        console.log("[SHUTDOWN] Server chiuso dopo uncaughtException");
+        slogInfo("[SHUTDOWN] Server chiuso dopo uncaughtException");
         process.exit(1);
       });
     } catch (_) {
@@ -3270,17 +3270,17 @@ process.on("uncaughtException", (error) => {
 
 process.on("SIGTERM", () => {
   healthChecker.stop();
-  console.log(`[SHUTDOWN] SIGTERM ricevuto alle ${new Date().toISOString()}, chiusura graceful...`);
+  slogInfo(`[SHUTDOWN] SIGTERM ricevuto alle ${new Date().toISOString()}, chiusura graceful...`);
   bandit.close();
   if (server) {
     const timeout = setTimeout(() => {
-      console.error("[SHUTDOWN] Chiusura graceful scaduta (10s), forzo l'uscita");
+      slogError("[SHUTDOWN] Chiusura graceful scaduta (10s), forzo l'uscita");
       process.exit(1);
     }, 10000);
 
     // Chiude forzatamente le connessioni attive per velocizzare il rilascio della porta
     if (typeof server.closeAllConnections === 'function') {
-      console.log("[SHUTDOWN] Chiusura di tutte le connessioni attive...");
+      slogInfo("[SHUTDOWN] Chiusura di tutte le connessioni attive...");
       server.closeAllConnections();
     } else if (typeof server.closeIdleConnections === 'function') {
       server.closeIdleConnections();
@@ -3288,7 +3288,7 @@ process.on("SIGTERM", () => {
 
     server.close(() => {
       clearTimeout(timeout);
-      console.log(`[SHUTDOWN] Server chiuso correttamente alle ${new Date().toISOString()}`);
+      slogInfo(`[SHUTDOWN] Server chiuso correttamente alle ${new Date().toISOString()}`);
       process.exit(0);
     });
   } else {
@@ -3298,17 +3298,17 @@ process.on("SIGTERM", () => {
 
 process.on("SIGINT", () => {
   healthChecker.stop();
-  console.log(`[SHUTDOWN] SIGINT ricevuto alle ${new Date().toISOString()}, chiusura graceful...`);
+  slogInfo(`[SHUTDOWN] SIGINT ricevuto alle ${new Date().toISOString()}, chiusura graceful...`);
   bandit.close();
   if (server) {
     const timeout = setTimeout(() => {
-      console.error("[SHUTDOWN] Chiusura graceful scaduta (10s), forzo l'uscita");
+      slogError("[SHUTDOWN] Chiusura graceful scaduta (10s), forzo l'uscita");
       process.exit(1);
     }, 10000);
 
     // Chiude forzatamente le connessioni attive per velocizzare il rilascio della porta
     if (typeof server.closeAllConnections === 'function') {
-      console.log("[SHUTDOWN] Chiusura di tutte le connessioni attive...");
+      slogInfo("[SHUTDOWN] Chiusura di tutte le connessioni attive...");
       server.closeAllConnections();
     } else if (typeof server.closeIdleConnections === 'function') {
       server.closeIdleConnections();
@@ -3316,7 +3316,7 @@ process.on("SIGINT", () => {
 
     server.close(() => {
       clearTimeout(timeout);
-      console.log(`[SHUTDOWN] Server chiuso correttamente alle ${new Date().toISOString()}`);
+      slogInfo(`[SHUTDOWN] Server chiuso correttamente alle ${new Date().toISOString()}`);
       process.exit(0);
     });
   } else {
@@ -3331,17 +3331,17 @@ process.on("SIGINT", () => {
 async function startServer(attempt = 1) {
   const MAX_ATTEMPTS = 5;
   try {
-    console.log("[INIT] Sincronizzazione modelli in corso...");
+    slogInfo("[INIT] Sincronizzazione modelli in corso...");
     await bandit.fetchAndSyncModels();
-    console.log("[INIT] Modelli sincronizzati con successo");
+    slogInfo("[INIT] Modelli sincronizzati con successo");
   } catch (err) {
     if (attempt >= MAX_ATTEMPTS) {
-      console.error(`[FATAL] Troppi tentativi falliti di sincronizzazione (${MAX_ATTEMPTS}), arresto`);
+      slogError(`[FATAL] Troppi tentativi falliti di sincronizzazione (${MAX_ATTEMPTS}), arresto`);
       bandit.close();
       process.exit(1);
     }
-    console.error("[INIT] Errore sincronizzazione:", err.message);
-    console.log(`[INIT] Ritento tra 5 secondi... (tentativo ${attempt + 1}/${MAX_ATTEMPTS})`);
+    slogError("[INIT] Errore sincronizzazione:", err.message);
+    slogInfo(`[INIT] Ritento tra 5 secondi... (tentativo ${attempt + 1}/${MAX_ATTEMPTS})`);
     await new Promise(resolve => setTimeout(resolve, 5000));
     return startServer(attempt + 1);
   }
@@ -3355,15 +3355,15 @@ async function startServer(attempt = 1) {
     host: "127.0.0.1",
     reusePort: true
   }, () => {
-    console.log(`[PROXY] ✓ Server avviato su http://127.0.0.1:${PORT}`);
+    slogInfo(`[PROXY] ✓ Server avviato su http://127.0.0.1:${PORT}`);
   });
 
   server.on("error", (err) => {
       if (err.code === "EADDRINUSE") {
-        console.error(`[FATAL] Porta ${PORT} già in uso. Un'altra istanza è probabilmente ancora attiva.`);
+        slogError(`[FATAL] Porta ${PORT} già in uso. Un'altra istanza è probabilmente ancora attiva.`);
         process.exit(1);
       } else {
-        console.error("[FATAL] Errore server:", err);
+        slogError("[FATAL] Errore server:", err);
         process.exit(1);
       }
     });
@@ -3395,15 +3395,15 @@ async function startServer(attempt = 1) {
           // Handle punishment events endpoint
           if (path === '/v1/events/punishment' || path.startsWith('/v1/events/punishment?')) {
             punishmentEventClients.add(ws);
-            console.log(`[WS] Client connesso per eventi di punizione (totale: ${punishmentEventClients.size})`);
+            slogInfo(`[WS] Client connesso per eventi di punizione (totale: ${punishmentEventClients.size})`);
             
             ws.on("close", () => {
               punishmentEventClients.delete(ws);
-              console.log(`[WS] Client disconnesso dagli eventi di punizione (totale: ${punishmentEventClients.size})`);
+              slogInfo(`[WS] Client disconnesso dagli eventi di punizione (totale: ${punishmentEventClients.size})`);
             });
             
             ws.on("error", (err) => {
-              console.error(`[WS] Errore connessione per eventi di punizione:`, err.message);
+              slogError(`[WS] Errore connessione per eventi di punizione:`, err.message);
               punishmentEventClients.delete(ws);
             });
             return;
@@ -3416,7 +3416,7 @@ async function startServer(attempt = 1) {
               scriptOutputClients.set(pid, new Set());
             }
             scriptOutputClients.get(pid).add(ws);
-            console.log(`[WS] Client connesso per script PID ${pid} (totale: ${scriptOutputClients.get(pid).size})`);
+            slogInfo(`[WS] Client connesso per script PID ${pid} (totale: ${scriptOutputClients.get(pid).size})`);
       
             ws.on("close", () => {
               if (scriptOutputClients.has(pid)) {
@@ -3424,12 +3424,12 @@ async function startServer(attempt = 1) {
                 if (scriptOutputClients.get(pid).size === 0) {
                   scriptOutputClients.delete(pid);
                 }
-                console.log(`[WS] Client disconnesso per script PID ${pid}`);
+                slogInfo(`[WS] Client disconnesso per script PID ${pid}`);
               }
             });
       
             ws.on("error", (err) => {
-              console.error(`[WS] Errore connessione per PID ${pid}:`, err.message);
+              slogError(`[WS] Errore connessione per PID ${pid}:`, err.message);
             });
           }
         });
@@ -3437,20 +3437,20 @@ async function startServer(attempt = 1) {
     // Register WebSocket upgrade handler
     server.on("upgrade", handleUpgrade);
   
-    console.log(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
-    console.log(`[WebSocket] ✓ WebSocket server attivo su ws://127.0.0.1:${PORT}/ws`);
-  console.log(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
+    slogInfo(`[DASHBOARD] ✓ Dashboard disponibile su http://127.0.0.1:${PORT}/dashboard`);
+    slogInfo(`[WebSocket] ✓ WebSocket server attivo su ws://127.0.0.1:${PORT}/ws`);
+  slogInfo(`[CONFIG] Timeout upstream: ${process.env.UPSTREAM_TIMEOUT_MS || 60000}ms`);
   if (!REQUIRE_AUTH) {
-    console.warn("[SECURITY] DASHBOARD_TOKEN non configurato: le API di controllo sono esposte senza autenticazione");
+    slogWarn("[SECURITY] DASHBOARD_TOKEN non configurato: le API di controllo sono esposte senza autenticazione");
   } else {
-    console.log("[SECURITY] Auth attiva sulle API di controllo");
+    slogInfo("[SECURITY] Auth attiva sulle API di controllo");
   }
 
   // Health check parte DOPO che il server è in ascolto
   if (String(process.env.HEALTH_CHECK_ENABLED || "true").toLowerCase() === "true") {
     healthChecker.start();
   } else {
-    console.log("[HEALTH] Health check disabilitato (HEALTH_CHECK_ENABLED=false)");
+    slogInfo("[HEALTH] Health check disabilitato (HEALTH_CHECK_ENABLED=false)");
   }
   // Cleanup sessioni scadute ogni 5 min
   setInterval(() => {
@@ -3463,13 +3463,13 @@ async function startServer(attempt = 1) {
         removed++;
       }
     }
-    if (removed > 0) console.log(`[AFFINITY] Cleanup: rimosse ${removed} sessioni scadute`);
+    if (removed > 0) slogInfo(`[AFFINITY] Cleanup: rimosse ${removed} sessioni scadute`);
   }, 5 * 60 * 1000).unref();
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
   startServer().catch(err => {
-    console.error("[FATAL] Impossibile avviare server:", err);
+    slogError("[FATAL] Impossibile avviare server:", err);
     bandit.close();
     process.exit(1);
   });

@@ -12,6 +12,7 @@
  * can be retrieved in reverse chronological order (newest first).
  */
 
+import { info as slogInfo, error as slogError } from "./structured-logger.mjs";
 import { EventEmitter } from 'node:events';
 
 /**
@@ -81,7 +82,7 @@ export function initializeEventBuffer(bandit) {
       eventSequence = Math.max(...eventBuffer.map(e => e.sequence));
     }
   } catch (err) {
-    console.error("[EVENTS] Failed to initialize event buffer from DB:", err.message);
+    slogError("[EVENTS] Failed to initialize event buffer from DB:", err.message);
   }
 }
 
@@ -199,7 +200,7 @@ export function logPunishment({ bandit, type, provider, modelId, reason, cooldow
     logLine = `[BANDIT] ${type} | provider=${provider} | model=${modelId} | ${reason}`;
   }
 
-  console.log(logLine);
+  slogInfo(logLine);
 
   // Build event record for ring buffer
   const eventRecord = {
