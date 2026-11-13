@@ -8,12 +8,12 @@ Non-obvious, project-specific guidance for code changes.
 
 ## Error Classification & Punishment
 - `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **cooldown-model** (transient error, scope: model).
-- **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. `consecutive_critical_failures` counter resets on success. `safeWrite` errors are NOT critical.
+- **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. Counter resets on success. `safeWrite` errors are NOT critical.
 - Timeout errors are **transient (cooldown-model)**, NOT critical.
 - `consecutive_5xx ≥ 3` triggers degraded mode.
 - Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
-- Cascade ban guard: paid-group-ban UPDATE includes `AND permanent = 0` to prevent re-banning already permanently banned models.
-- Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms) to prevent cascade auto-bans.
+- Cascade ban guard: paid-group-ban UPDATE includes `AND permanent = 0`.
+- Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms).
 
 ## Database
 - `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`).

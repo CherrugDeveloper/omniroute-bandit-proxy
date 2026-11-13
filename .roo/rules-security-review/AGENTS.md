@@ -7,7 +7,7 @@ Non-obvious, project-specific guidance for security audits.
 - Proxy upstream auth uses provider-specific API keys via environment variables (e.g. `OMNIROUTE_API_KEY`).
 
 ## Input Validation & Proxy Safety
-- [`src/bandit.mjs`](src/bandit.mjs:1) validates request bodies and estimated tokens (`estimateTokens()`) against model `max_input_tokens` limits.
+- `src/bandit.mjs` validates request bodies and estimated tokens (`estimateTokens()`) against model `max_input_tokens` limits.
 - Error classification (`_classifyError`) handles upstream responses without exposing raw internal stack traces to downstream clients.
 - Token estimation = 4 chars/token.
 
@@ -16,7 +16,7 @@ Non-obvious, project-specific guidance for security audits.
 - Ring buffer (`GET /v1/logs`) collapses consecutive identical log lines with a count suffix to prevent log flooding / DoS via logging.
 
 ## Error Pattern Security
-- `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **ban-model**.
+- `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **cooldown-model** (transient, scope: model).
 
 ## Quota
 - Provider-level quota; atomic minute+day window check; background roller runs every 60s even without requests.

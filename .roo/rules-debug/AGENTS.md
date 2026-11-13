@@ -3,8 +3,8 @@
 Non-obvious, project-specific guidance for debugging.
 
 ## Error Classification & Punishment
-- `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **ban-model**.
-- **3-strike system**: 3 consecutive critical failures (403, 429, safeWrite errors) → permanent ban. `consecutive_critical_failures` counter resets on success.
+- `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **cooldown-model** (transient, scope: model) — NOT critical.
+- **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. Counter resets on success.
 - Timeout errors are **transient (cooldown-model)**, NOT critical.
 - `consecutive_5xx ≥ 3` triggers degraded mode.
 - Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
