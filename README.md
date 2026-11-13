@@ -377,8 +377,8 @@ Security-related commits (matching `security|auth|token|401|403|ban|punish|coold
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0).
 
-- Current version: **0.42.0**
-- Tags: `v0.1.0` through `v0.42.0` (development history)
+- Current version: **0.45.0**
+- Tags: `v0.1.0` through `v0.45.0` (development history)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md) — follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/)
 
 ## License

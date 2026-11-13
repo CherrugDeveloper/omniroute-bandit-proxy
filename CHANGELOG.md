@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 All releases are documented below in strict reverse chronological order, newest first.
 The first entry below is the latest release.
 
+## [0.45.0] - 2026-11-13
+
+### Fixed
+- fix(bandit,config): align error classification hardcoded fallbacks with config/bandit.json rules (403 key-limit → ban-provider, stream errors → ban-model) ([src/bandit.mjs], [config/bandit.json])
+- fix(bandit): recordFeedback now handles non-object errorDetails so classification always runs instead of falling through to escalating cooldown-model ([src/bandit.mjs])
+- fix(bandit): reorder transient error patterns so Playwright/Cloudflare 502/503 is checked before generic 5xx, preventing provider-misconfigured errors from being misclassified as cooldown-model ([config/bandit.json])
+- fix(db): reset 6 stuck provider attention flags and clear cooldowns on stuck models ([scripts/reset-bans.mjs], [scripts/clear-all-attention.mjs])
+
 ## [0.44.0] - 2026-11-13
 
 ### Fixed

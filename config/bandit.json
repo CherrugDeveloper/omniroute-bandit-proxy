@@ -19,6 +19,8 @@
     "classification": {
       "transientErrors": [
         { "pattern": "timeout", "action": "cooldown-model", "duration": 600000 },
+        { "pattern": "502|503|No auth provided|Please log in|Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright|is not configured|missing url or token|browserType.launch|Executable doesn't exist", "action": "cooldown-provider", "duration": 1800000, "reason": "provider-misconfigured" },
+        { "pattern": "ENOENT|spawn.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured", "action": "cooldown-provider", "duration": 1800000 },
         { "pattern": "5xx|server-error", "action": "cooldown-model", "duration": 30000 },
         { "pattern": "rate.?limit|too.?many.?requests|throttled|quota.?exceeded|exhausted", "action": "cooldown-model", "duration": 300000 },
         { "pattern": "429|cooling down", "action": "cooldown-model", "duration": 300000 },
@@ -29,15 +31,13 @@
         { "pattern": "402|insufficient.?funds|credit.?exhausted|payment.?required|billing_error", "action": "flag-provider", "duration": 86400000 },
         { "pattern": "418|anti.abuse", "action": "cooldown-provider", "duration": 3600000 },
         { "pattern": "keepalive|connection", "action": "cooldown-model", "duration": 15000 },
-        { "pattern": "502|503|No auth provided|Please log in|Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright|is not configured|missing url or token|browserType.launch|Executable doesn't exist", "action": "cooldown-provider", "duration": 1800000, "reason": "provider-misconfigured" },
-        { "pattern": "ENOENT|spawn.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured", "action": "cooldown-provider", "duration": 1800000 },
         { "pattern": "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized", "action": "cooldown-model", "duration": 300000, "reason": "safeWrite-init-error" }
       ],
       "permanentErrors": [
         { "pattern": "account.?(?:disabled|suspended|banned|terminated|closed|deactivated)|organization.?(?:disabled|suspended|banned|deleted|deactivated)|project.?(?:deleted|disabled|suspended)|workspace.?(?:disabled|suspended|deleted)|policy.?violation|provider.?banned|banned|suspended", "action": "ban-provider", "scope": "provider" },
         { "pattern": "account disabled|banned", "action": "ban-provider", "scope": "provider" },
         { "pattern": "model_shutdown|model is gone|end of life|model_shutdown", "action": "ban-model", "scope": "model" },
-        { "pattern": "SSE contains error|SSE chunk error|stream error", "action": "ban-model", "scope": "model", "reason": "stream-error" },
+        { "pattern": "SSE contains error|SSE chunk error|stream error|keepalive|connection|chunk", "action": "ban-model", "scope": "model", "reason": "stream-error" },
         { "pattern": "no.tool.call.but.required", "action": "ban-model", "scope": "model" },
         { "pattern": "image generation model|cannot be used for chat|not a chat model|image.only|incompatible", "action": "ban-model", "scope": "model" },
         { "pattern": "unsupported_image_block|devin_agentic_error", "action": "ban-model", "scope": "model" },
@@ -45,7 +45,7 @@
         { "pattern": "catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|model is unavailable|model not a valid model ID|invalid model|not available in active live catalog", "action": "ban-model", "scope": "model" },
         { "pattern": "Assignment to constant variable", "action": "ban-model", "scope": "model" },
         { "pattern": "OpenCode's free tier can only be used from within OpenCode", "action": "ban-model", "scope": "model" },
-        { "pattern": "403|Key limit exceeded|total limit|hard limit|lifetime limit", "action": "ban-provider", "reason": "key-limit-exceeded" }
+        { "pattern": "403|Key limit exceeded|total limit|hard limit|lifetime limit", "action": "ban-provider", "scope": "provider", "reason": "key-limit-exceeded", "status": 403 }
       ]
     }
   }

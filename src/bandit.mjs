@@ -1170,13 +1170,14 @@ export class DiscountedUCB1Bandit {
         }
 
         if (source === 'training' || source === 'prod') {
-          if (!success && errorDetails && typeof errorDetails === "object") {
+          if (!success && errorDetails) {
+            const errObj = typeof errorDetails === "object" ? errorDetails : { message: String(errorDetails), status: errorDetails?.status || 0 };
             const cat = this.db.prepare("SELECT provider FROM catalog WHERE id = ?").get(sanitizedModelId);
             const existingModel = this.db.prepare("SELECT provider FROM models WHERE id = ?").get(sanitizedModelId);
             const provider = cat?.provider || existingModel?.provider || opts.provider || 'unknown';
             if (provider) {
               console.log(`[BANDIT] Processing error for model: ${modelId}, provider: ${provider}`);
-              const c = this._classifyError(errorDetails, provider);
+              const c = this._classifyError(errObj, provider);
               if (!c) {
                 console.error(`[BANDIT-ERROR] Failed to classify error for model=${modelId}, provider=${provider}`);
                 return;
@@ -1184,84 +1185,84 @@ export class DiscountedUCB1Bandit {
               console.log(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
               switch (c.action) {
               case "ban-provider":
-                              if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
-                                console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
-                              }
-                              this._banProvider(provider);
-                              console.log(`[BANDIT-CONSEQUENCE] ban-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
-                              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
-                              break;
-                            case "ban-model":
-                              if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
-                                console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
-                              }
-                              this.db.prepare(
-                                `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index)
-                                 VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0)
-                                 ON CONFLICT(id) DO UPDATE SET permanent = 1, banned_since = ?`
-                              ).run(sanitizedModelId, provider, Date.now(), Date.now());
-                              // Sync provider_history: mark provider as needing attention when a model is permanently banned
-                              this.db.prepare(
-                                `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
-                              ).run(c.reason, `Model banned: ${sanitizedModelId} (${c.reason})`, provider);
-                              console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
-                              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
-                              break;
+                if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
+                  console.log(`[BANDIT-TRAIN] ${modelId}: ban-provider (${c.reason})`);
+                }
+                this._banProvider(provider);
+                console.log(`[BANDIT-CONSEQUENCE] ban-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
+                logPunishment({ bandit: this, type: EVENT_TYPES.BAN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
+                break;
+              case "ban-model":
+                if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
+                  console.log(`[BANDIT-TRAIN] ${modelId}: ban-model (${c.reason})`);
+                }
+                this.db.prepare(
+                  `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index)
+                   VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0)
+                   ON CONFLICT(id) DO UPDATE SET permanent = 1, banned_since = ?`
+                ).run(sanitizedModelId, provider, Date.now(), Date.now());
+                // Sync provider_history: mark provider as needing attention when a model is permanently banned
+                this.db.prepare(
+                  `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+                ).run(c.reason, `Model banned: ${sanitizedModelId} (${c.reason})`, provider);
+                console.log(`[BANDIT-CONSEQUENCE] ban-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model`);
+                logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
+                break;
               case "cooldown-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
                   console.log(`[BANDIT-TRAIN] ${modelId}: cooldown-provider (${c.reason}) per ${(c.cooldownMs/1000)|0}s`);
                 }
-                if (c.reason === "no-credit" || /402|payment|credit|funds/i.test(String(errorDetails?.status || "") + " " + String(errorDetails?.message || ""))) {
+                if (c.reason === "no-credit" || /402|payment|credit|funds/i.test(String(errObj?.status || "") + " " + String(errObj?.message || ""))) {
                   this.db.prepare(`UPDATE models SET is_paid = 1 WHERE id = ?`).run(sanitizedModelId);
                 }
                 this._forceProviderCooldown(provider, c.cooldownMs, c.reason);
                 console.log(`[BANDIT-CONSEQUENCE] cooldown-provider | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${c.cooldownMs} scope=provider`);
-                                logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: c.cooldownMs || 0, failures: 0 });
-                                break;
-                              case "cooldown-paid-only":
-                                this._cooldownPaidOnly(provider, c.cooldownMs);
-                                console.log(`[BANDIT-CONSEQUENCE] cooldown-paid-only | model=${modelId} provider=${provider} cooldownMs=${c.cooldownMs} scope=provider`);
-                                logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason || 'cooldown-paid-only', cooldownMs: c.cooldownMs || 0, failures: 0 });
-                                break;
-                              case "flag-provider":
-                                if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
-                                  console.log(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
-                                }
-                                this._flagProviderAttention(provider, c.reason, errorDetails.message || errorDetails.error || "");
-                                console.log(`[BANDIT-CONSEQUENCE] flag-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
-                                logPunishment({ bandit: this, type: EVENT_TYPES.FLAG_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
-                                break;
-                              case "cooldown-model": {
-                                const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
-                                if (c.reason === "tpm-exceeded" || errorDetails?.status === 413) {
-                                  const errorMessage = String(errorDetails?.message || errorDetails?.error || errorDetails || "");
-                                  const parsedLimit = this._parseTokenLimit(errorMessage);
-                                  const targetLimit = parsedLimit !== null ? parsedLimit : 0;
-                                  if (targetLimit > 0) {
-                                    this.db.prepare(
-                                      `INSERT INTO models (id, provider, dynamic_max_tokens, N, sum_reward, fails, cooldown_until, last_used_index)
-                                       VALUES (?, ?, ?, 0, 0, 0, 0, 0)
-                                       ON CONFLICT(id) DO UPDATE SET dynamic_max_tokens = CASE
-                                         WHEN dynamic_max_tokens = 0 OR dynamic_max_tokens > excluded.dynamic_max_tokens THEN excluded.dynamic_max_tokens
-                                         ELSE MIN(dynamic_max_tokens, excluded.dynamic_max_tokens)
-                                       END`
-                                    ).run(sanitizedModelId, provider, targetLimit);
-                                  }
-                                }
-                                if (isTransient) {
-                                  this.db.prepare(`UPDATE models SET consecutive_5xx = consecutive_5xx + 1 WHERE id = ?`).run(sanitizedModelId);
-                                  const modelRow = this.db.prepare(`SELECT consecutive_5xx FROM models WHERE id = ?`).get(sanitizedModelId);
-                                  if (modelRow && modelRow.consecutive_5xx >= 3) {
-                                    this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ?`).run(Date.now(), sanitizedModelId);
-                                    console.log(`[BANDIT-CONSEQUENCE] degraded | model=${modelId} provider=${provider} reason=consecutive_5xx count=${modelRow.consecutive_5xx} scope=model`);
-                                    logPunishment({ bandit: this, type: EVENT_TYPES.DEGRADED_MODEL, provider, modelId: sanitizedModelId, reason: 'consecutive_5xx', cooldownMs: 0, failures: 0 });
-                                  }
-                  // Also set degraded_since if degraded via config-driven permanent error (category=PERMANENT and scope=model)
-                  if (c.category === "PERMANENT" && c.scope === "model") {
-                    this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ? AND degraded = 0`).run(Date.now(), sanitizedModelId);
+                logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: c.cooldownMs || 0, failures: 0 });
+                break;
+              case "cooldown-paid-only":
+                this._cooldownPaidOnly(provider, c.cooldownMs);
+                console.log(`[BANDIT-CONSEQUENCE] cooldown-paid-only | model=${modelId} provider=${provider} cooldownMs=${c.cooldownMs} scope=provider`);
+                logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason || 'cooldown-paid-only', cooldownMs: c.cooldownMs || 0, failures: 0 });
+                break;
+              case "flag-provider":
+                if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
+                  console.log(`[BANDIT-TRAIN] ${modelId}: flag-provider (${c.reason})`);
+                }
+                this._flagProviderAttention(provider, c.reason, errObj.message || errObj.error || "");
+                console.log(`[BANDIT-CONSEQUENCE] flag-provider | model=${modelId} provider=${provider} reason=${c.reason} scope=provider`);
+                logPunishment({ bandit: this, type: EVENT_TYPES.FLAG_PROVIDER, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs: 0, failures: 0 });
+                break;
+              case "cooldown-model": {
+                const isTransient = ["server-error", "timeout", "unknown"].includes(c.reason);
+                if (c.reason === "tpm-exceeded" || errObj?.status === 413) {
+                  const errorMessage = String(errObj?.message || errObj?.error || errObj || "");
+                  const parsedLimit = this._parseTokenLimit(errorMessage);
+                  const targetLimit = parsedLimit !== null ? parsedLimit : 0;
+                  if (targetLimit > 0) {
+                    this.db.prepare(
+                      `INSERT INTO models (id, provider, dynamic_max_tokens, N, sum_reward, fails, cooldown_until, last_used_index)
+                       VALUES (?, ?, ?, 0, 0, 0, 0, 0)
+                       ON CONFLICT(id) DO UPDATE SET dynamic_max_tokens = CASE
+                         WHEN dynamic_max_tokens = 0 OR dynamic_max_tokens > excluded.dynamic_max_tokens THEN excluded.dynamic_max_tokens
+                         ELSE MIN(dynamic_max_tokens, excluded.dynamic_max_tokens)
+                       END`
+                    ).run(sanitizedModelId, provider, targetLimit);
                   }
                 }
-                
+                if (isTransient) {
+                  this.db.prepare(`UPDATE models SET consecutive_5xx = consecutive_5xx + 1 WHERE id = ?`).run(sanitizedModelId);
+                  const modelRow = this.db.prepare(`SELECT consecutive_5xx FROM models WHERE id = ?`).get(sanitizedModelId);
+                  if (modelRow && modelRow.consecutive_5xx >= 3) {
+                    this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ?`).run(Date.now(), sanitizedModelId);
+                    console.log(`[BANDIT-CONSEQUENCE] degraded | model=${modelId} provider=${provider} reason=consecutive_5xx count=${modelRow.consecutive_5xx} scope=model`);
+                    logPunishment({ bandit: this, type: EVENT_TYPES.DEGRADED_MODEL, provider, modelId: sanitizedModelId, reason: 'consecutive_5xx', cooldownMs: 0, failures: 0 });
+                  }
+                }
+                // Also set degraded_since if degraded via config-driven permanent error (category=PERMANENT and scope=model)
+                if (c.category === "PERMANENT" && c.scope === "model") {
+                  this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ? AND degraded = 0`).run(Date.now(), sanitizedModelId);
+                }
+  
                 // Determine cooldown duration: use config-specified, or default escalating if transient
                 let cooldownMs = c.cooldownMs;
                 if (!cooldownMs || cooldownMs <= 0) {
@@ -1271,7 +1272,7 @@ export class DiscountedUCB1Bandit {
                     cooldownMs = this._getModelCooldownMs(failCount + 1);
                   }
                 }
-
+  
                 // Apply cooldown to model if applicable
                 if (cooldownMs && cooldownMs > 0) {
                   this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
@@ -1611,13 +1612,10 @@ export class DiscountedUCB1Bandit {
     // Non-Resetting Key/Quota Limits
     if (status === 403 || /Key limit exceeded|total limit|hard limit|lifetime limit/i.test(message)) {
       const isNonResetting = /does not reset|never resets|no reset|lifetime|permanent/i.test(message);
-      let cooldownMs = this._parseResetAfter(message, errorDetails);
       if (isNonResetting) {
-        return { action: "cooldown-provider", scope: "provider", reason: "quota-exhausted", cooldownMs: 2 * 3600 * 1000, category: "TRANSIENT" };
-      } else if (!cooldownMs || cooldownMs <= 0) {
-        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs: 2 * 3600 * 1000, category: "TRANSIENT" };
+        return { action: "ban-provider", scope: "provider", reason: "quota-exhausted", category: "PERMANENT" };
       } else {
-        return { action: "cooldown-provider", reason: "key-limit-exceeded", cooldownMs, category: "TRANSIENT" };
+        return { action: "ban-provider", reason: "key-limit-exceeded", category: "PERMANENT" };
       }
     }
 
@@ -1689,8 +1687,11 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000, category: "TRANSIENT" };
     }
 
-    // 5xx / Stream Errors / Keepalive -> cooldown-model (transient, exponential backoff)
-    if (status >= 500 && status < 600 || /keepalive|chunk|stream|connection/i.test(message)) {
+    // 5xx / Stream Errors / Keepalive -> ban-model (permanent for stream errors per config)
+    if (/keepalive|chunk|stream|connection/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "stream-error", category: "PERMANENT" };
+    }
+    if (status >= 500 && status < 600) {
       const modelId = this._sanitizeModelId(errorDetails.modelId) || "";
       const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
       const fails = model ? model.fails : 0;
