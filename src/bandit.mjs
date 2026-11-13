@@ -1577,7 +1577,7 @@ export class DiscountedUCB1Bandit {
     }
     // NEW: authentication expired (401) -> flag-provider with reason auth-expired
     if (status === 401 && /authentication expired/i.test(message)) {
-      return { action: "flag-provider", reason: "auth-expired", category: "TRANSIENT" };
+      return { action: "flag-provider", reason: "auth-expired", cooldownMs: 24 * 3600 * 1000, category: "TRANSIENT" };
     }
     // 413 / TPM / ITPM / tokens per minute / Request too large / context length / token limit -> cooldown-model
     if (status === 413 || /413|ITPM|tokens?\s*per\s*minute|TPM|Request too large|Requested \d+.*Limit \d+|Limit \d+.*Requested \d+|context\s*(?:window|length|exceeded)|token\s*limit|payload\s*too\s*large/i.test(message)) {
@@ -2916,7 +2916,13 @@ export class DiscountedUCB1Bandit {
                 if (prov.cooldown_until > 0 && prov.cooldown_until <= now) {
                   this.db.prepare("UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?").run(model.provider);
                 } else {
-                  rejectionReason = 'provider_needs_attention';
+                  // Check if this is an auth-expired attention to preserve the specific reason for cascade guard
+                  const attentionReason = prov.attention_reason || '';
+                  if (attentionReason === 'auth-expired') {
+                    rejectionReason = 'auth-expired';
+                  } else {
+                    rejectionReason = 'provider_needs_attention';
+                  }
                 }
               }
             }
@@ -3004,7 +3010,7 @@ export class DiscountedUCB1Bandit {
             countermeasure = 'quota_exhausted';
           } else if (rejectionReason === 'model_permanent_ban' || rejectionReason === 'provider_permanent_ban') {
             countermeasure = 'ban-model';
-          } else if (rejectionReason === 'exclude_thinking' || rejectionReason === 'exclude_paid' || rejectionReason === 'only_free' || rejectionReason === 'dynamic_max_tokens_exceeded' || rejectionReason === 'max_input_tokens_exceeded' || rejectionReason === 'no_tools_support' || rejectionReason === 'no_image_generation_support' || rejectionReason === 'no_vision_support' || rejectionReason === 'non_chat_model_excluded' || rejectionReason === 'provider_needs_attention') {
+          } else if (rejectionReason === 'exclude_thinking' || rejectionReason === 'exclude_paid' || rejectionReason === 'only_free' || rejectionReason === 'dynamic_max_tokens_exceeded' || rejectionReason === 'max_input_tokens_exceeded' || rejectionReason === 'no_tools_support' || rejectionReason === 'no_image_generation_support' || rejectionReason === 'no_vision_support' || rejectionReason === 'non_chat_model_excluded' || rejectionReason === 'provider_needs_attention' || rejectionReason === 'auth-expired') {
             countermeasure = 'flag-provider';
           } else if (rejectionReason === 'provider_circuit_breaker') {
             countermeasure = 'flag-provider';
@@ -3026,8 +3032,8 @@ export class DiscountedUCB1Bandit {
           // rejected due to cooldown or circuit breaker state. The model/provider is
           // already punished — applying another cooldown would create a feedback loop
           // where hundreds of models get simultaneous cooldowns from a single provider failure.
-          if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown') {
-            console.log(`[BANDIT-CASCADE-GUARD] Skipping additional punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (already on cooldown/circuit)`);
+          if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown' || rejectionReason === 'auth-expired') {
+            console.log(`[BANDIT-CASCADE-GUARD] Skipping additional punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (already on cooldown/circuit/auth-expired)`);
             return false;
           }
 

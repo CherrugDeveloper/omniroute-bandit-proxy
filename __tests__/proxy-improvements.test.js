@@ -26,6 +26,24 @@ test('Proxy Improvements & Error Classification', async (t) => {
     assert.strictEqual(classification.action, 'cooldown-provider');
   });
 
+  await t.test('should classify 401 auth-expired errors as flag-provider with 24h cooldown', () => {
+    const errorMsg = 'All 1 connection(s) authentication expired';
+    const classification = bandit._classifyError({ status: 401, message: errorMsg }, 'no-think');
+    assert.strictEqual(classification.action, 'flag-provider');
+    assert.strictEqual(classification.reason, 'auth-expired');
+    assert.strictEqual(classification.cooldownMs, 24 * 3600 * 1000,
+      'auth-expired should carry a 24h cooldown');
+  });
+
+  await t.test('should classify 401 No active credentials errors as flag-provider with 24h cooldown', () => {
+    const errorMsg = 'No active credentials for provider';
+    const classification = bandit._classifyError({ status: 401, message: errorMsg }, 'opencode-zen');
+    assert.strictEqual(classification.action, 'flag-provider');
+    assert.strictEqual(classification.reason, 'auth-expired');
+    assert.strictEqual(classification.cooldownMs, 24 * 3600 * 1000,
+      'auth-expired should carry a 24h cooldown');
+  });
+
   await t.test('fallback models configuration is accessible and non-empty', () => {
     assert.ok(Array.isArray(config.fallbackModels));
     assert.ok(config.fallbackModels.length > 0);

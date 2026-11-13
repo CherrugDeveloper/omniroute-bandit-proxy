@@ -25,10 +25,10 @@
         { "pattern": "RATE_LIMIT_QUEUE_TIMEOUT|503 queue timeout|queue timeout", "action": "cooldown-model", "duration": 45000 },
         { "pattern": "high demand|service.unavailable|service unavailable", "action": "cooldown-model", "duration": 30000 },
         { "pattern": "413|ITPM|tokens.?per.?minute|TPM|Request too large|context.?(?:window|length|exceeded)|token.?limit|payload.?too.?large", "action": "cooldown-model", "duration": 300000, "reason": "tpm-exceeded" },
-        { "pattern": "keepalive|connection", "action": "cooldown-model", "duration": 15000 },
+        { "pattern": "401|authentication expired|No active credentials", "action": "flag-provider", "duration": 86400000, "reason": "auth-expired" },
         { "pattern": "402|insufficient.?funds|credit.?exhausted|payment.?required|billing_error", "action": "flag-provider", "duration": 86400000 },
         { "pattern": "418|anti.abuse", "action": "cooldown-provider", "duration": 3600000 },
-        { "pattern": "401|authentication expired|No active credentials", "action": "flag-provider", "duration": 86400000 },
+        { "pattern": "keepalive|connection", "action": "cooldown-model", "duration": 15000 },
         { "pattern": "502|503|No auth provided|Please log in|Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright|is not configured|missing url or token|browserType.launch|Executable doesn't exist", "action": "cooldown-provider", "duration": 1800000, "reason": "provider-misconfigured" },
         { "pattern": "ENOENT|spawn.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured", "action": "cooldown-provider", "duration": 1800000 },
         { "pattern": "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized", "action": "cooldown-model", "duration": 300000, "reason": "safeWrite-init-error" }
