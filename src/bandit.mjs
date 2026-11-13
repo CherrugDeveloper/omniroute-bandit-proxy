@@ -2438,11 +2438,32 @@ export class DiscountedUCB1Bandit {
         const topRes = this.db.prepare(`
           SELECT id, provider, N, cooldown_until, (sum_reward / NULLIF(N, 0)) as avg, (sum_reward / NULLIF(N, 0)) as score
           FROM models
-          WHERE N >= 10
+          WHERE N >= 1
           ORDER BY avg DESC
           LIMIT 1
         `).get();
-        if (topRes) {
+        if (!topRes) {
+          // Fallback: any model in catalog even without observations
+          const fallbackRes = this.db.prepare(`
+            SELECT id, provider, N, cooldown_until, 0 as avg, 0 as score
+            FROM models
+            ORDER BY id ASC
+            LIMIT 1
+          `).get();
+          if (fallbackRes) {
+            const sanitizedId = this._sanitizeModelId(fallbackRes.id);
+            topModel = sanitizedId;
+            topModelDetails = {
+              id: sanitizedId,
+              name: sanitizedId,
+              provider: fallbackRes.provider,
+              N: fallbackRes.N,
+              cooldown: fallbackRes.cooldown_until || 0,
+              avg: fallbackRes.avg,
+              score: fallbackRes.score
+            };
+          }
+        } else {
           const sanitizedId = this._sanitizeModelId(topRes.id);
           topModel = sanitizedId;
           topModelDetails = {
