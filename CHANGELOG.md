@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 All releases are documented below in strict reverse chronological order, newest first.
 The first entry below is the latest release.
 
+## [0.43.0] - 2026-11-13
+
+### Fixed
+- fix(bandit): remove "model_cooldown" from error classification pattern to prevent cooldown feedback loop cascade ([config/bandit.json])
+- fix(bandit): add cascade guards in emergency rejection handler to skip double-punishment on models already on cooldown/circuit breaker state ([src/bandit.mjs])
+
 ## [0.42.0] - 2026-11-12
 
 ### Added

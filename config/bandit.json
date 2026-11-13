@@ -21,7 +21,7 @@
         { "pattern": "timeout", "action": "cooldown-model", "duration": 600000 },
         { "pattern": "5xx|server-error", "action": "cooldown-model", "duration": 30000 },
         { "pattern": "rate.?limit|too.?many.?requests|throttled|quota.?exceeded|exhausted", "action": "cooldown-model", "duration": 300000 },
-        { "pattern": "429|model_cooldown|cooling down", "action": "cooldown-model", "duration": 300000 },
+        { "pattern": "429|cooling down", "action": "cooldown-model", "duration": 300000 },
         { "pattern": "RATE_LIMIT_QUEUE_TIMEOUT|503 queue timeout|queue timeout", "action": "cooldown-model", "duration": 45000 },
         { "pattern": "high demand|service.unavailable|service unavailable", "action": "cooldown-model", "duration": 30000 },
         { "pattern": "413|ITPM|tokens.?per.?minute|TPM|Request too large|context.?(?:window|length|exceeded)|token.?limit|payload.?too.?large", "action": "cooldown-model", "duration": 300000, "reason": "tpm-exceeded" },

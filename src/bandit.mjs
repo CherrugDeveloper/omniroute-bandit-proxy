@@ -3021,7 +3021,16 @@ export class DiscountedUCB1Bandit {
             avg_reward: (model.N || 0) > 0 ? (model.sum_reward || 0) / (model.N || 0) : 1.0,
             avg_latency: model.avg_latency || 250
           });
-          
+
+          // CASCADE GUARD: Skip applying additional punishment when the model is already
+          // rejected due to cooldown or circuit breaker state. The model/provider is
+          // already punished — applying another cooldown would create a feedback loop
+          // where hundreds of models get simultaneous cooldowns from a single provider failure.
+          if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown') {
+            console.log(`[BANDIT-CASCADE-GUARD] Skipping additional punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (already on cooldown/circuit)`);
+            return false;
+          }
+
           // Persist punishment state to models table for dashboard metrics
           // EMERGENCY REJECTION: Never auto-ban models - log only and apply cooldown at most.
           // This prevents cascade bans when the emergency tier rejects models.

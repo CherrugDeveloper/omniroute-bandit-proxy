@@ -300,6 +300,10 @@ Connect to `ws://localhost:3000` for real-time punishment events:
 | 4th | 2 hours |
 | 5th | Permanent ban |
 
+### Cascade Guards
+
+Emergency rejection handling skips additional punishment when a model is already rejected due to cooldown or circuit breaker state (`model_cooldown`, `provider_cooled_down_this_request`, `provider_circuit_breaker`, `provider_cooldown`). This prevents a single provider failure from triggering simultaneous cooldowns across hundreds of models.
+
 ### Degraded Mode
 
 When `consecutive_5xx ≥ 3`, a model enters degraded mode:
