@@ -34,7 +34,23 @@ generate-changelog.mjs
 sync-tags.mjs
 git_log_with_hashes.txt
 
-# Workflow retention (not ignored)
+# raw_git_log.txt is retained by the auto-git workflow
+
+# IDE
+.vscode/
+!/.vscode/settings.json
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+# raw_git_log.txt
 # raw_git_log.txt is retained by the auto-git workflow
 
 # IDE

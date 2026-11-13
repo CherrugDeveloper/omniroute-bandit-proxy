@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 All releases are documented below in strict reverse chronological order, newest first.
 The first entry below is the latest release.
 
+## [0.47.0] - 2026-11-13
+
+### Fixed
+- fix(proxy): STREAM_IDLE_MS increased 60s → 300s; idle timer now resets on ANY chunk including SSE keepalive pings ([src/index.mjs])
+- fix(proxy): STREAM_MAX_MS increased 180s → 600s to support longer streaming sessions ([src/index.mjs])
+- fix(bandit): 403 key limit removed from _isCriticalFailure() to prevent permanent ban on key-limit errors ([src/bandit.mjs])
+- fix(bandit): flag-provider downgraded to cooldown-provider for misconfigured providers (missing url/token) ([src/bandit.mjs])
+- fix(proxy): stream-idle-timeout and stream-hard-cap aborts now skip recordFeedback to avoid unfair punishment ([src/index.mjs])
+- fix(bandit): cascade guard relaxed — model-level punishment continues even when provider punishment is skipped ([src/bandit.mjs])
+- fix(bandit): default fallback cooldownMs reduced 30s → 15s ([src/bandit.mjs])
+- fix(config): STREAM_IDLE_MS=300000 and STREAM_MAX_MS=600000 added to .env.example ([.env.example])
+
+### Changed
+- .env.example: added STREAM_IDLE_MS and STREAM_MAX_MS under Server Configuration ([.env.example])
+
 ## [0.46.0] - 2026-11-13
 
 ### Fixed

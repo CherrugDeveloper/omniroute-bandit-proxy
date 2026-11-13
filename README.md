@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/Tests-10%20suites-blue.svg)](https://nodejs.org/)
-[![Version](https://img.shields.io/badge/version-1.29.1-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v1.29.1)
+[![Version](https://img.shields.io/badge/version-0.47.0-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.47.0)
 
 ## Overview
 
@@ -20,7 +20,8 @@ The OmniRoute Bandit Proxy is a Multi-Armed Bandit (MAB) reverse proxy for LLM t
 | **Error Classification** | Transient vs. permanent errors mapped to actions (cooldown-model, cooldown-provider, ban-model, ban-provider, flag-provider) |
 | **Training Daemon** | Isolated round-robin writes to `models_train` table; production reads `models` + `0.3*models_train` when N < 1 |
 | **Log Streaming** | `/v1/training/log-stream` endpoint detects file truncation/rotation and resets read position |
-======= REPLACE
+
+====
 | **Real-time Events** | WebSocket-based punishment event stream with StatsAggregator singleton for dashboard updates |
 | **Image Generation** | Detection and filtering of image-only models from chat routing |
 
@@ -62,207 +63,9 @@ The OmniRoute Bandit Proxy is a Multi-Armed Bandit (MAB) reverse proxy for LLM t
 │  • Error classification & punishment                          │
 │  • 5-strike ban system                                        │
 │  • Exponential backoff cooldowns                              │
-│  • Session affinity & stream tracking                         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌───────────────────┼───────────────────┐
-        ▼                   ▼                   ▼
-┌──────────────┐  ┌─────────────────┐  ┌──────────────────┐
-│ ProviderQuota│  │   HealthChecker │  │   Notifier       │
-│ (quota mgt)  │  │ (model health)  │  │ (webhooks)       │
-└──────────────┘  └─────────────────┘  └──────────────────┘
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌──────────────┐  ┌─────────────────┐  ┌──────────────────┐
-│   SQLite     │  │  Punishment     │  │  StatsAggregator │
-│  (better-sqlite3)│ │  Events (ring  │  │  (real-time stats│
-│  models +    │  │   buffer)       │  │   for dashboard) │
-│  models_train│  └─────────────────┘  └──────────────────┘
-└──────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Dashboard (public/dashboard.html)          │
-│  • Live metrics, model tables, train tab                    │
-│  • Punishment history (reverse chronological)               │
-│  • WebSocket real-time updates                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Core Modules
-
-| Module | File | Responsibility |
-|--------|------|----------------|
-| Bandit Engine | [`src/bandit.mjs`](src/bandit.mjs) | Discounted UCB1 model selection, punishment, bans |
-| Proxy Entry | [`src/index.mjs`](src/index.mjs) | Express server, WebSocket, request routing |
-| Provider Quota | [`src/provider-quota.mjs`](src/provider-quota.mjs) | Rolling quota windows, background recovery |
-| Health Check | [`src/health-check.mjs`](src/health-check.mjs) | Active model probing, auto-rehabilitation |
-| Events | [`src/events.mjs`](src/events.mjs) | Punishment event system, ring buffer |
-| Stats Aggregator | [`src/stats-aggregator.mjs`](src/stats-aggregator.mjs) | Real-time stats, per-model/provider tracking |
-| Request Tracker | [`src/request-tracker.mjs`](src/request-tracker.mjs) | Active request tracking, recent request buffer |
-| Modes Registry | [`src/modes-registry.mjs`](src/modes-registry.mjs) | Mode detection, profile multipliers |
-| Log Throttle | [`src/log-throttle.mjs`](src/log-throttle.mjs) | Log deduplication, debug flags |
-| Notifier | [`src/notifier.mjs`](src/notifier.mjs) | Slack/Discord/Telegram webhooks |
-
-## Installation
-
-### Prerequisites
-
-- Node.js 18 or higher
-- npm (bundled with Node.js)
-
-### Steps
-
-```bash
-# Clone the repository
-git clone https://github.com/CherrugDeveloper/omniroute-bandit-proxy.git
-cd omniroute-bandit-proxy
-
-# Install dependencies
-npm install
-
-# Copy environment example
-cp .env.example .env
-
-# Edit .env with your configuration
-# (see Configuration section below)
-
-# Start the proxy
-npm start
-
-# Or run in development mode with auto-reload
-npm run dev
-```
-
-### Verify Installation
-
-```bash
-# Syntax check
-npm run check
-
-# Run test suite
-npm test
-```
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file based on `.env.example`. Key variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | Proxy server port |
-| `BASE_URL` | `http://127.0.0.1:20128/v1` | Upstream LLM provider base URL |
-| `API_TOKEN` | (none) | Authentication token for control API/dashboard |
-| `PRICING_FILTER` | `none` | `none`, `free-only`, `paid-only`, `exclude-paid` |
-| `EXPLOIT_ONLY` | `false` | Use only models with N≥3 observations |
-| `EXCLUDE_THINKING` | `false` | Exclude thinking models from selection |
-| `HEALTH_CHECK_INTERVAL_MS` | `300000` | Health check probe interval (5 minutes) |
-| `HEALTH_CHECK_TIMEOUT_MS` | `10000` | Health check request timeout |
-| `SESSION_TTL_MS` | `1800000` | Session TTL (30 minutes) |
-| `STREAM_IDLE_MS` | `60000` | Stream idle timeout (60 seconds) |
-
-### Bandit Configuration (`config/bandit.json`)
-
-```json
-{
-  "fallbackModels": [
-    "mistral/ministral-8b-latest",
-    "groq/allam-2-7b"
-  ],
-  "errorConfig": {
-    "degradationThreshold": 3,
-    "rehabilitationPeriodMs": 172800000,
-    "classification": {
-      "transientErrors": [...],
-      "permanentErrors": [...]
-    }
-  }
-}
-```
-
-- **fallbackModels**: Chain of models used when bandit selection fails (bypasses UCB1)
-- **degradationThreshold**: Consecutive 5xx errors (≥3) triggers degraded mode
-- **rehabilitationPeriodMs**: Period after which banned models may be reconsidered
-- **transientErrors**: Patterns mapped to temporary actions (cooldowns, flags)
-- **permanentErrors**: Patterns mapped to permanent bans
-
-### Provider Limits (`config/provider-limits.json`)
-
-Defines per-provider rate limits, TPM/RPM quotas, and cost constraints used by `ProviderQuota`.
-
-## Usage
-
-### Basic Proxy Request
-
-```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "mistral/mistral-small-latest",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "max_tokens": 100
-  }'
-```
-
-### Force a Specific Model
-
-Use the `x-force-model` header to bypass bandit selection:
-
-```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
-  -H "x-force-model: groq/llama-3.3-70b-versatile" \
-  -H "Content-Type: application/json" \
-  -d '{"model": "any-model", "messages": [...]}'
-```
-
-### Dashboard
-
-Access the real-time dashboard at `http://localhost:3000/dashboard`:
-- Live metrics (active models, rewards, latency, free/paid split)
-- Model table with ban/cooldown status
-- Train tab for training daemon control
-- Punishment history with WebSocket real-time updates
-- "What to do" modal for needs_attention providers
-
-### Training Daemon
-
-```bash
-# Start training daemon
-./scripts/train-ctl.sh start
-
-# Check status
-./scripts/train-ctl.sh status
-
-# Stop training daemon
-./scripts/train-ctl.sh stop
-
-# View logs
-./scripts/train-ctl.sh logs
-```
-
-### Scripts
-
-| Script | Description |
-|--------|-------------|
-| `scripts/check-bans.mjs` | Inspect current model/provider bans |
-| `scripts/check-catalog.mjs` | Validate model catalog |
-| `scripts/check-db.mjs` | Database integrity check |
-| `scripts/fix-db.mjs` | Repair database issues |
-| `scripts/inspect-bans.mjs` | Detailed ban inspection |
-| `scripts/reset-bans.mjs` | Reset all bans/cooldowns |
-| `scripts/restart-safe.sh` | Safe restart procedure |
-| `scripts/train-ctl.sh` | Training daemon control |
-
-## API Reference
-
-### Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/chat/completions` | POST | Proxy chat completion (bandit-routed) |
-| `/v1/models` | GET | List available models from catalog |
+│
+[...7716 bytes omitted...]
+g |
 | `/dashboard` | GET | Real-time monitoring dashboard |
 | `/api/stats` | GET | JSON statistics (bans, cooldowns, flags) |
 | `/api/events` | GET | Recent punishment events |
@@ -353,7 +156,8 @@ Client disconnect/abort errors (e.g., "This operation was aborted") are now expl
 | Setting | Value | Description |
 |---------|-------|-------------|
 | `SESSION_TTL_MS` | 30 minutes | Session lifetime |
-| `STREAM_IDLE_MS` | 60 seconds | Stream idle timeout (resets on any chunk/heartbeat) |
+| `STREAM_IDLE_MS` | 5 minutes | Stream idle timeout (resets on any chunk/heartbeat) |
+| `STREAM_MAX_MS` | 10 minutes | Stream hard cap |
 
 ## Contributing
 
@@ -388,8 +192,8 @@ Security-related commits (matching `security|auth|token|401|403|ban|punish|coold
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0).
 
-- Current version: **0.45.0**
-- Tags: `v0.1.0` through `v0.45.0` (development history)
+- Current version: **0.47.0**
+- Tags: `v0.1.0` through `v0.47.0` (development history)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md) — follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/)
 
 ## License
