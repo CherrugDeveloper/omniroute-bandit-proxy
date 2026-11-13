@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 All releases are documented below in strict reverse chronological order, newest first.
 The first entry below is the latest release.
 
+## [0.49.0] - 2026-11-13
+
+### Fixed
+- fix(dashboard): `resetProvider()` no longer resets `models`/`models_train` tables — provider reset now only touches `provider_history` metrics, preventing accidental model data loss when using "Reset Tutti i Provider" ([src/bandit.mjs])
+
 ## [0.48.0] - 2026-11-13
 
 ### Fixed

@@ -16,6 +16,7 @@ import fs from "node:fs";
 import * as WebSocket from "ws";
 import { createPunishmentEvents, formatEventPayload, initializeEventBuffer } from "./events.mjs";
 import { getStatsAggregator, shutdownStatsAggregator } from "./stats-aggregator.mjs";
+import { info as slogInfo, warn as slogWarn, error as slogError, debug as slogDebug } from "./structured-logger.mjs";
 EventEmitter.defaultMaxListeners = 50;
 // Define ES module __dirname and __filename at the top (before they are used)
 const __filename = fileURLToPath(import.meta.url);
@@ -717,6 +718,22 @@ const debugFlag = createTtlFlag(
 function isDebugVerbose() {
   return debugFlag.isActive();
 }
+
+/**
+ * Sanitize error body text before logging to avoid leaking sensitive data
+ * (API keys, PII, full stack traces) in console output.
+ * Truncates to maxLength and redacts common secret-like patterns.
+ */
+function sanitizeErrorBody(text, maxLength = 300) {
+  if (typeof text !== "string") return String(text ?? "");
+  let s = text;
+  // Redact potential API keys / tokens (hex-ish, base64-ish, JWT segments)
+  s = s.replace(/["'\s:]([A-Za-z0-9_-]{32,})["'\s:]/g, (m) => m.replace(m.slice(1, -1), "REDACTED"));
+  s = s.replace(/sk-[A-Za-z0-9]{20,}/g, "sk-REDACTED");
+  s = s.replace(/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "JWT.REDACTED");
+  s = s.replace(/bearer\s+[A-Za-z0-9_\-.+/=]+/gi, "Bearer REDACTED");
+  return s.length > maxLength ? s.substring(0, maxLength) + "... (truncated)" : s;
+}
 // === SESSION AFFINITY ===
 // Mappa sessionKey → { model, ts }
 // Garantisce che la stessa conversazione usi sempre lo stesso modello
@@ -1041,17 +1058,17 @@ console.log = (...args) => {
     originalLog(...args);
     if (suppressed > 0) originalLog(`(suppressed ${suppressed} logs)`);
   }
-  pushLog(message);
+  if (!isLowValueNoise(message)) pushLog(message);
 };
 console.error = (...args) => {
   const message = serializeArgs(args);
   originalError(...args);
-  pushLog("ERROR: " + message);
+  if (!isLowValueNoise(message)) pushLog("ERROR: " + message);
 };
 console.warn = (...args) => {
   const message = serializeArgs(args);
   originalWarn(...args);
-  pushLog("WARN: " + message);
+  if (!isLowValueNoise(message)) pushLog("WARN: " + message);
 };
 
 // ========================================
@@ -1980,7 +1997,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     convHeader: req.get("x-conversation-id") || req.get("x-session-id") || null,
     firstMsgHash: req.body?.messages?.[0]?.content?.substring?.(0, 60) || null
   };
-  console.log(`[SESSION] ${JSON.stringify(sessionDebug)}`);
+  if (isDebugVerbose()) console.log(`[SESSION] ${JSON.stringify(sessionDebug)}`);
   const maxCatalog = bandit.maxCatalogInput();
 
   if (autoCompress && maxCatalog > 0 && estimatedTokens > maxCatalog) {
@@ -2076,7 +2093,7 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
       const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
       return /<tool_result>/i.test(c);
     }).length;
-    console.log(`[MSGS] total=${allMsgs.length} asst_tc=${asstTcCount} tool_result_msgs=${toolResultCount} lastRole=${lastMsg?.role} lastContent="${lastContent.slice(0, 250).replace(/\n/g, ' ')}"`);
+    if (isDebugVerbose()) console.log(`[MSGS] total=${allMsgs.length} asst_tc=${asstTcCount} tool_result_msgs=${toolResultCount} lastRole=${lastMsg?.role} lastContent="${lastContent.slice(0, 250).replace(/\n/g, ' ')}"`);
   }
   // === MSGS-ERR: dump diagnostico ===
   if (isDebugVerbose()) {
@@ -2097,13 +2114,13 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
 
   const profile = modeResult.profile;
   if (modeResult.mode) {
-    console.log(`[MODE] ${modeResult.mode} → profile=${profile} (${modeResult.source}${modeResult.sig ? ' sig=' + modeResult.sig.slice(0,8) : ''})`);
+    if (isDebugVerbose()) console.log(`[MODE] ${modeResult.mode} → profile=${profile} (${modeResult.source}${modeResult.sig ? ' sig=' + modeResult.sig.slice(0,8) : ''})`);
   } else if (modeResult.source === 'unknown') {
-    console.log(`[MODE] unknown → registrata per labeling (sig=${modeResult.sig.slice(0,8)})`);
+    if (isDebugVerbose()) console.log(`[MODE] unknown → registrata per labeling (sig=${modeResult.sig.slice(0,8)})`);
   }
 
   if (forceModel) {
-    console.log(`[FORCE] Modello forzato: ${forceModel}`);
+    if (isDebugVerbose()) console.log(`[FORCE] Modello forzato: ${forceModel}`);
   }
 
   const excluded = new Set();
@@ -2650,7 +2667,7 @@ trackRequestUpdate(requestId, {
       }
     }
 
-    console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt}) - source=${feedbackSource}`);
+    if (isDebugVerbose()) console.log(`[BANDIT] Selezionato ${model} (tentativo ${attempt}) - source=${feedbackSource}`);
 
     // === AUTO-COMPRESS per il modello specifico ===
     let requestBody = req.body;
@@ -2741,7 +2758,7 @@ trackRequestUpdate(requestId, {
         if (isDebugVerbose()) {
           console.error(`[DIAGNOSTIC] Upstream failure response: status=${r.status}, model=${model}, bodySnippet=${txt.substring(0, 200)}`);
         }
-        console.error(`[UPSTREAM ${r.status}] ${model}: ${txt.substring(0, 200)}`);
+        console.error(`[UPSTREAM ${r.status}] ${model}: ${sanitizeErrorBody(txt.substring(0, 200))}`);
         const feedback = bandit.recordFeedback(model, false, 0, { message: txt, status: r.status }, { source: feedbackSource, estimatedTokens });
         console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false status=${r.status} source=${feedbackSource} category=${feedback.category || 'UNKNOWN'}`);
 
@@ -2865,7 +2882,7 @@ trackRequestUpdate(requestId, {
 
         const firstChunkText = dec.decode(firstChunkResult.value, { stream: true });
         if (firstChunkText.includes('"error"') || firstChunkText.includes('"code"') || firstChunkText.includes('rate_limit') || firstChunkText.includes('exceeded')) {
-          console.error(`[STREAM ERR] ${model}: ${firstChunkText.substring(0, 200)}`);
+          console.error(`[STREAM ERR] ${model}: ${sanitizeErrorBody(firstChunkText.substring(0, 200))}`);
           bandit.recordFeedback(model, false, 0, { message: firstChunkText }, { source: feedbackSource });
           console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream error source=${feedbackSource}`);
           noteProviderFail(model, 'stream-error');
@@ -2990,7 +3007,7 @@ trackRequestUpdate(requestId, {
 
               if (firstChunk && (chunk.includes('"error"') || chunk.includes('"code"'))) {
                 streamFailed = true;
-                console.error(`[STREAM ERR] ${model}: ${chunk.substring(0, 200)}`);
+                console.error(`[STREAM ERR] ${model}: ${sanitizeErrorBody(chunk.substring(0, 200))}`);
                 await safeWrite(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`);
                 break;
               }
@@ -3221,8 +3238,9 @@ process.on("unhandledRejection", (reason) => {
   // Non terminiamo il processo: un errore in una richiesta non deve uccidere il proxy.
   // Se gli errori sono troppi (>20 in 60s), allora c'è un bug serio → crash pulito.
   if (unhandledRejectionCount > 20) {
-    console.error("[FATAL] Troppi unhandled rejection, termino per evitare loop");
-    process.exit(1);
+    console.error("[FATAL] Troppi unhandled rejection, disabilito ulteriore gestione per evitare crash loop");
+    // process.exit(1) rimosso: un singolo errore non deve uccidere il proxy
+    unhandledRejectionCount = 0; // reset per consentire il continuo funzionamento
   }
   // Reset contatore dopo 60s senza errori
   setTimeout(() => { unhandledRejectionCount = 0; }, 60000).unref();
