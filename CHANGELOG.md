@@ -10,17 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 All releases are documented below in strict reverse chronological order, newest first.
 The first entry below is the latest release.
 
-## [1.30.0] - 2026-11-13
-
-### Added
-- feat: regenerate documentation and bump version to 1.30.0 ([489b8a8](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/commit/489b8a8))
-
-### Changed
-- docs: regenerate CHANGELOG.md and README.md from scratch ([489b8a8](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/commit/489b8a8))
-
-### Fixed
-- fix(changelog): reverse version order to reverse chronological per Keep a Changelog conventions ([489b8a8](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/commit/489b8a8))
-
 ## [0.42.0] - 2026-11-12
 
 ### Added
