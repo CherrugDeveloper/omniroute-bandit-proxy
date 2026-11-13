@@ -15,16 +15,20 @@ export class DiscountedUCB1Bandit {
     if (typeof modelId !== 'string') return modelId;
     if (modelId.includes('/')) {
       const parts = modelId.split('/');
-      if (parts.length >= 3 && parts[0] === parts[1]) {
-        const sanitized = [parts[0], ...parts.slice(2)].join('/');
-        // Validate the sanitized model exists in the catalog
+      while (parts.length >= 2 && parts[0] === parts[1]) {
+        parts.shift();
+      }
+      if (parts.length >= 1) {
+        const sanitized = parts.join('/');
         const exists = this.db.prepare("SELECT 1 FROM catalog WHERE id = ?").get(sanitized);
         if (exists) {
           return sanitized;
         }
-        // If sanitized model doesn't exist in catalog, return the original modelId
-        // so it can be tracked and banned, rather than rejecting it silently
-        return modelId;
+      }
+      const originalExists = this.db.prepare("SELECT 1 FROM catalog WHERE id = ?").get(modelId);
+      if (originalExists) return modelId;
+      if (parts.length >= 1) {
+        return parts.join('/');
       }
     }
     return modelId;

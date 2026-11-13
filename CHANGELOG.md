@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 All releases are documented below in strict reverse chronological order, newest first.
 The first entry below is the latest release.
 
+## [0.49.1] - 2026-11-13
+
+### Fixed
+- fix(bandit): improve `_sanitizeModelId()` to handle nested/duplicated provider prefixes and validate against live catalog ([src/bandit.mjs])
+
 ## [0.49.0] - 2026-11-13
 
 ### Fixed
