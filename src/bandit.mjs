@@ -2195,13 +2195,10 @@ export class DiscountedUCB1Bandit {
         fails = 0,
         cooldown_until = 0,
         permanent = 0,
-        needs_attention = 0,
         pointer = 0,
         consecutive_failures = 0,
         circuit_breaker_until = 0,
         last_success_time = 0,
-        attention_reason = '',
-        attention_message = '',
         total_failures = 0
       WHERE provider = ?
     `).run(provider);
