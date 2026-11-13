@@ -4949,8 +4949,8 @@
 
             // Map tabs to relevant polls
             const pollsToRun = [];
-            if (activeTabId === 'tab-models' || activeTabId === '') {
-                // Models tab or no tab selected - run refreshAll
+            if (activeTabId === 'tab-models' || activeTabId === 'tab-logs' || activeTabId === '') {
+                // Models tab, logs tab, or no tab selected - run refreshAll (keep metrics current on all tabs)
                 pollsToRun.push('refreshAll');
             }
             if (activeTabId === 'tab-logs' || !activeTabId) {

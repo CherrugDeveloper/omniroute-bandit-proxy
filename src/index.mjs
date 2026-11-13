@@ -1446,7 +1446,21 @@ app.get("/v1/inflight", (req, res) => {
 app.get("/v1/active", requireAuth, (req, res) => {
   try {
     const requests = getActiveRequestsSnapshot();
-    
+
+    // Derive errorType for active requests from status/lastError
+    const requestsWithErrorType = requests.map(r => {
+      let errorType = null;
+      if (r.lastError) {
+        const codeMatch = String(r.lastError).match(/^\[?(\d{3})\]?/);
+        if (codeMatch) errorType = codeMatch[1];
+        else if (String(r.lastError).includes('timeout')) errorType = 'timeout';
+        else if (String(r.lastError).includes('429') || String(r.lastError).includes('rate')) errorType = '429';
+        else if (String(r.lastError).includes('403') || String(r.lastError).includes('forbidden')) errorType = '403';
+        else if (String(r.lastError).includes('503') || String(r.lastError).includes('overload')) errorType = '503';
+      }
+      return { ...r, errorType };
+    });
+
     // Get recent requests from in-memory buffer, or fall back to database
     let recent = recentRequests.getAll();
     if (recent.length < 10) {
@@ -1457,30 +1471,56 @@ app.get("/v1/active", requireAuth, (req, res) => {
         WHERE ended_at IS NOT NULL
         ORDER BY started_at DESC
         LIMIT 50
-      `).all().map(r => ({
-        ...r,
-        timestamp: r.timestamp,  // Map started_at to timestamp for dashboard compatibility
-        endedAt: r.ended_at,
-        statusCode: r.status_code,
-        errorMessage: r.error_message,
-        // Derived fields for display
-        status: r.status_code >= 400 ? (r.status_code >= 500 ? 'error' : 'client_error') : 'success',
-        statusLabel: r.status_code === 403 ? 'forbidden' : (r.status_code === 429 ? 'rate_limit' : (r.status_code >= 500 ? 'server_error' : (r.status_code >= 400 ? 'client_error' : 'success')))
-      }));
+      `).all().map(r => {
+        let errorType = null;
+        if (r.status_code >= 400) errorType = String(r.status_code);
+        if (r.error_message && String(r.error_message).includes('timeout')) errorType = 'timeout';
+        if (r.error_message && (String(r.error_message).includes('429') || String(r.error_message).includes('rate'))) errorType = '429';
+        if (r.error_message && (String(r.error_message).includes('403') || String(r.error_message).includes('forbidden'))) errorType = '403';
+        if (r.error_message && (String(r.error_message).includes('503') || String(r.error_message).includes('overload'))) errorType = '503';
+        return {
+          ...r,
+          timestamp: r.timestamp,  // Map started_at to timestamp for dashboard compatibility
+          endedAt: r.ended_at,
+          statusCode: r.status_code,
+          errorMessage: r.error_message,
+          errorType,
+          // Derived fields for display
+          status: r.status_code >= 400 ? (r.status_code >= 500 ? 'error' : 'client_error') : 'success',
+          statusLabel: r.status_code === 403 ? 'forbidden' : (r.status_code === 429 ? 'rate_limit' : (r.status_code >= 500 ? 'server_error' : (r.status_code >= 400 ? 'client_error' : 'success')))
+        };
+      });
       
       // Merge: prefer in-memory buffer, supplement with DB
       if (dbRecent.length > 0) {
         recent = [...recent, ...dbRecent].slice(-50);
       }
     }
+
+    // Derive errorType for recent requests that don't have one yet
+    const recentWithErrorType = recent.map(r => {
+      if (r.errorType) return r;
+      let errorType = null;
+      if (r.lastError) {
+        const codeMatch = String(r.lastError).match(/^\[?(\d{3})\]?/);
+        if (codeMatch) errorType = codeMatch[1];
+        else if (String(r.lastError).includes('timeout')) errorType = 'timeout';
+        else if (String(r.lastError).includes('429') || String(r.lastError).includes('rate')) errorType = '429';
+        else if (String(r.lastError).includes('403') || String(r.lastError).includes('forbidden')) errorType = '403';
+        else if (String(r.lastError).includes('503') || String(r.lastError).includes('overload')) errorType = '503';
+      } else if (r.statusCode >= 400) {
+        errorType = String(r.statusCode);
+      }
+      return { ...r, errorType };
+    });
     
     // Get recent punishment events from database
     const punishmentEvents = bandit.getRecentPunishmentEvents(20);
     
     res.json({
       count: requests.length,
-      requests,
-      recent: recent.slice(-3),  // ultime 3
+      requests: requestsWithErrorType,
+      recent: recentWithErrorType.slice(-3),  // ultime 3
       punishmentEvents: punishmentEvents
     });
   } catch (e) {
