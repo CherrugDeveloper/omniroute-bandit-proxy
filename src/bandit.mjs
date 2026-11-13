@@ -2273,6 +2273,18 @@ export class DiscountedUCB1Bandit {
     `).run();
   }
 
+  clearAllProviderAttention() {
+    // Clear all provider attention flags without touching cooldowns/bans.
+    // Called by /v1/reset/model so the dashboard "Config" count (modelsAttention)
+    // returns to 0 after a global model reset.
+    this.db.prepare(`
+      UPDATE provider_history SET
+        needs_attention = 0,
+        attention_reason = NULL,
+        attention_message = NULL
+    `).run();
+  }
+
   resetPunishmentEvents() {
     // Clear all punishment events history
     this.db.prepare("DELETE FROM punishment_events").run();
