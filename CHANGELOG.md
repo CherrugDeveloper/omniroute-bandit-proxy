@@ -16,6 +16,7 @@ The first entry below is the latest release.
 - fix(proxy): log streaming now detects file truncation/rotation and resets read position ([src/index.mjs])
 - fix(bandit): 403 key limit now distinguishes transient resetting limits (cooldown-model) from non-resetting permanent limits (ban-provider) ([src/bandit.mjs], [config/bandit.json])
 - fix(proxy): cascade guard now logs struggling models when punishment is skipped ([src/index.mjs])
+- fix(proxy): client disconnections/aborts no longer unfairly punish models with cooldown ([src/index.mjs])
 
 ## [0.45.0] - 2026-11-13
 

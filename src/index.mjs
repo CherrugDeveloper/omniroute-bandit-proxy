@@ -3034,6 +3034,12 @@ trackRequestUpdate(requestId, {
           return;
         } catch (e) {
           console.error(`[STREAM ABORT] ${model}: ${e.message}`);
+          // Skip bandit feedback for client disconnects/aborts - these are not model failures
+          const isClientDisconnect = e.name === 'AbortError' ||
+                                   e.message.includes('client-disconnected') ||
+                                   e.message.includes('abort') ||
+                                   e.message.includes('AbortError');
+          if (!isClientDisconnect) {
             if (sessionKey) {
               const entry = sessionModels.get(sessionKey);
               if (entry && entry.model === model) {
@@ -3045,9 +3051,12 @@ trackRequestUpdate(requestId, {
             console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream abort source=${feedbackSource}`);
             noteProviderFail(model, 'stream-abort');
             excluded.add(model);
-            reader.cancel().catch(() => {});
-            if (!res.writableEnded) res.end();
-            continue;
+          } else {
+            console.log(`[BANDIT] Skipping model punishment for client disconnect`);
+          }
+          reader.cancel().catch(() => {});
+          if (!res.writableEnded) res.end();
+          continue;
         }
       } else {
         const data = await r.json();
@@ -3108,8 +3117,8 @@ trackRequestUpdate(requestId, {
       if (e.name === "AbortError") {
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
         console.error(`[ABORT] ${model}: timeout or client disconnect`);
-        bandit.recordFeedback(model, false, 0, { message: "timeout/abort" }, { source: feedbackSource });
-        console.log(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=timeout/abort source=${feedbackSource}`);
+        // Skip bandit feedback for client disconnects/aborts - these are not model failures
+        console.log(`[BANDIT] Skipping model punishment for client disconnect`);
       } else {
         console.error(`[FETCH ERR] ${model}: ${e.message}`);
         bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });

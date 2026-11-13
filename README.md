@@ -330,6 +330,9 @@ When `consecutive_5xx ≥ 3`, a model enters degraded mode:
 | 403 / key limit | ban-provider | provider | permanent |
 | 502/503 / misconfigured | cooldown-provider | provider | 30 min |
 | safeWrite errors | cooldown-model | model | 5 min |
+| client disconnect / abort | cooldown-model **skipped** | model | N/A |
+
+Client disconnect/abort errors (e.g., "This operation was aborted") are now explicitly skipped in the stream and fetch catch blocks to prevent unfair model punishment. These errors do not indicate model faults and will not trigger cooldowns or bans.
 
 ## Database
 
