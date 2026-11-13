@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
-All releases from 0.1.0 through 0.42.0 are documented below in strict reverse chronological order.
-The current development version is **1.30.0** (see `package.json`).
+All releases are documented below in strict reverse chronological order, newest first.
+The first entry below is the latest release.
 
 ## [1.30.0] - 2026-11-13
 
