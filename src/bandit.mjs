@@ -1601,9 +1601,9 @@ export class DiscountedUCB1Bandit {
     if ((status === 502 || status === 503) && /Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright/i.test(message)) {
       return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
     }
-    // CLI / binario mancante o non configurato -> flag-provider
+    // CLI / binario mancante o non configurato -> cooldown-provider
     if (status === 502 && /is not configured|missing url or token/i.test(message)) {
-      return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
+      return { action: "cooldown-provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
     }
     // 403 banned -> ban-provider
     if (status === 403 && /account disabled|banned/i.test(message)) {
@@ -1716,11 +1716,11 @@ export class DiscountedUCB1Bandit {
 
     // Default case
     const defaultReason = reason === "unknown" ? "classification-fallback" : reason;
-    console.log(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${defaultReason} cooldownMs=30000`);
+    console.log(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${defaultReason} cooldownMs=15000`);
     return {
       action: "cooldown-model",
       reason: defaultReason,
-      cooldownMs: 30000,
+      cooldownMs: 15000,
       category: "TRANSIENT"
     };
   }
@@ -1752,10 +1752,8 @@ export class DiscountedUCB1Bandit {
       if (/account disabled|banned|suspended|terminated|deactivated|policy violation/i.test(message)) {
         return true;
       }
-      // Key limit exceeded / hard limit - non-resetting quota issues
-      if (/Key limit exceeded|total limit|hard limit|lifetime limit|does not reset|never resets/i.test(message)) {
-        return true;
-      }
+      // Key limit exceeded / hard limit - NOT critical: handled by cooldown-model via classifyError
+      // (per AGENTS.md: key limit exceeded → cooldown-model, not critical → no 5-strike ban)
       // Permission denied for specific features
       if (/OpenCode's free tier can only be used from within OpenCode/i.test(message)) {
         return true;
@@ -3079,9 +3077,14 @@ export class DiscountedUCB1Bandit {
           // rejected due to cooldown or circuit breaker state. The model/provider is
           // already punished — applying another cooldown would create a feedback loop
           // where hundreds of models get simultaneous cooldowns from a single provider failure.
+          // CASCADE GUARD: Skip only provider-level punishments when provider is already
+          // on cooldown. Model-level punishments (recordFeedback) are still applied so
+          // individual models can be tracked independently even when their provider cools down.
           if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown' || rejectionReason === 'auth-expired') {
-            console.log(`[BANDIT-CASCADE-GUARD] Skipping additional punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (already on cooldown/circuit/auth-expired)`);
-            return false;
+            console.log(`[BANDIT-CASCADE-GUARD] Skipping provider-level punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (provider already on cooldown/circuit/auth-expired)`);
+            // Continue to model-level punishment below instead of returning false
+          } else {
+            console.log(`[BANDIT-CASCADE-GUARD] Applying punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason}`);
           }
 
           // Persist punishment state to models table for dashboard metrics

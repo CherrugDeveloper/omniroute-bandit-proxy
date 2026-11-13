@@ -2137,9 +2137,9 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   let model;  // <-- FIX: declare model before while loop (used at line 1272)
   // Timer streaming — dichiarati fuori da if(stream) così il catch esterno può accedervi
   // Clamp to minimum 1ms to prevent TimeoutNegativeWarning
-  const STREAM_IDLE_MS = Math.max(1, parseInt(process.env.STREAM_IDLE_MS || "60000", 10));
+  const STREAM_IDLE_MS = Math.max(1, parseInt(process.env.STREAM_IDLE_MS || "300000", 10));
   const isSummarizer = (profile === 'summarizer');
-  const STREAM_MAX_MS = Math.max(1, parseInt(process.env.STREAM_MAX_MS || (isSummarizer ? "60000" : "180000"), 10));
+  const STREAM_MAX_MS = Math.max(1, parseInt(process.env.STREAM_MAX_MS || (isSummarizer ? "60000" : "600000"), 10));
   let idleTimer = null;
   let hardCapTimer = null;
   let lastMeaningfulByte = Date.now();
@@ -2953,10 +2953,10 @@ trackRequestUpdate(requestId, {
             if (value) {
               const chunk = dec.decode(value, { stream: true });
 
-              // Reset idle SOLO se il chunk ha contenuto reale
+              // Reset idle timer on ANY chunk (including SSE keepalive pings) per AGENTS.md
+              resetIdle();
               if (isMeaningfulChunk(chunk)) {
                 lastMeaningfulByte = Date.now();
-                resetIdle();
               }
 
               if (firstChunk && (chunk.includes('"error"') || chunk.includes('"code"'))) {
@@ -3036,9 +3036,11 @@ trackRequestUpdate(requestId, {
           console.error(`[STREAM ABORT] ${model}: ${e.message}`);
           // Skip bandit feedback for client disconnects/aborts - these are not model failures
           const isClientDisconnect = e.name === 'AbortError' ||
-                                   e.message.includes('client-disconnected') ||
-                                   e.message.includes('abort') ||
-                                   e.message.includes('AbortError');
+                                     e.message.includes('client-disconnected') ||
+                                     e.message.includes('abort') ||
+                                     e.message.includes('AbortError') ||
+                                     e.message.includes('stream-idle-timeout') ||
+                                     e.message.includes('stream-hard-cap');
           if (!isClientDisconnect) {
             if (sessionKey) {
               const entry = sessionModels.get(sessionKey);
