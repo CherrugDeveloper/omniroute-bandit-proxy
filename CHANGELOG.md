@@ -14,6 +14,7 @@ The first entry below is the latest release.
 
 ### Fixed
 - fix(startup): eliminate blocking model sync retry loop in `startServer()` that caused startup delays exceeding systemd's start timeout (30s); replaced with non-blocking sync and graceful local cache/fallback ([src/index.mjs])
+- fix(bandit): add comprehensive diagnostic logging and robust try-catch wrapping around `fetchAndSyncModels()` in [`src/bandit.mjs`](src/bandit.mjs:759) to prevent silent exit/uncaught failures during startup model synchronization
 
 ## [0.49.2] - 2026-11-14
 
