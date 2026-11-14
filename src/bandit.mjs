@@ -792,12 +792,17 @@ export class DiscountedUCB1Bandit {
     } catch (err) {
       // Network/fetch error - fall back to cache or configuration fallback models
       slogWarn("[BANDIT] Attenzione: Impossibile sincronizzare i modelli da remoto:", err.message);
-      const cachedCount = this.db.prepare("SELECT COUNT(*) as count FROM catalog").get().count;
-      if (cachedCount > 0) {
-        slogInfo(`[BANDIT] Utilizzo della cache locale: ${cachedCount} modelli trovati nel catalogo SQLite.`);
-        return;
-      } else {
-        slogWarn("[BANDIT] Attenzione: Nessun modello in cache nel database SQLite. Tentativo di caricamento fallback da configurazione...");
+      try {
+        const cachedCount = this.db.prepare("SELECT COUNT(*) as count FROM catalog").get().count;
+        if (cachedCount > 0) {
+          slogInfo(`[BANDIT] Utilizzo della cache locale: ${cachedCount} modelli trovati nel catalogo SQLite.`);
+          return;
+        }
+      } catch (dbErr) {
+        slogWarn("[BANDIT] Tabella catalog non ancora disponibile:", dbErr.message);
+      }
+
+      slogWarn("[BANDIT] Attenzione: Nessun modello in cache nel database SQLite. Tentativo di caricamento fallback da configurazione...");
         try {
           const configPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "../config/bandit.json");
           const configRaw = fs.readFileSync(configPath, "utf8");
@@ -812,7 +817,6 @@ export class DiscountedUCB1Bandit {
           slogError("[BANDIT] Impossibile caricare i modelli di fallback:", fallbackErr.message);
           return;
         }
-      }
     }
 
     const insertStmt = this.db.prepare(
