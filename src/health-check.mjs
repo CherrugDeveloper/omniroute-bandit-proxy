@@ -7,6 +7,8 @@
 // Silenzioso: log solo su avvio, riabilitazioni ed errori critici.
 // ============================================================
 
+import { info as slogInfo, error as slogError, warn as slogWarn } from "./structured-logger.mjs";
+
 export function sanitizeBaseUrl(urlStr, defaultUrl = "http://127.0.0.1:20128/v1") {
   const fallback = (defaultUrl || "http://127.0.0.1:20128/v1").trim().replace(/\/+$/, "");
   if (!urlStr || typeof urlStr !== "string") {

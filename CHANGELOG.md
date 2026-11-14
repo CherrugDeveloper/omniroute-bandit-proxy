@@ -14,6 +14,7 @@ The first entry below is the latest release.
 
 ### Fixed
 - fix(proxy): refactor `startServer()` to use explicit `http.createServer(app)` with robust `EADDRINUSE` port conflict handling and enhanced synchronization debug tracing ([src/index.mjs](src/index.mjs:1))
+- fix(health-check): add missing import for structured logger functions (`slogError`, `slogInfo`, `slogWarn`) in `src/health-check.mjs` that caused `ReferenceError` when `sanitizeBaseUrl()` was called with an invalid URL, leading to startup crashes
 
 ## [0.49.3] - 2026-11-14
 
