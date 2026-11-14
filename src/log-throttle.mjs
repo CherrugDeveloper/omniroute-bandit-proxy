@@ -242,6 +242,9 @@ export const POLLING_PATH_PREFIXES = [
   "/v1/providers",
   "/v1/sessions",
   "/v1/health-check/status",
+  "/health",
+  "/manifest.json",
+  "/favicon.ico",
 ];
 
 /**
