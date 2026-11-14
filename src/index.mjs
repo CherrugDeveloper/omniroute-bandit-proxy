@@ -3328,22 +3328,13 @@ process.on("SIGINT", () => {
 // STARTUP
 // ========================================
 
-async function startServer(attempt = 1) {
-  const MAX_ATTEMPTS = 5;
+async function startServer() {
   try {
     slogInfo("[INIT] Sincronizzazione modelli in corso...");
     await bandit.fetchAndSyncModels();
     slogInfo("[INIT] Modelli sincronizzati con successo");
   } catch (err) {
-    if (attempt >= MAX_ATTEMPTS) {
-      slogError(`[FATAL] Troppi tentativi falliti di sincronizzazione (${MAX_ATTEMPTS}), arresto`);
-      bandit.close();
-      process.exit(1);
-    }
-    slogError("[INIT] Errore sincronizzazione:", err.message);
-    slogInfo(`[INIT] Ritento tra 5 secondi... (tentativo ${attempt + 1}/${MAX_ATTEMPTS})`);
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    return startServer(attempt + 1);
+    slogWarn("[INIT] Attenzione: Sincronizzazione remota fallita, utilizzo cache locale o fallback:", err.message);
   }
 
   initRegistry();

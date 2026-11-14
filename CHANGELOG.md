@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 All releases are documented below in strict reverse chronological order, newest first.
 The first entry below is the latest release.
 
+## [0.49.3] - 2026-11-14
+
+### Fixed
+- fix(startup): eliminate blocking model sync retry loop in `startServer()` that caused startup delays exceeding systemd's start timeout (30s); replaced with non-blocking sync and graceful local cache/fallback ([src/index.mjs])
+
 ## [0.49.2] - 2026-11-14
 
 ### Fixed
