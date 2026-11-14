@@ -757,6 +757,7 @@ export class DiscountedUCB1Bandit {
   }
 
   async fetchAndSyncModels() {
+   console.log("DEBUG: enter fetchAndSyncModels()");
    slogInfo("[BANDIT] fetchAndSyncModels avviato...");
    const apiKey = process.env.OMNIROUTE_API_KEY || "";
     const baseUrl = sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "https://router.omniroute.ai/v1");
@@ -774,9 +775,12 @@ export class DiscountedUCB1Bandit {
 
       let res;
       try {
+        console.log("DEBUG: before fetch", modelsUrl);
         res = await fetch(modelsUrl, { headers, signal: controller.signal });
+        console.log("DEBUG: after fetch, ok:", res.ok);
       } catch (fetchErr) {
         clearTimeout(timeoutId);
+        console.log("DEBUG: fetch catch:", fetchErr.message);
         throw new Error(`Connessione fallita o timeout (${fetchErr.message})`);
       }
       clearTimeout(timeoutId);
@@ -794,14 +798,18 @@ export class DiscountedUCB1Bandit {
       slogInfo(`[BANDIT] Modelli remoti recuperati con successo: ${modelList.length} modelli.`);
     } catch (err) {
       // Network/fetch error - fall back to cache or configuration fallback models
+      console.log("DEBUG: outer fetch catch:", err.message);
       slogWarn("[BANDIT] Attenzione: Impossibile sincronizzare i modelli da remoto:", err.message);
       try {
+        console.log("DEBUG: checking db catalog cache");
         const cachedCount = this.db.prepare("SELECT COUNT(*) as count FROM catalog").get().count;
+        console.log("DEBUG: cachedCount =", cachedCount);
         if (cachedCount > 0) {
           slogInfo(`[BANDIT] Utilizzo della cache locale: ${cachedCount} modelli trovati nel catalogo SQLite.`);
           return;
         }
       } catch (dbErr) {
+        console.log("DEBUG: dbErr =", dbErr.message);
         slogWarn("[BANDIT] Tabella catalog non ancora disponibile:", dbErr.message);
       }
 

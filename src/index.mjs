@@ -1,4 +1,5 @@
 import express from "express";
+import http from "node:http";
 import { createHash } from "node:crypto";
 import * as tracker from "./request-tracker.mjs";
 slogInfo("[STARTUP] Server loading index.mjs");
@@ -3330,10 +3331,13 @@ process.on("SIGINT", () => {
 
 async function startServer() {
   try {
+    console.log("DEBUG: before bandit.fetchAndSyncModels()");
     slogInfo("[INIT] Sincronizzazione modelli in corso...");
     await bandit.fetchAndSyncModels();
+    console.log("DEBUG: after bandit.fetchAndSyncModels()");
     slogInfo("[INIT] Modelli sincronizzati con successo");
   } catch (err) {
+    console.error("DEBUG: catch bandit.fetchAndSyncModels():", err);
     slogWarn("[INIT] Attenzione: Sincronizzazione remota fallita, utilizzo cache locale o fallback:", err.message);
   }
 
@@ -3341,23 +3345,25 @@ async function startServer() {
   
   // SO_REUSEPORT deve essere impostato PRIMA del bind, non dopo
   // Usa listen con opzioni oggetto per abilitare reusePort al momento del bind
-  server = app.listen({
+  server = http.createServer(app);
+
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      slogError(`[FATAL] Porta ${PORT} già in uso. Un'altra istanza è probabilmente ancora attiva.`);
+      process.exit(1);
+    } else {
+      slogError("[FATAL] Errore server:", err);
+      process.exit(1);
+    }
+  });
+
+  server.listen({
     port: PORT,
     host: "127.0.0.1",
     reusePort: true
   }, () => {
     slogInfo(`[PROXY] ✓ Server avviato su http://127.0.0.1:${PORT}`);
   });
-
-  server.on("error", (err) => {
-      if (err.code === "EADDRINUSE") {
-        slogError(`[FATAL] Porta ${PORT} già in uso. Un'altra istanza è probabilmente ancora attiva.`);
-        process.exit(1);
-      } else {
-        slogError("[FATAL] Errore server:", err);
-        process.exit(1);
-      }
-    });
   
     // Initialize WebSocket server for real-time script output streaming and punishment events
         wss = new WebSocket.WebSocketServer({ noServer: true });
