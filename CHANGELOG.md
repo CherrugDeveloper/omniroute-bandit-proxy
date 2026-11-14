@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 All releases are documented below in strict reverse chronological order, newest first.
 The first entry below is the latest release.
 
+## [0.49.2] - 2026-11-14
+
+### Fixed
+- fix(bandit): add robust offline fallback model seeding in `fetchAndSyncModels()` from `config/bandit.json` when remote fetch fails and local cache is empty ([src/bandit.mjs])
+- fix(scripts): update `scripts/restart-restart.sh` to safely wait for port release and avoid `EADDRINUSE` race conditions ([scripts/restart-restart.sh])
+
 ## [0.49.1] - 2026-11-13
 
 ### Fixed

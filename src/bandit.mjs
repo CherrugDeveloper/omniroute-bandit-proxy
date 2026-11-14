@@ -757,14 +757,16 @@ export class DiscountedUCB1Bandit {
   }
 
   async fetchAndSyncModels() {
+    const apiKey = process.env.OMNIROUTE_API_KEY || "";
+    const baseUrl = sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "https://router.omniroute.ai/v1");
+    const modelsUrl = buildEndpointUrl(baseUrl, "/models");
+
+    const headers = {};
+    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+
+    let modelList = null;
+    
     try {
-      const apiKey = process.env.OMNIROUTE_API_KEY || "";
-      const baseUrl = sanitizeBaseUrl(process.env.OMNIROUTE_BASE_URL, "https://router.omniroute.ai/v1");
-      const modelsUrl = buildEndpointUrl(baseUrl, "/models");
-
-      const headers = {};
-      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -782,164 +784,181 @@ export class DiscountedUCB1Bandit {
       }
 
       const data = await res.json();
-      const modelList = data.data || data.models || data;
+      modelList = data.data || data.models || data;
 
       if (!Array.isArray(modelList)) {
         throw new Error("Response malformato: data.data non è array");
       }
-
-      const insertStmt = this.db.prepare(
-        `INSERT INTO catalog (id, provider, max_input_tokens, is_free, is_paid, supports_tools, supports_vision, supports_image_generation, capability, supports_chat, supports_audio_generation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           provider = excluded.provider,
-           max_input_tokens = excluded.max_input_tokens,
-           is_free = excluded.is_free,
-           is_paid = excluded.is_paid,
-           supports_tools = excluded.supports_tools,
-           supports_vision = excluded.supports_vision,
-           supports_image_generation = excluded.supports_image_generation,
-           capability = excluded.capability,
-           supports_chat = excluded.supports_chat,
-           supports_audio_generation = excluded.supports_audio_generation`
-      );
-
-      const isFreeModel = (id) => {
-        const lower = String(id).toLowerCase();
-        return /(:free|-free|_free|\/free)/.test(lower) || lower.includes(":free");
-      };
-
-      const syncCatalog = this.db.transaction((models) => {
-        this.db.prepare("DELETE FROM catalog").run();
-        let inserted = 0;
-        let skipped = 0;
-        let raw = 0;
-
-        for (const m of models) {
-          let modelId = typeof m === "string" ? m : (m.id || m.name);
-          modelId = this._sanitizeModelId(modelId);
-          if (!modelId) continue;
-          raw++;
-
-          if (modelId.startsWith("auto/") || modelId.startsWith("gh/")) {
-            skipped++;
-            continue;
-          }
-
-          const provider = this._getProvider(modelId);
-                    const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
-                    const isFree = isFreeModel(modelId) ? 1 : 0;
-                    const isPaid = isFree ? 0 : 1;
-                    const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
-          let supportsTools = (m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
-          if (!supportsTools && !isFim) {
-            const toolPatterns = [/gpt-4/i, /gpt-3\.5/i, /o1/i, /o3/i, /o4/i, /claude-3/i, /claude-4/i, /llama-3/i, /llama-4/i, /mistral/i, /mixtral/i, /codestral/i, /qwen2/i, /qwen3/i, /deepseek/i, /gemini/i, /command-r/i, /glm-4/i, /chat/i];
-            const excludeToolPatterns = /embedding|rerank|moderation|zero|base|completion$|stt|tts/i;
-            if (!excludeToolPatterns.test(modelId)) {
-              for (const p of toolPatterns) {
-                if (p.test(modelId)) {
-                  supportsTools = 1;
-                  break;
-                }
-              }
-            }
-          }
-          const supportsVision = (m && typeof m === "object" && m.capabilities && m.capabilities.vision === true) ? 1 : 0;
-
-          const lowerId = modelId.toLowerCase();
-          let capability = 'chat_completion';
-          let supportsChat = 1;
-          let supportsImageGeneration = 0;
-          let supportsAudioGeneration = 0;
-
-          const isBatch = /:batch\b/.test(lowerId);
-          const isRerankOrMod = /(^|[-_/])(rerank|moderation)([-_/]|$)/.test(lowerId);
-          const isEmbed = /(^|[-_/])(embed|embedding|embeddings|rerank|moderation|batch)([-_/]|$)/i.test(lowerId);
-          const isAudio = /(^|[-_/])(tts|text-to-speech|speech|stt|speech-to-text|whisper|voice|audio)([-_/]|$)/i.test(lowerId) && !lowerId.includes("omni") && !lowerId.includes("chat");
-          const isAihordeId = lowerId.startsWith("aihorde/") || lowerId.includes("aihorde");
-          const isImageGenId = isAihordeId || /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|aihorde)([-_/]|$)/i.test(lowerId);
-          const isImageGenType = m && typeof m === "object" && (
-            String(m.type || "").toLowerCase() === "image" ||
-            m.capabilities?.image_generation === true ||
-            isImageGenId
-          );
-
-          if (isBatch) {
-            capability = 'batch';
-            supportsChat = 0;
-          } else if (isRerankOrMod) {
-            capability = lowerId.includes('rerank') ? 'rerank' : 'moderation';
-            supportsChat = 0;
-          } else if (isEmbed) {
-            capability = 'embedding';
-            supportsChat = 0;
-          } else if (isAudio) {
-            capability = 'audio';
-            supportsChat = 0;
-            supportsAudioGeneration = 1;
-          } else if (isImageGenType) {
-            capability = 'image';
-            supportsChat = 0;
-            supportsImageGeneration = 1;
-          }
-
-          // Vision detection fallback by model name patterns when capabilities API doesn't provide it
-          let finalSupportsVision = supportsVision;
-          if (!finalSupportsVision && supportsChat) {
-            const visionPatterns = [
-              /vision/i, /-vl\b/i, /-vl-/i, /gpt-4o/i, /claude-3/i, /claude-4/i, /gemini-1.5/i,
-              /gemini-2.0/i, /gemini-2.5/i, /qwen.*vl/i, /qwen3.*vl/i, /llava/i, /pixtral/i,
-              /moondream/i, /fuyu/i, /cogvlm/i, /internvl/i, /minicpm-v/i, /ovis/i,
-              /capybara/i, /openflamingo/i, /kosmos/i
-            ];
-            for (const pattern of visionPatterns) {
-              if (pattern.test(modelId)) {
-                finalSupportsVision = 1;
-                break;
-              }
-            }
-          }
-
-          insertStmt.run(modelId, provider, maxInput, isFree, isPaid, supportsTools, finalSupportsVision, supportsImageGeneration, capability, supportsChat, supportsAudioGeneration);
-          inserted++;
-        }
-        return { inserted, skipped, raw };
-      });
-  
-        const { inserted, skipped, raw } = syncCatalog(modelList);
-        
-        // Ensure all catalog models have corresponding entries in models table
-        // This ensures session affinity remains enabled (models >= catalog)
-        this.db.prepare(`
-          INSERT OR IGNORE INTO models (id, provider, last_used_index)
-          SELECT c.id, c.provider, 1
-          FROM catalog c
-          WHERE NOT EXISTS (SELECT 1 FROM models WHERE models.id = c.id)
-        `).run();
-
-        // Ensure all catalog models have corresponding entries in models_train table
-        this.db.prepare(`
-          INSERT OR IGNORE INTO models_train (id, provider, last_used_index)
-          SELECT c.id, c.provider, 1
-          FROM catalog c
-          WHERE NOT EXISTS (SELECT 1 FROM models_train WHERE models_train.id = c.id)
-        `).run();
-        const modelsCount = this.db.prepare("SELECT COUNT(*) as count FROM models").get().count;
-        slogInfo(`[BANDIT] Models table synchronized: ${modelsCount} models (catalog: ${inserted})`);
-        
-        this._rankCache = { at: 0, map: new Map() };
-      this._setMeta("catalogRawCount", raw);
-      this._setMeta("catalogTotal", inserted);
-      this._setMeta("lastSyncTimestamp", Date.now());
-      slogInfo(`[BANDIT] Catalog sincronizzato: ${inserted} modelli totali (inclusi chat e non-chat, esclusi ${skipped} ignorati su ${raw} totali)`);
     } catch (err) {
+      // Network/fetch error - fall back to cache or configuration fallback models
       slogWarn("[BANDIT] Attenzione: Impossibile sincronizzare i modelli da remoto:", err.message);
       const cachedCount = this.db.prepare("SELECT COUNT(*) as count FROM catalog").get().count;
       if (cachedCount > 0) {
         slogInfo(`[BANDIT] Utilizzo della cache locale: ${cachedCount} modelli trovati nel catalogo SQLite.`);
+        return;
       } else {
-        slogWarn("[BANDIT] Attenzione: Nessun modello in cache nel database SQLite.");
+        slogWarn("[BANDIT] Attenzione: Nessun modello in cache nel database SQLite. Tentativo di caricamento fallback da configurazione...");
+        try {
+          const configPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "../config/bandit.json");
+          const configRaw = fs.readFileSync(configPath, "utf8");
+          const configParsed = JSON.parse(configRaw);
+          if (Array.isArray(configParsed.fallbackModels) && configParsed.fallbackModels.length > 0) {
+            modelList = configParsed.fallbackModels;
+            slogInfo(`[BANDIT] Caricamento di ${modelList.length} modelli di fallback da configurazione per avvio offline.`);
+          } else {
+            return;
+          }
+        } catch (fallbackErr) {
+          slogError("[BANDIT] Impossibile caricare i modelli di fallback:", fallbackErr.message);
+          return;
+        }
       }
     }
+
+    const insertStmt = this.db.prepare(
+      `INSERT INTO catalog (id, provider, max_input_tokens, is_free, is_paid, supports_tools, supports_vision, supports_image_generation, capability, supports_chat, supports_audio_generation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+          provider = excluded.provider,
+          max_input_tokens = excluded.max_input_tokens,
+          is_free = excluded.is_free,
+          is_paid = excluded.is_paid,
+          supports_tools = excluded.supports_tools,
+          supports_vision = excluded.supports_vision,
+          supports_image_generation = excluded.supports_image_generation,
+          capability = excluded.capability,
+          supports_chat = excluded.supports_chat,
+          supports_audio_generation = excluded.supports_audio_generation`
+    );
+
+    const isFreeModel = (id) => {
+      const lower = String(id).toLowerCase();
+      return /(:free|-free|_free|\/free)/.test(lower) || lower.includes(":free");
+    };
+
+    const syncCatalog = this.db.transaction((models) => {
+      this.db.prepare("DELETE FROM catalog").run();
+
+      let inserted = 0;
+      let skipped = 0;
+      let raw = 0;
+
+      for (const m of models) {
+        let modelId = typeof m === "string" ? m : (m.id || m.name);
+        modelId = this._sanitizeModelId(modelId);
+        if (!modelId) continue;
+        raw++;
+
+        if (modelId.startsWith("auto/") || modelId.startsWith("gh/")) {
+          skipped++;
+          continue;
+        }
+
+        const provider = this._getProvider(modelId);
+        const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
+        const isFree = isFreeModel(modelId) ? 1 : 0;
+        const isPaid = isFree ? 0 : 1;
+        const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
+        let supportsTools = (m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
+        if (!supportsTools && !isFim) {
+          const toolPatterns = [/gpt-4/i, /gpt-3\.5/i, /o1/i, /o3/i, /o4/i, /claude-3/i, /claude-4/i, /llama-3/i, /llama-4/i, /mistral/i, /mixtral/i, /codestral/i, /qwen2/i, /qwen3/i, /deepseek/i, /gemini/i, /command-r/i, /glm-4/i, /chat/i];
+          const excludeToolPatterns = /embedding|rerank|moderation|zero|base|completion$|stt|tts/i;
+          if (!excludeToolPatterns.test(modelId)) {
+            for (const p of toolPatterns) {
+              if (p.test(modelId)) {
+                supportsTools = 1;
+                break;
+              }
+            }
+          }
+        }
+        const supportsVision = (m && typeof m === "object" && m.capabilities && m.capabilities.vision === true) ? 1 : 0;
+
+        const lowerId = modelId.toLowerCase();
+        let capability = 'chat_completion';
+        let supportsChat = 1;
+        let supportsImageGeneration = 0;
+        let supportsAudioGeneration = 0;
+
+        const isBatch = /:batch\b/.test(lowerId);
+        const isRerankOrMod = /(^|[-_/])(rerank|moderation)([-_/]|$)/.test(lowerId);
+        const isEmbed = /(^|[-_/])(embed|embedding|embeddings|rerank|moderation|batch)([-_/]|$)/i.test(lowerId);
+        const isAudio = /(^|[-_/])(tts|text-to-speech|speech|stt|speech-to-text|whisper|voice|audio)([-_/]|$)/i.test(lowerId) && !lowerId.includes("omni") && !lowerId.includes("chat");
+        const isAihordeId = lowerId.startsWith("aihorde/") || lowerId.includes("aihorde");
+        const isImageGenId = isAihordeId || /(^|[-_/])(dall-e|stable-diffusion|imagen|sdxl|flux|midjourney|image-generation|aihorde)([-_/]|$)/i.test(lowerId);
+        const isImageGenType = m && typeof m === "object" && (
+          String(m.type || "").toLowerCase() === "image" ||
+          m.capabilities?.image_generation === true ||
+          isImageGenId
+        );
+
+        if (isBatch) {
+          capability = 'batch';
+          supportsChat = 0;
+        } else if (isRerankOrMod) {
+          capability = lowerId.includes('rerank') ? 'rerank' : 'moderation';
+          supportsChat = 0;
+        } else if (isEmbed) {
+          capability = 'embedding';
+          supportsChat = 0;
+        } else if (isAudio) {
+          capability = 'audio';
+          supportsChat = 0;
+          supportsAudioGeneration = 1;
+        } else if (isImageGenType) {
+          capability = 'image';
+          supportsChat = 0;
+          supportsImageGeneration = 1;
+        }
+
+        // Vision detection fallback by model name patterns when capabilities API doesn't provide it
+        let finalSupportsVision = supportsVision;
+        if (!finalSupportsVision && supportsChat) {
+          const visionPatterns = [
+            /vision/i, /-vl\b/i, /-vl-/i, /gpt-4o/i, /claude-3/i, /claude-4/i, /gemini-1.5/i,
+            /gemini-2.0/i, /gemini-2.5/i, /qwen.*vl/i, /qwen3.*vl/i, /llava/i, /pixtral/i,
+            /moondream/i, /fuyu/i, /cogvlm/i, /internvl/i, /minicpm-v/i, /ovis/i,
+            /capybara/i, /openflamingo/i, /kosmos/i
+          ];
+          for (const pattern of visionPatterns) {
+            if (pattern.test(modelId)) {
+              finalSupportsVision = 1;
+              break;
+            }
+          }
+        }
+
+        insertStmt.run(modelId, provider, maxInput, isFree, isPaid, supportsTools, finalSupportsVision, supportsImageGeneration, capability, supportsChat, supportsAudioGeneration);
+        inserted++;
+      }
+      return { inserted, skipped, raw };
+    });
+
+    const { inserted, skipped, raw } = syncCatalog(modelList);
+    
+    // Ensure all catalog models have corresponding entries in models table
+    // This ensures session affinity remains enabled (models >= catalog)
+    this.db.prepare(`
+      INSERT OR IGNORE INTO models (id, provider, last_used_index)
+      SELECT c.id, c.provider, 1
+      FROM catalog c
+      WHERE NOT EXISTS (SELECT 1 FROM models WHERE models.id = c.id)
+    `).run();
+
+    // Ensure all catalog models have corresponding entries in models_train table
+    this.db.prepare(`
+      INSERT OR IGNORE INTO models_train (id, provider, last_used_index)
+      SELECT c.id, c.provider, 1
+      FROM catalog c
+      WHERE NOT EXISTS (SELECT 1 FROM models_train WHERE models_train.id = c.id)
+    `).run();
+    const modelsCount = this.db.prepare("SELECT COUNT(*) as count FROM models").get().count;
+    slogInfo(`[BANDIT] Models table synchronized: ${modelsCount} models (catalog: ${inserted})`);
+    
+    this._rankCache = { at: 0, map: new Map() };
+    this._setMeta("catalogRawCount", raw);
+    this._setMeta("catalogTotal", inserted);
+    this._setMeta("lastSyncTimestamp", Date.now());
+    slogInfo(`[BANDIT] Catalog sincronizzato: ${inserted} modelli totali (inclusi chat e non-chat, esclusi ${skipped} ignorati su ${raw} totali)`);
   }
 
   _getProvider(modelId) {
