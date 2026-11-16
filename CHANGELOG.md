@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Version History
 
+## [0.49.8] - 2026-11-16
+### Changed
+- complete auto-git workflow: versioning, documentation updates, and repository hygiene
+
 ## [0.49.7] - 2026-11-16
 ### Changed
 - complete auto-git workflow: versioning, documentation updates, and repository hygiene

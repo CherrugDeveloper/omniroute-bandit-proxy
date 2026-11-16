@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/Tests-77%20suites-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/actions)
-[![Version](https://img.shields.io/badge/version-0.49.7-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.49.7)
+[![Version](https://img.shields.io/badge/version-0.49.8-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.49.8)
 
 ## Overview
 
@@ -186,7 +186,7 @@ Conventional commits are used for all changes. The commit message format follows
 ### Versioning
 
 - Follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0)
-- Current version: 0.49.7
+- Current version: 0.49.8
 - Tags: `v0.1.0` through `v0.49.7`, plus `v1.28.25` and `v1.29.0`
 - Changelog follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/) format
 
