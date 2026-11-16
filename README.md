@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/Tests-77%20suites-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/actions)
-[![Version](https://img.shields.io/badge/version-0.49.8-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.49.8)
+[![Version](https://img.shields.io/badge/version-0.50.0-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.50.0)
 
 ## Overview
 
@@ -42,6 +42,50 @@ The `_sanitizeModelId()` function strips duplicated provider prefixes (e.g., `mi
 - **Cascade ban guard**: Paid group ban UPDATE includes `AND permanent = 0`
 - **Emergency rejection countermeasure**: Downgraded from ban-model to cooldown-model (300000ms)
 
+The dashboard now prioritizes bandit system flags over quota exhaustion for model state display:
+
+| Priority | State | Description |
+|----------|-------|-------------|
+| 1 | **banned** | Model has `permanent = 1` flag |
+| 2 | **needs-attention** | Model has `needs_attention = 1` flag |
+| 3 | **cooldown** | Model has `cooldown_until > 0` |
+| 4 | **quota-exhausted** | Free or paid quota has been exhausted (≥80% usage) |
+| 5 | **active** | Model is available for selection |
+
+### 5-Strike Rule
+
+| Strike # | Condition | Action | Cooldown |
+|----------|-----------|--------|----------|
+| 1 | 1st critical failure (403, 429) | Start tracking | - |
+| 2 | 2nd consecutive critical failure | Continue tracking | - |
+| 3 | 3rd consecutive critical failure | Escalate cooldown | - |
+| 4 | 4th consecutive critical failure | Extend cooldown | - |
+| 5 | 5th consecutive critical failure | **Permanent ban** | Permanent |
+
+**Counter resets on success** (any successful request clears the strike counter).
+
+Timeout errors are transient (cooldown-model), NOT critical — they never count toward the 5-strike permanent ban.
+
+safeWrite errors are cooldown-model (transient), NOT critical — they never count toward strikes.
+
+### Exponential Backoff Cooldowns
+
+| Stage | Duration | Description |
+|-------|----------|-------------|
+| 1 | 15s | Initial cooldown after first critical failure |
+| 2 | 5m | Extended cooldown after second consecutive failure |
+| 3 | 30m | Moderate cooldown after third consecutive failure |
+| 4 | 2h | Significant cooldown after fourth consecutive failure |
+| 5 | permanent | Permanent ban after fifth consecutive failure |
+
+Cooldown progression resets if a successful request occurs before the full sequence is completed.
+
+### Cascade Guards
+
+- Paid group ban UPDATE includes `AND permanent = 0` condition
+- Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms)
+- Model rehabilitation: `_checkRehabilitation()` auto-rehabilitates permanent bans after the rehab period
+
 ## Features
 
 - Discounted UCB1 bandit algorithm with 0.99 discount factor
@@ -76,7 +120,7 @@ graph LR
     E -->|WebSocket| F[Dashboard]
 ```
 
-### WebSocket Events
+## WebSocket Events
 
 - `punishment_events`: Real-time punishment event stream
 - Model availability updates
@@ -186,7 +230,7 @@ Conventional commits are used for all changes. The commit message format follows
 ### Versioning
 
 - Follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0)
-- Current version: 0.49.9
+- Current version: 0.50.0
 - Tags: `v0.1.0` through `v0.49.7`, plus `v1.28.25` and `v1.29.0`
 - Changelog follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/) format
 

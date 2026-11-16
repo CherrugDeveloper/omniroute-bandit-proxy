@@ -4138,10 +4138,17 @@
                 const paidExhausted = paid.quotaExhausted || false;
 
                 let state = 'attivo';
-                if (freeExhausted || paidExhausted) {
+                // Priority: bandit system flags > quota exhaustion > RPM/RPD thresholds
+                if (p.permanent && p.permanent === 1) {
+                    state = 'banned';
+                } else if (p.needs_attention && p.needs_attention === 1) {
+                    state = 'needs-attention';
+                } else if (p.cooldown_until && p.cooldown_until > 0) {
+                    state = 'cooldown';
+                } else if (freeExhausted || paidExhausted) {
                     state = 'quota-exhausted';
                 } else if ((freeRpmUsed >= freeRpmLimit * 0.8 && freeRpmLimit > 0) ||
-                           (paidRpmUsed >= paidRpmLimit * 0.8 && paidRpmLimit > 0)) {
+                            (paidRpmUsed >= paidRpmLimit * 0.8 && paidRpmLimit > 0)) {
                     state = 'cooldown';
                 }
 
