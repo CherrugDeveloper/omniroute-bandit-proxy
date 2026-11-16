@@ -1,7 +1,3 @@
-# AGENTS.md
-
-This file provides guidance to agents when working with code in this repository.
-
 # OmniRoute Bandit Proxy — AGENTS.md
 
 Non-obvious, project-specific guidance for this codebase.

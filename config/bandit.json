@@ -30,7 +30,6 @@
         { "pattern": "401|authentication expired|No active credentials", "action": "flag-provider", "duration": 86400000, "reason": "auth-expired" },
         { "pattern": "402|insufficient.?funds|credit.?exhausted|payment.?required|billing_error", "action": "flag-provider", "duration": 86400000 },
         { "pattern": "418|anti.abuse", "action": "cooldown-provider", "duration": 3600000 },
-        { "pattern": "keepalive|connection", "action": "cooldown-model", "duration": 15000 },
         { "pattern": "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized", "action": "cooldown-model", "duration": 300000, "reason": "safeWrite-init-error" }
       ],
       "permanentErrors": [

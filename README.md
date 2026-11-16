@@ -177,7 +177,21 @@ Cooldown progression resets if a successful request occurs before the full seque
 
 **Order matters**: First matching pattern wins. Config `config/bandit.json` pattern order is decisive.
 
+- `403 model-level` → bans individual model only, not entire provider
+- `403 provider-level` → bans entire provider
+- Granular per-ID bans avoid cascading provider failures
+
+## Database
++++
 ### 403 Key Limit Classification
+
+- `403 model-level` → bans individual model only, not entire provider
+- `403 provider-level` → bans entire provider
+- Granular per-ID bans avoid cascading provider failures
+
+**Note**: The `keepalive|connection` pattern has been removed from `config/bandit.json` as it was deprecated.
+
+## Database
 
 - `403 model-level` → bans individual model only, not entire provider
 - `403 provider-level` → bans entire provider

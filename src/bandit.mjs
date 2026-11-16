@@ -1638,7 +1638,7 @@ export class DiscountedUCB1Bandit {
     // 413 / TPM / ITPM / tokens per minute / Request too large / context length / token limit -> cooldown-model
     if (status === 413 || /413|ITPM|tokens?\s*per\s*minute|TPM|Request too large|Requested \d+.*Limit \d+|Limit \d+.*Requested \d+|context\s*(?:window|length|exceeded)|token\s*limit|payload\s*too\s*large/i.test(message)) {
       const m = message.match(/reset after (\d+)(s|m|h)/i);
-      let cooldownMs = status === 413 ? 300000 : 30000;
+      let cooldownMs = 300000;
       if (m) {
         const v = parseInt(m[1], 10);
         const u = m[2].toLowerCase();
@@ -1702,7 +1702,7 @@ export class DiscountedUCB1Bandit {
       }
 
       const modelId = this._sanitizeModelId(errorDetails.modelId) || "";
-      const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
+      const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId) || { fails: 0 };
       const repeated429 = model && model.fails >= 2;
 
       if (repeated429) {
@@ -1752,7 +1752,7 @@ export class DiscountedUCB1Bandit {
     }
     if (status >= 500 && status < 600) {
       const modelId = this._sanitizeModelId(errorDetails.modelId) || "";
-      const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId);
+      const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId) || { fails: 0 };
       const fails = model ? model.fails : 0;
       // Exponential backoff: base 15s, multiplier 2^fails (capped at 5 mins)
       const cooldownMs = Math.min(15000 * Math.pow(2, fails), 300000);
