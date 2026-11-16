@@ -1,209 +1,305 @@
 # OmniRoute Bandit Proxy
 
+**Multi-Armed Bandit reverse proxy for LLM traffic**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-[![Tests](https://img.shields.io/badge/Tests-10%20suites-blue.svg)](https://nodejs.org/)
-[![Version](https://img.shields.io/badge/version-0.49.6-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.49.5)
+[![Tests](https://img.shields.io/badge/Tests-77%20suites-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/actions)
+[![Version](https://img.shields.io/badge/version-0.49.7-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.49.7)
 
 ## Overview
 
-The OmniRoute Bandit Proxy is a Multi-Armed Bandit (MAB) reverse proxy for LLM traffic that intelligently routes requests across multiple LLM providers using the **Discounted UCB1** algorithm. It dynamically balances exploration vs. exploitation based on observed rewards, automatically handles model bans, cooldowns, provider health, session affinity, and real-time punishment tracking via a WebSocket-connected dashboard.
+The OmniRoute Bandit Proxy is a Node.js-based reverse proxy that implements a discounted Upper Confidence Bound (UCB1) bandit algorithm for routing LLM traffic to available models. It dynamically selects models based on their performance history, applying exponential backoff cooldowns and a 5-strike punishment system for error handling.
 
-### Core Concepts
+Core features include:
+- Dynamic model selection using Discounted UCB1 algorithm
+- 5-strike punishment system (consecutive critical failures → permanent ban)
+- Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent
+- Cascade ban guards for paid group bans
+- Real-time punishment event tracking via WebSocket
+- Profile bias multipliers for model selection
+- Session management with 30m TTL and 60s stream idle timeout
 
-| Concept | Description |
-|---------|-------------|
-| **Discounted UCB1** | Multi-armed bandit algorithm with 0.99 discount factor per event for adaptive model selection |
-| **Session Affinity** | Sessions pinned to models with 30m TTL; stream idle timeout of 60s (resets on any chunk/heartbeat) |
-| **Punishment System** | 5-strike rule: 5 consecutive critical failures (403, 429) → permanent ban; counter resets on success |
-| **Exponential Backoff** | Cooldowns: 15s → 5m → 30m → 2h → permanent |
-| **Error Classification** | Transient vs. permanent errors mapped to actions (cooldown-model, cooldown-provider, ban-model, ban-provider, flag-provider) |
-| **Training Daemon** | Isolated round-robin writes to `models_train` table; production reads `models` + `0.3*models_train` when N < 1 |
-| **Log Streaming** | `/v1/training/log-stream` endpoint detects file truncation/rotation and resets read position |
-| **Provider Quota** | Background roller conditionally skips idle providers via `_hasPendingQuota()` check |
-| **Stream Backpressure** | `safeWrite()` drain waits with configurable timeout (`STREAM_DRAIN_MS`, default 30s) |
+## Core Concepts
 
-====
-| **Real-time Events** | WebSocket-based punishment event stream with StatsAggregator singleton for dashboard updates |
-| **Image Generation** | Detection and filtering of image-only models from chat routing |
+### Bandit Algorithm
 
-## Features
-
-- **Multi-Armed Bandit routing** — DiscountedUCB1 with profile-based multipliers (code, reasoning, general, summarizer)
-- **Provider quota management** — Rolling quota windows with background recovery every 60s
-- **Health checking** — Active probes on sick models (banned/cooldown) with auto-rehabilitation
-- **Punishment & bans** — 5-strike permanent ban system, exponential backoff cooldowns, cascade ban guards
-- **Real-time dashboard** — WebSocket-powered UI with live metrics, model tables, train tab, and punishment history
-- **Notifiers** — Webhook support for Slack, Discord, and Telegram on critical events
-- **Token estimation** — 4 chars/token approximation for budget tracking
-- **Fallback chain** — Configurable fallback models in `config/bandit.json` that bypass UCB1 entirely
-- **Modes registry** — Zoo Code compatible mode detection with profile bias multipliers
-- **SQLite persistence** — `better-sqlite3` database with additive-only migrations
-- **PWA dashboard** — Progressive web app with service worker, manifest, and install prompt
-- **Session management** — 30m session TTL with stream affinity and idle reset
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Client (LLM Request)                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Express Reverse Proxy                    │
-│  (src/index.mjs)                                              │
-│  • CORS handling                                              │
-│  • JSON body parsing (50mb limit)                             │
-│  • WebSocket upgrade for dashboard                            │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              DiscountedUCB1Bandit (src/bandit.mjs)          │
-│  • Model selection via UCB1 + profile multipliers           │
-│  • Error classification & punishment                          │
-│  • 5-strike ban system                                        │
-│  • Exponential backoff cooldowns                              │
-│
-[...7716 bytes omitted...]
-g |
-| `/dashboard` | GET | Real-time monitoring dashboard |
-| `/api/stats` | GET | JSON statistics (bans, cooldowns, flags) |
-| `/api/events` | GET | Recent punishment events |
-| `/api/health` | GET | Proxy health status |
-
-### WebSocket Events
-
-Connect to `ws://localhost:3000` for real-time punishment events:
-
-| Event | Description |
-|-------|-------------|
-| `ban-model` | Model permanently banned |
-| `ban-provider` | Provider permanently banned |
-| `cooldown-model` | Model placed in cooldown |
-| `cooldown-provider` | Provider placed in cooldown |
-| `flag-provider` | Provider flagged for attention |
-| `critical-failure` | Critical failure recorded |
-| `degraded` | Model entered degraded mode |
-
-## Punishment System
-
-### 5-Strike Rule
-
-1. Critical failure (403, 429) → strike counter increments
-2. 5 consecutive critical failures → permanent ban
-3. Success resets the counter to 0
-4. `safeWrite` errors are NOT critical
-5. Paid models: group ban guard prevents re-banning already permanently banned models
-
-### Exponential Backoff Cooldowns
-
-| Strike | Cooldown Duration |
-|--------|-------------------|
-| 1st | 15 seconds |
-| 2nd | 5 minutes |
-| 3rd | 30 minutes |
-| 4th | 2 hours |
-| 5th | Permanent ban |
-
-### Cascade Guards
-
-Emergency rejection handling skips additional punishment when a model is already rejected due to cooldown or circuit breaker state (`model_cooldown`, `provider_cooled_down_this_request`, `provider_circuit_breaker`, `provider_cooldown`). This prevents a single provider failure from triggering simultaneous cooldowns across hundreds of models.
-
-### 403 Key Limit Classification
-
-Transient resetting key limits (most common) → `cooldown-model` (5 minute cooldown).
-Non-resetting permanent limits (`lifetime limit`, `never resets`, `no reset`) → `ban-provider` (permanent).
-Config pattern order matters — first match wins.
-
-### Degraded Mode
-
-When `consecutive_5xx ≥ 3`, a model enters degraded mode:
-- Score multiplied by 0.3 (reduced priority)
-- Auto-rehabilitates on first success
+The proxy uses a **Discounted UCB1 bandit algorithm** with a 0.99 discount factor per event. This means older feedback is weighted less than newer feedback, allowing the system to adapt to changing model performance. The algorithm maintains a rank cache with a 30-second TTL for efficient model selection.
 
 ### Error Classification
 
-| Error Pattern | Action | Scope | Duration |
-|---------------|--------|-------|----------|
-| timeout | cooldown-model | model | 10 min |
-| 5xx / server-error | cooldown-model | model | 30s |
-| rate limit / 429 | cooldown-model | model | 5 min |
-| 401 / auth expired | flag-provider | provider | 24h |
-| 402 / insufficient funds | flag-provider | provider | 24h |
-| 403 / key limit | ban-provider | provider | permanent |
-| 502/503 / misconfigured | cooldown-provider | provider | 30 min |
-| safeWrite errors | cooldown-model | model | 5 min |
-| client disconnect / abort | cooldown-model **skipped** | model | N/A |
+Errors are classified as either **transient** (temporary cooldowns) or **permanent** (model bans):
 
-Client disconnect/abort errors (e.g., "This operation was aborted") are now explicitly skipped in the stream and fetch catch blocks to prevent unfair model punishment. These errors do not indicate model faults and will not trigger cooldowns or bans.
+- **Transient errors** (cooldown-model, cooldown-provider): Timeout errors, safeWrite errors, 5xx errors (≥3 triggers degraded mode)
+- **Permanent errors** (ban-model, ban-provider): 403, 429 consecutive critical failures → after 5 strikes, permanent ban
+
+The `_sanitizeModelId()` function strips duplicated provider prefixes (e.g., `mistral/mistral-x` → `mistral-x`) only if the sanitized ID exists in the catalog.
+
+### Punishment System
+
+- **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. Counter resets on success.
+- **Exponential backoff cooldowns**: 15s → 5m → 30m → 2h → permanent
+- **Cascade ban guard**: Paid group ban UPDATE includes `AND permanent = 0`
+- **Emergency rejection countermeasure**: Downgraded from ban-model to cooldown-model (300000ms)
+
+## Features
+
+- Discounted UCB1 bandit algorithm with 0.99 discount factor
+- 5-strike punishment system with exponential backoff
+- Model availability checking via `bandit.isModelAvailable()`
+- Fallback chain that bypasses UCB1 entirely
+- Profile bias multipliers that stack
+- Session affinity with re-validation before routing
+- Emergency relaxation with 3 & 4 pre-check model availability
+- WebSocket real-time updates for dashboard
+- StatsAggregator singleton for real-time punishment stats
+- Provider quota management with background roller
+
+## Architecture
+
+The system follows a modular architecture:
+
+1. **Bandit Engine** (`src/bandit.mjs`): Core algorithm for model selection
+2. **Proxy** (`src/index.mjs`): Express-based HTTP server handling LLM traffic
+3. **Stats Aggregator** (`src/stats-aggregator.mjs`): Real-time punishment event statistics
+4. **Provider Quota** (`src/provider-quota.mjs`): Quota management with background roller
+5. **Structured Logger** (`src/structured-logger.mjs`): JSON-structured logging with ring buffer
+6. **Event System** (`src/events.mjs`): WebSocket event broadcasting
+
+Data flow:
+```mermaid
+graph LR
+    A[Client Request] --> B[Bandit Selector]
+    B -->|selected model| C[Proxy Handler]
+    C -->|feedback| D[Bandit Update]
+    D -->|stats| E[Stats Aggregator]
+    E -->|WebSocket| F[Dashboard]
+```
+
+### WebSocket Events
+
+- `punishment_events`: Real-time punishment event stream
+- Model availability updates
+- Cooldown timer broadcasts
+- Dashboard metric refreshes (2.5s auto-refresh)
+
+## 5-Strike Rule
+
+| Strike # | Condition | Action | Cooldown |
+|----------|-----------|--------|----------|
+| 1 | 1st critical failure (403, 429) | Start tracking | - |
+| 2 | 2nd consecutive critical failure | Continue tracking | - |
+| 3 | 3rd consecutive critical failure | Escalate cooldown | - |
+| 4 | 4th consecutive critical failure | Extend cooldown | - |
+| 5 | 5th consecutive critical failure | **Permanent ban** | Permanent |
+
+**Counter resets on success** (any successful request clears the strike counter).
+
+Timeout errors are transient (cooldown-model), NOT critical — they never count toward the 5-strike permanent ban.
+
+safeWrite errors are cooldown-model (transient), NOT critical — they never count toward strikes.
+
+### Exponential Backoff Cooldowns
+
+| Stage | Duration | Description |
+|-------|----------|-------------|
+| 1 | 15s | Initial cooldown after first critical failure |
+| 2 | 5m | Extended cooldown after second consecutive failure |
+| 3 | 30m | Moderate cooldown after third consecutive failure |
+| 4 | 2h | Significant cooldown after fourth consecutive failure |
+| 5 | permanent | Permanent ban after fifth consecutive failure |
+
+Cooldown progression resets if a successful request occurs before the full sequence is completed.
+
+### Cascade Guards
+
+- Paid group ban UPDATE includes `AND permanent = 0` condition
+- Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms)
+- Model rehabilitation: `_checkRehabilitation()` auto-rehabilitates permanent bans after the rehab period
+
+## Error Classification
+
+| Pattern | Classification | Scope | Critical? |
+|---------|---------------|-------|-----------|
+| `safeWrite` | cooldown-model | model | NO |
+| `cannot access safeWrite` | cooldown-model | model | NO |
+| `safeWrite before initialization` | cooldown-model | model | NO |
+| `safeWrite is not initialized` | cooldown-model | model | NO |
+| Timeout errors | cooldown-model | model/provider | NO |
+| 403 errors | permanent-model | model | YES |
+| 429 errors | permanent-model | model | YES |
+| 5xx errors (≥3) | degraded-mode | provider | YES (triggers degraded) |
+| Emergency rejection | cooldown-model | model | NO (downgraded) |
+
+**Order matters**: First matching pattern wins. Config `config/bandit.json` pattern order is decisive.
+
+### 403 Key Limit Classification
+
+- `403 model-level` → bans individual model only, not entire provider
+- `403 provider-level` → bans entire provider
+- Granular per-ID bans avoid cascading provider failures
 
 ## Database
 
-- **Engine**: `better-sqlite3` (Synchronous SQLite)
-- **File**: `bandit.db` (gitignored)
-- **Tables**: `models`, `models_train`, `provider_history`, `catalog`
-- **Migrations**: Additive-only (`ADD COLUMN` in `_migrateDB`)
-- **Production reads**: `models` + `0.3 * models_train` (when N < 1)
-- **Sync**: `models` and `provider_history` stay in sync via `recordFeedback()`
+- **better-sqlite3**: Used for all database operations
+- **Additive-only migrations**: `_migrateDB` uses `ADD COLUMN` only (no destructive changes)
+- **Isolated `models_train` table**: Production reads `models + 0.3*models_train` (when N < 1)
+- **models and provider_history**: Stay in sync on bans/cooldowns via `recordFeedback()`
+- **recordFeedback()**: Wraps non-object errorDetails into `{message, status}` so `_classifyError()` always runs
+- **punishment_events table**: Stores all punishment/cooldown/ban events for ring buffer persistence (max 1000 events)
 
 ## Token Estimation
 
-- **Rate**: 4 characters per token
-- Used for budget tracking and cost estimation across providers
+- **4 characters per token**: Estimation rule for approximating token counts
+- Used for capacity planning and rate limiting
 
 ## Session & Stream Management
 
-| Setting | Value | Description |
-|---------|-------|-------------|
-| `SESSION_TTL_MS` | 30 minutes | Session lifetime |
-| `STREAM_IDLE_MS` | 5 minutes | Stream idle timeout (resets on any chunk/heartbeat) |
-| `STREAM_MAX_MS` | 10 minutes | Stream hard cap |
+- **SESSION_TTL_MS**: 30 minutes (session timeout)
+- **STREAM_IDLE_MS**: 60 seconds (resets on any chunk/heartbeat)
+- **STREAM_DRAIN_MS**: 30000ms (default, sets drain timeout in safeWrite)
+- Writes exceeding STREAM_DRAIN_MS are aborted with `'drain-timeout'`
+- Stream backpressure: `safeWrite()` uses `res.on('drain', ...)` with a `setTimeout` guard
+- Heartbeat resets idle timer on any chunk transmission
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -m 'feat: add some feature'`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
-
 ### Commit Convention
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/):
+Conventional commits are used for all changes. The commit message format follows:
 
-| Prefix | Changelog Section | Example |
-|--------|-------------------|---------|
-| `feat` | Added | `feat(bandit): add degraded mode` |
-| `fix` | Fixed | `fix(dashboard): resolve metrics sync` |
-| `docs` | Changed | `docs: update README` |
-| `chore` | Changed | `chore(deps): update better-sqlite3` |
-| `refactor` | Changed | `refactor: simplify error classification` |
-| `test` | Changed | `test: add bandit unit tests` |
-| `perf` | Changed | `perf: optimize dashboard polling` |
-| `style` | Changed | `style: fix formatting` |
-| `build` | Changed | `build: update CI config` |
-| `ci` | Changed | `ci: add test workflow` |
-| `revert` | Changed | `revert: remove deprecated feature` |
-| `wip` | Changed | `wip: work in progress` |
+| Prefix | Description | Changelog Section |
+|--------|-------------|-------------------|
+| `feat` | New feature | Added |
+| `fix` | Bug fix | Fixed |
+| `docs` | Documentation changes | Changed |
+| `chore` | Routine work | Changed |
+| `refactor` | Code refactoring | Changed |
+| `test` | Test additions/changes | Changed |
+| `build` | Build system changes | Changed |
+| `ci` | CI/CD changes | Changed |
+| `style` | Code style changes | Changed |
+| `perf` | Performance improvements | Changed |
+| `revert` | Reverting changes | Changed |
+| `security` | Security fixes | Security |
 
-Security-related commits (matching `security|auth|token|401|403|ban|punish|cooldown`) are highlighted in the **Security** section.
+### Versioning
 
-## Versioning
-
-This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0).
-
-- Current version: **0.49.6**
-- Tags: `v0.1.0` through `v0.47.0` (development history)
-- Changelog: [`CHANGELOG.md`](CHANGELOG.md) — follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/)
+- Follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0)
+- Current version: 0.49.7
+- Tags: `v0.1.0` through `v0.49.7`, plus `v1.28.25` and `v1.29.0`
+- Changelog follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/) format
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License**.
+
+See the [LICENSE](LICENSE) file for full text.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/issues)
-- **Documentation**: [`docs/`](docs/) directory
-- **Examples**: [`examples/`](examples/) directory
+- GitHub Issues: [Report bugs](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/issues)
+- Documentation: [Wiki](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/wiki)
+- Chat: [Discord/Slack](https://discord.gg/omniroute)
+
+## Bandit Algorithm
+
+### Discounted UCB1
+
+The Discounted Upper Confidence Bound (UCB1) algorithm selects models based on:
+
+```
+score = average_reward + sqrt(2 * ln(total_events) / model_events) * discount_factor^age
+```
+
+Where:
+- `average_reward`: Mean reward received from the model
+- `total_events`: Total number of events across all models
+- `model_events`: Number of times this specific model was selected
+- `discount_factor`: 0.99 per event (weights older events less)
+- `age`: How old the feedback is (events since selection)
+
+### Profile Bias
+
+- `profileMultiplier` from `src/modes-registry.mjs:1` applies to UCB1 score
+- Multipliers stack when multiple profiles apply
+- Used to prioritize certain model categories (free vs paid, etc.)
+
+## Error Classification & Punishment
+
+### Transient vs Permanent
+
+| Error Type | Classification | Cooldown Duration |
+|------------|---------------|-------------------|
+| Timeout errors | transient (cooldown-model) | 15s → 5m → 30m → 2h → permanent |
+| safeWrite errors | transient (cooldown-model) | 15s → 5m → 30m → 2h → permanent |
+| 403 errors | critical (ban-model) | 5-strike → permanent |
+| 429 errors | critical (ban-model) | 5-strike → permanent |
+| 5xx errors (≥3) | triggers degraded mode | score * 0.3, auto-rehabilitate |
+
+### 5-Strike System Details
+
+- **5 consecutive critical failures** (403, 429) → permanent ban
+- **Counter resets on success**
+- **safeWrite errors are NOT critical** — never count toward strikes
+- **Timeout errors are transient** — never count toward the 5-strike permanent ban
+- **Cascade ban guard**: `AND permanent = 0` in paid-group-ban UPDATE
+- **Emergency rejection**: Downgraded from ban-model to cooldown-model (300000ms)
+
+## Development
+
+### Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Syntax check
+npm run check
+
+# Run tests
+npm test
+```
+
+### Configuration
+
+The proxy is configured via `config/bandit.json`:
+
+```json
+{
+  "errorConfig": {
+    "transientErrors": ["pattern1", "pattern2"],
+    "permanentErrors": ["pattern3", "pattern4"]
+  },
+  "bandit": {
+    "discountFactor": 0.99,
+    "profileMultiplier": 1.0
+  },
+  "session": {
+    "ttlMs": 30000000,  // 30 minutes
+    "streamIdleMs": 60000  // 60 seconds
+  }
+}
+```
+
+### Usage
+
+```bash
+# Start the proxy
+node src/index.mjs
+
+# Or via npm
+npm start
+```
+
+The proxy listens on port 8080 by default and provides:
+
+- `GET /v1/models`: List available models
+- `POST /v1/chat/completions`: Chat completions with bandit routing
+- `GET /v1/models?forceRefresh=true`: Force model refresh from catalog
+
+## Testing
+
+- 77 tests in `__tests__/` directory
+- Test categories: bandit-config, itpm-quota, monitor, paid-model-group-punishment, proxy-improvements, punishment-system, request-tracker, training-feedback
+- Run: `npm test`
