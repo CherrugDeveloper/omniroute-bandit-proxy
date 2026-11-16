@@ -1259,7 +1259,6 @@
                                 <button class="btn btn-reset" style="padding:0 2px; font-size:10px; background:none; border:none; cursor:pointer; line-height:1;" data-action="reset-training" title="Reset training status">🔄</button>
                             </div>
                         </div>
-                        <a href="javascript:void(0);" onclick="switchTab('scripts')" style="font-size:0.9em; color:#58a6ff; cursor:pointer; text-decoration:underline;">Training Status:</a>
                         <div id="training-status-content" style="font-size:11px; color:#8b949e; margin-top:2px;">
                             <div>Status: <span id="training-status-state" class="muted">Loading...</span></div>
                             <div>Cycle: <span id="training-status-cycle" class="muted">0</span> | Models: <span id="training-status-models" class="muted">0</span> | OK: <span id="training-status-ok" class="ok">0</span> | Err: <span id="training-status-err" class="err">0</span></div>
@@ -2935,19 +2934,82 @@
                         modelsByProvider[p].push(m);
                     }
 
-                    // Info provider (we'll need to fetch this separately or use a placeholder)
+                    // Info provider - include quota status to match stats box display
                     const providerInfo = {};
                     // For now, we'll create minimal provider info from the models data
-                    // In a real implementation, we'd fetch /v1/providers
+                    // In a real implementation, we'd fetch /v1/providers and sync with quota
                     const providerSet = new Set(models.map(m => m.provider));
                     providerSet.forEach(p => {
                         providerInfo[p] = {
                             provider: p,
                             permanent: 0,
                             needs_attention: 0,
-                            cooldown_until: 0
+                            cooldown_until: 0,
+                            // Quota status fields to match stats box display (renderProviderQuota)
+                            rpmUsed: 0,
+                            rpmLimit: 0,
+                            rpdUsed: 0,
+                            rpdLimit: 0,
+                            quotaExhausted: false
                         };
                     });
+                    
+                    // Sync quota data from /v1/quota endpoint to match stats box
+                    try {
+                        const quotaR = await apiFetch('/v1/quota');
+                        if (quotaR.ok) {
+                            const quotaData = await safeJson(quotaR);
+                            const providers = Array.isArray(quotaData) ? quotaData : (quotaData.quota || quotaData.providers || []);
+                            
+                            if (providers && Array.isArray(providers)) {
+                                providers.forEach(p => {
+                                    const free = p.free || {};
+                                    const paid = p.paid || {};
+                                    
+                                    // Determine provider key - try various field names
+                                    let providerKey = null;
+                                    if (p.provider) providerKey = p.provider;
+                                    else if (p.model) {
+                                        // Extract provider from model ID if needed
+                                        const parts = String(p.model).split('/');
+                                        if (parts.length > 1) providerKey = parts[0];
+                                    }
+                                    
+                                    if (providerKey && providerInfo[providerKey]) {
+                                        const freeRpmUsed = free.callsLastMinute || 0;
+                                        const freeRpmLimit = free.rpmLimit || 0;
+                                        const freeRpdUsed = free.callsToday || 0;
+                                        const freeRpdLimit = free.rpdLimit || 0;
+                                        const paidRpmUsed = paid.callsLastMinute || 0;
+                                        const paidRpmLimit = paid.rpmLimit || 0;
+                                        const paidRpdUsed = paid.callsToday || 0;
+                                        const paidRpdLimit = paid.rpdLimit || 0;
+                                        
+                                        // Determine overall state using same logic as stats box
+                                        let state = 'attivo';
+                                        const freeExhausted = free.quotaExhausted || false;
+                                        const paidExhausted = paid.quotaExhausted || false;
+                                        
+                                        if (freeExhausted || paidExhausted) {
+                                            state = 'quota-exhausted';
+                                        } else if ((freeRpmUsed >= freeRpmLimit * 0.8 && freeRpmLimit > 0) ||
+                                                    (paidRpmUsed >= paidRpmLimit * 0.8 && paidRpmLimit > 0)) {
+                                            state = 'cooldown';
+                                        }
+                                        
+                                        // Store quota info for rendering in provider header
+                                        providerInfo[providerKey].rpmUsed = Math.max(freeRpmUsed, paidRpmUsed);
+                                        providerInfo[providerKey].rpmLimit = Math.max(freeRpmLimit, paidRpmLimit) || 1;
+                                        providerInfo[providerKey].rpdUsed = Math.max(freeRpdUsed, paidRpdUsed);
+                                        providerInfo[providerKey].rpdLimit = Math.max(freeRpdLimit, paidRpdLimit) || 1;
+                                        providerInfo[providerKey].quotaExhausted = (freeExhausted || paidExhausted);
+                                    }
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.debug('[Dashboard] Quota sync for provider headers failed:', e.message);
+                    }
 
                     // Lista provider
                     const providerNames = Array.from(Object.keys(modelsByProvider)).sort((a, b) => a.localeCompare(b));
@@ -3289,7 +3351,16 @@
 
             if (info) {
                 const now = Date.now();
-                if (Number(info.permanent)) {
+                // Use quotaExhausted to determine if we should show quota-exhausted state
+                // This synchronizes with the stats box renderProviderQuota logic
+                let statusBadge = '';
+                let actions = '';
+                
+                // Check quotaExhausted first (matches stats box priority)
+                if (info.quotaExhausted) {
+                    statusBadge = '<span class="badge badge-bannati">⚠️ Esausto</span>';
+                    actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">🔄 Reset Provider</button>';
+                } else if (Number(info.permanent)) {
                     statusBadge = '<span class="badge badge-banned">🚫 IGNORATO</span>';
                     actions = '<button class="btn btn-copy" data-action="retry-provider" data-name="' + safe + '">🔁 Ripristina</button>' +
                               '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">🔄 Reset Provider</button>';
@@ -3305,8 +3376,15 @@
                         statusBadge = '<span class="badge badge-cooldown">⏱ ' + mins + 'm</span>';
                         actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">⏱ Reset Cooldown</button>';
                     } else {
-                        statusBadge = '<span class="badge badge-active">✓ Attivo</span>';
-                        actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">🔄 Reset Provider</button>';
+                        // Use RPM-based state to match stats box
+                        const rpmPct = (info.rpmUsed / info.rpmLimit) * 100;
+                        if (rpmPct >= 80) {
+                            statusBadge = '<span class="badge badge-cooldown">⏱ Cooldown RPM</span>';
+                            actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">⏱ Reset Cooldown</button>';
+                        } else {
+                            statusBadge = '<span class="badge badge-active">✓ Attivo</span>';
+                            actions = '<button class="btn btn-reset" data-action="reset-provider" data-name="' + safe + '">🔄 Reset Provider</button>';
+                        }
                     }
                 }
             } else {
@@ -4927,7 +5005,6 @@
             fetchConsideration: 0
         };
 
-        // Tab-aware debounced polling
         // Only run polls relevant to the currently active tab
         const pollDebounceTimeouts = {};
 
@@ -4990,7 +5067,6 @@
                 }
             }
         }, 1000);
-
         function getPollInterval(pollName) {
             switch (pollName) {
                 case 'refreshAll': return 5000;
