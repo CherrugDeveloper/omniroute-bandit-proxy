@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - add AbortController timeout, client disconnect handler (499), and immediate bandit fallback
 
+## [0.49.9] - 2026-11-16
+### Fixed
+- 404 status alone should not permanently ban models; will fall through to transient cooldown-model classification
+- refine model-not-found error classification in bandit selection
 
 ## [0.2.0] - 2026-10-01
 ### Added
