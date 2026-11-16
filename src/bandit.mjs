@@ -1609,8 +1609,11 @@ export class DiscountedUCB1Bandit {
     }
 
     // Catalog mismatch / unknown model / 404 / 400 model not found
-    if ((/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message) || status === 404) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
-      return { action: "ban-model", scope: "model", reason: "model-not-found", category: "PERMANENT" };
+    if ((/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message)) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
+      // Note: Removed `|| status === 404` - 404 status alone should not permanently ban models.
+      // Models returning 404 will fall through to other classifications (typically cooldown-model transient).
+      // If the message matches the config pattern in bandit.json, it will still be classified as ban-model permanent.
+      return { action: "cooldown-model", scope: "model", reason: "model-not-found", category: "TRANSIENT" };
     }
     // Upstream bug (Assignment to constant) -> ban-model
     if (/Assignment to constant variable/i.test(message)) {
