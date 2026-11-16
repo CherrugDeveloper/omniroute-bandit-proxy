@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/Tests-10%20suites-blue.svg)](https://nodejs.org/)
-[![Version](https://img.shields.io/badge/version-0.49.5-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.49.5)
+[![Version](https://img.shields.io/badge/version-0.49.6-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.49.5)
 
 ## Overview
 
@@ -194,7 +194,7 @@ Security-related commits (matching `security|auth|token|401|403|ban|punish|coold
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0).
 
-- Current version: **0.49.5**
+- Current version: **0.49.6**
 - Tags: `v0.1.0` through `v0.47.0` (development history)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md) — follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/)
 

@@ -24,6 +24,12 @@ fi
 
 run_systemctl() {
   if [ "$NEED_SUDO" = true ]; then
+    # Try systemctl --user first (for user-level services)
+    if systemctl --user "$@" 2>/dev/null; then
+      return 0
+    fi
+    # Fall back to sudo systemctl
+    local current_pid=
     if sudo systemctl "$@" 2>/dev/null; then
       return 0
     fi
@@ -37,6 +43,12 @@ run_systemctl() {
 
 run_journalctl() {
   if [ "$NEED_SUDO" = true ]; then
+    # Try journalctl --user first (for user-level services)
+    if journalctl --user "$@" 2>/dev/null; then
+      return 0
+    fi
+    # Fall back to sudo journalctl
+    local current_pid=
     if sudo journalctl "$@" 2>/dev/null; then
       return 0
     fi
@@ -224,11 +236,9 @@ wait_for_service_failed() {
       return 1
     fi
     
-    # Se il servizio è inactivating/deactivating, aspetta ancora
-    if [ "$state" = "inactive" ]; then
-      sleep 1
-      elapsed=$((elapsed + 1))
-    fi
+    # Se il servizio è inactivating/deactivating/reloading/unknown, aspetta con sleep
+    sleep 1
+    elapsed=$((elapsed + 1))
   done
   
   # Timeout: servizio non in failed entro il timeout
@@ -246,6 +256,7 @@ restart_safe() {
   local job_wait=0
   while [ $job_wait -lt 30 ]; do
     if [ "$NEED_SUDO" = true ]; then
+    local current_pid=
       if ! sudo systemctl list-jobs --no-legend 2>/dev/null | grep -q "$SERVICE"; then
         break
       fi
@@ -260,8 +271,10 @@ restart_safe() {
   
   # 1. Ottieni PID attuale PRIMA dello stop
   if [ "$NEED_SUDO" = true ]; then
+    local current_pid
     current_pid=$(sudo systemctl show -p MainPID "$SERVICE" 2>/dev/null | cut -d= -f2 || echo "0")
   else
+    local current_pid
     current_pid=$(systemctl show -p MainPID "$SERVICE" 2>/dev/null | cut -d= -f2 || echo "0")
   fi
   if [ -n "$current_pid" ] && [ "$current_pid" != "0" ]; then
@@ -423,14 +436,12 @@ restart_safe() {
     
     # Se servizio è ancora inactive/dead, potrebbe essere in avvio, continua ad aspettare
     if [ "$service_state" = "inactive" ] || [ "$service_state" = "unknown" ]; then
-      check_attempt=$((check_attempt + 1))
       if [ $check_attempt -lt $max_checks ]; then
         echo "  Servizio non ancora attivo, attesa ulteriori 2s..."
+        check_attempt=$((check_attempt + 1))
         continue
       fi
     fi
-    
-    check_attempt=$((check_attempt + 1))
   done
   
   # Verifica finale se il servizio non è partito
@@ -445,70 +456,6 @@ restart_safe() {
   fi
   
   # Se servizio è activating, continua con il normale flusso di attesa
-  
-  # Verifica se il servizio è entrato in stato failed
-  if [ "$service_state" = "failed" ]; then
-    echo "✗ ERRORE: Servizio entrato in stato FAILED immediatamente dopo start"
-    echo "  PID nuovo processo:"
-    local new_pid=$(run_systemctl show -p MainPID --value "$SERVICE" 2>/dev/null || echo "nessuno")
-    echo "    $new_pid"
-    echo "  Log errori (ultimi 20 righe):"
-    run_journalctl -u "$SERVICE" --since "1 minute ago" -n 20 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 20 --no-pager 2>/dev/null
-    
-    # Parsing specifico errori CHDIR in caso di fallimento immediato
-    local chdir_errors=$(run_journalctl -u "$SERVICE" --since "1 minute ago" -n 50 --no-pager 2>/dev/null | grep -i "chdir\|cannot change directory\|working directory\|failed to change to runtime directory" || true)
-    if [ -n "$chdir_errors" ]; then
-      echo ""
-      echo "  ✗ ANALISI ERRORE CHDIR RILEVATA!"
-      echo "  Messaggi rilevati:"
-      echo "$chdir_errors"
-      echo ""
-      echo "  Diagnostica dettagliata:"
-      local wd=$(run_systemctl show -p WorkingDirectory --value "$SERVICE" 2>/dev/null || echo "N/A")
-      echo "    WorkingDirectory: $wd"
-      [ -n "$wd" ] && [ "$wd" != "N/A" ] && test -d "$wd" && echo "    Directory esiste: SI" || echo "    Directory esiste: NO"
-      [ -n "$wd" ] && [ "$wd" != "N/A" ] && test -r "$wd" 2>/dev/null && echo "    Directory leggibile: SI" || echo "    Directory leggibile: NO"
-      [ -n "$wd" ] && [ "$wd" != "N/A" ] && test -w "$wd" 2>/dev/null && echo "    Directory scrivibile: SI" || echo "    Directory scrivibile: NO"
-      [ -n "$wd" ] && [ "$wd" != "N/A" ] && test -x "$wd" 2>/dev/null && echo "    Directory eseguibile: SI" || echo "    Directory eseguibile: NO"
-    fi
-    
-    echo "  exit code systemd:"
-    run_systemctl show -p Result --value "$SERVICE" 2>/dev/null || echo "N/A"
-    exit 1
-  fi
-  
-  # Verifica stato failed con funzione dedicata
-  if wait_for_service_failed; then
-    echo "✗ ERRORE: Servizio entrato in stato FAILED dopo avvio"
-    echo "  Log errori (ultimi 30 righe):"
-    run_journalctl -u "$SERVICE" --since "1 minute ago" -n 30 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 30 --no-pager 2>/dev/null
-    
-    # Parsing specifico errori CHDIR
-    echo "  → Analisi specifica errori CHDIR..."
-    local chdir_errors=$(run_journalctl -u "$SERVICE" --since "1 minute ago" -n 100 --no-pager 2>/dev/null | grep -i "chdir\|cannot change directory\|working directory\|failed to change" || true)
-    if [ -n "$chdir_errors" ]; then
-      echo "  ✗ ERRORE CHDIR CONFERMATO!"
-      echo "  Messaggi di errore rilevati:"
-      echo "$chdir_errors"
-      echo ""
-      echo "  Diagnostica WorkingDirectory:"
-      local wd=$(run_systemctl show -p WorkingDirectory --value "$SERVICE" 2>/dev/null || echo "N/A")
-      echo "    Configurata: $wd"
-      if [ -n "$wd" ] && [ "$wd" != "N/A" ]; then
-        echo "    Esiste: $([ -d "$wd" ] && echo "✓ SI" || echo "✗ NO")"
-        echo "    Leggibile: $([ -r "$wd" ] 2>/dev/null && echo "✓ SI" || echo "✗ NO")"
-        echo "    Scrivibile: $([ -w "$wd" ] 2>/dev/null && echo "✓ SI" || echo "✗ NO")"
-        echo "    Eseguibile: $([ -x "$wd" ] 2>/dev/null && echo "✓ SI" || echo "✗ NO")"
-        echo "    Owner: $(stat -c '%U:%G' "$wd" 2>/dev/null || echo "N/A")"
-        echo "    Permessi: $(stat -c '%a' "$wd" 2>/dev/null || echo "N/A")"
-      fi
-      echo "  Soluzione immediata: verificare esistenza e permessi della directory"
-    fi
-    
-    echo "  Stato dettagliato:"
-    run_systemctl status "$SERVICE" --no-pager 2>/dev/null || true
-    exit 1
-  fi
   
   # Small sleep before checking bind
   sleep 2

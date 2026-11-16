@@ -19,6 +19,8 @@ The first entry below is the latest release.
 ## [0.49.5] - 2026-11-16
 
 ### Fixed
+- fix(scripts): remove dead wait_for_service_failed call in scripts/restart-safe.sh that was unreachable because the while loop already handles "failed" state and exits with exit 1
+
 
 ## [0.49.3] - 2026-11-14
 

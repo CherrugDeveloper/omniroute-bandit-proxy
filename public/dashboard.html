@@ -2919,7 +2919,7 @@
                     
                     return { models, summary: filteredSummary };
                 })
-                .then(({models, summary}) => {
+                .then(async ({models, summary}) => {
                     renderAllPending = false;
                     
                     // Store data for sorting
