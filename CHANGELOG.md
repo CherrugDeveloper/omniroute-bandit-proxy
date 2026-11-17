@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - Added token validation for punishment events WebSocket endpoint
 - Enhanced security for /v1/events/punishment endpoint
+ - Added sanitizeErrorBody to error handling in /v1/training/log-stream endpoint
 
 ## [0.50.4] - 2026-11-17
 ### Fixed

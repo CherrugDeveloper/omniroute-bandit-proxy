@@ -1301,9 +1301,9 @@ app.get('/v1/training/log-stream', requireAuth, (req, res) => {
     });
     
   } catch (e) {
-    slogError("[API] Errore /v1/training/log-stream:", e.message);
+    slogError("[API] Errore /v1/training/log-stream:", sanitizeErrorBody(e.message));
     if (!res.headersSent) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: sanitizeErrorBody(e.message) });
     }
   }
 });
