@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/Tests-77%20suites-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/actions)
-[![Version](https://img.shields.io/badge/version-0.50.0-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.50.0)
+[![Version](https://img.shields.io/badge/version-0.50.2-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.50.2)
 
 ## Overview
 
@@ -181,14 +181,6 @@ Cooldown progression resets if a successful request occurs before the full seque
 - `403 provider-level` → bans entire provider
 - Granular per-ID bans avoid cascading provider failures
 
-## Database
-+++
-### 403 Key Limit Classification
-
-- `403 model-level` → bans individual model only, not entire provider
-- `403 provider-level` → bans entire provider
-- Granular per-ID bans avoid cascading provider failures
-
 **Note**: The `keepalive|connection` pattern has been removed from `config/bandit.json` as it was deprecated.
 
 ## Database
@@ -196,8 +188,6 @@ Cooldown progression resets if a successful request occurs before the full seque
 - `403 model-level` → bans individual model only, not entire provider
 - `403 provider-level` → bans entire provider
 - Granular per-ID bans avoid cascading provider failures
-
-## Database
 
 - **better-sqlite3**: Used for all database operations
 - **Additive-only migrations**: `_migrateDB` uses `ADD COLUMN` only (no destructive changes)
@@ -244,7 +234,7 @@ Conventional commits are used for all changes. The commit message format follows
 ### Versioning
 
 - Follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0)
-- Current version: 0.50.0
+- Current version: 0.50.2
 - Tags: `v0.1.0` through `v0.49.7`, plus `v1.28.25` and `v1.29.0`
 - Changelog follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/) format
 
