@@ -3389,8 +3389,33 @@ async function startServer() {
         wss.on("connection", (ws, req) => {
           const path = req.url || '';
           
-          // Handle punishment events endpoint
+          // Handle punishment events endpoint - validate token
           if (path === '/v1/events/punishment' || path.startsWith('/v1/events/punishment?')) {
+            // Extract token from query parameter
+            const url = new URL(path, `http://${req.headers.host}`);
+            const token = url.searchParams.get('token') || '';
+            
+            // Validate token against DASHBOARD_TOKEN or OMNIROUTE_API_KEY
+            const DASHBOARD_TOKEN = (process.env.DASHBOARD_TOKEN || process.env.OMNIROUTE_API_KEY || "").trim();
+            const isPlaceholderToken = !DASHBOARD_TOKEN || DASHBOARD_TOKEN === "your_api_key_here" || DASHBOARD_TOKEN === "YourSecureTokenHere";
+            const REQUIRE_AUTH = !isPlaceholderToken && DASHBOARD_TOKEN.length > 0;
+            
+            let validToken = '';
+            if (REQUIRE_AUTH) {
+              validToken = DASHBOARD_TOKEN;
+            } else {
+              // Fall back to OMNIROUTE_API_KEY if no DASHBOARD_TOKEN configured
+              validToken = (process.env.OMNIROUTE_API_KEY || "").trim();
+            }
+            
+            const tokenMatch = token === validToken || (DASHBOARD_TOKEN && token === DASHBOARD_TOKEN.trim()) || (process.env.OMNIROUTE_API_KEY && token === process.env.OMNIROUTE_API_KEY.trim());
+            
+            if (!tokenMatch) {
+              slogError(`[WS] Punishment WS token validation failed: provided=${token}, expected length=${validToken.length}`);
+              ws.close();
+              return;
+            }
+            
             punishmentEventClients.add(ws);
             slogInfo(`[WS] Client connesso per eventi di punizione (totale: ${punishmentEventClients.size})`);
             

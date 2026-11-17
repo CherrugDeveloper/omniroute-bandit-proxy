@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Version History
 
+## [0.50.5] - 2026-11-17
+### Fixed
+- Added token validation for punishment events WebSocket endpoint
+- Enhanced security for /v1/events/punishment endpoint
+
 ## [0.50.4] - 2026-11-17
 ### Fixed
 - Removed duplicate `let connectionErrorBannerShown = false;` declaration in public/dashboard.html
@@ -54,7 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [0.50.0] - 2026-11-16
 ### Fixed
 - prioritize bandit system flags over quota exhaustion for model state display
-- improved dashboard state priority: permanent > needs_attention > cooldown_until > quota-exhausted
 
 ### Changed
 - update dashboard state priority logic in public/dashboard.html
@@ -70,6 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - updated error classification patterns in config/bandit.json to remove deprecated keepalive pattern
 
 ## [0.50.2] - 2026-11-17
+### Fixed
+- removed deprecated catalog mismatch pattern from error classification
+- refined model_not_found error classification to use transient cooldown-model
+
+### Changed
+- optimized bandit model selection error path for missing model records
+- updated error classification patterns in config/bandit.json to remove deprecated keepalive pattern
+
 ### Fixed
 - removed deprecated catalog mismatch pattern from error classification
 - refined model_not_found error classification to use transient cooldown-model

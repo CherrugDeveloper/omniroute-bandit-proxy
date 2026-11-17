@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/Tests-77%20suites-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/actions)
-[![Version](https://img.shields.io/badge/version-0.50.3-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.50.3)
+[![Version](https://img.shields.io/badge/version-0.50.5-blue.svg)](https://github.com/CherrugDeveloper/omniroute-bandit-proxy/releases/tag/v0.50.5)
 
 ## Overview
 
@@ -85,6 +85,15 @@ Cooldown progression resets if a successful request occurs before the full seque
 - Paid group ban UPDATE includes `AND permanent = 0` condition
 - Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms)
 - Model rehabilitation: `_checkRehabilitation()` auto-rehabilitates permanent bans after the rehab period
+
+### Token Authentication
+
+Token-based authentication is required for the `/v1/events/punishment` WebSocket endpoint. A valid token must be provided as a query parameter (`?token=...`). The token is validated against the `DASHBOARD_TOKEN` or `OMNIROUTE_API_KEY` environment variables. If no valid token is configured, authentication is bypassed for development purposes.
+
+- Provide a token via the `token` query parameter
+- Token is checked against `DASHBOARD_TOKEN` first, then `OMNIROUTE_API_KEY`
+- If neither is configured, authentication is skipped
+- Invalid tokens result in the WebSocket connection being closed
 
 ## Features
 
@@ -234,7 +243,7 @@ Conventional commits are used for all changes. The commit message format follows
 ### Versioning
 
 - Follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer v2.0.0)
-- Current version: 0.50.3
+- Current version: 0.50.5
 - Tags: `v0.1.0` through `v0.49.7`, plus `v1.28.25` and `v1.29.0`
 - Changelog follows [Keep a Changelog v1.1.0](https://keepachangelog.com/en/1.1.0/) format
 
@@ -273,9 +282,7 @@ Where:
 - Multipliers stack when multiple profiles apply
 - Used to prioritize certain model categories (free vs paid, etc.)
 
-## Error Classification & Punishment
-
-### Transient vs Permanent
+### Error Classification & Punishment
 
 | Error Type | Classification | Cooldown Duration |
 |------------|---------------|-------------------|
