@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Version History
 
+## [0.50.4] - 2026-11-17
+### Fixed
+- Removed duplicate `let connectionErrorBannerShown = false;` declaration in public/dashboard.html
+- Removed redundant `scriptOutputWebSocket = null;` declarations in public/dashboard.html
+
 ## [0.50.3] - 2026-11-17
 ### Fixed
 - Added version 0.50.3 entry
