@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Version History
 
+## [0.50.3] - 2026-11-17
+### Fixed
+- Added version 0.50.3 entry
+
+### Changed
+- version bump to 0.50.3
+
 ## [0.1.0] - 2026-09-30
 ### Added
 - transforms the dashboard into a PWA with service worker, manifest and install button
@@ -64,3 +71,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - optimized bandit model selection error path for missing model records
+- updated error classification patterns in config/bandit.json to remove deprecated keepalive pattern
