@@ -1747,7 +1747,7 @@
 
         let apiFetchRetryCount = 0;
         const maxApiFetchRetries = 3;
-+        let connectionErrorBannerShown = false;
+        let connectionErrorBannerShown = false;
 
         async function apiFetch(url, opts = { }) {
             if (!API_TOKEN) {
@@ -5668,7 +5668,6 @@
         // ========================================
         
         // WebSocket connection for real-time script output streaming
-        let scriptOutputWebSocket = null;
         let currentScriptPid = null;
         let wsReconnectAttempts = 0;
         const MAX_WS_RECONNECT_ATTEMPTS = 3;
@@ -10000,7 +9999,6 @@
         // ========================================
         
         // WebSocket connection for real-time script output streaming
-        let scriptOutputWebSocket = null;
         let currentScriptPid = null;
         let wsReconnectAttempts = 0;
         const MAX_WS_RECONNECT_ATTEMPTS = 3;
