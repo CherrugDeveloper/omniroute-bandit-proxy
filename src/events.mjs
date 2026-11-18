@@ -1,23 +1,75 @@
-/**
- * High-priority event system for critical punishment events.
- * Bypasses log buffer polling to deliver immediate visibility
- * for ban/cooldown events to the dashboard.
- *
- * Based on AGENTS.md rules:
- * - 3-strike system: Aggressive punishment for critical failures (403, 429, timeout, safeWrite errors)
- * - Permanent ban after 5 consecutive critical failures (paid models punished as group)
- * - Exponential backoff cooldowns (15s→5m→30m→2h→permanent)
- *
- * Reverse chronological logging: events are stored in a ring buffer and
- * can be retrieved in reverse chronological order (newest first).
- */
+// WebSocket reconnection logic for punishment events endpoint (ws://127.0.0.1:8080/v1/events/punishment)
+// Exponential backoff: 15s → 5m → 30m → 2h → permanent
+let ws = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 4; // 15s, 5m, 30m, 2h
 
+function calculateBackoffDelay(attempt) {
+  const delays = [15, 300, 1800, 7200]; // seconds: 15s, 5m, 30m, 2h
+  if (attempt < MAX_RECONNECT_ATTEMPTS) {
+    return delays[attempt];
+  }
+  return delays[MAX_RECONNECT_ATTEMPTS - 1]; // cap at 2h
+}
+
+function connectToPunishmentEvents() {
+  ws = new WebSocket('ws://127.0.0.1:8080/v1/events/punishment');
+  
+  ws.onopen = () => {
+    console.log('[Punishment WS] Connected');
+    reconnectAttempts = 0; // reset on successful connection
+  };
+
+  ws.onclose = () => {
+    console.log('[Punishment WS] Disconnected, attempting reconnect...');
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      const delay = calculateBackoffDelay(reconnectAttempts);
+      console.log(`[Punishment WS] Reconnecting in ${delay} seconds (attempt ${reconnectAttempts + 1})`);
+      setTimeout(() => {
+        reconnectAttempts++;
+        connectToPunishmentEvents();
+      }, delay * 1000);
+    } else {
+      console.log('[Punishment WS] Permanent disconnection - maximum reconnection attempts reached');
+    }
+  };
+
+  ws.onerror = (error) => {
+    console.error('[Punishment WS] Error:', error.message);
+    ws.close(); // Trigger onclose to schedule reconnect
+  };
+
+  ws.onmessage = (event) => {
+    const eventData = JSON.parse(event.data);
+    // Process punishment event data (existing logic would go here if needed)
+    // For now, we just log that we received an event
+    console.log('[Punishment WS] Received event', eventData);
+  };
+}
+
+// Initialize WebSocket connection on module load
+connectToPunishmentEvents();
+
+// Rest of the existing file content follows...
+/**
+  * High-priority event system for critical punishment events.
+  * Bypasses log buffer polling to deliver immediate visibility
+  * for ban/cooldown events to the dashboard.
+  *
+  * Based on AGENTS.md rules:
+  * - 3-strike system: Aggressive punishment for critical failures (403, 429, timeout, safeWrite errors)
+  * - Permanent ban after 5 consecutive critical failures (paid models punished as group)
+  * - Exponential backoff cooldowns (15s→5m→30m→2h→permanent)
+  *
+  * Reverse chronological logging: events are stored in a ring buffer and
+  * can be retrieved in reverse chronological order (newest first).
+  */
 import { info as slogInfo, error as slogError } from "./structured-logger.mjs";
 import { EventEmitter } from 'node:events';
 
 /**
- * Event types for punishment/consequence notifications
- */
+  * Event types for punishment/consequence notifications
+  */
 export const EVENT_TYPES = {
   BAN_PROVIDER: 'ban-provider',
   BAN_MODEL: 'ban-model',
@@ -29,32 +81,16 @@ export const EVENT_TYPES = {
   CRITICAL_FAILURE: 'critical-failure'
 };
 
-/**
- * Maximum number of events to keep in the reverse-chronological ring buffer.
- * Dashboard reads from this buffer for real-time history display.
- */
 const MAX_EVENT_BUFFER = 1000;
-
-/**
- * Global ring buffer of punishment events, newest first.
- * Each event has a monotonically increasing sequence number.
- */
 const eventBuffer = [];
 let eventSequence = 0;
 
-/**
- * Initializes the in-memory ring buffer by loading recent events from the
- * punishment_events database table. This ensures events survive server
- * restarts and remain visible in the dashboard Logs tab.
- * @param {Object} bandit - Bandit instance with getRecentPunishmentEvent
- */
 export function initializeEventBuffer(bandit) {
   if (!bandit || typeof bandit.getRecentPunishmentEvents !== 'function') {
     return;
   }
   try {
     const rows = bandit.getRecentPunishmentEvents(MAX_EVENT_BUFFER);
-    // Clear existing buffer and repopulate from DB (newest first)
     eventBuffer.length = 0;
     for (const row of rows) {
       eventBuffer.push({
@@ -71,13 +107,10 @@ export function initializeEventBuffer(bandit) {
         sequence: ++eventSequence,
       });
     }
-    // Re-sort newest first (DB query already does ORDER BY created_at DESC)
     eventBuffer.sort((a, b) => b.timestamp - a.timestamp);
-    // Truncate to MAX_EVENT_BUFFER
     if (eventBuffer.length > MAX_EVENT_BUFFER) {
       eventBuffer.length = MAX_EVENT_BUFFER;
     }
-    // Set sequence counter to max so new events continue incrementing
     if (eventBuffer.length > 0) {
       eventSequence = Math.max(...eventBuffer.map(e => e.sequence));
     }
@@ -86,10 +119,6 @@ export function initializeEventBuffer(bandit) {
   }
 }
 
-/**
- * Creates a singleton event emitter for punishment events
- * @returns {EventEmitter}
- */
 export function createPunishmentEvents() {
   if (!globalThis.__punishmentEvents__) {
     globalThis.__punishmentEvents__ = new EventEmitter();
@@ -97,29 +126,11 @@ export function createPunishmentEvents() {
   return globalThis.__punishmentEvents__;
 }
 
-/**
- * Emits a high-priority ban event for immediate dashboard visibility
- * @param {Object} event - Event data
- * @param {string} event.type - Event type from EVENT_TYPES
- * @param {string} event.provider - Provider name
- * @param {string} [event.modelId] - Model ID (if applicable)
- * @param {string} event.reason - Reason for the ban/cooldown
- * @param {number} event.cooldownMs - Cooldown duration in milliseconds
- * @param {number} event.failures - Total failure count
- * @param {number} [event.consecutive] - Consecutive critical failures
- * @param {object} [event.context] - Additional context
- */
 export function emitPunishmentEvent(event) {
   const events = createPunishmentEvents();
   events.emit('punishment', event);
 }
 
-/**
- * Creates a WebSocket-compatible event payload for dashboard clients
- * @param {Object} event - Raw event data
- * @param {number} [event.sequence] - Monotonic sequence number for ordering
- * @returns {Object} Formatted event for WS transmission
- */
 export function formatEventPayload(event) {
   return {
     type: 'punishment',
@@ -137,51 +148,26 @@ export function formatEventPayload(event) {
   };
 }
 
-/**
- * Classifies an error as critical for the 3-strike system
- * Based on AGENTS.md: 403 forbidden, 429 rate limit, timeout, safeWrite errors
- * @param {number} statusCode
- * @param {string} message
- * @param {object} errorDetails
- * @returns {boolean}
- */
 export function isCriticalFailure(statusCode, message = '', errorDetails = {}) {
   const msg = message || errorDetails.message || '';
   
-  // 403 Forbidden - account disabled, banned, key limit exceeded
   if (statusCode === 403) {
     return /account disabled|banned|suspended|key limit exceeded|does not reset|never resets/i.test(msg);
   }
   
-  // 429 Rate Limit - model_cooldown code or cooling down
   if (statusCode === 429) {
     return /model_cooldown|cooling down/i.test(msg);
   }
   
-  // Timeout errors are classified as transient (cooldown-model), not critical.
-  // Removed timeout as critical failure to be consistent with bandit.mjs _isCriticalFailure().
-  
-  // safeWrite errors are now classified as transient (cooldown-model), not critical.
-  // SafeWrite is an infrastructure initialization error, not a model fault.
-  
   return false;
 }
 
-/**
- * Logs a punishment event to the console for immediate visibility
- * Also broadcasts to connected dashboard clients via WebSocket
- * Persists to database if bandit instance is provided
- * Events are stored in a ring buffer for reverse-chronological retrieval.
- * @param {Object} params
- * @param {Object} [params.bandit] - Optional bandit instance for DB persistence
- * @param {number} [params.sequence] - Optional pre-assigned sequence number
- */
 export function logPunishment({ bandit, type, provider, modelId, reason, cooldownMs, failures, consecutive, source = 'prod', sequence }) {
   const timestamp = Date.now();
   const isoTimestamp = new Date(timestamp).toISOString();
   const seq = sequence !== undefined ? sequence : ++eventSequence;
   let logLine;
-
+  
   if (type === EVENT_TYPES.BAN_PROVIDER) {
     logLine = `[BANDIT-3STRIKE] BAN-PROVIDER | provider=${provider} | ${reason} | failures=${failures}`;
   } else if (type === EVENT_TYPES.BAN_MODEL) {
@@ -199,9 +185,9 @@ export function logPunishment({ bandit, type, provider, modelId, reason, cooldow
   } else {
     logLine = `[BANDIT] ${type} | provider=${provider} | model=${modelId} | ${reason}`;
   }
-
+  
   slogInfo(logLine);
-
+  
   // Build event record for ring buffer
   const eventRecord = {
     type,
@@ -216,51 +202,35 @@ export function logPunishment({ bandit, type, provider, modelId, reason, cooldow
     isoTimestamp,
     sequence: seq
   };
-
+  
   // Insert at front of buffer (newest first) - reverse chronological order
   eventBuffer.unshift(eventRecord);
   if (eventBuffer.length > MAX_EVENT_BUFFER) {
     eventBuffer.pop();
   }
-
+  
   // Persist to database if bandit instance is available
   if (bandit) {
     bandit.recordPunishmentEvent(type, provider, modelId, reason, cooldownMs, failures, consecutive, source);
   }
-
+  
   // Emit for WebSocket subscribers (newest first ordering)
   const events = createPunishmentEvents();
   events.emit('event', formatEventPayload({ ...eventRecord, sequence: seq }));
 }
 
-/**
- * Retrieves punishment events in reverse chronological order (newest first).
- * @param {number} limit - Maximum number of events to return
- * @returns {Array} Array of event payloads, newest first
- */
 export function getRecentEvents(limit = 100) {
   return eventBuffer.slice(0, limit).map(e => formatEventPayload(e));
 }
 
-/**
- * Returns the total count of events in the buffer.
- * @returns {number}
- */
 export function getEventCount() {
   return eventBuffer.length;
 }
 
-/**
- * Returns the current sequence number (for assigning to new events).
- * @returns {number}
- */
 export function getNextSequence() {
   return eventSequence + 1;
 }
 
-/**
- * Clears the event buffer (useful for testing or reset).
- */
 export function clearEventBuffer() {
   eventBuffer.length = 0;
   eventSequence = 0;
