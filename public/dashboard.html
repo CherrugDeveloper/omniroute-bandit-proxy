@@ -6298,7 +6298,7 @@
                 try { punishmentWS.close(); } catch (e) {}
             }
             
-            punishmentWS = new WebSocket(window.location.origin + '/v1/events/punishment' + (currentToken ? '?token=' + currentToken : ''));
+            punishmentWS = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + window.location.host + '/v1/events/punishment' + (currentToken ? '?token=' + currentToken : ''));
             
             punishmentWS.onopen = () => {
                 console.log('[WebSocket] Punishment Events Connected');
@@ -10609,7 +10609,7 @@
                 try { punishmentWS.close(); } catch (e) {}
             }
             
-            punishmentWS = new WebSocket(window.location.origin + '/v1/events/punishment' + (currentToken ? '?token=' + currentToken : ''));
+            punishmentWS = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + window.location.host + '/v1/events/punishment' + (currentToken ? '?token=' + currentToken : ''));
             
             punishmentWS.onopen = () => {
                 console.log('[WebSocket] Punishment Events Connected');
