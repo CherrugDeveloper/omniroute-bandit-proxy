@@ -1,6 +1,17 @@
 # Changelog
 ## Keep a Changelog
 
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## Version History
+
+## [0.53.3] - 2026-11-19
+### Fixed
+- fix(bandit): "Model not found in active live catalog" 400 errors now classified as ban-model (PERMANENT) instead of cooldown-model (TRANSIENT); added new pattern to config/bandit.json and made model-not-found errors critical in _isCriticalFailure()
+- fix(bandit): cascade guard now skips ALL punishment when provider is already on cooldown/circuit/auth-expired to prevent cascade effect
+- fix(bandit): selectModel provider_history query now includes circuit_breaker_until so the circuit breaker cascade guard correctly rejects providers with an open circuit breaker
+- fix(dashboard): removed flex-direction: column from #logs-container to fix text disappearing on scroll; verified reverse chronological order already correct
+
 ## [0.53.3] - 2026-09-30
 ### Fixed
 - fix(proxy): add AbortController timeout, client disconnect handler (499), and immediate bandit fallback

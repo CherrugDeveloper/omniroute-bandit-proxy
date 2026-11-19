@@ -1616,11 +1616,14 @@ export class DiscountedUCB1Bandit {
     }
 
     // Catalog mismatch / unknown model / 404 / 400 model not found
+    // "Model not found in active live catalog" is a PERMANENT error - the model
+    // is no longer available in the provider's catalog and will never recover on its own.
+    // This requires user intervention (config update) to fix.
     if ((/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message)) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
       // Note: Removed `|| status === 404` - 404 status alone should not permanently ban models.
       // Models returning 404 will fall through to other classifications (typically cooldown-model transient).
       // If the message matches the config pattern in bandit.json, it will still be classified as ban-model permanent.
-      return { action: "cooldown-model", scope: "model", reason: "model-not-found", category: "TRANSIENT" };
+      return { action: "ban-model", scope: "model", reason: "model-not-found", category: "PERMANENT" };
     }
     // Upstream bug (Assignment to constant) -> ban-model
     if (/Assignment to constant variable/i.test(message)) {
@@ -1824,6 +1827,14 @@ export class DiscountedUCB1Bandit {
     
     // 429 Rate Limit - NOT a critical failure (transient: handled by cooldown, not 5-strike ban)
     // Rate limiting causes cooldown via errorConfig classification, not permanent ban
+
+    // Model not found in active live catalog - PERMANENT/chronic failure.
+    // The model no longer exists in the provider's catalog and will never recover
+    // on its own; it requires user intervention (config update). Treat as critical
+    // so the 5-strike counter stays consistent with the ban-model classification.
+    if (/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message)) {
+      return true;
+    }
 
     // Timeout errors - NOT critical per AGENTS.md
     // Timeout errors cause cooldown via errorConfig classification (cooldown-model), not 5-strike ban
@@ -2979,7 +2990,7 @@ export class DiscountedUCB1Bandit {
         } else {
           // Skip if provider is permanently banned
           const prov = this.db.prepare(
-            `SELECT cooldown_until, permanent, needs_attention, quota_resets_at FROM provider_history WHERE provider = ?`
+            `SELECT cooldown_until, permanent, needs_attention, quota_resets_at, circuit_breaker_until FROM provider_history WHERE provider = ?`
           ).get(model.provider);
           if (prov && prov.permanent === 1 && !ignorePermanent) {
             rejectionReason = 'provider_permanent_ban';
@@ -3121,12 +3132,14 @@ export class DiscountedUCB1Bandit {
           // rejected due to cooldown or circuit breaker state. The model/provider is
           // already punished — applying another cooldown would create a feedback loop
           // where hundreds of models get simultaneous cooldowns from a single provider failure.
-          // CASCADE GUARD: Skip only provider-level punishments when provider is already
-          // on cooldown. Model-level punishments (recordFeedback) are still applied so
-          // individual models can be tracked independently even when their provider cools down.
+          // CASCADE GUARD: Skip ALL punishments (both provider-level and model-level) when
+          // provider is already on cooldown/circuit/auth-expired. This prevents the cascade
+          // effect where hundreds of models get cooldowns from a single provider failure.
+          // Model-level punishments are only applied when the model itself is the root cause.
           if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown' || rejectionReason === 'auth-expired') {
-            slogInfo(`[BANDIT-CASCADE-GUARD] Skipping provider-level punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (provider already on cooldown/circuit/auth-expired)`);
-            // Continue to model-level punishment below instead of returning false
+            slogInfo(`[BANDIT-CASCADE-GUARD] Skipping ALL punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (provider already on cooldown/circuit/auth-expired - cascade prevention)`);
+            // Skip model-level punishment to prevent cascade effect
+            return false;
           } else {
             slogInfo(`[BANDIT-CASCADE-GUARD] Applying punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason}`);
           }

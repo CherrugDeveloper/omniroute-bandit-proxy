@@ -9,7 +9,8 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Automated Punishment System**:
   - **Exponential Backoff**: Models that fail are put on cooldown with increasing durations.
   - **5-Strike Rule**: 5 consecutive critical failures (403/429) lead to a permanent ban.
-  - **Cascade Guards**: Prevents simultaneous banning of entire provider groups.
+  - **Cascade Guards**: Prevents simultaneous banning of entire provider groups; skips ALL punishment when a provider is already on cooldown/circuit/auth-expired to avoid cascade effects.
+  - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Error Classification**: Distinguishes between transient (retryable) and permanent errors via configurable patterns.
 - **Training Mode**: Supports isolated training datasets to refine model rankings before production use.

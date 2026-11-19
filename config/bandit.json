@@ -43,6 +43,7 @@
         { "pattern": "not supported.*(?:image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported)", "action": "ban-model", "scope": "model" },
         { "pattern": "Assignment to constant variable", "action": "ban-model", "scope": "model" },
         { "pattern": "OpenCode's free tier can only be used from within OpenCode", "action": "ban-model", "scope": "model" },
+        { "pattern": "catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog", "action": "ban-model", "scope": "model", "reason": "model-not-found" },
         { "pattern": "403|lifetime limit|never resets|does not reset|no reset", "action": "ban-provider", "scope": "provider", "reason": "key-limit-exceeded", "status": 403 }
       ]
     }
