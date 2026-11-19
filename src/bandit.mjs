@@ -1315,14 +1315,21 @@ export class DiscountedUCB1Bandit {
                   this.db.prepare(`UPDATE models SET degraded = 1, degraded_since = ? WHERE id = ? AND degraded = 0`).run(Date.now(), sanitizedModelId);
                 }
   
-                // Determine cooldown duration: use config-specified, or default escalating if transient
-                let cooldownMs = c.cooldownMs;
-                if (!cooldownMs || cooldownMs <= 0) {
+                // Determine cooldown duration: combine config-specified with internal escalation
+                // Use Math.max so config acts as minimum floor and escalation increases cooldown for models with more failures
+                let configCooldown = c.cooldownMs;
+                let escalatedCooldown = 0;
+                if (!configCooldown || configCooldown <= 0) {
                   if (isTransient) {
                     const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(sanitizedModelId);
                     const failCount = model ? model.fails : 0;
-                    cooldownMs = this._getModelCooldownMs(failCount + 1);
+                    escalatedCooldown = this._getModelCooldownMs(failCount + 1);
                   }
+                }
+                let cooldownMs = Math.max(configCooldown || 0, escalatedCooldown || 0);
+                // Ensure at least 30s if transient error (minimum cooldown floor)
+                if (isTransient && cooldownMs < 30 * 1000) {
+                  cooldownMs = 30 * 1000;
                 }
   
                 // Apply cooldown to model if applicable

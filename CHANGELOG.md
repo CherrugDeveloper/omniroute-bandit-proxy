@@ -1,6 +1,11 @@
 # Changelog
 ## Keep a Changelog
 
+## [0.53.2] - 2026-11-19
+### Fixed
+- Fixed cooldown/config conflict in recordFeedback(): config-driven cooldown no longer overrides internal escalation. Now uses Math.max(configCooldown, escalatedCooldown) so config acts as minimum floor and failure-aware escalation increases cooldown for models with more failures
+- Added minimum 30s cooldown floor for transient errors
+
 ## [0.53.1] - 2026-11-19
 ### Fixed
 - Fixed abort error handling in dashboard to prevent unnecessary request aborts on tab switch
