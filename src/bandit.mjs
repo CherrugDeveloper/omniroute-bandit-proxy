@@ -770,10 +770,9 @@ export class DiscountedUCB1Bandit {
     let fallbackUsed = false;
     
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      let res;
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+          let res;
       try {
         console.log("DEBUG: before fetch", modelsUrl);
         res = await fetch(modelsUrl, { headers, signal: controller.signal });
@@ -2362,7 +2361,9 @@ export class DiscountedUCB1Bandit {
   }
 
   getMetrics() {
-    try {
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+          let res;
       let models = [];
       try {
         models = (this.db.prepare(
@@ -2406,7 +2407,6 @@ export class DiscountedUCB1Bandit {
       slogError("[BANDIT] Critical error in getMetrics:", e.message);
       return { models: [], providers: [], summary: { activeCount: 0, avgReward: 0, avgLatencySec: 0, freeActive: 0, topModel: null } };
     }
-  }
 
   getAllModels() {
     try {

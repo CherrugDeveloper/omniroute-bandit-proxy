@@ -47,8 +47,9 @@ function connectToPunishmentEvents() {
   };
 }
 
-// Initialize WebSocket connection on module load
-connectToPunishmentEvents();
+// WebSocket connection initialized lazily by the server process, not on module load
+// connectToPunishmentEvents() should only be called from src/index.mjs when the backend server starts
+// This prevents test environments from hanging due to pending setTimeout reconnection attempts
 
 // Rest of the existing file content follows...
 /**

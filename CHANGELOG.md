@@ -1,6 +1,15 @@
 # Changelog
 ## Keep a Changelog
 
+## [0.53.0] - 2026-11-18
+
+### Fixed
+- Removed immediate WebSocket connection on module load in events.mjs to prevent test environment hang
+- Fixed test timeout issues caused by pending setTimeout reconnection attempts
+
+### Changed
+- Updated package.json version to 0.53.0
+
 ## [0.51.0] - 2026-11-18
 
 ### Fixed
