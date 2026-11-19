@@ -770,9 +770,10 @@ export class DiscountedUCB1Bandit {
     let fallbackUsed = false;
     
     try {
-                const timeoutId = setTimeout(() => controller.abort(), 15000);
-    
-          let res;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        let res;
       try {
         console.log("DEBUG: before fetch", modelsUrl);
         res = await fetch(modelsUrl, { headers, signal: controller.signal });

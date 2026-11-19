@@ -1,6 +1,0 @@
-feat(events): add WebSocket reconnection with exponential backoff
-
-- Implements automatic WebSocket reconnection for punishment events endpoint
-- Uses exponential backoff strategy (15s → 5m → 30m → 2h) with MAX_RECONNECT_ATTEMPTS=4
-- Resets reconnection attempts on successful connection
-- Maintains existing event buffering and token validation
