@@ -5092,48 +5092,26 @@
         setInterval(() => {
             if (document.hidden) return;
 
-            // Determine which tab is active
             const activeTab = document.querySelector('.tab-content.active');
             const activeTabId = activeTab ? activeTab.id : null;
 
-            // Map tabs to relevant polls
             const pollsToRun = [];
-            if (activeTabId === 'tab-models' || activeTabId === 'tab-logs' || activeTabId === '') {
-                // Models tab, logs tab, or no tab selected - run refreshAll (keep metrics current on all tabs)
-                pollsToRun.push('refreshAll');
-            }
-            if (activeTabId === 'tab-logs' || !activeTabId) {
-                // Logs tab or no tab selected - run fetchLogs
-                pollsToRun.push('fetchLogs');
-            }
-            if (['tab-models', 'tab-train', 'tab-providers', 'tab-scripts', 'tab-consideration'].includes(activeTabId || '')) {
-                // Any dashboard-relevant tab - run fetchActive
-                pollsToRun.push('fetchActive');
-            }
-            if (activeTabId === 'tab-providers') {
-                // Run fetchQuota only when providers tab is active (quotas are displayed there)
-                pollsToRun.push('fetchQuota');
-            }
-            if (activeTabId === 'tab-consideration' || !activeTabId) {
-                // Consideration tab or no tab selected - run fetchConsideration
-                pollsToRun.push('fetchConsideration');
-            }
+            if (activeTabId === 'tab-models' || activeTabId === 'tab-logs' || activeTabId === '') pollsToRun.push('refreshAll');
+            if (activeTabId === 'tab-logs' || !activeTabId) pollsToRun.push('fetchLogs');
+            if (['tab-models', 'tab-train', 'tab-providers', 'tab-scripts', 'tab-consideration'].includes(activeTabId || '')) pollsToRun.push('fetchActive');
+            if (activeTabId === 'tab-providers') pollsToRun.push('fetchQuota');
+            if (activeTabId === 'tab-consideration' || !activeTabId) pollsToRun.push('fetchConsideration');
 
-            // Run polls with debounce to prevent concurrent renders
             const now = Date.now();
             for (const pollName of pollsToRun) {
                 const lastRun = pollLastRun[pollName];
                 const interval = getPollInterval(pollName);
 
                 if (now - lastRun >= interval) {
-                    // Set debounce to prevent multiple runs within the same second
-                    if (pollDebounceTimeouts[pollName]) {
-                        clearTimeout(pollDebounceTimeouts[pollName]);
-                    }
+                    if (pollDebounceTimeouts[pollName]) clearTimeout(pollDebounceTimeouts[pollName]);
                     pollDebounceTimeouts[pollName] = setTimeout(() => {
-                        runPoll(pollName);
+                        runPoll(pollName).catch(err => console.error(`[Poll] ${pollName} failed:`, err));
                         pollLastRun[pollName] = Date.now();
-                        // Clear debounce timeout after execution
                         pollDebounceTimeouts[pollName] = null;
                     }, 10);
                 }
@@ -5150,23 +5128,17 @@
             }
         }
 
-        function runPoll(pollName) {
-            switch (pollName) {
-                case 'refreshAll':
-                    refreshAll();
-                    break;
-                case 'fetchLogs':
-                    fetchLogs();
-                    break;
-                case 'fetchActive':
-                    fetchActive();
-                    break;
-                case 'fetchQuota':
-                    fetchQuota();
-                    break;
-                case 'fetchConsideration':
-                    fetchConsideration();
-                    break;
+        async function runPoll(pollName) {
+            try {
+                switch (pollName) {
+                    case 'refreshAll': await refreshAll(); break;
+                    case 'fetchLogs': await fetchLogs(); break;
+                    case 'fetchActive': await fetchActive(); break;
+                    case 'fetchQuota': await fetchQuota(); break;
+                    case 'fetchConsideration': await fetchConsideration(); break;
+                }
+            } catch (e) {
+                console.warn(`[Poll] ${pollName} execution error:`, e.message);
             }
         }
 
@@ -5717,10 +5689,21 @@
             
             scriptOutputWebSocket.onclose = (event) => {
                 console.log('[WS] Connection closed for PID:', pid, 'Reason:', event.reason || 'unknown');
+                wsReconnectAttempts++;
+                if (wsReconnectAttempts < 5) {
+                    const retryDelay = Math.pow(2, wsReconnectAttempts) * 3000;
+                    console.log('[WS] Reconnecting in', retryDelay, 'ms (attempt', wsReconnectAttempts, ')');
+                    setTimeout(() => connectScriptOutputWS(pid), retryDelay);
+                } else {
+                    console.log('[WS] Max reconnection attempts reached, falling back to polling');
+                    wsReconnectAttempts = 0;
+                    startPollingFallback(pid);
+                }
             };
             
             scriptOutputWebSocket.onerror = (error) => {
                 console.error('[WS] WebSocket error for PID:', pid, error);
+                startPollingFallback(pid);
             };
             
             return true;
