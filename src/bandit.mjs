@@ -771,7 +771,7 @@ export class DiscountedUCB1Bandit {
     
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         let res;
       try {
@@ -2380,7 +2380,7 @@ export class DiscountedUCB1Bandit {
   }
 
   getMetrics() {
-                const timeoutId = setTimeout(() => controller.abort(), 15000);
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
     
           let res;
       let models = [];
@@ -3136,7 +3136,7 @@ export class DiscountedUCB1Bandit {
           // provider is already on cooldown/circuit/auth-expired. This prevents the cascade
           // effect where hundreds of models get cooldowns from a single provider failure.
           // Model-level punishments are only applied when the model itself is the root cause.
-          if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown' || rejectionReason === 'auth-expired') {
+          if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown' || rejectionReason === 'auth-expired' || rejectionReason === 'provider_quota_exhausted' || rejectionReason === 'provider_needs_attention') {
             slogInfo(`[BANDIT-CASCADE-GUARD] Skipping ALL punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (provider already on cooldown/circuit/auth-expired - cascade prevention)`);
             // Skip model-level punishment to prevent cascade effect
             return false;

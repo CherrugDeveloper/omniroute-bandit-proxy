@@ -24,6 +24,12 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Proxy Layer**: Handles HTTP requests, token estimation, and provider-specific API calls.
 - **Event System**: Streams real-time punishment and status events to the dashboard via WebSockets.
 
+### Error Classification Fixes (v0.53.4)
+
+- **403 Key limit exceeded**: Now correctly classified as `ban-provider` (PERMANENT) instead of `cooldown-model` (TRANSIENT) when pattern matches "total limit". Fixed by adding `|total limit` to permanent error patterns in `config/bandit.json`.
+- **Cascade guard extended**: Now includes `provider_quota_exhausted` and `provider_needs_attention` to prevent cascade punishments when the proxy is restarted and all providers are simultaneously cooled down.
+- **Model sync reliability**: `fetchAndSyncModels()` timeout increased from 15s to 30s to ensure model catalog synchronization completes during service initialization.
+
 ## ⚙️ Installation & Setup
 
 ### Prerequisites
@@ -33,18 +39,18 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 ### Quick Start
 1. Clone the repository.
 2. Install dependencies:
-   \`\`\`bash
+   ```bash
    npm install
-   \`\`\`
+   ```
 3. Configure your environment:
-   \`\`\`bash
+   ```bash
    cp .env.example .env
    # Edit .env with your provider keys
-   \`\`\`
+   ```
 4. Start the service:
-   \`\`\`bash
+   ```bash
    npm start
-   \`\`\`
+   ```
 
 ## 📊 API Endpoints
 
@@ -57,9 +63,9 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 
 The project includes a comprehensive test suite covering the bandit logic and punishment system.
 
-\`\`\`bash
+```bash
 npm test
-\`\`\`
+```
 
 ## 📜 License
 Distributed under the MIT License. See `LICENSE` for more information.

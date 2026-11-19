@@ -12,6 +12,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - fix(bandit): selectModel provider_history query now includes circuit_breaker_until so the circuit breaker cascade guard correctly rejects providers with an open circuit breaker
 - fix(dashboard): removed flex-direction: column from #logs-container to fix text disappearing on scroll; verified reverse chronological order already correct
 
+## [0.53.4] - 2026-11-19
+### Fixed
+- fix(bandit): cascade guard extended to include provider_quota_exhausted and provider_needs_attention to prevent cascade punishments after restart
+- fix(bandit): 403 "Key limit exceeded (total limit)" now classified as ban-provider (PERMANENT) instead of cooldown-model (TRANSIENT); added "|total limit" pattern to config/bandit.json permanentErrors
+- fix(bandit): fetchAndSyncModels timeout increased from 15s to 30s for initial startup reliability
+
 ## [0.53.3] - 2026-09-30
 ### Fixed
 - fix(proxy): add AbortController timeout, client disconnect handler (499), and immediate bandit fallback
