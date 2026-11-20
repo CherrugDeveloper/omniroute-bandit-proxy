@@ -14,6 +14,7 @@ Non-obvious, project-specific guidance for code changes.
 - `consecutive_5xx ≥ 3` triggers degraded mode.
 - Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
 - Cascade ban guard: paid-group-ban UPDATE includes `AND permanent = 0`.
+- Cascade guard skip list also covers capability-based rejections (`non_chat_model_excluded`, `no_tools_support`, `max_input_tokens_exceeded`, `exclude_thinking`, `dynamic_max_tokens_exceeded`) so capability mismatches never trigger cooldowns.
 - Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms).
 
 ## Database
