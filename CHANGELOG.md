@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.5] - 2026-11-20
+### Fixed
+- fix(bandit): cascade guard extended with 5 capability-based rejection reasons (non_chat_model_excluded, no_tools_support, max_input_tokens_exceeded, exclude_thinking, dynamic_max_tokens_exceeded) to prevent unnecessary model cooldowns for capability mismatches
+### Performance
+- perf(dashboard): reduced polling intervals — training status 3s→15s, refreshAll 5s→10s, fetchLogs/fetchActive 2s→5s
+- perf(api): added in-memory caching (5s TTL) for /v1/config/status, /v1/training/status, /v1/training/daemon-status endpoints
+
 ## [0.53.3] - 2026-11-19
 ### Fixed
 - fix(bandit): "Model not found in active live catalog" 400 errors now classified as ban-model (PERMANENT) instead of cooldown-model (TRANSIENT); added new pattern to config/bandit.json and made model-not-found errors critical in _isCriticalFailure()

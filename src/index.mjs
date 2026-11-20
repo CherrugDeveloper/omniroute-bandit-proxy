@@ -1145,12 +1145,31 @@ app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
   res.json({ verbose: debugFlag.isEnabled() });
 });
 
+// Simple in-memory cache with TTL for status endpoints
+const statusCache = new Map();
+const STATUS_CACHE_TTL_MS = 5000;
+function getCachedStatus(key) {
+  const entry = statusCache.get(key);
+  if (entry && Date.now() - entry.timestamp < STATUS_CACHE_TTL_MS) {
+    return entry.data;
+  }
+  statusCache.delete(key);
+  return null;
+}
+function setCachedStatus(key, data) {
+  statusCache.set(key, { data, timestamp: Date.now() });
+}
+
 app.get('/v1/config/status', requireAuth, (req, res) => {
-  res.json({
+  const cached = getCachedStatus('config/status');
+  if (cached) return res.json(cached);
+  const data = {
     pricingFilter: bandit.pricingFilter,
     excludeThinking: bandit.excludeThinking,
     exploitOnly: bandit.exploitOnly
-  });
+  };
+  setCachedStatus('config/status', data);
+  res.json(data);
 });
 
 app.post('/v1/config/pricing-filter', requireAuth, express.json(), (req, res) => {
@@ -1182,7 +1201,11 @@ app.post('/v1/config/toggle-bool', requireAuth, express.json(), (req, res) => {
 
 app.get('/v1/training/status', requireAuth, (req, res) => {
   try {
-    res.json(bandit.getTrainingStatus());
+    const cached = getCachedStatus('training/status');
+    if (cached) return res.json(cached);
+    const data = bandit.getTrainingStatus();
+    setCachedStatus('training/status', data);
+    res.json(data);
   } catch (e) {
     slogError("[API] Errore /v1/training/status:", e.message);
     res.status(500).json({ error: e.message });
@@ -1192,6 +1215,8 @@ app.get('/v1/training/status', requireAuth, (req, res) => {
 // Check if training daemon process is running (based on PID file)
 app.get('/v1/training/daemon-status', requireAuth, (req, res) => {
   try {
+    const cached = getCachedStatus('training/daemon-status');
+    if (cached) return res.json(cached);
     const pidFile = path.join(__dirname, "../.train-daemon.pid");
     let isRunning = false;
     let pid = null;
@@ -1209,11 +1234,13 @@ app.get('/v1/training/daemon-status', requireAuth, (req, res) => {
       }
     }
     
-    res.json({ 
-      isRunning, 
+    const data = {
+      isRunning,
       pid: isRunning ? pid : null,
       pidFileExists: fs.existsSync(pidFile)
-    });
+    };
+    setCachedStatus('training/daemon-status', data);
+    res.json(data);
   } catch (e) {
     slogError("[API] Errore /v1/training/daemon-status:", e.message);
     res.status(500).json({ error: e.message });

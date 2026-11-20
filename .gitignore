@@ -26,6 +26,7 @@ package-lock.json
 
 # Temp
 *.bak
+*.save.*
 old_changelog.txt
 .train-daemon.pid
 scripts/.script-output-*.json

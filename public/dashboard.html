@@ -2478,7 +2478,7 @@
         setInterval(() => {
             if (document.hidden) return;
             updateTrainingStatus();
-        }, 3000);
+        }, 15000);
         // === Tabs ===
         document.addEventListener('click', (e) => {
             if (e.target && e.target.id === 'toggle-btn') {
@@ -5119,9 +5119,9 @@
         }, 1000);
         function getPollInterval(pollName) {
             switch (pollName) {
-                case 'refreshAll': return 5000;
-                case 'fetchLogs': return 2000;
-                case 'fetchActive': return 2000;
+                case 'refreshAll': return 10000;
+                case 'fetchLogs': return 5000;
+                case 'fetchActive': return 5000;
                 case 'fetchQuota': return 15000;
                 case 'fetchConsideration': return 5000;
                 default: return 5000;

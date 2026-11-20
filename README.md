@@ -9,7 +9,7 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Automated Punishment System**:
   - **Exponential Backoff**: Models that fail are put on cooldown with increasing durations.
   - **5-Strike Rule**: 5 consecutive critical failures (403/429) lead to a permanent ban.
-  - **Cascade Guards**: Prevents simultaneous banning of entire provider groups; skips ALL punishment when a provider is already on cooldown/circuit/auth-expired to avoid cascade effects.
+  - **Cascade Guards**: Prevents simultaneous banning of entire provider groups; skips ALL punishment when a provider is already on cooldown/circuit/auth-expired or when rejection is due to capability mismatches (non-chat models, no tools support, token limits exceeded, thinking excluded, dynamic max tokens exceeded) to avoid cascade effects.
   - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Error Classification**: Distinguishes between transient (retryable) and permanent errors via configurable patterns.
@@ -29,6 +29,10 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **403 Key limit exceeded**: Now correctly classified as `ban-provider` (PERMANENT) instead of `cooldown-model` (TRANSIENT) when pattern matches "total limit". Fixed by adding `|total limit` to permanent error patterns in `config/bandit.json`.
 - **Cascade guard extended**: Now includes `provider_quota_exhausted` and `provider_needs_attention` to prevent cascade punishments when the proxy is restarted and all providers are simultaneously cooled down.
 - **Model sync reliability**: `fetchAndSyncModels()` timeout increased from 15s to 30s to ensure model catalog synchronization completes during service initialization.
+
+### v0.53.5 Performance Improvements
+- **Reduced polling intervals**: Dashboard training status polling reduced from 3s to 15s; refreshAll from 5s to 10s; fetchLogs and fetchActive from 2s to 5s.
+- **API endpoint caching**: In-memory caching (5s TTL) added for `/v1/config/status`, `/v1/training/status`, and `/v1/training/daemon-status` endpoints to reduce redundant fetches.
 
 ## ⚙️ Installation & Setup
 
