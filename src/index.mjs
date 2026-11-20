@@ -1696,6 +1696,18 @@ app.post("/v1/provider/retry/:p", requireAuth, (req, res) => {
   }
 });
 
+app.post("/v1/reset/config", requireAuth, (req, res) => {
+  try {
+    // Clear all provider attention flags (config state) without touching cooldowns/bans.
+    // This allows the user to manually unblock models that are stuck in "config" state.
+    bandit.clearAllProviderAttention();
+    res.json({ ok: true });
+  } catch (e) {
+    slogError("[API] Errore reset config:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/v1/provider/ignore/:p", requireAuth, (req, res) => {
   try {
     const ok = bandit.ignoreProvider(req.params.p);

@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.6] - 2026-11-20
+### Fixed
+- fix(bandit): added _unflagProviderAttention() method to remove needs_attention flag from providers
+- fix(bandit): extended _checkRehabilitation() to reset needs_attention after rehabilitation period (48h)
+- fix(bandit): added automatic cooldown→config transition for errors requiring user intervention (auth-expired, provider-misconfigured, anti-abuse, safeWrite-init-error, tpm-exceeded)
+- fix(health-check): models in config state (needs_attention=1) are now excluded from automatic health check probes
+- fix(bandit): added attention_timestamp column to provider_history for tracking config state entry time
+### Added
+- feat(api): new POST /v1/reset/config endpoint to manually clear config state for all providers
+- feat(bandit): _unflagProviderAttention() method for programmatic config state removal
+
 ## [0.53.5] - 2026-11-20
 ### Fixed
 - fix(bandit): cascade guard extended with 5 capability-based rejection reasons (non_chat_model_excluded, no_tools_support, max_input_tokens_exceeded, exclude_thinking, dynamic_max_tokens_exceeded) to prevent unnecessary model cooldowns for capability mismatches

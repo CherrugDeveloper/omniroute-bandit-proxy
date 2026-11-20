@@ -34,6 +34,13 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Reduced polling intervals**: Dashboard training status polling reduced from 3s to 15s; refreshAll from 5s to 10s; fetchLogs and fetchActive from 2s to 5s.
 - **API endpoint caching**: In-memory caching (5s TTL) added for `/v1/config/status`, `/v1/training/status`, and `/v1/training/daemon-status` endpoints to reduce redundant fetches.
 
+### v0.53.6 Model State Management Fixes
+- **Config state handling**: Models in "config" state (requiring user intervention) are now properly excluded from automatic health checks, reducing unnecessary probe traffic.
+- **Automatic cooldown→config transition**: Errors requiring user intervention (auth-expired, provider-misconfigured, anti-abuse, safeWrite-init-error, tpm-exceeded) now automatically transition the provider to config state instead of just cooldown.
+- **Automatic rehabilitation**: Providers in config state are automatically re-evaluated after the rehabilitation period (48h default).
+- **Manual config reset**: New `POST /v1/reset/config` endpoint allows users to manually clear config state for all providers.
+- **Database migration**: Added `attention_timestamp` column to `provider_history` table to track when providers enter config state.
+
 ## ⚙️ Installation & Setup
 
 ### Prerequisites

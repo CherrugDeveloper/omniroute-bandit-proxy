@@ -145,6 +145,21 @@ export class HealthChecker {
     return unhealthyModels[0]?.provider;
   }
 
+  _isProviderInConfigState(provider) {
+    // Check if the provider has needs_attention flag set (config state)
+    // This indicates the provider requires user intervention and should be
+    // excluded from automatic health checks.
+    try {
+      const prov = this.bandit.db.prepare(
+        `SELECT needs_attention FROM provider_history WHERE provider = ?`
+      ).get(provider);
+      return prov && Number(prov.needs_attention) === 1;
+    } catch (e) {
+      slogError(`[HEALTH] Errore nel verificare config state per ${provider}: ${e.message}`);
+      return false;
+    }
+  }
+
   async _tickAndReschedule() {
     if (!this.running) return;
     try {
@@ -179,6 +194,12 @@ export class HealthChecker {
       let revived = 0;
       for (const m of candidates) {
         if (!this.running) break;
+        // Skip providers in config state (needs_attention = 1)
+        // These require user intervention and should not be automatically probed
+        if (this._isProviderInConfigState(m.provider)) {
+          if (this.verbose) slogInfo(`[HEALTH] Skip ${m.id}: provider ${m.provider} in config state (needs user intervention)`);
+          continue;
+        }
         // Check if enough time has passed for this provider's interval
         const providerInterval = this.providerIntervals[m.provider] || this.intervalMs;
         const lastCheck = this.lastProviderCheck.get(m.provider) || 0;

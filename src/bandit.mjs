@@ -609,6 +609,18 @@ export class DiscountedUCB1Bandit {
         }
       }
 
+      // Add attention_timestamp column for tracking when provider entered config state
+      const hasAttentionTimestamp = providerColumns.some(col => col.name === "attention_timestamp");
+      if (!hasAttentionTimestamp) {
+        slogInfo("[BANDIT] Migrazione: aggiungo attention_timestamp a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_timestamp REAL DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna attention_timestamp:", err.message);
+          throw err;
+        }
+      }
+
       // Migrazione: total_failures e punishment_log per provider_history
       const hasTotalFailuresProv = providerCols.some(col => col.name === "total_failures");
       if (!hasTotalFailuresProv) {
@@ -1341,6 +1353,18 @@ export class DiscountedUCB1Bandit {
                   ).run(Date.now() + cooldownMs, c.reason, `Model cooldown: ${sanitizedModelId} (${c.reason})`, provider);
                   slogInfo(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model`);
                   logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs, failures: 0 });
+                }
+                
+                // For certain transient errors that require user intervention,
+                // mark the provider as needing attention (config state) instead of
+                // just a regular cooldown. This ensures the model stays in "config"
+                // state until the user explicitly resolves the issue.
+                if (c.reason && /auth-expired|provider-misconfigured|anti-abuse|safeWrite-init-error|tpm-exceeded/i.test(c.reason)) {
+                  // Set provider to config state with 24h cooldown for user to fix
+                  this.db.prepare(
+                    `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ?, attention_timestamp = ? WHERE provider = ?`
+                  ).run(c.reason, `Model requires user intervention: ${c.reason}`, Date.now(), provider);
+                  slogInfo(`[BANDIT-CONSEQUENCE] config-model | model=${modelId} provider=${provider} reason=${c.reason} scope=model - provider set to config state`);
                 }
                 
                 break;
@@ -2228,8 +2252,8 @@ export class DiscountedUCB1Bandit {
 
   _flagProviderAttention(provider, reason, message) {
     this.db.prepare(
-      `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
-    ).run(Date.now() + 24 * 3600000, reason, message, provider);
+      `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ?, attention_timestamp = ? WHERE provider = ?`
+    ).run(Date.now() + 24 * 3600000, reason, message, Date.now(), provider);
   }
 
   resetModel(modelId) {
@@ -2365,11 +2389,28 @@ export class DiscountedUCB1Bandit {
        WHERE permanent = 1 AND banned_since > 0 AND (? - banned_since) > ?`
     ).run(now, period);
     slogInfo(`[HEALTH-REHAB] Permanent ban rehabilitation check completed (period=${period}ms)`);
+
+    // Reset providers flagged for attention (config) after the rehab period
+    // This allows providers whose models required user intervention to be
+    // automatically re-evaluated once the configured period has elapsed.
+    // We use attention_timestamp as the reference timestamp since it is set
+    // when the provider enters config state.
+    this.db.prepare(
+      `UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL
+       WHERE needs_attention = 1 AND attention_timestamp > 0 AND (? - attention_timestamp) > ?`
+    ).run(now, period);
+    slogInfo(`[HEALTH-REHAB] Provider attention reset check completed (period=${period}ms)`);
   }
 
   clearProviderAttention(provider) {
     this.db.prepare(
       `UPDATE provider_history SET needs_attention = 0, attention_reason = '', attention_message = '' WHERE provider = ?`
+    ).run(provider);
+  }
+
+  _unflagProviderAttention(provider) {
+    this.db.prepare(
+      `UPDATE provider_history SET needs_attention = 0, attention_reason = NULL, attention_message = NULL WHERE provider = ?`
     ).run(provider);
   }
 
