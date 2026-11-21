@@ -2279,6 +2279,15 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
     if (clientDisconnected) {
       slogInfo(`[BANDIT] Client disconnesso, stop retry (dopo ${attempt - 1} tentativi)`);
       cleanup();
+      if (!res.writableEnded) {
+        return res.status(499).json({
+          error: {
+            message: "Client disconnected during request processing",
+            status: 499,
+            type: "client_disconnected"
+          }
+        });
+      }
       return;
     }
 

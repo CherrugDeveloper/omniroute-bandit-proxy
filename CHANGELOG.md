@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.12] - 2026-11-21
+### Fixed
+- fix(proxy): aggiunta gestione status 499 per client disconnect durante l'elaborazione della richiesta
+
 ## [0.53.11] - 2026-11-21
 ### Fixed
 - fix(proxy): aggiunta gestione status 499 per client disconnect durante l'elaborazione della richiesta

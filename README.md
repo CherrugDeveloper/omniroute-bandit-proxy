@@ -24,6 +24,10 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Proxy Layer**: Handles HTTP requests, token estimation, and provider-specific API calls.
 - **Event System**: Streams real-time punishment and status events to the dashboard via WebSockets.
 
+### v0.53.12 Client Disconnect Handling
+
+- **HTTP 499 status code**: Added proper handling for client disconnect during request processing. When a client disconnects (status 499), the proxy now returns a structured error response instead of crashing or leaving the request hanging.
+
 ### v0.53.11 Client Disconnect Handling
 
 - **HTTP 499 status code**: Added proper handling for client disconnect during request processing. When a client disconnects (status 499), the proxy now returns a structured error response instead of crashing or leaving the request hanging.
