@@ -42,6 +42,14 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **VS Code Quick Actions**: Added `.vscode/settings.json` with quick actions for restart, free-port, switch-mode, and training operations.
 - **Updated documentation**: `docs/restart-procedure.md` updated with removed scripts notes, dashboard refresh, and VS Code quick actions.
 
+### v0.53.9 True Browser Refresh After Restart
+
+- **Real browser reload**: The dashboard now performs a genuine `location.reload()` after a restart script completes, replacing the previous `curl`-only refresh that left the UI stale.
+- **Helper functions**: Added `isRestartScript()` (detects restart scripts) and `reloadAfterRestart()` (waits for the backend to settle, then reloads the page).
+- **Integrated reload**: `quickAction()` and `executeScript()` now call `reloadAfterRestart()` when a restart script finishes.
+- **"Restart & Refresh" button**: New quick action (`restart-safe.sh -q` + automatic reload) in the quick action box.
+- **Token persistence fix**: The auth token persists in `localStorage` (`omniroute_token`) and is restored after reload, eliminating the 401/token issue that previously appeared post-restart.
+
 ### Prerequisites
 - Node.js 18+
 - npm

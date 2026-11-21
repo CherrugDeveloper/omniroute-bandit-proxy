@@ -1404,6 +1404,7 @@
                 <button class="btn btn-sm" onclick="switchTab('scripts'); streamTrainingLogs();" title="Visualizza i log del training in tempo reale">📊 Log Training</button>
                 <span style="width:1px; height:24px; background:#30363d; margin:0 4px;"></span>
                 <button class="btn btn-sm" onclick='quickAction("restart-safe.sh")' title="Riavvia il servizio proxy">🔄 Restart Service</button>
+                <button class="btn btn-sm" onclick='quickAction("restart-safe.sh", "-q")' title="Riavvia il servizio proxy e ricarica automaticamente la pagina (location.reload) al completamento">🔄↻ Restart & Refresh</button>
                 <button class="btn btn-sm" onclick='quickAction("switch-mode.sh", "prod")' title="Cambia modalità prod">🏭 Mode: Prod</button>
             </div>
         </div>
@@ -2430,7 +2431,11 @@
                         }
                         
                         showToast('✓ ' + actionLabel + ' avviato con successo', 'success');
-                        await pollScriptOutput(result.pid);
+                        await pollScriptOutput(result.pid).then(() => {
+                            if (isRestartScript(scriptName)) {
+                                reloadAfterRestart(scriptName);
+                            }
+                        });
                         
                     } catch (e) {
                         if (e.message.includes('Failed to fetch') || e.message.includes('network') || e.message.includes('ECONNREFUSED')) {
@@ -5963,6 +5968,24 @@
             'wrapper-test.sh': 'Script wrapper per l’esecuzione dei test in ambiente controllato.'
         };
 
+        // Helper: identify restart scripts that require a browser refresh after completion
+        function isRestartScript(scriptName) {
+            if (!scriptName) return false;
+            const name = scriptName.toLowerCase();
+            return name === 'restart-safe.sh' || name.includes('restart');
+        }
+
+        // Helper: reload the browser after a restart script completes
+        // Waits briefly to ensure the backend is fully ready before reloading
+        function reloadAfterRestart(scriptName) {
+            console.log('[Restart] Script', scriptName, 'completed — scheduling browser reload');
+            showToast('🔄 Riavvio completato, ricarica pagina in corso...', 'success');
+            // Small delay to let the backend settle and flush any pending writes
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        }
+
         function renderScripts() {
             const tbody = document.getElementById('scripts-tbody');
             const filter = document.getElementById('script-filter')?.value.toLowerCase() || '';
@@ -6051,8 +6074,12 @@
                     throw new Error(result.error || `Errore HTTP ${res.status}`);
                 }
                 
-                // Poll for completion
-                await pollScriptOutput(result.pid);
+                // Poll for completion and reload after restart scripts
+                await pollScriptOutput(result.pid).then(() => {
+                    if (isRestartScript(scriptName)) {
+                        reloadAfterRestart(scriptName);
+                    }
+                });
                 
             } catch (e) {
                 status.innerHTML = `<span style="color:#f85149;">✗ Errore: ${escapeHtml(e.message)}</span>`;

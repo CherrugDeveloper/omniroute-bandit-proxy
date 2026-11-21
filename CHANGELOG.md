@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.9] - 2026-11-21
+### Fixed
+- fix(dashboard): implementato vero refresh del browser (`location.reload()`) al completamento degli script di restart, sostituendo il precedente refresh solo via `curl` che non aggiornava la UI
+- fix(dashboard): risolto problema 401/token dopo restart — il token persiste in `localStorage` (`omniroute_token`) e viene ripristinato automaticamente dopo il reload
+
+### Added
+- feat(dashboard): nuove funzioni helper `isRestartScript()` (identifica gli script di restart) e `reloadAfterRestart()` (attende il settle del backend e ricarica la pagina)
+- feat(dashboard): `quickAction()` e `executeScript()` ora invocano `reloadAfterRestart()` al termine degli script di restart
+- feat(dashboard): nuovo pulsante "Restart & Refresh" nella quick action box (`restart-safe.sh -q` + reload automatico)
+
 ## [0.53.8] - 2026-11-21
 ### Removed
 - chore(scripts): eliminato `scripts/restart.sh` (obsoleto, race condition su porta 8080)

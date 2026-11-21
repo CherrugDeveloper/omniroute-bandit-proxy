@@ -182,3 +182,21 @@ sudo systemctl daemon-reexec
 - Modifiche recenti: priorità systemd system prima di user, rilevamento binding multi-metodo (nc/ss/lsof), monitoraggio stato failed immediato e ritardato
 - **Nuova funzionalità**: `restart-safe.sh` ora include un refresh automatico della dashboard dopo il riavvio del backend
 - **Quick Actions VS Code**: configurate in `.vscode/settings.json` per accesso rapido alle operazioni comuni
+
+## Vero Refresh del Browser dopo Restart (v0.53.9)
+
+A partire dalla versione **0.53.9** la dashboard esegue un **vero refresh del browser** al termine degli script di restart, sostituendo il precedente refresh solo lato backend (`curl /v1/dashboard/stats`) che non aggiornava l'interfaccia.
+
+### Come funziona
+
+1. **`isRestartScript(scriptName)`** — identifica gli script di restart (`restart-safe.sh` o nomi contenenti `restart`).
+2. **`reloadAfterRestart(scriptName)`** — mostra un toast di conferma, attende ~1.5s per permettere al backend di stabilizzarsi e poi esegue `location.reload()`.
+3. **`quickAction()` e `executeScript()`** — al completamento di uno script di restart invocano `reloadAfterRestart()`, garantendo che la UI si ricarichi con lo stato aggiornato.
+
+### Pulsante "Restart & Refresh"
+
+Nella quick action box della dashboard è disponibile il pulsante **🔄↻ Restart & Refresh**, che esegue `restart-safe.sh -q` e ricarica automaticamente la pagina al completamento.
+
+### Persistenza del token (fix 401)
+
+Il token di autenticazione è salvato in `localStorage` con la chiave `omniroute_token` e viene ripristinato automaticamente dopo il reload. Questo elimina il problema **401/token** che si presentava in precedenza dopo un restart, quando la pagina non veniva realmente ricaricata e il token risultava non valido o assente.
