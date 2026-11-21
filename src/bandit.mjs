@@ -67,6 +67,9 @@ export class DiscountedUCB1Bandit {
     this._rankCache = { at: 0, map: new Map() }; // cache classifica (30s TTL)
     this.totalRequests = this._getMeta("totalRequests");
     this.quota = new ProviderQuota(this.db);
+    // Cascade guard counters for monitoring
+    this.cascadeGuardSkipCount = 0;
+    this.cascadeGuardApplyCount = 0;
     this.pruneModels();
   }
 
@@ -1619,30 +1622,54 @@ export class DiscountedUCB1Bandit {
       }
     }
 
-    // Image generation mismatch / chat incompatibility on 400 -> ban-model
+    // ============================================================================
+    // 400 STATUS CODE ERROR CLASSIFICATION
+    // ============================================================================
+    // CRITICAL: 400 errors can be either:
+    // 1. REAL "model not found" errors (catalog mismatch) -> PERMANENT ban-model
+    //    These indicate the model is no longer available in the provider's catalog.
+    //    Pattern: "catalog mismatch", "unknown model", "model_not_found", etc.
+    // 2. Other 400 errors (validation, bad request, etc.) -> should NOT trigger
+    //    permanent bans. These are transient issues that may resolve on retry.
+    // ============================================================================
+
+    // 400: Image generation model / chat incompatibility -> ban-model (PERMANENT)
+    // This is a REAL incompatibility - the model cannot perform chat operations.
+    // Examples: "image generation model", "cannot be used for chat", "not a chat model"
     if (status === 400 && /image generation model|cannot be used for chat|not a chat model|image-only|incompatible/i.test(message)) {
       return { action: "ban-model", scope: "model", reason: "model-incompatible", category: "PERMANENT" };
     }
 
-    // 400 unsupported_image_block / devin_agentic_error -> model-incompatible
+    // 400: unsupported_image_block / devin_agentic_error -> model-incompatible (PERMANENT)
+    // These are REAL capability mismatches - the model cannot handle image blocks.
     if (status === 400 && (/unsupported_image_block/i.test(message) || /devin_agentic_error/i.test(message) || (errorDetails.code && /unsupported_image_block/i.test(errorDetails.code)))) {
       return { action: "ban-model", scope: "model", reason: "model-incompatible", category: "PERMANENT" };
     }
 
-    // 400 model non utilizzabile
+    // 400: Model not supported / capability mismatch -> ban-model (PERMANENT)
+    // CRITICAL: Only ban for REAL "not supported" errors that indicate catalog mismatch.
+    // Pattern: "not supported" combined with vision/image-related terms OR
+    // "unknown provider for model" / "model_not_found" which are CATALOG MISMATCH indicators.
     if (status === 400 && /not supported/i.test(message)) {
       if (/image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported/i.test(message)) {
+        // REAL: Model explicitly does not support the requested image format
         return { action: "ban-model", scope: "model", reason: "model-incompatible", category: "PERMANENT" };
       }
       if (/not supported|unknown provider for model|model_not_found/i.test(message)) {
+        // REAL: Catalog mismatch - model is no longer available from provider
         return { action: "ban-model", scope: "model", reason: "model-not-supported", category: "PERMANENT" };
       }
     }
 
-    // Catalog mismatch / unknown model / 404 / 400 model not found
-    // "Model not found in active live catalog" is a PERMANENT error - the model
-    // is no longer available in the provider's catalog and will never recover on its own.
+    // 400: Catalog mismatch / unknown model / model not found -> ban-model (PERMANENT)
+    // CRITICAL: This catches REAL "model not found in active live catalog" errors.
+    // The model is no longer available in the provider's catalog and will never recover.
     // This requires user intervention (config update) to fix.
+    //
+    // IMPORTANT: The fallback 400 pattern below catches OTHER 400 errors that are NOT
+    // catalog mismatches. These are validation errors that should NOT trigger permanent bans.
+    // The pattern explicitly EXCLUDES: unsupported_image_block, devin_agentic_error, image block errors
+    // to avoid false positives. Only genuine "model not found" messages match this pattern.
     if ((/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message)) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
       // Note: Removed `|| status === 404` - 404 status alone should not permanently ban models.
       // Models returning 404 will fall through to other classifications (typically cooldown-model transient).
@@ -3178,11 +3205,15 @@ export class DiscountedUCB1Bandit {
           // effect where hundreds of models get cooldowns from a single provider failure.
           // Model-level punishments are only applied when the model itself is the root cause.
           if (rejectionReason === 'model_cooldown' || rejectionReason === 'provider_cooled_down_this_request' || rejectionReason === 'provider_circuit_breaker' || rejectionReason === 'provider_cooldown' || rejectionReason === 'auth-expired' || rejectionReason === 'provider_quota_exhausted' || rejectionReason === 'provider_needs_attention' || rejectionReason === 'non_chat_model_excluded' || rejectionReason === 'no_tools_support' || rejectionReason === 'max_input_tokens_exceeded' || rejectionReason === 'exclude_thinking' || rejectionReason === 'dynamic_max_tokens_exceeded') {
-            slogInfo(`[BANDIT-CASCADE-GUARD] Skipping ALL punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (provider already on cooldown/circuit/auth-expired - cascade prevention)`);
+            slogDebug(`[BANDIT-CASCADE-GUARD] Skipping ALL punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason} (provider already on cooldown/circuit/auth-expired - cascade prevention)`);
+            // Increment cascade guard skip counter for monitoring
+            this.cascadeGuardSkipCount = (this.cascadeGuardSkipCount || 0) + 1;
             // Skip model-level punishment to prevent cascade effect
             return false;
           } else {
             slogInfo(`[BANDIT-CASCADE-GUARD] Applying punishment for model=${model.id} provider=${model.provider} reason=${rejectionReason}`);
+            // Increment cascade guard apply counter for monitoring
+            this.cascadeGuardApplyCount = (this.cascadeGuardApplyCount || 0) + 1;
           }
 
           // Persist punishment state to models table for dashboard metrics

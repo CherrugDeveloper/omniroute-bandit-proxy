@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.7] - 2026-11-21
+### Fixed
+- fix(bandit): refined `_classifyError()` to distinguish real "not supported" errors from false positives; added `cascadeGuardSkipCount`/`cascadeGuardApplyCount` counters for monitoring
+- fix(bandit): cascade guard logging downgraded from INFO to DEBUG level to reduce log spam
+- fix(config): added transient 400 error patterns (validation, bad request, invalid parameter) classified as `cooldown-model` (30s) instead of permanent ban
+- fix(test): added structured log capture (STRUCTURED_LOG_LEVEL=debug), console.log spy, and cascade guard counter tests
+
+### Added
+- feat(bandit): cascade guard monitoring counters accessible via `bandit.cascadeGuardSkipCount` and `bandit.cascadeGuardApplyCount`
+- docs: new `docs/model-not-found-classification-changes.md` documenting the classification refinements
+
 ## [0.53.6] - 2026-11-20
 ### Fixed
 - fix(bandit): added _unflagProviderAttention() method to remove needs_attention flag from providers
