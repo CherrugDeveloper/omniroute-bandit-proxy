@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.11] - 2026-11-21
+### Fixed
+- fix(proxy): aggiunta gestione status 499 per client disconnect durante l'elaborazione della richiesta
+
 ## [0.53.10] - 2026-11-21
 ### Fixed
 - fix(bandit): 5-strike paid-group-ban ora imposta solo `needs_attention = 1` su provider_history (non più `permanent = 1`), isolando il ban al singolo modello

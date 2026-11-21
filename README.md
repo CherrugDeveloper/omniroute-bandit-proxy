@@ -24,31 +24,9 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Proxy Layer**: Handles HTTP requests, token estimation, and provider-specific API calls.
 - **Event System**: Streams real-time punishment and status events to the dashboard via WebSockets.
 
-### Error Classification Fixes (v0.53.4)
+### v0.53.11 Client Disconnect Handling
 
-- **403 Key limit exceeded**: Now correctly classified as `ban-provider` (PERMANENT) instead of `cooldown-model` (TRANSIENT) when pattern matches "total limit". Fixed by adding `|total limit` to permanent error patterns in `config/bandit.json`.
-- **Cascade guard extended**: Now includes `provider_quota_exhausted` and `provider_needs_attention` to prevent cascade punishments when the proxy is restarted and all providers are simultaneously cooled down.
-- **Model sync reliability**: `fetchAndSyncModels()` timeout increased from 15s to 30s to ensure model catalog synchronization completes during service initialization.
-
-### v0.53.5 Performance Improvements
-
-- **Reduced polling intervals**: Dashboard training status polling reduced from 3s to 15s; refreshAll from 5s to 10s; fetchLogs and fetchActive from 2s to 5s.
-- **API endpoint caching**: In-memory caching (5s TTL) added for `/v1/config/status`, `/v1/training/status`, and `/v1/training/daemon-status` endpoints to reduce redundant fetches.
-
-### v0.53.8 Restart Scripts Optimization
-
-- **Removed obsolete scripts**: Deleted `scripts/restart.sh` (race condition on port 8080) and `scripts/restart-restart.sh` (redundant wrapper).
-- **Enhanced `restart-safe.sh`**: Added automatic dashboard refresh after backend restart via `curl /v1/dashboard/stats`.
-- **VS Code Quick Actions**: Added `.vscode/settings.json` with quick actions for restart, free-port, switch-mode, and training operations.
-- **Updated documentation**: `docs/restart-procedure.md` updated with removed scripts notes, dashboard refresh, and VS Code quick actions.
-
-### v0.53.9 True Browser Refresh After Restart
-
-- **Real browser reload**: The dashboard now performs a genuine `location.reload()` after a restart script completes, replacing the previous `curl`-only refresh that left the UI stale.
-- **Helper functions**: Added `isRestartScript()` (detects restart scripts) and `reloadAfterRestart()` (waits for the backend to settle, then reloads the page).
-- **Integrated reload**: `quickAction()` and `executeScript()` now call `reloadAfterRestart()` when a restart script finishes.
-- **"Restart & Refresh" button**: New quick action (`restart-safe.sh -q` + automatic reload) in the quick action box.
-- **Token persistence fix**: The auth token persists in `localStorage` (`omniroute_token`) and is restored after reload, eliminating the 401/token issue that previously appeared post-restart.
+- **HTTP 499 status code**: Added proper handling for client disconnect during request processing. When a client disconnects (status 499), the proxy now returns a structured error response instead of crashing or leaving the request hanging.
 
 ### v0.53.10 Cascade Ban Prevention & Timeout Increase
 
