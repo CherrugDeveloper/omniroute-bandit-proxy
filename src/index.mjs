@@ -1995,7 +1995,8 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // Timeout proporzionale: contesti grandi → prefill più lungo.
   // Scala linearmente (100k = 2x, 200k+ = 3x, cap 3x).
   // Clamp to minimum 1ms to prevent TimeoutNegativeWarning
-  const baseTimeout = Math.max(1, parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 20000);
+  // Increased default from 20000ms to 60000ms to accommodate slower models like qwen3-coder-next
+  const baseTimeout = Math.max(1, parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000);
   const tokenScale = Math.max(1, Math.min(3, Math.ceil((estimatedTokens || 0) / 100000)));
   const upstreamTimeoutMs = baseTimeout * tokenScale;
   if (tokenScale > 1 && isDebugVerbose()) {

@@ -50,6 +50,16 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **"Restart & Refresh" button**: New quick action (`restart-safe.sh -q` + automatic reload) in the quick action box.
 - **Token persistence fix**: The auth token persists in `localStorage` (`omniroute_token`) and is restored after reload, eliminating the 401/token issue that previously appeared post-restart.
 
+### v0.53.10 Cascade Ban Prevention & Timeout Increase
+
+- **5-strike paid-group-ban isolation**: The 5-strike rule for paid models now sets only `needs_attention = 1` on `provider_history` (not `permanent = 1`), isolating the ban to the individual model and preventing cascade bans across the entire provider group.
+- **Permanent ban escalation isolation**: When a model escalates to permanent ban via `totalFailures`, the provider is now flagged with `needs_attention = 1` only (not `permanent = 1`), preventing provider-wide cascade bans.
+- **Model-not-found classification refinement**: Removed `"not found"` from the model-not-found pattern — a 404 status alone no longer triggers a permanent ban; such errors fall through to transient classifications (cooldown-model).
+- **403 key-limit-exceeded pattern fix**: Removed `"403|"` from the permanent error pattern for key-limit-exceeded — a bare 403 status is no longer a trigger for permanent `ban-provider`; the pattern now requires specific phrases (lifetime limit, total limit, never resets, etc.).
+- **Upstream timeout increase**: Default `UPSTREAM_TIMEOUT_MS` increased from 20,000ms to 60,000ms to accommodate slower models (e.g., `qwen3-coder-next`).
+- **Restart script `--no-refresh` flag**: New `--no-refresh` / `-n` option for `restart-safe.sh` to skip the automatic dashboard refresh.
+- **Improved dashboard refresh**: `restart-safe.sh` now uses `wmctrl`/`xdotool`/`xdg-open` for a true browser refresh (F5 key press) instead of a simple `curl` call.
+
 ### Prerequisites
 - Node.js 18+
 - npm

@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.10] - 2026-11-21
+### Fixed
+- fix(bandit): 5-strike paid-group-ban ora imposta solo `needs_attention = 1` su provider_history (non più `permanent = 1`), isolando il ban al singolo modello
+- fix(bandit): escalation permanent-ban su singolo modello ora imposta solo `needs_attention = 1` su provider_history (non più `permanent = 1`), prevenendo ban a cascata su provider
+- fix(bandit): rimosso "not found" dal pattern model-not-found — 404 status da solo non banna più permanentemente i modelli; cadono in classificazioni transient (cooldown-model)
+- fix(config): rimosso "403|" dal pattern permanent error per key-limit-exceeded — 403 da solo non è più trigger per ban-provider permanente; serve frase specifica (lifetime limit, total limit, ecc.)
+- fix(proxy): aumentato default UPSTREAM_TIMEOUT_MS da 20000ms a 60000ms per supportare modelli più lenti (es. qwen3-coder-next)
+
+### Added
+- feat(scripts): nuovo flag `--no-refresh` / `-n` per `restart-safe.sh` per disabilitare il refresh automatico della dashboard
+- feat(scripts): refresh dashboard migliorato con wmctrl/xdotool/xdg-open per vero refresh browser (F5) invece di solo curl
+
 ## [0.53.9] - 2026-11-21
 ### Fixed
 - fix(dashboard): implementato vero refresh del browser (`location.reload()`) al completamento degli script di restart, sostituendo il precedente refresh solo via `curl` che non aggiornava la UI

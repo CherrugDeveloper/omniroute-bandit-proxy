@@ -1445,18 +1445,28 @@ export class DiscountedUCB1Bandit {
             const isPaidModel = modelRow && modelRow.is_paid === 1;
             
             if (isPaidModel) {
-              // PUNISH ENTIRE PAID SUB-GROUP: Ban all paid models from this provider
-              // Cascade guard: Only ban if this is not a cascade reaction (simple check for now)
+              // PUNISH ONLY THE INDIVIDUAL MODEL (not the entire paid sub-group)
+              // Isolate ban to the single model to avoid cascading bans across all paid models
+              const existing = this.db.prepare("SELECT id FROM models WHERE id = ?").get(sanitizedModelId);
+              if (!existing) {
+                // New model: insert with default metrics (N=0, sum_reward=0, fails=0, etc.)
+                this.db.prepare(
+                  `INSERT INTO models (id, provider, permanent, banned_since, N, sum_reward, fails, cooldown_until, last_used_index, consecutive_critical_failures, total_failures, consecutive_5xx, degraded, is_paid)
+                   VALUES (?, ?, 1, ?, 0, 0, 0, 0, 0, ?, 0, 0, 0, 0)`
+                ).run(sanitizedModelId, provider, Date.now(), newConsecutiveCritical);
+              } else {
+                // Existing model: only update ban-related columns, preserve all metrics
+                this.db.prepare(
+                  `UPDATE models SET permanent = 1, banned_since = ?, consecutive_critical_failures = ?, cooldown_until = 0 WHERE id = ?`
+                ).run(Date.now(), newConsecutiveCritical, sanitizedModelId);
+              }
+              // Sync provider_history: mark provider as needing attention when individual model is permanently banned
+              // Do NOT set provider_history.permanent = 1 - isolate ban to individual model only
               this.db.prepare(
-                `UPDATE models SET permanent = 1, banned_since = ?, cooldown_until = 0, consecutive_critical_failures = ?
-                 WHERE provider = ? AND is_paid = 1 AND permanent = 0`
-              ).run(Date.now(), newConsecutiveCritical, provider);
-              // Sync provider_history: mark provider as permanently banned when paid group is banned
-              this.db.prepare(
-                `UPDATE provider_history SET permanent = 1, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
-              ).run('paid-group-ban', `5-strike paid-group ban on provider=${provider}`, provider);
-              slogInfo(`[BANDIT-5STRIKE] PAID-GROUP-BAN | provider=${provider} | 5 consecutive critical failures on paid model=${modelId} | permanent ban applied to ALL paid models in provider | total_critical=${newConsecutiveCritical} | STATUS_CODE=${statusCode}`);
-              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_PAID_GROUP, provider, modelId, reason: '5-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
+                `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+              ).run('5-strike-permanent-ban', `Model permanently banned: ${sanitizedModelId} (5-strike-rule)`, provider);
+              slogInfo(`[BANDIT-5STRIKE] PERMANENT-BAN | model=${modelId} provider=${provider} | 5 consecutive critical failures detected | total_critical=${newConsecutiveCritical} | reason=5-strike-rule | STATUS_CODE=${statusCode}`);
+              logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: '5-strike-rule', cooldownMs: 0, failures: newConsecutiveCritical, consecutive: newConsecutiveCritical });
             } else {
               // Non-paid model: just ban the individual model
               // Use INSERT OR REPLACE for new models, UPDATE preserves metrics for existing models
@@ -1505,9 +1515,10 @@ export class DiscountedUCB1Bandit {
             this.db.prepare(
               `UPDATE models SET permanent = 1, banned_since = ? WHERE id = ?`
             ).run(Date.now(), sanitizedModelId);
-            // Sync provider_history: mark provider as permanently banned when model escalates to permanent ban
+            // Sync provider_history: mark provider as needing attention when model escalates to permanent ban
+            // Isolate ban to individual model - do NOT set provider_history.permanent = 1
             this.db.prepare(
-              `UPDATE provider_history SET permanent = 1, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+              `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
             ).run('escalation-permanent-ban', `Model escalated to permanent ban: ${sanitizedModelId} (totalFailures=${totalFailures})`, provider);
             slogInfo(`[BANDIT-CONSEQUENCE] permanent-ban | model=${modelId} provider=${provider} reason=escalation totalFailures=${totalFailures} scope=model`);
           logPunishment({ bandit: this, type: EVENT_TYPES.BAN_MODEL, provider, modelId: sanitizedModelId, reason: 'escalation', cooldownMs: 0, failures: totalFailures });
@@ -1670,7 +1681,7 @@ export class DiscountedUCB1Bandit {
     // catalog mismatches. These are validation errors that should NOT trigger permanent bans.
     // The pattern explicitly EXCLUDES: unsupported_image_block, devin_agentic_error, image block errors
     // to avoid false positives. Only genuine "model not found" messages match this pattern.
-    if ((/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message)) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
+    if ((/catalog mismatch|unknown model|model_not_found|does not exist|no longer available|invalid model|not available in active live catalog/i.test(message)) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
       // Note: Removed `|| status === 404` - 404 status alone should not permanently ban models.
       // Models returning 404 will fall through to other classifications (typically cooldown-model transient).
       // If the message matches the config pattern in bandit.json, it will still be classified as ban-model permanent.

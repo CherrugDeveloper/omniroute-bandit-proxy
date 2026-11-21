@@ -6,15 +6,20 @@
 # (configurato in /etc/pam.d/sudo tramite pam_exec face-auth)
 # ============================================================
 # Uso:
-#   ./scripts/restart-safe.sh           # restart sicuro completo
-#   ./scripts/restart-safe.sh -f        # restart + follow logs
-#   ./scripts/restart-safe.sh -q        # restart silenzioso
+#   ./scripts/restart-safe.sh                  # restart sicuro completo + refresh dashboard
+#   ./scripts/restart-safe.sh -f               # restart + follow logs
+#   ./scripts/restart-safe.sh -q               # restart silenzioso + refresh dashboard
+#   ./scripts/restart-safe.sh --no-refresh     # restart senza refresh browser
+#   ./scripts/restart-safe.sh -n               # alias per --no-refresh
+#   ./scripts/restart-safe.sh --help           # mostra questo aiuto
 # ============================================================
 
 set -euo pipefail
 SERVICE="omniroute-bandit-proxy.service"
 HOST="127.0.0.1"
 PORT="8080"
+DASHBOARD_URL="http://127.0.0.1:8080/dashboard"
+NO_REFRESH=false
 
 # Determina se abbiamo bisogno di sudo (utente non root)
 NEED_SUDO=false
@@ -502,10 +507,49 @@ restart_safe() {
   # Mostra ultimi log (ultima ora per evitare log storici)
   run_journalctl -u "$SERVICE" --since "1 hour ago" -n 15 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 15 --no-pager 2>/dev/null || true
   
-  # Refresh dashboard after backend restart
-  echo "→ Refreshing dashboard..."
-  curl -s -H "x-api-token: ${DASHBOARD_TOKEN:-}" http://127.0.0.1:8080/v1/dashboard/stats > /dev/null 2>&1 || true
-  echo "✓ Dashboard refresh completato"
+  # Refresh dashboard after backend restart (se non disabilitato)
+  if [ "$NO_REFRESH" != true ]; then
+    refresh_dashboard
+  fi
+}
+
+refresh_dashboard() {
+  local dashboard_url="http://127.0.0.1:8080/dashboard"
+  
+  echo "→ Refresh della dashboard..."
+  
+  # 1. Cerca di attivare la finestra esistente e inviare F5 (vero refresh)
+  if command -v wmctrl >/dev/null 2>&1; then
+    # Cerca una finestra con "dashboard" o "omniroute" nel titolo
+    local window_id=$(wmctrl -l 2>/dev/null | grep -i "dashboard\|omniroute" | head -1 | awk '{print $1}')
+    if [ -n "$window_id" ]; then
+      echo "  Trovata finestra dashboard (ID: $window_id), attivazione e invio F5..."
+      wmctrl -a "$window_id" 2>/dev/null || true
+      # Invia F5 alla finestra attiva
+      if command -v xdotool >/dev/null 2>&1; then
+        xdotool key --window "$window_id" F5 2>/dev/null || true
+        echo "  ✓ F5 inviato via xdotool"
+      elif command -v xte >/dev/null 2>&1; then
+        xte "key F5" 2>/dev/null || true
+        echo "  ✓ F5 inviato via xte"
+      else
+        echo "  ⚠ Nessun tool per inviare F5, solo attivazione finestra"
+      fi
+      return 0
+    fi
+  fi
+  
+  # 2. Fallback: usa xdg-open per aprire la dashboard (se già aperta, molti browser fanno refresh)
+  if command -v xdg-open >/dev/null 2>&1; then
+    echo "  Apertura dashboard con xdg-open..."
+    xdg-open "$dashboard_url" >/dev/null 2>&1 || true
+    echo "  ✓ Dashboard aperta/refreshata via xdg-open"
+    return 0
+  fi
+  
+  # 3. Nessun tool disponibile: non fallire, solo avvisa
+  echo "⚠ Nessun tool disponibile per il refresh della dashboard (wmctrl/xdg-open non trovati)"
+  return 0
 }
 
 follow_logs() {
@@ -528,6 +572,22 @@ case "${1:-}" in
     restart_safe
     echo ""
     follow_logs
+    ;;
+  --no-refresh|-n)
+    NO_REFRESH=true
+    restart_safe
+    exit 0
+    ;;
+  --help|-h)
+    echo "Uso: $0 [opzioni]"
+    echo ""
+    echo "Opzioni:"
+    echo "  (nessuna)       Riavvio sicuro completo + refresh dashboard"
+    echo "  -q, --quiet     Riavvio silenzioso + refresh dashboard"
+    echo "  -f, --follow    Riavvio + follow logs"
+    echo "  -n, --no-refresh  Riavvio senza refresh browser"
+    echo "  -h, --help      Mostra questo aiuto"
+    exit 0
     ;;
   *)
     restart_safe
