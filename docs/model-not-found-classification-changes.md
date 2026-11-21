@@ -6,6 +6,7 @@
 - [`src/bandit.mjs`](src/bandit.mjs) - Cambiamenti al logging e ai contatori
 - [`config/bandit.json`](config/bandit.json) - Nuovi pattern per errori 400 transient
 - [`__tests__/model-not-found-classification.test.js`](__tests__/model-not-found-classification.test.js) - Aggiornamenti test
+- [`scripts/monitor-punishment.mjs`](scripts/monitor-punishment.mjs) - Nuovo script di monitoraggio
 
 ### Modifiche Specifiche
 
@@ -54,6 +55,27 @@
    - Test "cascade guard apply counter is incremented when punishment is applied"
    - Test "cascade guard counters increment correctly across multiple operations"
 
+#### Nuovo Script: scripts/monitor-punishment.mjs
+
+1. **Monitoraggio avanzato**: Fornisce report dettagliati su ban e cooldown
+   - Statistiche sui modelli (totali, attivi, in cooldown, bannati)
+   - Stato dei provider con motivi specifici
+   - Statistiche del catalogo (vision, tools, vision+tools)
+   - Supporto per modalità watch (aggiornamento ogni 30 secondi)
+   - Output in formato JSON per integrazione con sistemi esterni
+
+2. **Utilizzo**:
+   ```bash
+   # Report singolo
+   node scripts/monitor-punishment.mjs
+   
+   # Modalità watch (aggiornamento ogni 30s)
+   node scripts/monitor-punishment.mjs --watch
+   
+   # Output JSON
+   node scripts/monitor-punishment.mjs --format json
+   ```
+
 ## 2. Istruzioni per il Riavvio Sicuro del Servizio
 
 ### Prima del Riavvio
@@ -66,6 +88,11 @@
 2. Controlla che il database sia in uno stato consistente:
    ```bash
    node scripts/check-db.mjs
+   ```
+
+3. Verifica lo stato attuale dei ban:
+   ```bash
+   node scripts/monitor-punishment.mjs
    ```
 
 ### Riavvio
@@ -91,6 +118,11 @@ Per seguire i log dopo il riavvio:
 
 3. Controlla che il cascade-guard ora logghi a livello DEBUG invece di INFO
 
+4. Verifica lo stato dei ban con il nuovo script:
+   ```bash
+   node scripts/monitor-punishment.mjs
+   ```
+
 ## 3. Monitoraggio Consigliato
 
 Dopo il riavvio, monitora:
@@ -107,6 +139,11 @@ Dopo il riavvio, monitora:
 - **Errori 400** per verificare che i nuovi pattern transient funzionino correttamente
   - Errori di validazione ora causano cooldown-model invece di ban permanente
   - Verifica che i messaggi contengano "transient-400-error" come reason
+
+- **Nuovo script di monitoraggio** per un'analisi completa:
+  ```bash
+  node scripts/monitor-punishment.mjs
+  ```
 
 ## 4. Rollback (se necessario)
 
@@ -166,3 +203,62 @@ Oppure tramite lo script di ispezione:
 
 ```bash
 node scripts/inspect-summary.mjs
+```
+
+### Nuovo Script di Monitoraggio
+
+Per un monitoraggio avanzato dei ban e cooldown:
+
+```bash
+# Report dettagliato
+node scripts/monitor-punishment.mjs
+
+# Modalità watch (aggiornamento ogni 30 secondi)
+node scripts/monitor-punishment.mjs --watch
+
+# Output JSON per integrazione
+node scripts/monitor-punishment.mjs --format json
+```
+
+## 6. Sistema 5-Strike e Exponential Backoff
+
+### 5-Strike System
+
+Il sistema utilizza 5 errori critici consecutivi per determinare il ban permanente:
+
+**Errori Critici** (incrementano il contatore):
+- 403 con "account disabled|banned|suspended"
+- Model not found nel catalogo ("catalog mismatch|model_not_found|does not exist")
+- SSE errors ("SSE contains error|stream error")
+- 402 con "insufficient|funds|credit|payment"
+
+**Errori NON Critici** (non incrementano il contatore):
+- Timeout errors
+- safeWrite errors
+- Rate limit (429)
+
+### Exponential Backoff
+
+I cooldown vengono applicati in modo esponenziale:
+
+| Fallimenti | Cooldown |
+|------------|----------|
+| 0 | nessuno |
+| 1 | 30 secondi |
+| 2 | 2 minuti |
+| 3 | 5 minuti |
+| 4 | 15 minuti |
+| 5 | 30 minuti |
+| 6 | 1 ora |
+| 7 | 2 ore |
+| 8 | 6 ore |
+| 9 | 12 ore |
+| 10+ | ban permanente |
+
+### Cascade Ban Prevention (v0.53.10)
+
+- 5-strike paid-group-ban: Imposta `needs_attention = 1` su `provider_history` (NON `permanent = 1`)
+- Escalation permanent-ban: Imposta `needs_attention = 1` su `provider_history` (NON `permanent = 1`)
+- Model-not-found: Il bare 404 status non triggera ban permanente
+- 403 key-limit-exceeded: Richiede frasi specifiche (non bare "403|")
+- Timeout aumentato: `UPSTREAM_TIMEOUT_MS` da 20000ms a 60000ms
