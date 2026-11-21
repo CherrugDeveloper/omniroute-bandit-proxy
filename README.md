@@ -31,9 +31,16 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Model sync reliability**: `fetchAndSyncModels()` timeout increased from 15s to 30s to ensure model catalog synchronization completes during service initialization.
 
 ### v0.53.5 Performance Improvements
+
 - **Reduced polling intervals**: Dashboard training status polling reduced from 3s to 15s; refreshAll from 5s to 10s; fetchLogs and fetchActive from 2s to 5s.
 - **API endpoint caching**: In-memory caching (5s TTL) added for `/v1/config/status`, `/v1/training/status`, and `/v1/training/daemon-status` endpoints to reduce redundant fetches.
 
+### v0.53.8 Restart Scripts Optimization
+
+- **Removed obsolete scripts**: Deleted `scripts/restart.sh` (race condition on port 8080) and `scripts/restart-restart.sh` (redundant wrapper).
+- **Enhanced `restart-safe.sh`**: Added automatic dashboard refresh after backend restart via `curl /v1/dashboard/stats`.
+- **VS Code Quick Actions**: Added `.vscode/settings.json` with quick actions for restart, free-port, switch-mode, and training operations.
+- **Updated documentation**: `docs/restart-procedure.md` updated with removed scripts notes, dashboard refresh, and VS Code quick actions.
 
 ### Prerequisites
 - Node.js 18+

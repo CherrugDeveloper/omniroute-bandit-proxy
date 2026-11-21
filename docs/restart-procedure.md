@@ -178,5 +178,7 @@ sudo systemctl daemon-reexec
 - PID attuale corretto: 286599 (verificato)
 - Porta 8080 occupata correttamente dal servizio
 - Non usare mai `systemctl restart` diretto → usa `restart-safe.sh`
-- Script `restart.sh` è obsoleto e mantenuto solo per retrocompatibilità; usare esclusivamente `restart-safe.sh` per evitare race condition su porta 8080
+- Script `restart.sh` e `restart-restart.sh` sono stati rimossi (obsoleti); usare esclusivamente `restart-safe.sh` per evitare race condition su porta 8080
 - Modifiche recenti: priorità systemd system prima di user, rilevamento binding multi-metodo (nc/ss/lsof), monitoraggio stato failed immediato e ritardato
+- **Nuova funzionalità**: `restart-safe.sh` ora include un refresh automatico della dashboard dopo il riavvio del backend
+- **Quick Actions VS Code**: configurate in `.vscode/settings.json` per accesso rapido alle operazioni comuni

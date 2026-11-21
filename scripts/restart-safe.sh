@@ -501,6 +501,11 @@ restart_safe() {
   
   # Mostra ultimi log (ultima ora per evitare log storici)
   run_journalctl -u "$SERVICE" --since "1 hour ago" -n 15 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 15 --no-pager 2>/dev/null || true
+  
+  # Refresh dashboard after backend restart
+  echo "→ Refreshing dashboard..."
+  curl -s -H "x-api-token: ${DASHBOARD_TOKEN:-}" http://127.0.0.1:8080/v1/dashboard/stats > /dev/null 2>&1 || true
+  echo "✓ Dashboard refresh completato"
 }
 
 follow_logs() {

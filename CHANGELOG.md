@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.8] - 2026-11-21
+### Removed
+- chore(scripts): eliminato `scripts/restart.sh` (obsoleto, race condition su porta 8080)
+- chore(scripts): eliminato `scripts/restart-restart.sh` (ridondante, chiama `restart-safe.sh`)
+
+### Fixed
+- fix(scripts): `restart-safe.sh` ora effettua un refresh automatico della dashboard dopo il riavvio del backend (curl a `/v1/dashboard/stats`)
+
+### Added
+- feat(vscode): creato `.vscode/settings.json` con quick actions per restart, free-port, switch-mode e training
+- docs: aggiornato `docs/restart-procedure.md` con note su script rimossi, refresh dashboard e quick actions VS Code
+
 ## [0.53.7] - 2026-11-21
 ### Fixed
 - fix(bandit): refined `_classifyError()` to distinguish real "not supported" errors from false positives; added `cascadeGuardSkipCount`/`cascadeGuardApplyCount` counters for monitoring
