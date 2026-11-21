@@ -17,6 +17,13 @@ Non-obvious, project-specific guidance for code changes.
 - Cascade guard skip list also covers capability-based rejections (`non_chat_model_excluded`, `no_tools_support`, `max_input_tokens_exceeded`, `exclude_thinking`, `dynamic_max_tokens_exceeded`) so capability mismatches never trigger cooldowns.
 - Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms).
 
+## Cascade Ban Prevention (v0.53.10)
+- 5-strike paid-group-ban now sets only `needs_attention = 1` on provider_history (NOT `permanent = 1`) — ban isolated to individual model
+- Escalation permanent-ban now sets only `needs_attention = 1` on provider_history (NOT `permanent = 1`) — prevents provider-wide cascade bans
+- Model-not-found pattern no longer includes "not found" — bare 404 status alone does not trigger permanent ban
+- 403 key-limit-exceeded pattern no longer includes bare "403|" — requires specific phrases (lifetime limit, total limit, never resets, etc.)
+- Default `UPSTREAM_TIMEOUT_MS` increased from 20000ms to 60000ms for slower models
+
 ## Database
 - `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`).
 - Isolated `models_train` table; production reads `models` + `0.3*models_train` (when `N < 1`).
