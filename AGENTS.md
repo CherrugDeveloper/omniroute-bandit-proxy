@@ -26,3 +26,12 @@ This file provides guidance to agents when working with code in this repository.
 - Model-not-found pattern no longer includes "not found" — bare 404 status alone does not trigger permanent ban
 - 403 key-limit-exceeded pattern no longer includes bare "403|" — requires specific phrases (lifetime limit, total limit, never resets, etc.)
 - Default `UPSTREAM_TIMEOUT_MS` increased from 20000ms to 60000ms for slower models
+
+## Config State Cascade Fix (v0.53.13)
+- Generic 502/503/504 errors now classified as `cooldown-model` with `upstream-error` reason (TRANSIENT) instead of `provider-misconfigured` (PERMANENT) — prevents cascade of config state across all provider models
+- `cooldown-model` punishment no longer sets `needs_attention = 1` on provider_history; config state only triggered by genuine user-intervention errors (auth-expired, anti-abuse, safeWrite-init-error)
+- New `resetUnifiedHistory()` method and `POST /v1/reset/history` endpoint to clear stuck punishment events and old request logs
+- Dashboard now has "🗑️ Reset" button in Unified History panel
+- `PROXY` removed from default log denylist; runtime override via `LOG_BUFFER_DENYLIST` env var
+- Polling intervals increased (main loop 1s→2s, fetch intervals 5s→10s) with `requestIdleCallback` for DOM updates
+- `recentRequests` RingBuffer increased from 5 to 50 entries
