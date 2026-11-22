@@ -24,6 +24,15 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Proxy Layer**: Handles HTTP requests, token estimation, and provider-specific API calls.
 - **Event System**: Streams real-time punishment and status events to the dashboard via WebSockets.
 
+### v0.53.13 Unified History Reset & Config State Fix
+
+- **Config state cascade fix**: Generic 502/503/504 errors are now classified as `cooldown-model` with `upstream-error` reason (TRANSIENT) instead of `provider-misconfigured` (PERMANENT). This prevents the cascade where all models of a provider were incorrectly pushed into "config" state.
+- **Cooldown-model punishment refinement**: Regular cooldowns no longer set `needs_attention = 1` on provider_history. Config state is now only triggered by genuine user-intervention errors (auth-expired, anti-abuse, safeWrite-init-error).
+- **Unified history reset**: New `resetUnifiedHistory()` method and `POST /v1/reset/history` endpoint to clear stuck punishment events and old request logs. Dashboard now has a "🗑️ Reset" button in the Unified History panel.
+- **Log denylist fix**: Removed `PROXY` from default log denylist so real proxy access logs reach the dashboard Logs tab. Added runtime override via `LOG_BUFFER_DENYLIST` env var.
+- **Dashboard responsiveness**: Increased polling intervals (main loop 1s→2s, fetchLogs/fetchActive/fetchConsideration 5s→10s) and added `requestIdleCallback` for DOM updates to keep UI responsive during polling.
+- **Activity buffer**: Increased `recentRequests` RingBuffer from 5 to 50 entries for better activity visibility when idle.
+
 ### v0.53.12 Client Disconnect Handling
 
 - **HTTP 499 status code**: Added proper handling for client disconnect during request processing. When a client disconnects (status 499), the proxy now returns a structured error response instead of crashing or leaving the request hanging.

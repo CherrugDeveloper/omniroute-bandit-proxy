@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.13] - 2026-11-22
+### Fixed
+- fix(bandit): 502/503/504 generic errors now classified as `cooldown-model` with `upstream-error` reason (TRANSIENT) instead of `provider-misconfigured` (PERMANENT), preventing cascade config state across all provider models
+- fix(bandit): `cooldown-model` punishment no longer sets `needs_attention = 1` on provider_history; config state now only triggered by genuine user-intervention errors (auth-expired, anti-abuse, safeWrite-init-error)
+- fix(logging): removed `PROXY` from default log denylist so real proxy access logs reach dashboard; added runtime override via `LOG_BUFFER_DENYLIST` env var
+- fix(dashboard): increased polling intervals (main loop 1s→2s, fetchLogs/fetchActive/fetchConsideration 5s→10s) and added `requestIdleCallback` for DOM updates to keep UI responsive
+- fix(proxy): increased `recentRequests` RingBuffer from 5 to 50 entries for better activity visibility
+
+### Added
+- feat(bandit): new `resetUnifiedHistory()` method to clear punishment_events and old request_logs (>24h)
+- feat(api): new `POST /v1/reset/history` endpoint to reset unified history (punishment events, request logs, in-memory buffers)
+- feat(dashboard): new "🗑️ Reset" button in Unified History panel to clear stuck history via the new endpoint
+
 ## [0.53.12] - 2026-11-21
 ### Fixed
 - fix(proxy): aggiunta gestione status 499 per client disconnect durante l'elaborazione della richiesta

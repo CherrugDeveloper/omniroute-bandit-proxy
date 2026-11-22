@@ -1350,9 +1350,10 @@ export class DiscountedUCB1Bandit {
                 // Apply cooldown to model if applicable
                 if (cooldownMs && cooldownMs > 0) {
                   this.db.prepare(`UPDATE models SET cooldown_until = ? WHERE id = ?`).run(Date.now() + cooldownMs, sanitizedModelId);
-                  // Sync provider_history: mark provider as having a model on cooldown
+                  // Sync provider_history: mark provider cooldown but do NOT set needs_attention
+                  // (needs_attention is reserved for genuine user-intervention-required states)
                   this.db.prepare(
-                    `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+                    `UPDATE provider_history SET cooldown_until = ?, attention_reason = ?, attention_message = ? WHERE provider = ?`
                   ).run(Date.now() + cooldownMs, c.reason, `Model cooldown: ${sanitizedModelId} (${c.reason})`, provider);
                   slogInfo(`[BANDIT-CONSEQUENCE] cooldown-model | model=${modelId} provider=${provider} reason=${c.reason} cooldownMs=${cooldownMs} scope=model`);
                   logPunishment({ bandit: this, type: EVENT_TYPES.COOLDOWN_MODEL, provider, modelId: sanitizedModelId, reason: c.reason, cooldownMs, failures: 0 });
@@ -1362,7 +1363,10 @@ export class DiscountedUCB1Bandit {
                 // mark the provider as needing attention (config state) instead of
                 // just a regular cooldown. This ensures the model stays in "config"
                 // state until the user explicitly resolves the issue.
-                if (c.reason && /auth-expired|provider-misconfigured|anti-abuse|safeWrite-init-error|tpm-exceeded/i.test(c.reason)) {
+                // Only genuine intervention-required reasons trigger config state:
+                // auth-expired, anti-abuse, safeWrite-init-error.
+                // provider-misconfigured and tpm-exceeded are handled by cooldown only.
+                if (c.reason && /auth-expired|anti-abuse|safeWrite-init-error/i.test(c.reason)) {
                   // Set provider to config state with 24h cooldown for user to fix
                   this.db.prepare(
                     `UPDATE provider_history SET needs_attention = 1, attention_reason = ?, attention_message = ?, attention_timestamp = ? WHERE provider = ?`
@@ -1609,8 +1613,9 @@ export class DiscountedUCB1Bandit {
       return { action: "ban-model", scope: "model", reason: "no-tool-call-but-required", category: "PERMANENT" };
     }
 
-    // Status 502 misconfiguration / gateway errors -> cooldown-provider if provider-level, else flag-provider
-    if (status === 502 && /No auth provided|Please log in|Playwright is not available|missing url or token|browserType\.launch|Executable doesn't exist|ENOENT/i.test(message)) {
+    // Status 502 misconfiguration / gateway errors -> cooldown-provider ONLY for explicit misconfiguration patterns
+    // Generic 502/503 without specific misconfiguration indicators should be treated as transient upstream errors
+    if (status === 502 && /No auth provided|Please log in|missing url or token|is not configured/i.test(message)) {
       if (resolvedProvider === 'cfp' || resolvedProvider === 'zc') {
         return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
       }
@@ -1618,6 +1623,20 @@ export class DiscountedUCB1Bandit {
         return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
       }
       return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
+    }
+    // Playwright / Cloudflare Playground / browser launch errors -> cooldown-provider (infrastructure issues)
+    if ((status === 502 || status === 503) && /Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright|browserType\.launch|Executable doesn't exist|ENOENT/i.test(message)) {
+      if (resolvedProvider === 'cfp' || resolvedProvider === 'zc') {
+        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
+      }
+      if (resolvedProvider) {
+        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
+      }
+      return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
+    }
+    // Generic 502/503/504 without specific patterns -> transient cooldown-model (not provider misconfiguration)
+    if ((status === 502 || status === 503 || status === 504) && !/No auth provided|Please log in|missing url or token|is not configured|Playwright|Cloudflare|browserType\.launch|Executable doesn't exist|ENOENT/i.test(message)) {
+      return { action: "cooldown-model", scope: "model", reason: "upstream-error", cooldownMs: 30000, category: "TRANSIENT" };
     }
 
     // Sandbox, Missing Binary, and Environment Configuration Errors (including Playwright / Cloudflare Playground)
@@ -2387,6 +2406,14 @@ export class DiscountedUCB1Bandit {
   resetPunishmentEvents() {
     // Clear all punishment events history
     this.db.prepare("DELETE FROM punishment_events").run();
+  }
+
+  resetUnifiedHistory() {
+    // Clear in-memory recent requests buffer (handled by caller via recentRequests.clear())
+    // Clear punishment events and old request logs to reset unified history view
+    this.db.prepare("DELETE FROM punishment_events").run();
+    this.db.prepare("DELETE FROM request_logs WHERE ended_at IS NOT NULL AND ended_at < ?").run(Date.now() - 24 * 3600000);
+    slogInfo("[BANDIT] resetUnifiedHistory: cleared punishment_events and old request_logs");
   }
 
   resetGlobalCounters() {

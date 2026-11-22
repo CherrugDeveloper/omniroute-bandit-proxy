@@ -12,7 +12,7 @@ import { DiscountedUCB1Bandit } from "./bandit.mjs";
 import { HealthChecker, sanitizeBaseUrl, buildEndpointUrl } from "./health-check.mjs";
 import { Notifier } from "./notifier.mjs";
 import { initRegistry, detectProfile, listDiscovered, labelDiscovered, registryStats, registrySignatures, dismissDiscovered, profileMultiplier } from './modes-registry.mjs';
-import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebugEnabled, isDebugVerboseEnabled, readDebugVerboseTtlMs, createTtlFlag, isPollingPath } from "./log-throttle.mjs";
+import { createThrottledLogger, isLowValueNoise, buildDenylistRegex, isCorsDebugEnabled, isDebugVerboseEnabled, readDebugVerboseTtlMs, createTtlFlag, isPollingPath, initDenylistFromEnv } from "./log-throttle.mjs";
 import fs from "node:fs";
 import * as WebSocket from "ws";
 import { createPunishmentEvents, formatEventPayload, initializeEventBuffer } from "./events.mjs";
@@ -583,6 +583,9 @@ const bandit = new DiscountedUCB1Bandit();
 // Wire ring buffer persistence: load recent punishment events from DB into memory on startup
 initializeEventBuffer(bandit);
 
+// Initialize runtime denylist from LOG_BUFFER_DENYLIST env var (overrides DEFAULT_DENYLIST_REGEX)
+initDenylistFromEnv();
+
 const notifier = new Notifier({
   urls: (process.env.WEBHOOK_URLS || "").split(",").map(s => s.trim()).filter(Boolean),
   enabled: String(process.env.WEBHOOK_ENABLED || "true").toLowerCase() === "true",
@@ -909,7 +912,7 @@ function getActiveRequestsSnapshot() {
 }
 
 // Ultime richieste completate (per mostrare activity quando idle)
-const recentRequests = new RingBuffer(5);
+const recentRequests = new RingBuffer(50);
 
 function trackRequestComplete(id, meta) {
   const r = tracker.getRequest(id);
@@ -989,11 +992,14 @@ let _lastLogMessage = null;
 let _lastLogTime = 0;
 let _logMessageCount = 0;
 
+// R6: ring-buffer denylist — computed ONCE at startup (not per log line) to
+// avoid recompiling the RegExp on every pushLog() call.
+const logBufferDenylistRegex = buildDenylistRegex(process.env.LOG_BUFFER_DENYLIST);
+
 function pushLog(message) {
-   // R6: ring-buffer denylist — low-value polling/debug noise is kept on the
-   // terminal but excluded from the ring buffer (unless LOG_BUFFER_DENYLIST overrides).
-   const denylistRegex = buildDenylistRegex(process.env.LOG_BUFFER_DENYLIST);
-   if (isLowValueNoise(message, denylistRegex)) {
+   // Low-value polling/debug noise is kept on the terminal but excluded from
+   // the ring buffer (unless LOG_BUFFER_DENYLIST overrides).
+   if (isLowValueNoise(message, logBufferDenylistRegex)) {
      return;
    }
    // Event grouping: if the same message repeats within 5 seconds, increment counter instead of new log entry
@@ -1059,17 +1065,17 @@ console.log = (...args) => {
     originalLog(...args);
     if (suppressed > 0) originalLog(`(suppressed ${suppressed} logs)`);
   }
-  if (!isLowValueNoise(message)) pushLog(message);
+  if (!isLowValueNoise(message, logBufferDenylistRegex)) pushLog(message);
 };
 console.error = (...args) => {
   const message = serializeArgs(args);
   originalError(...args);
-  if (!isLowValueNoise(message)) pushLog("ERROR: " + message);
+  if (!isLowValueNoise(message, logBufferDenylistRegex)) pushLog("ERROR: " + message);
 };
 console.warn = (...args) => {
   const message = serializeArgs(args);
   originalWarn(...args);
-  if (!isLowValueNoise(message)) pushLog("WARN: " + message);
+  if (!isLowValueNoise(message, logBufferDenylistRegex)) pushLog("WARN: " + message);
 };
 
 // ========================================
@@ -1704,6 +1710,18 @@ app.post("/v1/reset/config", requireAuth, (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     slogError("[API] Errore reset config:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/v1/reset/history", requireAuth, (req, res) => {
+  try {
+    // Clear unified history: punishment events, old request logs, and in-memory buffers
+    bandit.resetUnifiedHistory();
+    recentRequests.clear();
+    res.json({ ok: true });
+  } catch (e) {
+    slogError("[API] Errore reset history:", e.message);
     res.status(500).json({ error: e.message });
   }
 });

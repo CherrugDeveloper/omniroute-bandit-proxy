@@ -96,12 +96,39 @@ export function isLowValueNoise(message, denylistRegex) {
 }
 
 /**
+ * Runtime denylist override, set once at server startup from LOG_BUFFER_DENYLIST.
+ * When set, isLowValueNoise() uses this instead of DEFAULT_DENYLIST_REGEX.
+ * @type {RegExp|undefined}
+ */
+export let runtimeDenylistRegex;
+
+/**
+ * Initialize the runtime denylist from the LOG_BUFFER_DENYLIST env var.
+ * Call once at server startup (from src/index.mjs).
+ * If LOG_BUFFER_DENYLIST is set, it overrides DEFAULT_DENYLIST_REGEX.
+ * Set LOG_BUFFER_DENYLIST=PROXY to re-add PROXY exclusion if desired.
+ * @returns {RegExp} the active denylist regex
+ */
+export function initDenylistFromEnv() {
+  const raw = process.env.LOG_BUFFER_DENYLIST;
+  if (raw && raw.trim()) {
+    runtimeDenylistRegex = buildDenylistRegex(raw);
+  } else {
+    runtimeDenylistRegex = DEFAULT_DENYLIST_REGEX;
+  }
+  return runtimeDenylistRegex;
+}
+
+/**
  * Default denylist.  Overridable at runtime via the LOG_BUFFER_DENYLIST env
  * var (a list of `|`-separated literal prefixes, e.g.
- * `CORS/DEBUG|DEBUG AUTH|DEBUG server|PROXY`).
+ * `CORS/DEBUG|DEBUG AUTH|DEBUG server`).
+ * NOTE: PROXY is intentionally excluded from the default denylist so that
+ * real per-request proxy access logs always reach the dashboard Logs tab.
+ * To re-enable PROXY exclusion, set LOG_BUFFER_DENYLIST=PROXY.
  * @type {RegExp}
  */
-export const DEFAULT_DENYLIST_REGEX = /^\[(CORS\/DEBUG|DEBUG AUTH|DEBUG server|PROXY)\]/;
+export const DEFAULT_DENYLIST_REGEX = /^\[(CORS\/DEBUG|DEBUG AUTH|DEBUG server)\]/;
 
 /**
  * Build a denylist RegExp from a user-supplied string.

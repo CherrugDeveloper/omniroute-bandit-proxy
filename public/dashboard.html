@@ -1322,6 +1322,7 @@
     <div class="card" style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:6px 10px;">
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
             <strong style="font-size:11px; color:#58a6ff;">Cronologia Unificata</strong>
+            <button id="reset-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #f85149; color:#f85149; cursor:pointer;" title="Reset cronologia unificata">🗑️ Reset</button>
             <button id="copy-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia tutto">📋 Copia tutto</button>
             <label style="font-size:11px; color:#8b949e; cursor:pointer; user-select:none; display:flex; align-items:center; gap:4px;">
                 <input type="checkbox" id="unified-show-selection-history" checked style="width:14px; height:14px; accent-color:#58a6ff;">
@@ -4954,43 +4955,52 @@
                 // Sort all rows by timestamp descending (newest first)
                 allRows.sort((a, b) => b.timestamp - a.timestamp);
 
-                // Append-only history implementation:
-                // Collect existing row keys in DOM
-                const existingRows = new Map();
-                for (const tr of tbody.querySelectorAll('tr[data-row-key]')) {
-                    const key = tr.getAttribute('data-row-key');
-                    if (key) existingRows.set(key, tr);
-                }
-
-                // Iterate through sorted rows and append new ones or update active ones
-                const MAX_UNIFIED_ROWS = 200;
-                
-                for (const row of allRows) {
-                    if (existingRows.has(row.key)) {
-                        // Already in DOM - if it's active, update its HTML (e.g. timer)
-                        const tr = existingRows.get(row.key);
-                        if (row.key.includes('-active')) {
-                            // Update active row content in place
-                            const tempDiv = document.createElement('tbody');
-                            tempDiv.innerHTML = row.html;
-                            const newTr = tempDiv.firstElementChild;
-                            if (newTr && tr.innerHTML !== newTr.innerHTML) {
-                                tr.innerHTML = newTr.innerHTML;
-                            }
-                        }
-                        existingRows.delete(row.key); // Mark as processed
-                    } else {
-                        // New row - prepend at the top (since sorted newest first)
-                        tbody.insertAdjacentHTML('afterbegin', row.html);
+                // Defer DOM updates to idle callback to keep UI responsive during polling
+                const doDomUpdate = () => {
+                    // Append-only history implementation:
+                    // Collect existing row keys in DOM
+                    const existingRows = new Map();
+                    for (const tr of tbody.querySelectorAll('tr[data-row-key]')) {
+                        const key = tr.getAttribute('data-row-key');
+                        if (key) existingRows.set(key, tr);
                     }
-                }
 
-                // Enforce max row limit (remove oldest from bottom)
-                while (tbody.children.length > MAX_UNIFIED_ROWS) {
-                    tbody.lastElementChild?.remove();
-                }
+                    // Iterate through sorted rows and append new ones or update active ones
+                    const MAX_UNIFIED_ROWS = 200;
+                    
+                    for (const row of allRows) {
+                        if (existingRows.has(row.key)) {
+                            // Already in DOM - if it's active, update its HTML (e.g. timer)
+                            const tr = existingRows.get(row.key);
+                            if (row.key.includes('-active')) {
+                                // Update active row content in place
+                                const tempDiv = document.createElement('tbody');
+                                tempDiv.innerHTML = row.html;
+                                const newTr = tempDiv.firstElementChild;
+                                if (newTr && tr.innerHTML !== newTr.innerHTML) {
+                                    tr.innerHTML = newTr.innerHTML;
+                                }
+                            }
+                            existingRows.delete(row.key); // Mark as processed
+                        } else {
+                            // New row - prepend at the top (since sorted newest first)
+                            tbody.insertAdjacentHTML('afterbegin', row.html);
+                        }
+                    }
 
-                console.debug('[DEBUG Dashboard] fetchActive table updated, total rows:', tbody.children.length);
+                    // Enforce max row limit (remove oldest from bottom)
+                    while (tbody.children.length > MAX_UNIFIED_ROWS) {
+                        tbody.lastElementChild?.remove();
+                    }
+
+                    console.debug('[DEBUG Dashboard] fetchActive table updated, total rows:', tbody.children.length);
+                };
+
+                if (typeof requestIdleCallback !== 'undefined') {
+                    requestIdleCallback(doDomUpdate, { timeout: 500 });
+                } else {
+                    doDomUpdate();
+                }
             } catch (e) {
                 console.error('[DEBUG Dashboard] fetchActive error:', e);
             }
@@ -5023,6 +5033,28 @@
                 setTimeout(()=> btn.textContent = orig, 1000);
             } catch(e) {
                 console.error('Copy failed', e);
+            }
+        });
+
+        // Reset unified history button
+        document.getElementById('reset-unified-btn')?.addEventListener('click', async () => {
+            if (!confirm('Sei sicuro di voler resettare la cronologia unificata? Questa azione cancella tutti gli eventi di punizione e i log delle richieste storici.')) return;
+            try {
+                const r = await apiFetch('/v1/reset/history', { method: 'POST' });
+                if (r.ok) {
+                    const tbody = document.getElementById('unified-cronologia-tbody');
+                    if (tbody) tbody.innerHTML = '';
+                    const btn = document.getElementById('reset-unified-btn');
+                    const orig = btn.textContent;
+                    btn.textContent = '✅ Resettato';
+                    setTimeout(() => btn.textContent = orig, 1000);
+                    await fetchActive();
+                } else {
+                    alert('Errore nel reset della cronologia unificata.');
+                }
+            } catch(e) {
+                console.error('Reset unified history failed', e);
+                alert('Errore nel reset della cronologia unificata.');
             }
         });
 
@@ -5121,15 +5153,15 @@
                     }, 10);
                 }
             }
-        }, 1000);
+        }, 2000);
         function getPollInterval(pollName) {
             switch (pollName) {
                 case 'refreshAll': return 10000;
-                case 'fetchLogs': return 5000;
-                case 'fetchActive': return 5000;
+                case 'fetchLogs': return 10000;
+                case 'fetchActive': return 10000;
                 case 'fetchQuota': return 15000;
-                case 'fetchConsideration': return 5000;
-                default: return 5000;
+                case 'fetchConsideration': return 10000;
+                default: return 10000;
             }
         }
 
