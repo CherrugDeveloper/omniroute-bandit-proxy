@@ -10,7 +10,7 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
   - **Exponential Backoff**: Models that fail are put on cooldown with increasing durations.
   - **5-Strike Rule**: 5 consecutive critical failures (403/429) lead to a permanent ban.
   - **Cascade Guards**: Prevents simultaneous banning of entire provider groups; skips ALL punishment when a provider is already on cooldown/circuit/auth-expired or when rejection is due to capability mismatches (non-chat models, no tools support, token limits exceeded, thinking excluded, dynamic max tokens exceeded) to avoid cascade effects.
-  - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
+  - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog (including "invalid model", "does not exist", "no longer available") are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Error Classification**: Distinguishes between transient (retryable) and permanent errors via configurable patterns.
 - **Training Mode**: Supports isolated training datasets to refine model rankings before production use.
@@ -23,12 +23,6 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Punishment Engine**: Monitors response status codes and applies cooldowns/bans.
 - **Proxy Layer**: Handles HTTP requests, token estimation, and provider-specific API calls.
 - **Event System**: Streams real-time punishment and status events to the dashboard via WebSockets.
-
-### v0.53.15 False Positive Fix & 400 Error Classification
-
-- **False positive elimination**: Removed hardcoded 400 status code pattern that caused false-positive permanent bans for validation errors (error messages like "400 validation error: invalid input" now trigger cooldown-model instead of ban-model).
-- **Refined model-not-found classification**: The `_classifyError()` function now only bans-model for genuine "model not found" catalog mismatch errors; 400 errors are now handled exclusively by config patterns in bandit.json as transient cooldown-model errors (30s).
-- **Transient 400 error patterns**: Clarified that 400 errors with "validation", "bad request", "invalid parameter" messages are correctly classified as transient cooldown-model instead of permanent ban.
 
 ### v0.53.14 Logging & Training Tuning
 

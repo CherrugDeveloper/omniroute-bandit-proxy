@@ -3230,13 +3230,137 @@ trackRequestUpdate(requestId, {
         }
       }
 
-      if (e.name === "AbortError") {
+      // === CONNECTION ERROR CLASSIFICATION ===
+      // Helper functions to classify different types of connection errors
+      const isTimeoutError = (err) => {
+        if (!err) return false;
+        const msg = String(err.message || err).toLowerCase();
+        const name = String(err.name || '').toLowerCase();
+        return name === 'aborterror' && msg.includes('timeout') ||
+               msg.includes('timeout') ||
+               msg.includes('timed out') ||
+               msg.includes('etimedout');
+      };
+      
+      const isClientDisconnect = (err) => {
+        if (!err) return false;
+        const msg = String(err.message || err).toLowerCase();
+        return err.name === 'AbortError' && (
+          msg.includes('abort') ||
+          msg.includes('client-disconnected') ||
+          msg.includes('client disconnect') ||
+          msg.includes('stream-idle-timeout') ||
+          msg.includes('stream-hard-cap')
+        );
+      };
+      
+      const isNetworkError = (err) => {
+        if (!err) return false;
+        const msg = String(err.message || err).toLowerCase();
+        const networkCodes = ['econnrefused', 'econnreset', 'enotfound', 'eaddrnotavail', 'ehostunreach', 'enetworkunreachable', 'eaddravail', 'epipe', 'econnaborted'];
+        return networkCodes.some(code => msg.includes(code)) ||
+               err.code && networkCodes.includes(String(err.code).toLowerCase());
+      };
+      
+      // Detailed diagnostic helper for network error classification
+      // Provides specific diagnosis for router, DNS, provider issues
+      const getNetworkErrorDiagnosis = (err) => {
+        if (!err) return "connection error";
+        const code = (err.code || "").toLowerCase();
+        const msg = String(err.message || "").toLowerCase();
+        
+        // Network port/daemon issues - ECONNREFUSED
+        if (code === 'econnrefused') {
+          return "Porta di rete non aperta (router/DNS/provider down o servizio non in ascolto)";
+        }
+        
+        // DNS resolution failure - ENOTFOUND
+        if (code === 'enotfound') {
+          return "DNS non risolve (problema configurazione DNS o dominio non esistente)";
+        }
+        
+        // Address unavailable - EADDRNOTAVAIL
+        if (code === 'eaddrnotavail') {
+          return "Indirizzo IP non disponibile (configurazione rete o interfaccia di rete)";
+        }
+        
+        // Host unreachable - EHOSTUNREACH
+        if (code === 'ehostunreach') {
+          return "Host remoto non raggiungibile (provider down, firewall, o rete non configurata)";
+        }
+        
+        // Network unreachable - ENETWORKUNREACHABLE
+        if (code === 'enetworkunreachable') {
+          return "Rete non raggiungibile (problema di routing o configurazione gateway)";
+        }
+        
+        // Connection reset - ECONNRESET
+        if (code === 'econnreset') {
+          return "Connessione resetata (provider che chiude la connessione o firewall)";
+        }
+        
+        // Pipe error - EPIPE
+        if (code === 'epipe') {
+          return "Errore pipe (connessione chiusa improvvisamente)";
+        }
+        
+        // Connection aborted - ECONNABORTED
+        if (code === 'econnaborted') {
+          return "Connessione abortita (timeout o interruzione durante handshake)";
+        }
+        
+        // Generic network error
+        if (code) {
+          return `Errore rete: ${code}`;
+        }
+        
+        // Message-based detection
+        if (msg.includes('getaddrinfo')) {
+          return "DNS non risolve (errosi getaddrinfo)";
+        }
+        if (msg.includes('network') || msg.includes('network error')) {
+          return "Errore di rete generale";
+        }
+        
+        return "Errore di connessione non classificato";
+      };
+      
+      const isStreamTimeout = (err) => {
+        if (!err) return false;
+        const msg = String(err.message || err).toLowerCase();
+        return msg.includes('stream-idle-timeout') || msg.includes('stream-hard-cap');
+      };
+
+      // Detailed error logging with classification
+      if (isClientDisconnect(e)) {
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-        slogError(`[ABORT] ${model}: timeout or client disconnect`);
+        slogError(`[CLIENT DISCONNECT] ${model}: client disconnected during request`);
+        slogInfo(`[ERROR DETAILS] connectionType=client_disconnect, message="${e.message}", upstreamUrl=${baseUrl}, durationMs=${Math.round(Date.now() - start)}, attempt=${attempt}`);
         // Skip bandit feedback for client disconnects/aborts - these are not model failures
         slogInfo(`[BANDIT] Skipping model punishment for client disconnect`);
+      } else if (isTimeoutError(e)) {
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+        slogError(`[TIMEOUT] ${model}: upstream request timed out`);
+        slogInfo(`[ERROR DETAILS] connectionType=timeout, message="${e.message}", upstreamUrl=${baseUrl}, durationMs=${Math.round(Date.now() - start)}, timeoutMs=${upstreamTimeoutMs}, attempt=${attempt}`);
+        bandit.recordFeedback(model, false, 0, { message: e.message, timeout: true }, { source: feedbackSource });
+        slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=timeout source=${feedbackSource}`);
+      } else if (isStreamTimeout(e)) {
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+        slogError(`[STREAM TIMEOUT] ${model}: stream idle/hard-cap timeout`);
+        slogInfo(`[ERROR DETAILS] connectionType=stream_timeout, message="${e.message}", upstreamUrl=${baseUrl}, durationMs=${Math.round(Date.now() - start)}, STREAM_MAX_MS=${STREAM_MAX_MS}, attempt=${attempt}`);
+        bandit.recordFeedback(model, false, 0, { message: e.message, streamTimeout: true }, { source: feedbackSource });
+        slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=stream_timeout source=${feedbackSource}`);
+      } else if (isNetworkError(e)) {
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+        const diagnosis = getNetworkErrorDiagnosis(e);
+        slogError(`[NETWORK ERROR] ${model}: connection failure to upstream - DIAGNOSIS: ${diagnosis}`);
+        slogInfo(`[ERROR DETAILS] connectionType=network_error, errorCode=${e.code || 'unknown'}, diagnosis="${diagnosis}", message="${e.message}", upstreamUrl=${baseUrl}, durationMs=${Math.round(Date.now() - start)}, attempt=${attempt}`);
+        bandit.recordFeedback(model, false, 0, { message: e.message, networkError: true, errorCode: e.code, diagnosis }, { source: feedbackSource });
+        slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=network_error diagnosis="${diagnosis}" source=${feedbackSource}`);
       } else {
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
         slogError(`[FETCH ERR] ${model}: ${e.message}`);
+        slogInfo(`[ERROR DETAILS] connectionType=fetch_error, message="${e.message}", upstreamUrl=${baseUrl}, durationMs=${Math.round(Date.now() - start)}, attempt=${attempt}`);
         bandit.recordFeedback(model, false, 0, { message: e.message }, { source: feedbackSource });
         slogInfo(`[BANDIT-CONSEQUENCE] recordFeedback | model=${model} success=false error=fetch error source=${feedbackSource}`);
       }

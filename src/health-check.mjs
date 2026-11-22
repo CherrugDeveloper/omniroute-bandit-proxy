@@ -48,28 +48,46 @@ export class HealthChecker {
     this.bandit = bandit;
     this.baseUrl = sanitizeBaseUrl(options.baseUrl, "http://127.0.0.1:20128/v1");
     this.apiKey = options.apiKey || "";
-    this.intervalMs = options.intervalMs || 600000;
+    
+    // Smart intervals: load thresholds from bandit config with overrides
+    const punishmentThresholds = bandit.punishmentThresholds || {};
+    this.intervalMs = options.intervalMs || punishmentThresholds.circuitBreakerCooldownMs || 600000;
     this.providerIntervals = options.providerIntervals || {};
     this.batchSize = options.batchSize || 20;
     this.timeoutMs = options.timeoutMs || 15000;
     this.verbose = options.verbose || false;
-    this.rehabIntervalMs = options.rehabIntervalMs || 900000; // 15 min default
+    // Rehabilitation interval: 15 min default, can be overridden via options
+    this.rehabIntervalMs = options.rehabIntervalMs || 900000;
 
-    this.timer = null;
-    this.rehabTimer = null;
-    this.running = false;
-    this.inFlight = false;
-    this.lastProviderCheck = new Map(); // Track last check time per provider
-
-    this.stats = {
-      runs: 0,
-      tested: 0,
-      revived: 0,
-      lastRun: null,
-      lastError: null,
-      rehabRuns: 0,
-      lastRehabRun: null
-    };
+    // Smart interval tracking: adaptive delays based on model state
+     this.lastProviderCheck = new Map();
+     this.consecutiveFailures = new Map(); // Track consecutive failures per provider
+     this.smartIntervalBase = this.intervalMs;
+     this.smartIntervalMultiplier = 1.0; // Start at normal interval
+     
+     // RPM/RPD rate limiting: track requests per minute for conservative health checks
+     this.providerRequestCounts = new Map(); // provider -> {count, timestamp}
+     this.lastMinuteReset = Date.now(); // Reset counter every minute
+     
+     // Rate limit thresholds (configurable via options)
+     this.rpmLimit = options.rpmLimit || 60; // Default: 60 requests per minute
+     this.rpdLimit = options.rpdLimit || 1000; // Default: 1000 requests per day
+     this.rpmSafetyMargin = options.rpmSafetyMargin || 0.1; // 10% safety margin
+ 
+     this.timer = null;
+     this.rehabTimer = null;
+     this.running = false;
+     this.inFlight = false;
+ 
+     this.stats = {
+       runs: 0,
+       tested: 0,
+       revived: 0,
+       lastRun: null,
+       lastError: null,
+       rehabRuns: 0,
+       lastRehabRun: null
+     };
   }
 
   start() {
@@ -113,8 +131,38 @@ export class HealthChecker {
     }
   }
 
+  // Smart interval calculation: adapts based on consecutive failures
+  _calculateSmartInterval(provider, isFailure = false) {
+    if (!isFailure) {
+      // Reset multiplier on success
+      this.consecutiveFailures.set(provider, 0);
+      return this.intervalMs;
+    }
+    
+    // Increment failure count
+    const failures = (this.consecutiveFailures.get(provider) || 0) + 1;
+    this.consecutiveFailures.set(provider, failures);
+    
+    // Exponential backoff: 1x, 2x, 4x, 8x... but cap at 2x for health checks
+    // to avoid too long gaps in monitoring
+    const multiplier = Math.min(2, Math.pow(1.5, failures - 1));
+    
+    // Cap at 2x the base interval to ensure periodic checks
+    return Math.min(this.intervalMs * 2, this.intervalMs * multiplier);
+  }
+
   _scheduleNext() {
     if (!this.running) return;
+    
+    // Use requestIdleCallback for DOM updates when available (browser context)
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(() => this._scheduleNextImmediate());
+    } else {
+      this._scheduleNextImmediate();
+    }
+  }
+  
+  _scheduleNextImmediate() {
     // Use per-provider interval if configured, otherwise use global interval
     const nextProvider = this._getNextProviderToCheck();
     if (nextProvider) {
@@ -138,6 +186,51 @@ export class HealthChecker {
     if (this.timer.unref) this.timer.unref();
   }
 
+  // Check if provider is approaching RPM/RPD limits
+  _isProviderRateLimited(provider) {
+    const now = Date.now();
+    
+    // Reset counters every minute
+    if (now - this.lastMinuteReset >= 60000) {
+      this.providerRequestCounts.clear();
+      this.lastMinuteReset = now;
+    }
+    
+    const count = this.providerRequestCounts.get(provider) || 0;
+    const rpmThreshold = this.rpmLimit * (1 - this.rpmSafetyMargin);
+    
+    if (count >= rpmThreshold) {
+      if (this.verbose) {
+        slogInfo(`[HEALTH-RPM] Provider ${provider} has made ${count}/${this.rpmLimit} requests this minute, skipping health check`);
+      }
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Increment request counter for provider
+  _incrementProviderRequestCount(provider) {
+    const now = Date.now();
+    
+    // Reset counters every minute
+    if (now - this.lastMinuteReset >= 60000) {
+      this.providerRequestCounts.clear();
+      this.lastMinuteReset = now;
+    }
+    
+    const count = (this.providerRequestCounts.get(provider) || 0) + 1;
+    this.providerRequestCounts.set(provider, count);
+    
+    // Log warning when approaching limit
+    const rpmThreshold = this.rpmLimit * (1 - this.rpmSafetyMargin);
+    if (count >= rpmThreshold && this.verbose) {
+      slogWarn(`[HEALTH-RPM] Provider ${provider} has made ${count}/${this.rpmLimit} requests this minute`);
+    }
+    
+    return count;
+  }
+  
   _getNextProviderToCheck() {
     const unhealthyModels = this.bandit.getUnhealthyModels(this.batchSize);
     if (unhealthyModels.length === 0) return null;
@@ -145,7 +238,7 @@ export class HealthChecker {
     return unhealthyModels[0]?.provider;
   }
 
-  _isProviderInConfigState(provider) {
+ _isProviderInConfigState(provider) {
     // Check if the provider has needs_attention flag set (config state)
     // This indicates the provider requires user intervention and should be
     // excluded from automatic health checks.
@@ -204,11 +297,20 @@ export class HealthChecker {
         const providerInterval = this.providerIntervals[m.provider] || this.intervalMs;
         const lastCheck = this.lastProviderCheck.get(m.provider) || 0;
         if (Date.now() - lastCheck < providerInterval) {
-          if (this.verbose) slogInfo(`[HEALTH] Skip ${m.id}: provider ${m.provider} last checked ${Math.ceil((Date.now() - lastCheck) / 1000 / 60)}m ago, need ${Math.ceil(providerInterval / 1000 / 60)}min wait`);
-          continue;
-        }
-
-        const ok = await this._probe(m.id);
+            if (this.verbose) slogInfo(`[HEALTH] Skip ${m.id}: provider ${m.provider} last checked ${Math.ceil((Date.now() - lastCheck) / 1000 / 60)}m ago, need ${Math.ceil(providerInterval / 1000 / 60)}min wait`);
+            continue;
+          }
+          
+          // RPM/RPD rate limit check - skip if provider is approaching limits
+          if (this._isProviderRateLimited(m.provider)) {
+                if (this.verbose) slogInfo(`[HEALTH] Skip ${m.id}: provider ${m.provider} at RPM limit, waiting for rate limit to clear`);
+                continue;
+              }
+          
+          // Increment request counter for RPM tracking
+          const requestCount = this._incrementProviderRequestCount(m.provider);
+          
+          const ok = await this._probe(m.id);
         if (ok) {
         let stato = "in cooldown";
         if (Number(m.permanent) === 1) stato = "BANNATO";
@@ -291,6 +393,15 @@ export class HealthChecker {
       providerIntervals: this.providerIntervals,
       batchSize: this.batchSize,
       timeoutMs: this.timeoutMs,
+      smartIntervalBase: this.smartIntervalBase,
+      smartIntervalMultiplier: this.smartIntervalMultiplier,
+      consecutiveFailures: Object.fromEntries(this.consecutiveFailures),
+      // RPM/RPD rate limiting metrics
+      rpmLimit: this.rpmLimit,
+      rpdLimit: this.rpdLimit,
+      rpmSafetyMargin: this.rpmSafetyMargin,
+      providerRequestCounts: Object.fromEntries(this.providerRequestCounts),
+      lastMinuteReset: this.lastMinuteReset,
       stats: this.stats
     };
   }

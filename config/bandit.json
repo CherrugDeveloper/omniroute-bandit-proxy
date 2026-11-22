@@ -13,6 +13,13 @@
     "xai-oauth/grok-3-mini",
     "xao/grok-3-mini"
   ],
+  "punishmentThresholds": {
+    "consecutiveCriticalFailuresForBan": 5,
+    "circuitBreakerThreshold": 3,
+    "circuitBreakerCooldownMs": 300000,
+    "maxTotalFailuresBeforePermanentBan": 10,
+    "degradationThreshold": 5
+  },
   "errorConfig": {
     "degradationThreshold": 5,
     "rehabilitationPeriodMs": 172800000,
@@ -31,20 +38,20 @@
         { "pattern": "402|insufficient.?funds|credit.?exhausted|payment.?required|billing_error", "action": "flag-provider", "duration": 86400000 },
         { "pattern": "418|anti.abuse", "action": "cooldown-provider", "duration": 3600000 },
         { "pattern": "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized", "action": "cooldown-model", "duration": 300000, "reason": "safeWrite-init-error" },
-        { "pattern": "400.*validation|400.*bad request|400.*invalid request|400.*parameter|400.*request.*invalid|400.*missing.*field|400.*invalid.*input", "action": "cooldown-model", "duration": 30000, "reason": "transient-400-error" }
+        { "pattern": "400.*validation|400.*bad request|400.*invalid request|400.*parameter|400.*request.*invalid|400.*missing.*field|400.*invalid.*input", "action": "cooldown-model", "duration": 30000, "reason": "transient-400-error" },
+        { "pattern": "^404$", "action": "cooldown-model", "duration": 30000, "reason": "transient-404", "status": 404 },
+        { "pattern": "SSE contains error|SSE chunk error|stream error|keepalive|connection|chunk", "action": "cooldown-model", "duration": 30000, "reason": "stream-error" }
       ],
       "permanentErrors": [
         { "pattern": "account.?(?:disabled|suspended|banned|terminated|closed|deactivated)|organization.?(?:disabled|suspended|banned|deleted|deactivated)|project.?(?:deleted|disabled|suspended)|workspace.?(?:disabled|suspended|deleted)|policy.?violation|provider.?banned|banned|suspended", "action": "ban-provider", "scope": "provider" },
         { "pattern": "account disabled|banned", "action": "ban-provider", "scope": "provider" },
-        { "pattern": "model_shutdown|model is gone|end of life|model_shutdown", "action": "ban-model", "scope": "model" },
-        { "pattern": "SSE contains error|SSE chunk error|stream error|keepalive|connection|chunk", "action": "ban-model", "scope": "model", "reason": "stream-error" },
         { "pattern": "no.tool.call.but.required", "action": "ban-model", "scope": "model" },
         { "pattern": "image generation model|cannot be used for chat|not a chat model|image.only|incompatible", "action": "ban-model", "scope": "model" },
         { "pattern": "unsupported_image_block|devin_agentic_error", "action": "ban-model", "scope": "model" },
         { "pattern": "not supported.*(?:image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported)", "action": "ban-model", "scope": "model" },
         { "pattern": "Assignment to constant variable", "action": "ban-model", "scope": "model" },
         { "pattern": "OpenCode's free tier can only be used from within OpenCode", "action": "ban-model", "scope": "model" },
-        { "pattern": "catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog", "action": "ban-model", "scope": "model", "reason": "model-not-found" },
+        { "pattern": "catalog.?mismatch|unknown.?model|model_?not.?found|model not found|invalid model|does not exist|no longer available|not available in active live catalog", "action": "ban-model", "scope": "model", "reason": "model-not-found" },
         { "pattern": "lifetime limit|never resets|does not reset|no reset|total limit", "action": "ban-provider", "scope": "provider", "reason": "key-limit-exceeded", "status": 403 }
       ]
     }

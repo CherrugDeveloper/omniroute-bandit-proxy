@@ -3,21 +3,14 @@
 ## 1. Riepilogo delle Modifiche
 
 ### File Modificati
-- [`src/bandit.mjs`](src/bandit.mjs) - Rimozione pattern 400 hardcoded, miglioramento classificazione errori
-- [`config/bandit.json`](config/bandit.json) - Pattern 400 transient esistenti
-- [`__tests__/model-not-found-classification.test.js`](__tests__/model-not-found-classification.test.js) - Test validazione logica
+- [`src/bandit.mjs`](src/bandit.mjs) - Cambiamenti al logging e ai contatori
+- [`config/bandit.json`](config/bandit.json) - Nuovi pattern per errori 400 transient
+- [`__tests__/model-not-found-classification.test.js`](__tests__/model-not-found-classification.test.js) - Aggiornamenti test
+- [`scripts/monitor-punishment.mjs`](scripts/monitor-punishment.mjs) - Nuovo script di monitoraggio
 
 ### Modifiche Specifiche
 
 #### src/bandit.mjs
-
-**CRITICO - Rimozione Pattern 400 Hardcoded che causava falsi positivi**
-
-Rimosso il pattern hardcoded per errori 400 che trattava ogni errore 400 come permanent ban se non conteneva parole escluse. Questo causava falsi positivi per errori di validazione come "invalid request", "parameter missing", ecc.
-
-- **Prima**: Il codice hardcoded su `status === 400 && !/excluded_pattern/` bannava permanentemente ogni errore 400 non esplicitamente escluso
-- **Dopo**: I pattern 400 sono gestiti esclusivamente dalla configurazione in `config/bandit.json`
-- **Risultato**: Errori 400 di validazione (es. "400 validation error: invalid input") ora causano `cooldown-model` invece di `ban-model` permanente
 
 1. **BANDIT-CASCADE-GUARD**: Cambiato `slogInfo()` a `slogDebug()` per ridurre log spam
    - La riga 3214: `slogInfo(\`[BANDIT-CASCADE-GUARD] Applying punishment...\`)` è stata cambiata in `slogDebug()`
@@ -29,6 +22,12 @@ Rimosso il pattern hardcoded per errori 400 che trattava ogni errore 400 come pe
    - Le righe 3209-3210: `cascadeGuardSkipCount` viene incrementato quando il cascade guard salta la punizione
    - Le righe 3215-3216: `cascadeGuardApplyCount` viene incrementato quando il cascade guard applica la punizione
    - Questi contatori sono accessibili tramite `bandit.cascadeGuardSkipCount` e `bandit.cascadeGuardApplyCount`
+
+3. **Pattern 400 raffinati**: Aggiunti pattern per errori 400 non critici (validation, bad request, invalid parameter)
+   - La riga 34 in `config/bandit.json`: Nuovo pattern per errori 400 transient
+   - Pattern: `400.*validation|400.*bad request|400.*invalid request|400.*parameter|400.*request.*invalid|400.*missing.*field|400.*invalid.*input`
+   - Azione: `cooldown-model` con durata 30 secondi
+   - Motivo: `transient-400-error`
 
 #### config/bandit.json
 
@@ -141,34 +140,6 @@ Dopo il riavvio, monitora:
   - Errori di validazione ora causano cooldown-model invece di ban permanente
   - Verifica che i messaggi contengano "transient-400-error" come reason
 
-## 4. Falsi Positivi Corretti
-
-### Problema Identificato
-
-Prima della modifica, il codice hardcoded in `src/bandit.mjs` (righe 1702-1721) trattava **ogni errore 400** come un possibile "model not found" se il messaggio non conteneva parole escluse specifiche. Questo causava falsi positivi per:
-
-- Errori di validazione: `"400 validation error: invalid input"` → **ban-model permanente** ❌
-- Errori di parametri mancanti: `"400 missing field 'model'"` → **ban-model permanente** ❌
-- Errori di formato: `"400 invalid request format"` → **ban-model permanente** ❌
-
-### Soluzione Implementata
-
-**Rimosso il pattern 400 hardcoded**. Ora i pattern 400 vengono gestiti esclusivamente dalla configurazione in `config/bandit.json`:
-
-- Pattern transient (riga 34): errori 400 con "validation", "bad request", "invalid request" → `cooldown-model` 30s
-- Pattern permanent: solo messaggi specifici di "catalog mismatch" → `ban-model` permanente
-
-### Verifica dei Falsi Positivi
-
-Errori 400 che **prima** causavano ban permanente ora causano cooldown-model:
-
-| Messaggio | Prima | Dopo |
-|-----------|-------|------|
-| `"400 validation error: invalid input"` | ban-model | cooldown-model (transient) ✅ |
-| `"400 missing field 'model'"` | ban-model | cooldown-model (transient) ✅ |
-| `"catalog mismatch"` | ban-model | ban-model (corretto) ✅ |
-| `"Model not found in active live catalog"` | ban-model | ban-model (corretto) ✅ |
-
 - **Nuovo script di monitoraggio** per un'analisi completa:
   ```bash
   node scripts/monitor-punishment.mjs
@@ -249,7 +220,7 @@ node scripts/monitor-punishment.mjs --watch
 node scripts/monitor-punishment.mjs --format json
 ```
 
-## 7. Sistema 5-Strike e Exponential Backoff
+## 6. Sistema 5-Strike e Exponential Backoff
 
 ### 5-Strike System
 

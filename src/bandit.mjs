@@ -24,6 +24,8 @@ export class DiscountedUCB1Bandit {
         if (exists) {
           return sanitized;
         }
+        // 400 fallback: if sanitized id not in catalog, return original for tracking/banning
+        // This allows proper classification of model-not-found errors
       }
       const originalExists = this.db.prepare("SELECT 1 FROM catalog WHERE id = ?").get(modelId);
       if (originalExists) return modelId;
@@ -109,6 +111,18 @@ export class DiscountedUCB1Bandit {
 
   getFallbackModels() {
     return this.getBanditConfig().fallbackModels || [];
+  }
+
+  getPunishmentThresholds() {
+    const config = this.getBanditConfig();
+    const thresholds = config.punishmentThresholds || {};
+    return {
+      consecutiveCriticalFailuresForBan: thresholds.consecutiveCriticalFailuresForBan || 5,
+      circuitBreakerThreshold: thresholds.circuitBreakerThreshold || 3,
+      circuitBreakerCooldownMs: thresholds.circuitBreakerCooldownMs || 300000,
+      maxTotalFailuresBeforePermanentBan: thresholds.maxTotalFailuresBeforePermanentBan || 10,
+      degradationThreshold: thresholds.degradationThreshold || 5
+    };
   }
 
   _initDB() {
@@ -1694,10 +1708,12 @@ export class DiscountedUCB1Bandit {
     // CRITICAL: This catches REAL "model not found in active live catalog" errors.
     // The model is no longer available in the provider's catalog and will never recover.
     // This requires user intervention (config update) to fix.
-    // NOTE: 400 status errors are handled by config patterns (bandit.json) - they should be
-    // transient cooldown-model errors, NOT permanent bans, unless the message specifically
-    // indicates a catalog mismatch (handled by the message pattern below).
-    if (/catalog mismatch|unknown model|model_not_found|does not exist|no longer available|invalid model|not available in active live catalog/i.test(message)) {
+    // NOTE: 404 status alone (without specific message) is transient - handled by config patterns.
+    // Only catalog mismatch messages trigger permanent ban-model.
+    if (/catalog mismatch|unknown model|model_not_found|not available in active live catalog/i.test(message)) {
+      return { action: "ban-model", scope: "model", reason: "model-not-found", category: "PERMANENT" };
+    }
+    if (/does not exist|no longer available/i.test(message)) {
       return { action: "ban-model", scope: "model", reason: "model-not-found", category: "PERMANENT" };
     }
     // Upstream bug (Assignment to constant) -> ban-model
@@ -1831,10 +1847,7 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-model", scope: "model", reason: "timeout", cooldownMs: 10 * 60 * 1000, category: "TRANSIENT" };
     }
 
-    // 5xx / Stream Errors / Keepalive -> ban-model (permanent for stream errors per config)
-    if (/keepalive|chunk|stream|connection/i.test(message)) {
-      return { action: "ban-model", scope: "model", reason: "stream-error", category: "PERMANENT" };
-    }
+    // 5xx errors -> cooldown-model with exponential backoff
     if (status >= 500 && status < 600) {
       const modelId = this._sanitizeModelId(errorDetails.modelId) || "";
       const model = this.db.prepare("SELECT fails FROM models WHERE id = ?").get(modelId) || { fails: 0 };
@@ -1923,9 +1936,10 @@ export class DiscountedUCB1Bandit {
       return false;
     }
     
-    // SSE errors (stream errors indicate persistent issues with the model provider)
+    // SSE errors (stream errors) - handled as cooldown-model 30s per AGENTS.md (not critical)
+    // Previously was critical, now transient: cooldown-model with 30000ms duration
     if (/SSE contains error|SSE chunk error|stream error/i.test(message)) {
-      return true;
+      return false;  // Let classifyError handle via config/bandit.json transientErrors pattern
     }
     
     // Environment errors that are model-specific (not provider-level)
@@ -2116,11 +2130,13 @@ export class DiscountedUCB1Bandit {
     let circuitBreakerUntil = prevCircuitUntil;
 
     if (!isCircuitOpen && !shouldReset && isHardError) {
-      const threshold = Number(process.env.CIRCUIT_BREAKER_THRESHOLD || "3");
+      const thresholds = this.getPunishmentThresholds();
+      const threshold = thresholds.circuitBreakerThreshold;
+      const cooldownMs = thresholds.circuitBreakerCooldownMs;
       if (newFailures >= threshold) {
         circuitOpen = true;
-        circuitBreakerUntil = now + 5 * 60 * 1000;
-        slogInfo(`[BANDIT] Circuit breaker OPENED for provider ${provider} after ${newFailures} consecutive failures`);
+        circuitBreakerUntil = now + cooldownMs;
+        slogInfo(`[BANDIT] Circuit breaker OPENED for provider ${provider} after ${newFailures} consecutive failures (threshold: ${threshold})`);
       }
     }
 

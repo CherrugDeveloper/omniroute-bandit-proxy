@@ -72,15 +72,14 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
    * @test Model-not-found errors are classified as ban-model (permanent) instead of cooldown-model (transient)
    */
   test("model-not-found errors are classified as ban-model (permanent) instead of cooldown-model (transient)", () => {
+    // Only test messages that SHOULD match the pattern (not "not found" bare 404)
     const errorMessages = [
       "Model not found in active live catalog",
       "catalog mismatch",
       "unknown model",
       "model_not_found",
       "does not exist",
-      "not found",
       "no longer available",
-      "not available",
       "invalid model",
       "not available in active live catalog"
     ];
@@ -99,6 +98,36 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
   });
 
   /**
+   * @test "not found" bare 404 should NOT trigger ban-model (it's excluded from pattern per v0.53.10)
+   */
+  test('"not found" bare 404 should NOT trigger ban-model (excluded from pattern)', () => {
+    const bareNotFoundError = "not found";
+    const classification = bandit._classifyError({ status: 404, message: bareNotFoundError }, "test-provider");
+    
+    // "not found" should NOT match the model-not-found pattern anymore
+    // It should fall through to the transient 404 pattern
+    assert.strictEqual(classification.action, "cooldown-model", 
+      `"${bareNotFoundError}" should be classified as cooldown-model (transient), not ban-model`);
+    assert.strictEqual(classification.reason, "transient-404", 
+      `"${bareNotFoundError}" should have reason "transient-404"`);
+    assert.strictEqual(classification.category, "TRANSIENT", 
+      `"${bareNotFoundError}" should be classified as TRANSIENT category`);
+  });
+
+  /**
+   * @test "not available" alone should NOT trigger ban-model
+   */
+  test('"not available" alone should NOT trigger ban-model', () => {
+    const notAvailableError = "not available";
+    const classification = bandit._classifyError({ status: 400, message: notAvailableError }, "test-provider");
+    
+    // "not available" alone should NOT match the model-not-found pattern
+    // It should fall through to other classifications
+    assert.notStrictEqual(classification.reason, "model-not-found",
+      `"${notAvailableError}" should NOT have reason "model-not-found"`);
+  });
+
+  /**
    * @test Model-not-found errors are classified as critical failures in _isCriticalFailure()
    */
   test("model-not-found errors are classified as critical failures in _isCriticalFailure()", () => {
@@ -108,9 +137,7 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
       "unknown model",
       "model_not_found",
       "does not exist",
-      "not found",
       "no longer available",
-      "not available",
       "invalid model",
       "not available in active live catalog"
     ];
@@ -137,9 +164,9 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
   });
 
   /**
-   * @test New config pattern for model-not-found errors in bandit.json
+   * @test Configuration pattern for model-not-found errors in bandit.json
    */
-  test("new config pattern for model-not-found errors in bandit.json", () => {
+  test("configuration pattern for model-not-found errors in bandit.json", () => {
     const configRaw = fs.readFileSync(path.join(process.cwd(), 'config/bandit.json'), 'utf8');
     const config = JSON.parse(configRaw);
 
@@ -156,25 +183,30 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
     assert.strictEqual(modelNotFoundPattern.reason, "model-not-found", 
       "model-not-found pattern should have reason 'model-not-found'");
 
-    // Test that the pattern matches various error messages
-    const errorMessages = [
+    const shouldMatch = [
       "catalog mismatch",
       "unknown model",
       "model_not_found",
       "does not exist",
-      "not found",
       "no longer available",
-      "not available",
       "invalid model",
-      "not available in active live catalog"
+      "not available in active live catalog",
+      "Model not found in active live catalog"
     ];
 
-    errorMessages.forEach(errorMsg => {
+    shouldMatch.forEach(errorMsg => {
       const regex = new RegExp(modelNotFoundPattern.pattern, 'i');
       const matches = regex.test(errorMsg);
-      assert.strictEqual(matches, true, 
+      assert.strictEqual(matches, true,
         `Pattern "${modelNotFoundPattern.pattern}" should match error "${errorMsg}"`);
     });
+
+    // Test that the pattern does NOT match "not found" bare 404
+    const shouldNotMatch = "not found";
+    const regex = new RegExp(modelNotFoundPattern.pattern, 'i');
+    const matches = regex.test(shouldNotMatch);
+    assert.strictEqual(matches, false,
+      `Pattern "${modelNotFoundPattern.pattern}" should NOT match bare "not found"`);
   });
 
   /**
