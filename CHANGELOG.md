@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.14] - 2026-11-22
+### Fixed
+- fix(bandit): corrected `_getModelCooldownMs` comment to match actual cooldown array (30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent)
+- fix(config): increased `degradationThreshold` from 3 to 5 to prevent premature degradation on transient 5xx errors
+
+### Added
+- feat(training): added `TRAIN_MAX_TIMEOUT_SKIP` env var (default: 3) to configure max consecutive timeouts before skipping a provider in train-daemon
+- feat(training): added `TRAIN_MAX_FAIL_SKIP` env var (default: 5) to configure max consecutive failures before skipping a provider in train-daemon
+- feat(logging): added `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepting debug|info|warn|error to control minimum log level emitted
+
 ## [0.53.13] - 2026-11-22
 ### Fixed
 - fix(bandit): 502/503/504 generic errors now classified as `cooldown-model` with `upstream-error` reason (TRANSIENT) instead of `provider-misconfigured` (PERMANENT), preventing cascade config state across all provider models

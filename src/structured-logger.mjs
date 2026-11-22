@@ -22,7 +22,7 @@ const LEVELS = {
 };
 
 const MIN_LEVEL = LEVELS[
-  String(process.env.STRUCTURED_LOG_LEVEL || "info").toLowerCase()
+  String(process.env.STRUCTURED_LOG_LEVEL || process.env.LOG_LEVEL || "info").toLowerCase()
 ] || LEVELS.info;
 
 /**

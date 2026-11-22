@@ -14,7 +14,7 @@
     "xao/grok-3-mini"
   ],
   "errorConfig": {
-    "degradationThreshold": 3,
+    "degradationThreshold": 5,
     "rehabilitationPeriodMs": 172800000,
     "classification": {
       "transientErrors": [

@@ -1074,7 +1074,7 @@ export class DiscountedUCB1Bandit {
   }
 
   _getModelCooldownMs(totalFailures) {
-    // Exponential backoff: 30s → 5min → 30min → 2hr → permanent
+    // Exponential backoff: 30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent (10+)
     // totalFailures is the cumulative failure count across restarts
     if (totalFailures >= 10) return null; // 10+ fails = permanent ban
     const cooldowns = [

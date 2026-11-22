@@ -8,15 +8,17 @@
 // NON logga per-model: gli esiti sono visibili in dashboard (Live Logs).
 //
 // Env:
-//   PROXY        URL del proxy (default: http://127.0.0.1:8080)
-//   DB           Path SQLite (default: ./bandit.db)
-//   PROVIDER     Filtra per provider (default: tutti)
-//   DELAY_MS     Pausa tra richieste (default: 2000)
-//   TIMEOUT_MS   Timeout richiesta (default: 60000)
-//   CYCLE_DELAY  Pausa tra un ciclo e il successivo (default: 30000)
-//   SKIP_TESTED  true/false - salta modelli già in `models` (default: false)
-//   MAX_INPUT    Filtra solo modelli con max_input_tokens >= N (default: 0)
-//   PROMPT       Prompt di test (default: "Rispondi solo con: ok")
+//   PROXY              URL del proxy (default: http://127.0.0.1:8080)
+//   DB                 Path SQLite (default: ./bandit.db)
+//   PROVIDER           Filtra per provider (default: tutti)
+//   DELAY_MS           Pausa tra richieste (default: 2000)
+//   TIMEOUT_MS         Timeout richiesta (default: 60000)
+//   CYCLE_DELAY        Pausa tra un ciclo e il successivo (default: 30000)
+//   SKIP_TESTED        true/false - salta modelli già in `models` (default: false)
+//   MAX_INPUT          Filtra solo modelli con max_input_tokens >= N (default: 0)
+//   PROMPT             Prompt di test (default: "Rispondi solo con: ok")
+//   TRAIN_MAX_TIMEOUT_SKIP  Max timeout consecutivi per skip provider (default: 3)
+//   TRAIN_MAX_FAIL_SKIP     Max fail consecutivi per skip provider (default: 5)
 // ============================================================
 
 import Database from "better-sqlite3";
@@ -44,6 +46,9 @@ const TRAIN_EXCLUDE_PROVIDERS = String(process.env.TRAIN_EXCLUDE_PROVIDERS || ""
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
+// Soglie configurabili per skip provider durante il training
+const TRAIN_MAX_TIMEOUT_SKIP = parseInt(process.env.TRAIN_MAX_TIMEOUT_SKIP || "3", 10);
+const TRAIN_MAX_FAIL_SKIP    = parseInt(process.env.TRAIN_MAX_FAIL_SKIP    || "5", 10);
 let running = true;
 let currentModel = null;
 let cycle = 0;
@@ -300,13 +305,13 @@ async function main() {
         fail++; totalFail++;
         cycleStats.cycleFail++;
         cycleStats.totalFail++;
-        // Timeout (0) → skippa il modello E conta verso il provider (3 timeout = skip ciclo)
+        // Timeout (0) → skippa il modello E conta verso il provider (configurabile via TRAIN_MAX_TIMEOUT_SKIP)
         if (result.status === 0) {
           skippedProviders.add(model);
           timeoutCountByProvider[provider] = (timeoutCountByProvider[provider] || 0) + 1;
-          if (timeoutCountByProvider[provider] >= 3 && !skippedProviders.has("COOLDOWN:" + provider)) {
+          if (timeoutCountByProvider[provider] >= TRAIN_MAX_TIMEOUT_SKIP && !skippedProviders.has("COOLDOWN:" + provider)) {
             skippedProviders.add("COOLDOWN:" + provider);
-            log(`  → provider ${provider}: 3 timeout consecutivi, skip per questo ciclo`);
+            log(`  → provider ${provider}: ${TRAIN_MAX_TIMEOUT_SKIP} timeout consecutivi, skip per questo ciclo`);
           }
         } else {
           // 5xx/404/403 → conta verso il provider
@@ -336,10 +341,10 @@ async function main() {
           }
         }
 
-        // Skip provider SOLO dopo 3 fail dello stesso provider in questo ciclo
-        if (failCountByProvider[provider] >= 5 && !skippedProviders.has("COOLDOWN:" + provider)) {
+        // Skip provider SOLO dopo N fail dello stesso provider in questo ciclo (configurabile via TRAIN_MAX_FAIL_SKIP)
+        if (failCountByProvider[provider] >= TRAIN_MAX_FAIL_SKIP && !skippedProviders.has("COOLDOWN:" + provider)) {
           skippedProviders.add("COOLDOWN:" + provider);
-          log(`  → provider ${provider} ha fallito 5 volte, skip per questo ciclo`);
+          log(`  → provider ${provider} ha fallito ${TRAIN_MAX_FAIL_SKIP} volte, skip per questo ciclo`);
         }
 
         // Se troppi 404 di fila → pausa

@@ -24,6 +24,13 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Proxy Layer**: Handles HTTP requests, token estimation, and provider-specific API calls.
 - **Event System**: Streams real-time punishment and status events to the dashboard via WebSockets.
 
+### v0.53.14 Logging & Training Tuning
+
+- **Cooldown comment fix**: Corrected `_getModelCooldownMs` comment to match the actual cooldown array (30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent at 10+ failures).
+- **Degradation threshold**: Increased `degradationThreshold` from 3 to 5 in `config/bandit.json` to prevent premature degradation on transient 5xx errors.
+- **Training daemon env vars**: Added `TRAIN_MAX_TIMEOUT_SKIP` (default: 3) and `TRAIN_MAX_FAIL_SKIP` (default: 5) to configure provider skip thresholds during training cycles.
+- **Log level control**: Added `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepting `debug|info|warn|error` to control the minimum log level emitted by the structured logger.
+
 ### v0.53.13 Unified History Reset & Config State Fix
 
 - **Config state cascade fix**: Generic 502/503/504 errors are now classified as `cooldown-model` with `upstream-error` reason (TRANSIENT) instead of `provider-misconfigured` (PERMANENT). This prevents the cascade where all models of a provider were incorrectly pushed into "config" state.
