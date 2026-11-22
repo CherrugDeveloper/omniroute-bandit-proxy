@@ -6,8 +6,10 @@ Non-obvious, project-specific guidance for debugging.
 - `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **cooldown-model** (transient, scope: model) — NOT critical.
 - **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. Counter resets on success.
 - Timeout errors are **transient (cooldown-model)**, NOT critical.
-- `consecutive_5xx ≥ 3` triggers degraded mode.
-- Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
+- `consecutive_5xx ≥ 5` triggers degraded mode (updated from 3 in v0.53.14).
+- Exponential backoff cooldowns: 30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent (10+).
+- Training daemon: `TRAIN_MAX_TIMEOUT_SKIP` (default: 3) and `TRAIN_MAX_FAIL_SKIP` (default: 5) env vars control provider skip thresholds.
+- Structured logger: `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepts `debug|info|warn|error`.
 
 ## Database & State
 - `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`).

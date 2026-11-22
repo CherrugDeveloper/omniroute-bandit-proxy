@@ -35,3 +35,9 @@ This file provides guidance to agents when working with code in this repository.
 - `PROXY` removed from default log denylist; runtime override via `LOG_BUFFER_DENYLIST` env var
 - Polling intervals increased (main loop 1s→2s, fetch intervals 5s→10s) with `requestIdleCallback` for DOM updates
 - `recentRequests` RingBuffer increased from 5 to 50 entries
+
+## Logging & Training Tuning (v0.53.14)
+- `_getModelCooldownMs` comment corrected to match actual array: 30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent (10+)
+- `degradationThreshold` increased from 3 to 5 in `config/bandit.json` to prevent premature degradation on transient 5xx
+- Training daemon: `TRAIN_MAX_TIMEOUT_SKIP` (default: 3) and `TRAIN_MAX_FAIL_SKIP` (default: 5) env vars control provider skip thresholds
+- Structured logger: `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepts `debug|info|warn|error` to control minimum log level

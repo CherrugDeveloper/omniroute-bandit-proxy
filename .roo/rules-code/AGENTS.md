@@ -11,8 +11,10 @@ Non-obvious, project-specific guidance for code changes.
 - `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` → **cooldown-model** (transient, scope: model) — NOT critical.
 - **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. Counter resets on success. `safeWrite` errors are NOT critical.
 - Timeout errors are **transient (cooldown-model)**, NOT critical.
-- `consecutive_5xx ≥ 3` triggers degraded mode.
-- Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
+- `consecutive_5xx ≥ 5` triggers degraded mode (updated from 3 in v0.53.14).
+- Exponential backoff cooldowns: 30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent (10+).
+- Training daemon: `TRAIN_MAX_TIMEOUT_SKIP` (default: 3) and `TRAIN_MAX_FAIL_SKIP` (default: 5) env vars control provider skip thresholds.
+- Structured logger: `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepts `debug|info|warn|error`.
 - Cascade ban guard: paid-group-ban UPDATE includes `AND permanent = 0`.
 - Cascade guard skip list also covers capability-based rejections (`non_chat_model_excluded`, `no_tools_support`, `max_input_tokens_exceeded`, `exclude_thinking`, `dynamic_max_tokens_exceeded`) so capability mismatches never trigger cooldowns.
 - Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms).
