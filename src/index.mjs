@@ -3342,9 +3342,9 @@ process.on("SIGTERM", () => {
   bandit.close();
   if (server) {
     const timeout = setTimeout(() => {
-      slogError("[SHUTDOWN] Chiusura graceful scaduta (10s), forzo l'uscita");
+      slogError("[SHUTDOWN] Chiusura graceful scaduta (30s), forzo l'uscita");
       process.exit(1);
-    }, 10000);
+    }, 30000);
 
     // Chiude forzatamente le connessioni attive per velocizzare il rilascio della porta
     if (typeof server.closeAllConnections === 'function') {
@@ -3370,9 +3370,9 @@ process.on("SIGINT", () => {
   bandit.close();
   if (server) {
     const timeout = setTimeout(() => {
-      slogError("[SHUTDOWN] Chiusura graceful scaduta (10s), forzo l'uscita");
+      slogError("[SHUTDOWN] Chiusura graceful scaduta (30s), forzo l'uscita");
       process.exit(1);
-    }, 10000);
+    }, 30000);
 
     // Chiude forzatamente le connessioni attive per velocizzare il rilascio della porta
     if (typeof server.closeAllConnections === 'function') {
