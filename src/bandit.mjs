@@ -1691,19 +1691,13 @@ export class DiscountedUCB1Bandit {
       }
     }
 
-    // 400: Catalog mismatch / unknown model / model not found -> ban-model (PERMANENT)
     // CRITICAL: This catches REAL "model not found in active live catalog" errors.
     // The model is no longer available in the provider's catalog and will never recover.
     // This requires user intervention (config update) to fix.
-    //
-    // IMPORTANT: The fallback 400 pattern below catches OTHER 400 errors that are NOT
-    // catalog mismatches. These are validation errors that should NOT trigger permanent bans.
-    // The pattern explicitly EXCLUDES: unsupported_image_block, devin_agentic_error, image block errors
-    // to avoid false positives. Only genuine "model not found" messages match this pattern.
-    if ((/catalog mismatch|unknown model|model_not_found|does not exist|no longer available|invalid model|not available in active live catalog/i.test(message)) || (status === 400 && !/unsupported_image_block|devin_agentic_error|image.?block/i.test(message + " " + (errorDetails.code || "")))) {
-      // Note: Removed `|| status === 404` - 404 status alone should not permanently ban models.
-      // Models returning 404 will fall through to other classifications (typically cooldown-model transient).
-      // If the message matches the config pattern in bandit.json, it will still be classified as ban-model permanent.
+    // NOTE: 400 status errors are handled by config patterns (bandit.json) - they should be
+    // transient cooldown-model errors, NOT permanent bans, unless the message specifically
+    // indicates a catalog mismatch (handled by the message pattern below).
+    if (/catalog mismatch|unknown model|model_not_found|does not exist|no longer available|invalid model|not available in active live catalog/i.test(message)) {
       return { action: "ban-model", scope: "model", reason: "model-not-found", category: "PERMANENT" };
     }
     // Upstream bug (Assignment to constant) -> ban-model

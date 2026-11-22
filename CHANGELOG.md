@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.15] - 2026-11-22
+### Fixed
+- fix(bandit): removed hardcoded 400 status code pattern that caused false-positive permanent bans for validation errors (error messages like "400 validation error: invalid input" now trigger cooldown-model instead of ban-model)
+- fix(bandit): refined `_classifyError()` to only ban-model for genuine "model not found" catalog mismatch errors; 400 errors are now handled exclusively by config patterns in bandit.json as transient cooldown-model errors
+- fix(config): clarified transient 400 error patterns (validation, bad request, invalid parameter) that now correctly trigger 30s cooldown-model instead of permanent ban
+
 ## [0.53.14] - 2026-11-22
 ### Fixed
 - fix(bandit): corrected `_getModelCooldownMs` comment to match actual cooldown array (30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent)

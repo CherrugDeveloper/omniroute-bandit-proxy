@@ -24,6 +24,12 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Proxy Layer**: Handles HTTP requests, token estimation, and provider-specific API calls.
 - **Event System**: Streams real-time punishment and status events to the dashboard via WebSockets.
 
+### v0.53.15 False Positive Fix & 400 Error Classification
+
+- **False positive elimination**: Removed hardcoded 400 status code pattern that caused false-positive permanent bans for validation errors (error messages like "400 validation error: invalid input" now trigger cooldown-model instead of ban-model).
+- **Refined model-not-found classification**: The `_classifyError()` function now only bans-model for genuine "model not found" catalog mismatch errors; 400 errors are now handled exclusively by config patterns in bandit.json as transient cooldown-model errors (30s).
+- **Transient 400 error patterns**: Clarified that 400 errors with "validation", "bad request", "invalid parameter" messages are correctly classified as transient cooldown-model instead of permanent ban.
+
 ### v0.53.14 Logging & Training Tuning
 
 - **Cooldown comment fix**: Corrected `_getModelCooldownMs` comment to match the actual cooldown array (30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent at 10+ failures).
