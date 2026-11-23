@@ -41,3 +41,12 @@ This file provides guidance to agents when working with code in this repository.
 - `degradationThreshold` increased from 3 to 5 in `config/bandit.json` to prevent premature degradation on transient 5xx
 - Training daemon: `TRAIN_MAX_TIMEOUT_SKIP` (default: 3) and `TRAIN_MAX_FAIL_SKIP` (default: 5) env vars control provider skip thresholds
 - Structured logger: `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepts `debug|info|warn|error` to control minimum log level
+
+## Dashboard Data Export (v0.53.15)
+- **Copy All Button**: Added "📋 Copia Tutti" button in dashboard header for bulk data export
+  - Exports metrics, model stats, provider stats, training status, and active tab data (logs/models/train/modes)
+  - Data formatted as TSV (Tab-Separated Values) with headers
+  - Copy confirmation feedback ("✅ Copiato") displayed for 2 seconds
+  - Button ID: `copy-all-btn` with class `btn btn-primary`
+  - Excludes WebSocket URL, Token, and other sensitive fields from export
+  - Active tab content dynamically included based on user selection
