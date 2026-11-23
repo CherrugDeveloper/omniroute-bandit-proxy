@@ -29,6 +29,8 @@
         { "pattern": "502|503|No auth provided|Please log in|Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright|is not configured|missing url or token|browserType.launch|Executable doesn't exist", "action": "cooldown-provider", "duration": 1800000, "reason": "provider-misconfigured" },
         { "pattern": "ENOENT|spawn.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured", "action": "cooldown-provider", "duration": 1800000 },
         { "pattern": "5xx|server-error", "action": "cooldown-model", "duration": 30000 },
+        { "pattern": "gateway timeout|502.*timeout|503.*timeout|504 timeout|504 gateway timeout", "action": "cooldown-model", "duration": 60000, "reason": "gateway-timeout" },
+        { "pattern": "502.*high demand|502.*overloaded|502.*temporarily unavailable|503.*high demand|503.*overloaded|503.*temporarily unavailable|504", "action": "cooldown-model", "duration": 30000, "reason": "upstream-overloaded" },
         { "pattern": "rate.?limit|too.?many.?requests|throttled|quota.?exceeded|exhausted", "action": "cooldown-model", "duration": 300000 },
         { "pattern": "429|cooling down", "action": "cooldown-model", "duration": 300000 },
         { "pattern": "RATE_LIMIT_QUEUE_TIMEOUT|503 queue timeout|queue timeout", "action": "cooldown-model", "duration": 45000 },

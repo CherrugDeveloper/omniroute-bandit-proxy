@@ -17,6 +17,8 @@
     "ws": "^8.22.1"
   },
   "devDependencies": {
-    "date-fns": "^3.0.0"
+    "@playwright/test": "^1.65.1",
+    "date-fns": "^3.0.0",
+    "playwright": "^1.65.1"
   }
 }

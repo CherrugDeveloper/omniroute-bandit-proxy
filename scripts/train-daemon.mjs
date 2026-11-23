@@ -261,7 +261,35 @@ async function main() {
     log(`--- Ciclo #${cycle}: ${models.length} modelli da testare ---`);
 
     if (models.length === 0) {
-      log(`Nessun modello disponibile. Aspetto ${CYCLE_DELAY}ms...`);
+      // Log dettagliato per capire perché non ci sono modelli disponibili
+      try {
+        const db = new Database(DB_PATH, { readonly: true });
+        const totalCatalog = db.prepare("SELECT COUNT(*) as count FROM catalog").get().count;
+        const flaggedProviders = db.prepare(`
+          SELECT provider, needs_attention, permanent, cooldown_until
+          FROM provider_history
+          WHERE needs_attention = 1 OR permanent = 1 OR cooldown_until > ?
+        `).all(Date.now());
+        const permanentlyBannedModels = db.prepare("SELECT COUNT(*) as count FROM models WHERE permanent = 1").get().count;
+        const expiredCooldowns = db.prepare("SELECT COUNT(*) as count FROM models WHERE cooldown_until > ? AND cooldown_until < ?").all(Date.now(), Date.now() + 60000);
+        
+        log(`  🔍 Analisi modelli non disponibili:`);
+        log(`     - Totali nel catalogo: ${totalCatalog}`);
+        log(`     - Modelli permanentmente bannati: ${permanentlyBannedModels}`);
+        log(`     - Provider con problems: ${flaggedProviders.length}`);
+        if (flaggedProviders.length > 0) {
+          for (const fp of flaggedProviders) {
+            const cooldownInfo = fp.cooldown_until > Date.now()
+              ? `cooldown fino a ${(fp.cooldown_until - Date.now())/1000}s`
+              : 'nessun cooldown';
+            log(`       • ${fp.provider}: needs_attention=${fp.needs_attention}, permanent=${fp.permanent}, ${cooldownInfo}`);
+          }
+        }
+        db.close();
+      } catch (e) {
+        log(`     Warning: Impossibile leggere lo stato database: ${e.message}`);
+      }
+      log(`  ⏳ Aspetto ${CYCLE_DELAY}ms prima del prossimo ciclo...`);
       await sleep(CYCLE_DELAY).catch(() => {});
       continue;
     }
