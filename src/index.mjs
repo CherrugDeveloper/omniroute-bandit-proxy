@@ -18,6 +18,7 @@ import * as WebSocket from "ws";
 import { createPunishmentEvents, formatEventPayload, initializeEventBuffer } from "./events.mjs";
 import { getStatsAggregator, shutdownStatsAggregator } from "./stats-aggregator.mjs";
 import { info as slogInfo, warn as slogWarn, error as slogError, debug as slogDebug } from "./structured-logger.mjs";
+import { initializePrefetch } from "./model-prefetch.mjs";
 EventEmitter.defaultMaxListeners = 50;
 // Define ES module __dirname and __filename at the top (before they are used)
 const __filename = fileURLToPath(import.meta.url);
@@ -1151,6 +1152,129 @@ app.post('/v1/debug/toggle', requireAuth, express.json(), (req, res) => {
   res.json({ verbose: debugFlag.isEnabled() });
 });
 
+// ========================================
+// DEBUG ENDPOINTS
+// ========================================
+
+// POST /v1/debug/reset-model/:id - Reset all metrics for a single model
+app.post('/v1/debug/reset-model/:id', requireAuth, (req, res) => {
+  const modelId = req.params.id;
+  try {
+    bandit.resetModel(modelId);
+    slogInfo(`[DEBUG] reset model: ${modelId}`);
+    res.json({ success: true, model: modelId });
+  } catch (e) {
+    slogError(`[DEBUG] reset model error: ${e.message}`);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /v1/debug/reset-history - Clear unified history (punishment events and old logs)
+app.post('/v1/debug/reset-history', requireAuth, (async (req, res) => {
+  try {
+    bandit.resetUnifiedHistory();
+    recentRequests.clear();
+    slogInfo('[DEBUG] reset unified history');
+    res.json({ success: true });
+  } catch (e) {
+    slogError(`[DEBUG] reset history error: ${e.message}`);
+    res.status(500).json({ error: e.message });
+  }
+}).bind(this));
+
+// GET /v1/debug/providers - Get all providers with optional filters
+app.get('/v1/debug/providers', requireAuth, (req, res) => {
+  try {
+    const providers = bandit.getAllProviders();
+    const statusFilter = req.query.status;
+    
+    let filtered = providers;
+    if (statusFilter) {
+      filtered = providers.filter((p) => {
+        const now = Date.now();
+        switch (statusFilter) {
+          case 'active':
+          case 'available':
+            return !p.cooldown_until || p.cooldown_until <= now;
+          case 'cooldown':
+          case 'temporarily_banned':
+            return p.cooldown_until && p.cooldown_until > now;
+          case 'permanent_banned':
+          case 'banned':
+            return p.permanent === 1;
+          case 'needs_attention':
+            return p.needs_attention === 1;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    res.json({ providers: filtered });
+  } catch (e) {
+    slogError(`[API] Errore /v1/debug/providers: ${e.message}`);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /v1/debug/models - Get all models with optional filters
+app.get('/v1/debug/models', requireAuth, (req, res) => {
+  try {
+    const models = bandit.getAllModels();
+    const filters = {
+      status: req.query.status,
+      provider: req.query.provider,
+      minN: req.query.minN ? parseInt(req.query.minN) : undefined,
+      search: req.query.search
+    };
+    
+    let filtered = models;
+    
+    // Apply status filter
+    if (filters.status) {
+      const now = Date.now();
+      filtered = filtered.filter((m) => {
+        switch (filters.status) {
+          case 'active':
+          case 'available':
+            return !m.cooldown_until || m.cooldown_until <= now;
+          case 'cooldown':
+          case 'temporarily_banned':
+            return m.cooldown_until && m.cooldown_until > now;
+          case 'permanent_banned':
+          case 'banned':
+            return m.permanent === 1;
+          case 'degraded':
+            return m.degraded === 1;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    // Apply provider filter
+    if (filters.provider) {
+      filtered = filtered.filter((m) => m.provider === filters.provider);
+    }
+    
+    // Apply minN filter
+    if (filters.minN !== undefined) {
+      filtered = filtered.filter((m) => (m.N || 0) >= filters.minN);
+    }
+    
+    // Apply search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter((m) => m.id.toLowerCase().includes(searchLower));
+    }
+    
+    res.json({ models: filtered });
+  } catch (e) {
+    slogError(`[API] Errore /v1/debug/models: ${e.message}`);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Simple in-memory cache with TTL for status endpoints
 const statusCache = new Map();
 const STATUS_CACHE_TTL_MS = 5000;
@@ -2014,7 +2138,10 @@ app.post(["/v1/chat/completions", "/chat/completions"], async (req, res) => {
   // Scala linearmente (100k = 2x, 200k+ = 3x, cap 3x).
   // Clamp to minimum 1ms to prevent TimeoutNegativeWarning
   // Increased default from 20000ms to 60000ms to accommodate slower models like qwen3-coder-next
-  const baseTimeout = Math.max(1, parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000);
+  const baseTimeoutEnv = Math.max(1, parseInt(process.env.UPSTREAM_TIMEOUT_MS) || 60000);
+  // Nuovo timeout dinamico: 30s per modelli free, 60s per modelli paid
+  const isFreeModel = model && bandit.db.prepare(`SELECT is_paid FROM catalog WHERE id = ?`).get(model)?.is_paid !== 1;
+  const baseTimeout = isFreeModel ? 30000 : 60000;
   const tokenScale = Math.max(1, Math.min(3, Math.ceil((estimatedTokens || 0) / 100000)));
   const upstreamTimeoutMs = baseTimeout * tokenScale;
   if (tokenScale > 1 && isDebugVerbose()) {
@@ -3527,6 +3654,13 @@ async function startServer() {
     await bandit.fetchAndSyncModels();
     console.log("DEBUG: after bandit.fetchAndSyncModels()");
     slogInfo("[INIT] Modelli sincronizzati con successo");
+    
+    // Inizializza prefetch dei modelli popolari
+    try {
+      await initializePrefetch(bandit);
+    } catch (prefetchErr) {
+      slogWarn("[INIT] Prefetch fallito, continuo normalmente:", prefetchErr.message);
+    }
   } catch (err) {
     console.error("DEBUG: catch bandit.fetchAndSyncModels():", err);
     slogWarn("[INIT] Attenzione: Sincronizzazione remota fallita, utilizzo cache locale o fallback:", err.message);

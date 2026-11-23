@@ -5,7 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
-## [0.53.16] - 2026-11-23
+## [0.53.17] - 2026-11-23
+
+### Added
+- feat(training): aggiunto tracciamento timeout con backoff esponenziale nel train-daemon; nuovi oggetti `timeoutTrackingByProvider` e `retryAttemptsByProvider` per monitorare i timeout per provider; funzione `getProviderBackoffMs()` per calcolare il backoff esponenziale (30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent)
+- feat(training): aggiunta funzione `logAbortInfo()` per logging strutturato di abort/timeout
+- feat(training): migliorata `testModel()` con reset dei contatori timeout al successo e gestione migliorata degli scenari di timeout vs abort manuale
+- feat(index): aggiunta inizializzazione prefetch dei modelli tramite `initializePrefetch()` importata da model-prefetch.mjs
+- feat(api): aggiunti nuovi endpoint di debug `/v1/debug/reset-model/:id`, `/v1/debug/reset-history`, `/v1/debug/providers` (con filtri), `/v1/debug/models` (con filtri)
+- feat(logging): aggiunto nuovo livello di log `detailed` (livello 50) per logging dettagliato di punizioni/debug
+- feat(request-tracker): aggiunto timeout esponenziale `MAX_TIMEOUT_MS = 60000`; migliorata `pushRecent()` per rimuovere le entry scadute dal ring buffer
+- refactor(proxy): ridotto `MAX_RECENT_REQUESTS` da 100 a 50
 
 ### Fixed
 - fix(bandit): fixed syntax error in `_migrateDB()` method (missing closing brace `}` for `if (!hasConsecutiveCriticalFailures)` block); removed duplicate code block that was causing potential runtime errors

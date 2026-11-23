@@ -6,10 +6,11 @@
  * (e.g. when STRUCTURED_LOG env var is not set to "true").
  *
  * Usage:
- *   import { log } from "./structured-logger.mjs";
+ *   import { log, detailed } from "./structured-logger.mjs";
  *   log("info", "Model selected", { model, provider, score, tier });
  *   log("warn", "Fallback triggered", { model, fallbackModel, attempt });
  *   log("error", "Upstream error", { model, status, error: txt.slice(0, 200) });
+ *   detailed("punishment", { modelId, provider, action, reason, cooldownMs, stack: err.stack });
  */
 
 const ENABLED = String(process.env.STRUCTURED_LOG || "").toLowerCase() === "true";
@@ -19,6 +20,7 @@ const LEVELS = {
   info: 20,
   warn: 30,
   error: 40,
+  detailed: 50,  // New level for detailed punishment/debug logging
 };
 
 const MIN_LEVEL = LEVELS[
@@ -27,7 +29,7 @@ const MIN_LEVEL = LEVELS[
 
 /**
  * Emit a structured log line.
- * @param {string} level - "debug" | "info" | "warn" | "error"
+ * @param {string} level - "debug" | "info" | "warn" | "error" | "detailed"
  * @param {string} message - Human-readable message
  * @param {Object} [ctx] - Additional structured context (will be JSON-serialized)
  */
@@ -53,6 +55,41 @@ export function log(level, message, ctx = {}) {
           .join(" ")
       : "";
     console.log(`[${entry.timestamp}] [${entry.level}] ${message}${ctxStr}`);
+  }
+}
+
+/**
+ * Emit a detailed structured log entry for punishment/decision logging.
+ * Format: JSON with timestamp, level, component, modelId, provider, action, reason, cooldownMs, and optionally stack.
+ * @param {string} component - Action type: "punishment" | "reset" | "fallback"
+ * @param {Object} ctx - Context object with modelId, provider, action, reason, cooldownMs, stack (optional)
+ */
+export function detailed(component, ctx = {}) {
+  if (LEVELS.detailed < MIN_LEVEL) return;
+
+  const entry = {
+    timestamp: new Date().toISOString(),
+    level: "DETAILED",
+    component,
+    ...ctx,
+  };
+
+  if (ENABLED) {
+    console.log(JSON.stringify(entry));
+  } else {
+    // Fallback: human-readable single-line format
+    const { timestamp, level, component, action, modelId, provider, reason, cooldownMs, stack } = entry;
+    const parts = [];
+    if (timestamp) parts.push(`ts=${timestamp}`);
+    if (level) parts.push(`level=${level}`);
+    if (component) parts.push(`component=${component}`);
+    if (action) parts.push(`action=${action}`);
+    if (modelId) parts.push(`modelId=${modelId}`);
+    if (provider) parts.push(`provider=${provider}`);
+    if (reason) parts.push(`reason=${reason}`);
+    if (cooldownMs !== undefined) parts.push(`cooldownMs=${cooldownMs}`);
+    const mainMsg = `[${parts.join(' ')}]`;
+    console.log(`${mainMsg}`);
   }
 }
 

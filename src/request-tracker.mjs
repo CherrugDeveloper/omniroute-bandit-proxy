@@ -1,11 +1,24 @@
 const activeRequests = new Map(); // key: `${id}-att${attempt}`
 
-// Ring buffer for recent requests (last 100 for "recent requests" display)
-const MAX_RECENT_REQUESTS = 100;
+// Ring buffer for recent requests (last 50 for "recent requests" display)
+const MAX_RECENT_REQUESTS = 50;
 const recentRequestBuffer = [];
+const MAX_TIMEOUT_MS = 60000; // 60s default max timeout
 
 // Helper to push to ring buffer
 function pushRecent(request) {
+  const now = Date.now();
+  
+  // Remove expired entries (older than maxTimeout)
+  while (recentRequestBuffer.length > 0) {
+    const oldest = recentRequestBuffer[0];
+    if (oldest.startTime && now - oldest.startTime > MAX_TIMEOUT_MS) {
+      recentRequestBuffer.shift();
+    } else {
+      break;
+    }
+  }
+  
   recentRequestBuffer.push(request);
   if (recentRequestBuffer.length > MAX_RECENT_REQUESTS) {
     recentRequestBuffer.shift();

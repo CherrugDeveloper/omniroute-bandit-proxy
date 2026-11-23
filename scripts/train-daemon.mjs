@@ -191,9 +191,45 @@ function loadModels() {
 
 const skippedProviders = new Set();
 
+// Tracking timeout per provider con backoff esponenziale
+const timeoutTrackingByProvider = {};
+const retryAttemptsByProvider = {};
+
+function getProviderBackoffMs(provider) {
+  const attempts = retryAttemptsByProvider[provider] || 0;
+  // Backoff: 30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent (10+)
+  const backoffLevels = [30000, 120000, 300000, 900000, 1800000, 3600000, 7200000, 21600000, 43200000, 86400000];
+  return backoffLevels[Math.min(attempts, backoffLevels.length - 1)];
+}
+
+function logAbortInfo(message, isTimeout = false, abortReason = "") {
+  const t = new Date().toLocaleTimeString();
+  const type = isTimeout ? "⏱️ TIMEOUT" : "🛑 ABORT";
+  console.log(`[${t}] ${type} ${message}${abortReason ? ` - ${abortReason}` : ''}`);
+}
+
 async function testModel(model) {
+  // Estrai il provider dal modello per il tracking
+  const provider = model.split("/")[0];
+  
+  // Aggiorna i contatori timeout per provider
+  timeoutTrackingByProvider[provider] = timeoutTrackingByProvider[provider] || 0;
+  retryAttemptsByProvider[provider] = retryAttemptsByProvider[provider] || 0;
+  
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let timedOut = false;
+  let abortReason = "";
+  const startTime = Date.now();
+  
+  // Log prima dell'inizio della richiesta
+  logAbortInfo(`Inizio test model ${model} (provider: ${provider}, timeout: ${TIMEOUT_MS}ms)`);
+  
+  const timer = setTimeout(() => {
+    timedOut = true;
+    abortReason = `Timeout dopo ${TIMEOUT_MS}ms`;
+    controller.abort();
+  }, TIMEOUT_MS);
+  
   try {
     const r = await fetch(`${PROXY}/v1/chat/completions`, {
       method: "POST",
@@ -207,9 +243,59 @@ async function testModel(model) {
       signal: controller.signal
     });
     await r.text().catch(() => "");
-    return { ok: r.ok, status: r.status };
+    const duration = Date.now() - startTime;
+    
+    // Reset del contatore timeout se la richiesta ha successo
+    if (timeoutTrackingByProvider[provider] > 0) {
+      logAbortInfo(`Provider ${provider} ha ricevuto risposta dopo ${duration}ms - reset timeout counter`);
+    }
+    timeoutTrackingByProvider[provider] = 0;
+    retryAttemptsByProvider[provider] = 0;
+    
+    logAbortInfo(`Richiesta completata in ${duration}ms per ${model} - status=${r.status}`);
+    return { ok: r.ok, status: r.status, duration };
   } catch (e) {
-    return { ok: false, status: 0, error: String(e.message || e) };
+    const duration = Date.now() - startTime;
+    const errorMessage = String(e.message || e);
+    
+    // Verifica se l'abort è stato causato da timeout o da altro motivo
+    if (controller.signal.aborted) {
+      if (timedOut) {
+        // Abort causato da timeout
+        timeoutTrackingByProvider[provider] = (timeoutTrackingByProvider[provider] || 0) + 1;
+        const timeoutCount = timeoutTrackingByProvider[provider];
+        const backoffMs = getProviderBackoffMs(provider);
+        
+        logAbortInfo(`TIMEOUT per ${model} dopo ${TIMEOUT_MS}ms (${duration}ms total)`, true, 
+          `timeout #${timeoutCount} per provider, backoff ${Math.round(backoffMs/1000)}s`);
+        
+        // Se 2 timeout consecutivi, aggiungi a skippedProviders
+        if (timeoutCount >= 2) {
+          skippedProviders.add(model);
+          logAbortInfo(`Provider ${provider}: 2 timeout consecutivi, modello ${model} aggiunto a skippedProviders`, true);
+        }
+        
+        // Se abbastanza timeout, aggiungi anche il provider al cooldown
+        if (timeoutCount >= TRAIN_MAX_TIMEOUT_SKIP && !skippedProviders.has("COOLDOWN:" + provider)) {
+          skippedProviders.add("COOLDOWN:" + provider);
+          logAbortInfo(`Provider ${provider}: ${TRAIN_MAX_TIMEOUT_SKIP} timeout consecutivi (totale), skip per questo ciclo`, true);
+        }
+      } else {
+        // Abort manuale (es. shutdown)
+        logAbortInfo(`Abort manuale per ${model} dopo ${duration}ms`, false, 
+          `motivo: ${abortReason || errorMessage}`);
+      }
+    } else {
+      // Errore diverso da abort
+      logAbortInfo(`Errore per ${model} dopo ${duration}ms`, false, errorMessage);
+    }
+    
+    return { 
+      ok: false, 
+      status: 0, 
+      error: String(e.message || e),
+      duration: duration
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -317,10 +403,16 @@ async function main() {
       if (!running) break;
       const forcedDelay = zooState === 'forced' ? 8000 : DELAY_MS;
 
+      // Check se provider è stato aggiunto a skippedProviders per timeout
+      if (skippedProviders.has("COOLDOWN:" + provider)) {
+        log(`  → provider ${provider} in cooldown (timeout), skip`);
+        continue;
+      }
+
       currentModel = model;
       log(`  → test ${model}`);
       const result = await testModel(model);
-      log(`  ← status=${result.status} ok=${result.ok}${result.error ? ' err=' + result.error : ''}`);
+      log(`  ← status=${result.status} ok=${result.ok}${result.error ? ' err=' + result.error : ''}${result.duration ? ' dur=' + result.duration + 'ms' : ''}`);
       currentModel = null;
 
       if (result.ok) {
@@ -329,6 +421,9 @@ async function main() {
         cycleStats.totalOk++;
         consecutive404 = 0;
         failCountByProvider[provider] = 0;
+        // Reset timeout tracking al successo
+        timeoutTrackingByProvider[provider] = 0;
+        retryAttemptsByProvider[provider] = 0;
       } else {
         fail++; totalFail++;
         cycleStats.cycleFail++;
@@ -368,29 +463,20 @@ async function main() {
             consecutive404 = 0;
           }
         }
-
-        // Skip provider SOLO dopo N fail dello stesso provider in questo ciclo (configurabile via TRAIN_MAX_FAIL_SKIP)
-        if (failCountByProvider[provider] >= TRAIN_MAX_FAIL_SKIP && !skippedProviders.has("COOLDOWN:" + provider)) {
-          skippedProviders.add("COOLDOWN:" + provider);
-          log(`  → provider ${provider} ha fallito ${TRAIN_MAX_FAIL_SKIP} volte, skip per questo ciclo`);
-        }
-
-        // Se troppi 404 di fila → pausa
-        if (consecutive404 >= 10) {
-          log(`  → ${consecutive404} 404 di fila, pausa 60s`);
-          await sleep(60000);
-          consecutive404 = 0;
-        }
       }
 
-      // Update training status periodically
-      const now = Date.now();
-      if (now - lastStatusUpdate >= STATUS_UPDATE_INTERVAL) {
-        updateTrainingStatus(totalOk, totalFail, cycle);
-        lastStatusUpdate = now;
+      // Skip provider SOLO dopo N fail dello stesso provider in questo ciclo (configurabile via TRAIN_MAX_FAIL_SKIP)
+      if (failCountByProvider[provider] >= TRAIN_MAX_FAIL_SKIP && !skippedProviders.has("COOLDOWN:" + provider)) {
+        skippedProviders.add("COOLDOWN:" + provider);
+        log(`  → provider ${provider} ha fallito ${TRAIN_MAX_FAIL_SKIP} volte, skip per questo ciclo`);
       }
 
-      if (running) await sleep(forcedDelay).catch(() => {});
+      // Se troppi 404 di fila → pausa
+      if (consecutive404 >= 10) {
+        log(`  → ${consecutive404} 404 di fila, pausa 60s`);
+        await sleep(60000);
+        consecutive404 = 0;
+      }
     }
 
     log(`--- Ciclo #${cycle} chiuso: OK=${ok} FAIL=${fail} (totale: OK=${totalOk} FAIL=${totalFail}) ---`);

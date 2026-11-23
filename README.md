@@ -1,4 +1,34 @@
-# OmniRoute Bandit Proxy
+A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This system optimizes model selection by balancing exploration (discovering better models) and exploitation (using the best-performing model) using the Discounted UCB1 algorithm.
+
+## 🚀 Features
+
+- **Discounted UCB1 Algorithm**: Dynamically ranks models based on success rates, with a discount factor to prioritize recent performance.
+- **Dynamic Model Selection**: Automatically routes requests to the best available model while occasionally exploring others.
+- **Automated Punishment System**:
+  - **Exponential Backoff**: Models that fail are put on cooldown with increasing durations.
+  - **5-Strike Rule**: 5 consecutive critical failures (403/429) lead to a permanent ban.
+  - **Cascade Guards**: Prevents simultaneous banning of entire provider groups; skips ALL punishment when a provider is already on cooldown/circuit/auth-expired or when rejection is due to capability mismatches (non-chat models, no tools support, token limits exceeded, thinking excluded, dynamic max tokens exceeded) to avoid cascade effects.
+  - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog (including "invalid model", "does not exist", "no longer available") are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
+- **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
+- **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
+
+### v0.53.17 Training Daemon & Debug Enhancements
+- **Timeout tracking with exponential backoff**: Added `timeoutTrackingByProvider` and `retryAttemptsByProvider` objects for provider-level timeout monitoring. The `getProviderBackoffMs()` function implements exponential backoff (30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent).
+- **Abort/timeout logging**: New `logAbortInfo()` function provides structured logging for abort/timeout events in the training daemon.
+- **Training daemon improvements**: Enhanced `testModel()` with timeout counter reset on success and better handling of timeout vs manual abort scenarios.
+- **Model prefetch initialization**: Added `initializePrefetch()` import from `model-prefetch.mjs` for improved model loading.
+- **Debug API endpoints**: New endpoints added: `/v1/debug/reset-model/:id`, `/v1/debug/reset-history`, `/v1/debug/providers` (with filters), `/v1/debug/models` (with filters).
+- **Detailed log level**: Added new `detailed` log level (level 50) for detailed punishment/debug logging.
+- **Request tracker timeout cleanup**: Added `MAX_TIMEOUT_MS = 60000` and improved `pushRecent()` to remove expired entries from the ring buffer.
+- **Recent requests buffer**: Reduced `MAX_RECENT_REQUESTS` from 100 to 50.
+
+### v0.53.16 Database Schema Alignment
+- **Schema initialization fix**: Extended `_initDB()` schema to include all columns required by the test suite, ensuring test independence from migration scripts. Added 14 new columns to `provider_history` table (circuit_breaker_until, cooldown_until, needs_attention, attention_reason, attention_message, consecutive_failures, last_success_time, rpm_limit, rpd_limit, calls_last_minute, calls_minute_started, calls_today, calls_today_date, quota_resets_at) and 1 column to `models` table (dynamic_max_tokens).
+- **Syntax fix in `_migrateDB()`**: Resolved missing closing brace `}` for `if (!hasConsecutiveCriticalFailures)` block and removed duplicate code that was causing potential runtime errors.
+
+### v0.53.15 Dashboard Data Export
+- **Error Classification**: Distinguishes between transient (retryable) and permanent errors via configurable patterns.
+- **Training Mode**: Supports isolated training datasets to refine model rankings before production use.
 
 A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This system optimizes model selection by balancing exploration (discovering better models) and exploitation (using the best-performing model) using the Discounted UCB1 algorithm.
 
