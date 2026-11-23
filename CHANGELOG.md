@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.18] - 2026-11-23
+
+### Fixed
+- chore(repo): pulizia file non necessari (rimozione backup bandit.mjs e directory plan/)
+- fix(readme): rimozione duplicazioni di contenuto (sezioni Features e Architecture)
+- fix(bandit): aggiunto file mancante src/model-prefetch.mjs con funzione initializePrefetch() - il commit precedente importava da model-prefetch.mjs ma il file non esisteva causando errore runtime
+
 ## [0.53.17] - 2026-11-23
 
 ### Added

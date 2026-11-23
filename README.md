@@ -1,3 +1,5 @@
+# OmniRoute Bandit Proxy
+
 A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This system optimizes model selection by balancing exploration (discovering better models) and exploitation (using the best-performing model) using the Discounted UCB1 algorithm.
 
 ## 🚀 Features
@@ -30,28 +32,6 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Error Classification**: Distinguishes between transient (retryable) and permanent errors via configurable patterns.
 - **Training Mode**: Supports isolated training datasets to refine model rankings before production use.
 
-A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This system optimizes model selection by balancing exploration (discovering better models) and exploitation (using the best-performing model) using the Discounted UCB1 algorithm.
-
-## 🚀 Features
-
-- **Discounted UCB1 Algorithm**: Dynamically ranks models based on success rates, with a discount factor to prioritize recent performance.
-- **Dynamic Model Selection**: Automatically routes requests to the best available model while occasionally exploring others.
-- **Automated Punishment System**:
-  - **Exponential Backoff**: Models that fail are put on cooldown with increasing durations.
-  - **5-Strike Rule**: 5 consecutive critical failures (403/429) lead to a permanent ban.
-  - **Cascade Guards**: Prevents simultaneous banning of entire provider groups; skips ALL punishment when a provider is already on cooldown/circuit/auth-expired or when rejection is due to capability mismatches (non-chat models, no tools support, token limits exceeded, thinking excluded, dynamic max tokens exceeded) to avoid cascade effects.
-  - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog (including "invalid model", "does not exist", "no longer available") are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
-- **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
-- **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
-
-### v0.53.16 Database Schema Alignment
-- **Schema initialization fix**: Extended `_initDB()` schema to include all columns required by the test suite, ensuring test independence from migration scripts. Added 14 new columns to `provider_history` table (circuit_breaker_until, cooldown_until, needs_attention, attention_reason, attention_message, consecutive_failures, last_success_time, rpm_limit, rpd_limit, calls_last_minute, calls_minute_started, calls_today, calls_today_date, quota_resets_at) and 1 column to `models` table (dynamic_max_tokens).
-- **Syntax fix in `_migrateDB()`**: Resolved missing closing brace `}` for `if (!hasConsecutiveCriticalFailures)` block and removed duplicate code that was causing potential runtime errors.
-
-### v0.53.15 Dashboard Data Export
-- **Error Classification**: Distinguishes between transient (retryable) and permanent errors via configurable patterns.
-- **Training Mode**: Supports isolated training datasets to refine model rankings before production use.
-
 ## 🛠 Architecture
 
 The proxy sits between the client and multiple LLM providers. It manages a local SQLite database to track model failures, success rates, and cooldowns.
@@ -62,14 +42,12 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Event System**: Streams real-time punishment and status events to the dashboard via WebSockets.
 
 ### v0.53.14 Logging & Training Tuning
-
 - **Cooldown comment fix**: Corrected `_getModelCooldownMs` comment to match the actual cooldown array (30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent at 10+ failures).
 - **Degradation threshold**: Increased `degradationThreshold` from 3 to 5 in `config/bandit.json` to prevent premature degradation on transient 5xx errors.
 - **Training daemon env vars**: Added `TRAIN_MAX_TIMEOUT_SKIP` (default: 3) and `TRAIN_MAX_FAIL_SKIP` (default: 5) to configure provider skip thresholds during training cycles.
 - **Log level control**: Added `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepting `debug|info|warn|error` to control the minimum log level emitted by the structured logger.
 
 ### v0.53.13 Unified History Reset & Config State Fix
-
 - **Config state cascade fix**: Generic 502/503/504 errors are now classified as `cooldown-model` with `upstream-error` reason (TRANSIENT) instead of `provider-misconfigured` (PERMANENT). This prevents the cascade where all models of a provider were incorrectly pushed into "config" state.
 - **Cooldown-model punishment refinement**: Regular cooldowns no longer set `needs_attention = 1` on provider_history. Config state is now only triggered by genuine user-intervention errors (auth-expired, anti-abuse, safeWrite-init-error).
 - **Unified history reset**: New `resetUnifiedHistory()` method and `POST /v1/reset/history` endpoint to clear stuck punishment events and old request logs. Dashboard now has a "🗑️ Reset" button in the Unified History panel.
@@ -77,16 +55,10 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Dashboard responsiveness**: Increased polling intervals (main loop 1s→2s, fetchLogs/fetchActive/fetchConsideration 5s→10s) and added `requestIdleCallback` for DOM updates to keep UI responsive during polling.
 - **Activity buffer**: Increased `recentRequests` RingBuffer from 5 to 50 entries for better activity visibility when idle.
 
-### v0.53.12 Client Disconnect Handling
-
-- **HTTP 499 status code**: Added proper handling for client disconnect during request processing. When a client disconnects (status 499), the proxy now returns a structured error response instead of crashing or leaving the request hanging.
-
-### v0.53.11 Client Disconnect Handling
-
+### v0.53.12-0.53.11 Client Disconnect Handling
 - **HTTP 499 status code**: Added proper handling for client disconnect during request processing. When a client disconnects (status 499), the proxy now returns a structured error response instead of crashing or leaving the request hanging.
 
 ### v0.53.10 Cascade Ban Prevention & Timeout Increase
-
 - **5-strike paid-group-ban isolation**: The 5-strike rule for paid models now sets only `needs_attention = 1` on `provider_history` (not `permanent = 1`), isolating the ban to the individual model and preventing cascade bans across the entire provider group.
 - **Permanent ban escalation isolation**: When a model escalates to permanent ban via `totalFailures`, the provider is now flagged with `needs_attention = 1` only (not `permanent = 1`), preventing provider-wide cascade bans.
 - **Model-not-found classification refinement**: Removed `"not found"` from the model-not-found pattern — a 404 status alone no longer triggers a permanent ban; such errors fall through to transient classifications (cooldown-model).
@@ -94,26 +66,6 @@ The proxy sits between the client and multiple LLM providers. It manages a local
 - **Upstream timeout increase**: Default `UPSTREAM_TIMEOUT_MS` increased from 20,000ms to 60,000ms to accommodate slower models (e.g., `qwen3-coder-next`).
 - **Restart script `--no-refresh` flag**: New `--no-refresh` / `-n` option for `restart-safe.sh` to skip the automatic dashboard refresh.
 - **Improved dashboard refresh**: `restart-safe.sh` now uses `wmctrl`/`xdotool`/`xdg-open` for a true browser refresh (F5 key press) instead of a simple `curl` call.
-
-### Prerequisites
-- Node.js 18+
-- npm
-
-### Quick Start
-1. Clone the repository.
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Configure your environment:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your provider keys
-   ```
-4. Start the service:
-   ```bash
-   npm start
-   ```
 
 ## 📊 API Endpoints
 
@@ -131,4 +83,21 @@ npm test
 ```
 
 ## 📜 License
+
 Distributed under the MIT License. See `LICENSE` for more information.
+
+## 🚀 Quick Start
+
+1. Clone the repository.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Configure your environment:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your provider keys
+   ```
+4. Start the service:
+   ```bash
+   npm start
