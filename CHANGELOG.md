@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.16] - 2026-11-23
+
+### Fixed
+- fix(bandit): fixed syntax error in `_migrateDB()` method (missing closing brace `}` for `if (!hasConsecutiveCriticalFailures)` block); removed duplicate code block that was causing potential runtime errors
+
+### Added
+- feat(bandit): extended `_initDB()` schema to include all columns required by test suite, ensuring test independence from migration scripts; added 14 new columns to `provider_history` table (circuit_breaker_until, cooldown_until, needs_attention, attention_reason, attention_message, consecutive_failures, last_success_time, rpm_limit, rpd_limit, calls_last_minute, calls_minute_started, calls_today, calls_today_date, quota_resets_at) and 1 column to `models` table (dynamic_max_tokens)
+
 ## [0.53.15] - 2026-11-23
 
 ### Added

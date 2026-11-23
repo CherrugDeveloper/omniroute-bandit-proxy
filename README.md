@@ -14,6 +14,10 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
 
+### v0.53.16 Database Schema Alignment
+- **Schema initialization fix**: Extended `_initDB()` schema to include all columns required by the test suite, ensuring test independence from migration scripts. Added 14 new columns to `provider_history` table (circuit_breaker_until, cooldown_until, needs_attention, attention_reason, attention_message, consecutive_failures, last_success_time, rpm_limit, rpd_limit, calls_last_minute, calls_minute_started, calls_today, calls_today_date, quota_resets_at) and 1 column to `models` table (dynamic_max_tokens).
+- **Syntax fix in `_migrateDB()`**: Resolved missing closing brace `}` for `if (!hasConsecutiveCriticalFailures)` block and removed duplicate code that was causing potential runtime errors.
+
 ### v0.53.15 Dashboard Data Export
 - **Error Classification**: Distinguishes between transient (retryable) and permanent errors via configurable patterns.
 - **Training Mode**: Supports isolated training datasets to refine model rankings before production use.

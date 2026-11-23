@@ -143,7 +143,8 @@ export class DiscountedUCB1Bandit {
           degraded INTEGER DEFAULT 0,
           degraded_since REAL DEFAULT 0,
           banned_since REAL DEFAULT 0,
-          is_paid INTEGER DEFAULT 0
+          is_paid INTEGER DEFAULT 0,
+          dynamic_max_tokens INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS models_train (
           id TEXT PRIMARY KEY,
@@ -167,7 +168,21 @@ export class DiscountedUCB1Bandit {
           permanent INTEGER DEFAULT 0,
           needs_attention INTEGER DEFAULT 0,
           attention_reason TEXT DEFAULT '',
-          attention_message TEXT DEFAULT ''
+          attention_message TEXT DEFAULT '',
+          consecutive_failures INTEGER DEFAULT 0,
+          circuit_breaker_until REAL DEFAULT 0,
+          last_success_time REAL DEFAULT 0,
+          rpm_limit INTEGER DEFAULT 0,
+          rpd_limit INTEGER DEFAULT 0,
+          calls_last_minute INTEGER DEFAULT 0,
+          calls_minute_started INTEGER DEFAULT 0,
+          calls_today INTEGER DEFAULT 0,
+          calls_today_date TEXT DEFAULT '',
+          quota_resets_at INTEGER DEFAULT 0,
+          quota_reason TEXT DEFAULT '',
+          total_failures INTEGER DEFAULT 0,
+          punishment_log TEXT DEFAULT '[]',
+          last_punishment TEXT
         );
 
         CREATE TABLE IF NOT EXISTS meta (
@@ -221,31 +236,6 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE models ADD COLUMN last_used_index INTEGER DEFAULT 0`);
         } catch (err) {
           slogError("[BANDIT] Errore aggiunta colonna last_used_index:", err.message);
-          throw err;
-        }
-      }
-
-      const providerColumns = this.db.pragma("table_info(provider_history)");
-      const hasPointer = providerColumns.some(col => col.name === "pointer");
-
-      if (!hasPointer) {
-        slogInfo("[BANDIT] Migrazione: aggiungo pointer a provider_history");
-        try {
-          this.db.exec(`ALTER TABLE provider_history ADD COLUMN pointer INTEGER DEFAULT 0`);
-        } catch (err) {
-          slogError("[BANDIT] Errore aggiunta colonna pointer:", err.message);
-          throw err;
-        }
-      }
-
-      const hasNeedsAttention = providerColumns.some(col => col.name === "needs_attention");
-
-      if (!hasNeedsAttention) {
-        slogInfo("[BANDIT] Migrazione: aggiungo needs_attention a provider_history");
-        try {
-          this.db.exec(`ALTER TABLE provider_history ADD COLUMN needs_attention INTEGER DEFAULT 0`);
-        } catch (err) {
-          slogError("[BANDIT] Errore aggiunta colonna needs_attention:", err.message);
           throw err;
         }
       }
@@ -433,6 +423,57 @@ export class DiscountedUCB1Bandit {
       }
 
       const providerCols = this.db.pragma("table_info(provider_history)");
+      
+      // Check for pointer column (session affinity)
+      const hasPointer = providerCols.some(col => col.name === "pointer");
+      if (!hasPointer) {
+        slogInfo("[BANDIT] Migrazione: aggiungo pointer a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN pointer INTEGER DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna pointer:", err.message);
+          throw err;
+        }
+      }
+
+      // Check for needs_attention column (cascade ban prevention)
+      const hasNeedsAttention = providerCols.some(col => col.name === "needs_attention");
+      if (!hasNeedsAttention) {
+        slogInfo("[BANDIT] Migrazione: aggiungo needs_attention a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN needs_attention INTEGER DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna needs_attention:", err.message);
+          throw err;
+        }
+      }
+
+      // Check for attention_reason/attention_message columns
+      const hasAttentionReason = providerCols.some(col => col.name === "attention_reason");
+      if (!hasAttentionReason) {
+        slogInfo("[BANDIT] Migrazione: aggiungo attention_reason/attention_message a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_reason TEXT DEFAULT ''`);
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_message TEXT DEFAULT ''`);
+        } catch (err) {
+          slogError("[BANDIT] Errore migrazione attention_reason:", err.message);
+          throw err;
+        }
+      }
+
+      // Check for attention_timestamp column
+      const hasAttentionTimestamp = providerCols.some(col => col.name === "attention_timestamp");
+      if (!hasAttentionTimestamp) {
+        slogInfo("[BANDIT] Migrazione: aggiungo attention_timestamp a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_timestamp REAL DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna attention_timestamp:", err.message);
+          throw err;
+        }
+      }
+
+      // Check for consecutive_failures column (provider failure tracking)
       const hasConsecutiveFailures = providerCols.some(col => col.name === "consecutive_failures");
 
       if (!hasConsecutiveFailures) {
@@ -524,7 +565,7 @@ export class DiscountedUCB1Bandit {
       ];
       for (const colDef of quotaCols) {
         const colName = colDef.split(" ")[0];
-        const has = providerColumns.some(c => c.name === colName);
+        const has = providerCols.some(c => c.name === colName);
         if (!has) {
           try {
             this.db.exec(`ALTER TABLE provider_history ADD COLUMN ${colDef}`);
@@ -611,61 +652,6 @@ export class DiscountedUCB1Bandit {
         } catch (err) {
           slogError("[BANDIT] Errore aggiunta colonna consecutive_critical_failures:", err.message);
           throw err;
-        }
-      }
-
-      const hasAttentionReason = providerColumns.some(col => col.name === "attention_reason");
-      if (!hasAttentionReason) {
-        slogInfo("[BANDIT] Migrazione: aggiungo attention_reason/attention_message a provider_history");
-        try {
-          this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_reason TEXT DEFAULT ''`);
-          this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_message TEXT DEFAULT ''`);
-        } catch (err) {
-          slogError("[BANDIT] Errore migrazione attention_reason:", err.message);
-          throw err;
-        }
-      }
-
-      // Add attention_timestamp column for tracking when provider entered config state
-      const hasAttentionTimestamp = providerColumns.some(col => col.name === "attention_timestamp");
-      if (!hasAttentionTimestamp) {
-        slogInfo("[BANDIT] Migrazione: aggiungo attention_timestamp a provider_history");
-        try {
-          this.db.exec(`ALTER TABLE provider_history ADD COLUMN attention_timestamp REAL DEFAULT 0`);
-        } catch (err) {
-          slogError("[BANDIT] Errore aggiunta colonna attention_timestamp:", err.message);
-          throw err;
-        }
-      }
-
-      // Migrazione: total_failures e punishment_log per provider_history
-      const hasTotalFailuresProv = providerCols.some(col => col.name === "total_failures");
-      if (!hasTotalFailuresProv) {
-        slogInfo("[BANDIT] Migrazione: aggiungo total_failures a provider_history");
-        try {
-          this.db.exec(`ALTER TABLE provider_history ADD COLUMN total_failures INTEGER DEFAULT 0`);
-        } catch (err) {
-          slogError("[BANDIT] Errore aggiunta colonna total_failures:", err.message);
-        }
-      }
-
-      const hasPunishmentLog = providerCols.some(col => col.name === "punishment_log");
-      if (!hasPunishmentLog) {
-        slogInfo("[BANDIT] Migrazione: aggiungo punishment_log a provider_history");
-        try {
-          this.db.exec(`ALTER TABLE provider_history ADD COLUMN punishment_log TEXT DEFAULT '[]'`);
-        } catch (err) {
-          slogError("[BANDIT] Errore aggiunta colonna punishment_log:", err.message);
-        }
-      }
-
-      const hasLastPunishment = providerCols.some(col => col.name === "last_punishment");
-      if (!hasLastPunishment) {
-        slogInfo("[BANDIT] Migrazione: aggiungo last_punishment a provider_history");
-        try {
-          this.db.exec(`ALTER TABLE provider_history ADD COLUMN last_punishment TEXT`);
-        } catch (err) {
-          slogError("[BANDIT] Errore aggiunta colonna last_punishment:", err.message);
         }
       }
 
