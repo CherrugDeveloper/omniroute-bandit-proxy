@@ -50,3 +50,8 @@ This file provides guidance to agents when working with code in this repository.
   - Button ID: `copy-all-btn` with class `btn btn-primary`
   - Excludes WebSocket URL, Token, and other sensitive fields from export
   - Active tab content dynamically included based on user selection
+
+## Top Model Reset API (v0.53.19)
+- Added `POST /v1/reset/top-model` endpoint to reset the top model (highest average reward)
+- Added `getTopModelId()` method in bandit.mjs - returns model ID sorted by sum_reward/N DESC (N >= 1)
+- Added `resetTopModel()` method - resets top model statistics and clears provider attention flags
