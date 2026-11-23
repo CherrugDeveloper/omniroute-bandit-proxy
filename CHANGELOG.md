@@ -7,10 +7,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [0.53.18] - 2026-11-23
 
+### Added
+- feat(api): aggiunto endpoint POST `/v1/reset/top-model` per resettare lo stato del modello top (model con reward medio più alto); aggiunti metodi di supporto `getTopModelId()` e `resetTopModel()` in bandit.mjs
+
 ### Fixed
 - chore(repo): pulizia file non necessari (rimozione backup bandit.mjs e directory plan/)
 - fix(readme): rimozione duplicazioni di contenuto (sezioni Features e Architecture)
 - fix(bandit): aggiunto file mancante src/model-prefetch.mjs con funzione initializePrefetch() - il commit precedente importava da model-prefetch.mjs ma il file non esisteva causando errore runtime
+- fix(bandit): corretto chiamata a `clearProviderAttention()` in `resetTopModel()` mancante del parametro `provider`
 
 ## [0.53.17] - 2026-11-23
 

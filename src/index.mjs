@@ -1826,6 +1826,20 @@ app.post("/v1/provider/retry/:p", requireAuth, (req, res) => {
   }
 });
 
+app.post("/v1/reset/top-model", requireAuth, (req, res) => {
+  try {
+    const result = bandit.resetTopModel();
+    if (result.ok) {
+      res.json(result);
+    } else {
+      res.status(404).json({ error: result.error });
+    }
+  } catch (e) {
+    slogError("[API] Errore reset top model:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/v1/reset/config", requireAuth, (req, res) => {
   try {
     // Clear all provider attention flags (config state) without touching cooldowns/bans.

@@ -2343,6 +2343,62 @@ export class DiscountedUCB1Bandit {
         updated_at = 0
       WHERE id = ?
     `).run(modelId);
+    
+    return true;
+  }
+
+  getTopModelId() {
+    // Get the current top model ID (highest average reward with N >= 1)
+    const now = Date.now();
+    const topRes = this.db.prepare(`
+      SELECT id, provider
+      FROM models
+      WHERE N >= 1 AND (cooldown_until IS NULL OR cooldown_until <= ?) AND permanent = 0 AND degraded = 0
+      ORDER BY (sum_reward / NULLIF(N, 0)) DESC
+      LIMIT 1
+    `).get(now);
+    
+    if (topRes) {
+      return this._sanitizeModelId(topRes.id);
+    }
+    
+    // Fallback: any available model in catalog
+    const fallbackRes = this.db.prepare(`
+      SELECT m.id, m.provider
+      FROM models m
+      LEFT JOIN provider_history ph ON m.provider = ph.provider
+      WHERE (m.cooldown_until IS NULL OR m.cooldown_until = 0 OR m.cooldown_until <= ?)
+        AND m.permanent = 0
+        AND (ph.cooldown_until IS NULL OR ph.cooldown_until = 0 OR ph.cooldown_until <= ? OR ph.cooldown_until <= ?)
+        AND m.degraded = 0
+      ORDER BY m.N DESC, m.sum_reward DESC
+      LIMIT 1
+    `).get(now, now, now);
+    
+    if (fallbackRes) {
+      return this._sanitizeModelId(fallbackRes.id);
+    }
+    
+    return null;
+  }
+
+  resetTopModel() {
+    // Find and reset the top model (highest performing available model)
+    const topModelId = this.getTopModelId();
+    if (topModelId) {
+      this.resetModel(topModelId);
+      // Also clear provider attention flag for this model's provider
+      try {
+        const provider = this.db.prepare(`SELECT provider FROM models WHERE id = ?`).get(topModelId)?.provider;
+        if (provider) {
+          this.clearProviderAttention(provider);
+        }
+      } catch (e) {
+        // Ignore error if we can't get provider
+      }
+      return { ok: true, model: topModelId };
+    }
+    return { ok: false, error: 'Nessun modello top disponibile' };
   }
 
   resetProvider(provider) {

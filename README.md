@@ -14,6 +14,9 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
 
+### v0.53.19 Top Model Reset API
+- **Top Model Reset endpoint**: New `POST /v1/reset/top-model` endpoint allows resetting the top model (model with the highest average reward). Added `getTopModelId()` method that returns the model with highest `sum_reward / N` ratio (with `N >= 1`) among available models, and `resetTopModel()` method that resets the top model's statistics and clears provider attention flags.
+
 ### v0.53.17 Training Daemon & Debug Enhancements
 - **Timeout tracking with exponential backoff**: Added `timeoutTrackingByProvider` and `retryAttemptsByProvider` objects for provider-level timeout monitoring. The `getProviderBackoffMs()` function implements exponential backoff (30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent).
 - **Abort/timeout logging**: New `logAbortInfo()` function provides structured logging for abort/timeout events in the training daemon.
