@@ -6,8 +6,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## Version History
 
 ## [0.53.15] - 2026-11-23
+### Added
+- feat(dashboard): added "📋 Copia Tutti" button in Unified History panel to export all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format; added `copyAllData()` function with comprehensive data extraction and user feedback
+
 ### Fixed
 - fix(config): extended model-not-found error pattern in `bandit.json` to include additional error messages ("invalid model", "does not exist", "no longer available", "not available in active live catalog") for proper ban-model classification (permanent) instead of transient cooldown-model
+- fix(dashboard): replaced hardcoded 1500ms setTimeout delay in `reloadAfterRestart()` with active health check polling `/v1/health-check/status` endpoint, ensuring backend is fully ready before triggering browser reload; added `waitForServiceHealth()` function with 30s timeout and 500ms poll interval; removed deprecated `-q, --quiet` option from help text in `scripts/restart-safe.sh`
 
 ## [0.53.14] - 2026-11-22
 ### Fixed

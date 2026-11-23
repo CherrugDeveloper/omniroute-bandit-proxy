@@ -12,6 +12,9 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
   - **Cascade Guards**: Prevents simultaneous banning of entire provider groups; skips ALL punishment when a provider is already on cooldown/circuit/auth-expired or when rejection is due to capability mismatches (non-chat models, no tools support, token limits exceeded, thinking excluded, dynamic max tokens exceeded) to avoid cascade effects.
   - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog (including "invalid model", "does not exist", "no longer available") are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
+- **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
+
+### v0.53.15 Dashboard Data Export
 - **Error Classification**: Distinguishes between transient (retryable) and permanent errors via configurable patterns.
 - **Training Mode**: Supports isolated training datasets to refine model rankings before production use.
 

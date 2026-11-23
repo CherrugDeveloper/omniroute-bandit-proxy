@@ -8,7 +8,6 @@
 # Uso:
 #   ./scripts/restart-safe.sh                  # restart sicuro completo + refresh dashboard
 #   ./scripts/restart-safe.sh -f               # restart + follow logs
-#   ./scripts/restart-safe.sh -q               # restart silenzioso + refresh dashboard
 #   ./scripts/restart-safe.sh --no-refresh     # restart senza refresh browser
 #   ./scripts/restart-safe.sh -n               # alias per --no-refresh
 #   ./scripts/restart-safe.sh --help           # mostra questo aiuto
@@ -558,16 +557,6 @@ follow_logs() {
 }
 
 case "${1:-}" in
-  -q|--quiet)
-    restart_safe > /dev/null 2>&1
-    if run_systemctl is-active --quiet "$SERVICE"; then
-      echo "✓ $SERVICE riavviato"
-      exit 0
-    else
-      echo "✗ ERRORE"
-      exit 1
-    fi
-    ;;
   -f|--follow)
     restart_safe
     echo ""
@@ -583,7 +572,6 @@ case "${1:-}" in
     echo ""
     echo "Opzioni:"
     echo "  (nessuna)       Riavvio sicuro completo + refresh dashboard"
-    echo "  -q, --quiet     Riavvio silenzioso + refresh dashboard"
     echo "  -f, --follow    Riavvio + follow logs"
     echo "  -n, --no-refresh  Riavvio senza refresh browser"
     echo "  -h, --help      Mostra questo aiuto"

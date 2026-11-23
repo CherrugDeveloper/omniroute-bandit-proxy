@@ -1323,7 +1323,8 @@
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
             <strong style="font-size:11px; color:#58a6ff;">Cronologia Unificata</strong>
             <button id="reset-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #f85149; color:#f85149; cursor:pointer;" title="Reset cronologia unificata">🗑️ Reset</button>
-            <button id="copy-unified-btn" class="btn" style="margin-left:auto; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia tutto">📋 Copia tutto</button>
+            <button id="copy-all-btn" class="btn" style="margin-left:4px; padding:1px 6px; font-size:10px; background:none; border:1px solid #58a6ff; color:#58a6ff; cursor:pointer;" title="Copia tutti i dati della dashboard">📋 Copia Tutti</button>
+            <button id="copy-unified-btn" class="btn" style="margin-left:4px; padding:1px 6px; font-size:10px; background:none; border:1px solid #30363d; color:#c9d1d9; cursor:pointer;" title="Copia cronologia unificata">📋 Copia cronologia</button>
             <label style="font-size:11px; color:#8b949e; cursor:pointer; user-select:none; display:flex; align-items:center; gap:4px;">
                 <input type="checkbox" id="unified-show-selection-history" checked style="width:14px; height:14px; accent-color:#58a6ff;">
                 Mostra cronologia selezione
@@ -5033,9 +5034,153 @@
             } catch(e) {
                 console.error('Copy failed', e);
             }
-        });
+    });
 
-        // Reset unified history button
+    // Copy all dashboard data button
+    async function copyAllData() {
+        try {
+            let output = '';
+            
+            // ===== DASHBOARD METRICS =====
+            output += '=== DASHBOARD METRICS ===\n';
+            const metricsBox = document.getElementById('metrics-box');
+            if (metricsBox) {
+                output += metricsBox.innerText.trim() + '\n';
+            }
+            
+            // ===== TOP MODEL =====
+            output += '\n=== TOP MODEL ===\n';
+            const topModelBox = document.getElementById('top-model-box');
+            if (topModelBox) {
+                const lines = topModelBox.innerText.trim().split('\n');
+                output += lines.map(line => line.trim()).filter(line => line).join('\n') + '\n';
+            }
+            
+            // ===== TRAINING STATUS =====
+            output += '\n=== TRAINING STATUS ===\n';
+            const trainingStatus = document.getElementById('training-status-content');
+            if (trainingStatus) {
+                output += trainingStatus.innerText.trim() + '\n';
+            }
+            
+            // ===== UNIFIED CRONOLOGIA (TABELLA) =====
+            output += '\n=== UNIFIED CRONOLOGIA ===\n';
+            const unifiedTbody = document.getElementById('unified-cronologia-tbody');
+            if (unifiedTbody) {
+                const headers = ['Source','Timestamp','Provider','Model','Status','Error Type','Countermeasure'];
+                output += headers.join('\t') + '\n';
+                const rows = unifiedTbody.querySelectorAll('tr');
+                rows.forEach(tr => {
+                    const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                    if (cells.length >= 7) {
+                        output += cells.slice(0, 7).join('\t') + '\n';
+                    } else if (cells.length) {
+                        output += cells.join('\t') + '\n';
+                    }
+                });
+            }
+            
+            // ===== MODELS TABLE =====
+            output += '\n=== MODELS (ACTIVE) ===\n';
+            const modelsTbody = document.getElementById('models-tbody');
+            if (modelsTbody) {
+                const headerRow = 'Rank\tID modello\tN\tAvg Reward\tFails\tStato\tFree\tPaid\tTools\tVision';
+                output += headerRow + '\n';
+                const rows = modelsTbody.querySelectorAll('tr');
+                rows.forEach(tr => {
+                    const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                    if (cells.length >= 10) {
+                        output += cells.slice(0, 10).join('\t') + '\n';
+                    }
+                });
+            }
+            
+            // ===== TRAIN MODELS TABLE =====
+            output += '\n=== MODELS (TRAIN) ===\n';
+            const trainTbody = document.getElementById('train-tbody');
+            if (trainTbody) {
+                const headerRow = 'Rank\tID modello\tN\tAvg Reward\tFails\tStato\tFree\tPaid\tTools\tVision';
+                output += headerRow + '\n';
+                const rows = trainTbody.querySelectorAll('tr');
+                rows.forEach(tr => {
+                    const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                    if (cells.length >= 10) {
+                        output += cells.slice(0, 10).join('\t') + '\n';
+                    }
+                });
+            }
+            
+            // ===== PROVIDERS TABLE =====
+            output += '\n=== PROVIDERS ===\n';
+            const providersTbody = document.getElementById('providers-tbody');
+            if (providersTbody) {
+                const rows = providersTbody.querySelectorAll('tr');
+                rows.forEach(tr => {
+                    const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                    if (cells.length) {
+                        output += cells.join('\t') + '\n';
+                    }
+                });
+            }
+            
+            // ===== LOGS TABLE =====
+            output += '\n=== LOGS ===\n';
+            const logsTbody = document.getElementById('logs-tbody');
+            if (logsTbody) {
+                const headerRow = 'Timestamp\tSource\tProvider\tStatus\tMessage';
+                output += headerRow + '\n';
+                const rows = logsTbody.querySelectorAll('tr');
+                rows.forEach(tr => {
+                    const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                    if (cells.length) {
+                        output += cells.join('\t') + '\n';
+                    }
+                });
+            }
+            
+            // ===== MODES SIGNATURES =====
+            output += '\n=== MODES SIGNATURES ===\n';
+            const modesSignBody = document.getElementById('modes-signatures-body');
+            if (modesSignBody) {
+                const rows = modesSignBody.querySelectorAll('tr');
+                rows.forEach(tr => {
+                    const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                    if (cells.length) {
+                        output += cells.join('\t') + '\n';
+                    }
+                });
+            }
+            
+            // ===== MODES MULTIPLIERS =====
+            output += '\n=== MODES MULTIPLIERS ===\n';
+            const modesMultBody = document.getElementById('modes-multipliers-body');
+            if (modesMultBody) {
+                const rows = modesMultBody.querySelectorAll('tr');
+                rows.forEach(tr => {
+                    const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.replace(/\s+/g,' ').trim());
+                    if (cells.length) {
+                        output += cells.join('\t') + '\n';
+                    }
+                });
+            }
+            
+            await navigator.clipboard.writeText(output);
+            const btn = document.getElementById('copy-all-btn');
+            if (btn) {
+                const orig = btn.textContent;
+                btn.textContent = '✅ Copiato';
+                btn.style.color = '#3fb950';
+                setTimeout(() => { btn.textContent = orig; btn.style.color = '#58a6ff'; }, 2000);
+            }
+        } catch(e) {
+            console.error('Copy all data failed:', e);
+        }
+    }
+
+    // Reset unified history button
+    document.getElementById('copy-all-btn')?.addEventListener('click', copyAllData);
+
+    // Reset unified history button
         document.getElementById('reset-unified-btn')?.addEventListener('click', async () => {
             if (!confirm('Sei sicuro di voler resettare la cronologia unificata? Questa azione cancella tutti gli eventi di punizione e i log delle richieste storici.')) return;
             try {
@@ -6006,15 +6151,73 @@
             return name === 'restart-safe.sh' || name.includes('restart');
         }
 
+        // Helper: wait for the service to be healthy by polling the health-check endpoint
+        // Uses active polling instead of a fixed delay to ensure backend is ready
+        async function waitForServiceHealth(maxWaitMs = 30000, pollIntervalMs = 500) {
+            const startTime = Date.now();
+            const maxWait = Math.max(5000, maxWaitMs); // Minimum 5 seconds
+            
+            console.log('[HealthCheck] Starting active health check, max wait:', maxWaitMs, 'ms');
+            
+            while (Date.now() - startTime < maxWait) {
+                try {
+                    const res = await fetch('/v1/health-check/status', {
+                        headers: authHeaders(),
+                        signal: AbortSignal.timeout(3000)
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        // Check if health checker is running and not in-flight
+                        if (data && data.running === true && data.inFlight === false) {
+                            console.log('[HealthCheck] Service is healthy and ready');
+                            return true;
+                        }
+                        console.log('[HealthCheck] Waiting for service to be ready (running:', data?.running, 'inFlight:', data?.inFlight, ')');
+                    } else {
+                        console.log('[HealthCheck] Health endpoint returned status:', res.status);
+                    }
+                } catch (e) {
+                    // Network error - service might still be starting
+                    const isNetworkError = e.name === 'AbortError' ||
+                        e.message.includes('Failed to fetch') ||
+                        e.message.includes('network') ||
+                        e.message.includes('ECONNREFUSED');
+                    if (isNetworkError) {
+                        console.log('[HealthCheck] Service not yet available:', e.message);
+                    } else {
+                        console.error('[HealthCheck] Unexpected error:', e.message);
+                    }
+                }
+                
+                // Wait before next poll
+                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+            }
+            
+            console.warn('[HealthCheck] Timeout waiting for service health, proceeding with reload');
+            return false;
+        }
+        
         // Helper: reload the browser after a restart script completes
-        // Waits briefly to ensure the backend is fully ready before reloading
-        function reloadAfterRestart(scriptName) {
+        // Uses active health check instead of a simple delay to ensure backend is ready
+        async function reloadAfterRestart(scriptName) {
             console.log('[Restart] Script', scriptName, 'completed — scheduling browser reload');
-            showToast('🔄 Riavvio completato, ricarica pagina in corso...', 'success');
-            // Small delay to let the backend settle and flush any pending writes
+            showToast('🔄 Riavvio completato, verifico lo stato del servizio...', 'success');
+            
+            try {
+                // Active health check: poll until service is ready or timeout
+                await waitForServiceHealth(30000, 500);
+                console.log('[Restart] Service health check complete, reloading page');
+                showToast('✅ Servizio pronto, ricarica pagina...', 'success');
+            } catch (e) {
+                console.error('[Restart] Health check failed:', e.message);
+                showToast('⚠️ Prossima ricarica forzata...', 'warning');
+            }
+            
+            // Small additional delay for WebSocket connection re-establishment
             setTimeout(() => {
                 location.reload();
-            }, 1500);
+            }, 500);
         }
 
         function renderScripts() {
