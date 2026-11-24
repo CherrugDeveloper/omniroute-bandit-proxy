@@ -34,6 +34,7 @@ generate-changelog.mjs
 sync-tags.mjs
 git_log_with_hashes.txt
 raw_git_log.txt
+plans/
 
 # IDE
 .vscode/

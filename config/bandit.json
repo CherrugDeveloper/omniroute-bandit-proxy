@@ -14,11 +14,18 @@
     "xao/grok-3-mini"
   ],
   "punishmentThresholds": {
-    "consecutiveCriticalFailuresForBan": 4,
-    "circuitBreakerThreshold": 2,
-    "circuitBreakerCooldownMs": 60000,
-    "maxTotalFailuresBeforePermanentBan": 7,
-    "degradationThreshold": 5
+    "consecutiveCriticalFailuresForBan": 5,
+    "circuitBreakerThreshold": 3,
+    "circuitBreakerCooldownMs": 120000,
+    "maxTotalFailuresBeforePermanentBan": 10,
+    "degradationThreshold": 5,
+    "groupPunishment": {
+      "enabled": true,
+      "freeGroupThreshold": 5,
+      "paidGroupThreshold": 3,
+      "cooldownMultiplier": 2.0,
+      "escalationStepMs": 86400000
+    }
   },
   "errorConfig": {
     "degradationThreshold": 5,

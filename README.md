@@ -9,10 +9,17 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Automated Punishment System**:
   - **Exponential Backoff**: Models that fail are put on cooldown with increasing durations.
   - **5-Strike Rule**: 5 consecutive critical failures (403/429) lead to a permanent ban.
+  - **Group Punishment**: Threshold-based punishment across free/paid model pools (below threshold punishes only the failing model, above threshold punishes the entire pool) with exponential backoff cooldowns.
   - **Cascade Guards**: Prevents simultaneous banning of entire provider groups; skips ALL punishment when a provider is already on cooldown/circuit/auth-expired or when rejection is due to capability mismatches (non-chat models, no tools support, token limits exceeded, thinking excluded, dynamic max tokens exceeded) to avoid cascade effects.
   - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog (including "invalid model", "does not exist", "no longer available") are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
+
+### v0.53.21 Group Punishment & Free Model Recognition
+- **Group Punishment**: Added threshold-based group-level punishment for free/paid model pools. When a model fails below the configured threshold (free: 5, paid: 3), only the individual model is punished. When failures exceed the threshold, the entire free or paid pool is punished with exponential backoff cooldowns (cooldown multiplier: 2.0, escalation step: 24h).
+- **Group Cooldowns**: New database columns (`group_free_failures`, `group_paid_failures`, `group_free_cooldown_until`, `group_paid_cooldown_until`) track group-level punishment state; new methods `_getGroupCooldownMs()`, `_getGroupFreeCooldownMs()`, `_getGroupPaidCooldownMs()` compute escalating cooldowns.
+- **Free Model Recognition**: Enhanced `isFreeModel()` with multiple naming patterns (`:free`, `-free`, `free-`, `free:`, `gratis`, `no-cost`, `trial`, `community`, `lite`, `basic`, `starter`, `hobby`, `dev`, `sandbox`, `test`, `demo`, `preview`, `beta`, `alpha`, `experimental`, `open`, `public`, `unlimited`) and provider-specific indicators (OpenRouter `is_free` flag, provider free tiers).
+- **Improved Continuity**: Adjusted punishment thresholds (`consecutiveCriticalFailuresForBan: 5`, `circuitBreakerThreshold: 3`, `circuitBreakerCooldownMs: 120000`, `maxTotalFailuresBeforePermanentBan: 10`) to ensure smooth operation with 1000+ models and ~20 providers while maintaining coding agent continuity.
 
 ### v0.53.20 Bug Fixes & Improvements
 - **Fixed `_sanitizeModelId()`**: Now returns null when model ID not found in catalog, preventing "model='b'" errors in logs and queries.

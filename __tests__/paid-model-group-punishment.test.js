@@ -288,7 +288,11 @@ function setupSchema(db) {
       circuit_breaker_until REAL DEFAULT 0,
       last_success_time REAL DEFAULT 0,
       last_punishment TEXT,
-      punishment_log TEXT DEFAULT '[]'
+      punishment_log TEXT DEFAULT '[]',
+      group_free_failures INTEGER DEFAULT 0,
+      group_paid_failures INTEGER DEFAULT 0,
+      group_free_cooldown_until REAL DEFAULT 0,
+      group_paid_cooldown_until REAL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS catalog (

@@ -122,12 +122,18 @@ export class DiscountedUCB1Bandit {
   getPunishmentThresholds() {
     const config = this.getBanditConfig();
     const thresholds = config.punishmentThresholds || {};
+    const groupPunishment = thresholds.groupPunishment || {};
     return {
       consecutiveCriticalFailuresForBan: thresholds.consecutiveCriticalFailuresForBan || 5,
       circuitBreakerThreshold: thresholds.circuitBreakerThreshold || 3,
       circuitBreakerCooldownMs: thresholds.circuitBreakerCooldownMs || 300000,
       maxTotalFailuresBeforePermanentBan: thresholds.maxTotalFailuresBeforePermanentBan || 10,
-      degradationThreshold: thresholds.degradationThreshold || 5
+      degradationThreshold: thresholds.degradationThreshold || 5,
+      groupPunishmentEnabled: groupPunishment.enabled !== false,
+      groupFreeThreshold: groupPunishment.freeGroupThreshold || 5,
+      groupPaidThreshold: groupPunishment.paidGroupThreshold || 3,
+      groupCooldownMultiplier: groupPunishment.cooldownMultiplier || 2.0,
+      groupEscalationStepMs: groupPunishment.escalationStepMs || 86400000
     };
   }
 
@@ -492,6 +498,58 @@ export class DiscountedUCB1Bandit {
           this.db.exec(`ALTER TABLE provider_history ADD COLUMN consecutive_failures INTEGER DEFAULT 0`);
         } catch (err) {
           slogError("[BANDIT] Errore aggiunta colonna consecutive_failures:", err.message);
+          throw err;
+        }
+      }
+
+      // Check for group_free_failures column (group failure tracking for free models)
+      const hasGroupFreeFailures = providerCols.some(col => col.name === "group_free_failures");
+
+      if (!hasGroupFreeFailures) {
+        slogInfo("[BANDIT] Migrazione: aggiungo group_free_failures a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN group_free_failures INTEGER DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna group_free_failures:", err.message);
+          throw err;
+        }
+      }
+
+      // Check for group_paid_failures column (group failure tracking for paid models)
+      const hasGroupPaidFailures = providerCols.some(col => col.name === "group_paid_failures");
+
+      if (!hasGroupPaidFailures) {
+        slogInfo("[BANDIT] Migrazione: aggiungo group_paid_failures a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN group_paid_failures INTEGER DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna group_paid_failures:", err.message);
+          throw err;
+        }
+      }
+
+      // Check for group_free_cooldown_until column (group cooldown end time for free models)
+      const hasGroupFreeCooldown = providerCols.some(col => col.name === "group_free_cooldown_until");
+
+      if (!hasGroupFreeCooldown) {
+        slogInfo("[BANDIT] Migrazione: aggiungo group_free_cooldown_until a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN group_free_cooldown_until REAL DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna group_free_cooldown_until:", err.message);
+          throw err;
+        }
+      }
+
+      // Check for group_paid_cooldown_until column (group cooldown end time for paid models)
+      const hasGroupPaidCooldown = providerCols.some(col => col.name === "group_paid_cooldown_until");
+
+      if (!hasGroupPaidCooldown) {
+        slogInfo("[BANDIT] Migrazione: aggiungo group_paid_cooldown_until a provider_history");
+        try {
+          this.db.exec(`ALTER TABLE provider_history ADD COLUMN group_paid_cooldown_until REAL DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna group_paid_cooldown_until:", err.message);
           throw err;
         }
       }
@@ -931,7 +989,43 @@ export class DiscountedUCB1Bandit {
 
       const isFreeModel = (id) => {
         const lower = String(id).toLowerCase();
-        return /(:free|-free|_free|\/free)/.test(lower) || lower.includes(":free");
+        // Naming pattern-based recognition
+        const freePatterns = [
+          /(:free|-free|_free|\/free)$/,           // Suffix patterns
+          /^free:/, /^free-/, /^free_/, /^free\//, // Prefix patterns
+          /(^|[-_/])free([-_/]|$)/,                // Standalone "free" segment
+          /-free\b/, /_free\b/, /:free\b/, /\/free\b/ // Word boundary patterns
+        ];
+        if (freePatterns.some(p => p.test(lower))) return true;
+
+        // Provider-specific free tier indicators
+        const providerFreeIndicators = [
+          /openrouter\/.*-free/i,
+          /groq\/.*-free/i,
+          /nvidia\/.*-free/i,
+          /gemini\/.*-free/i,
+          /mistral\/.*-free/i,
+          /openai\/.*-free/i,
+          /anthropic\/.*-free/i,
+          /google\/.*-free/i,
+          /cohere\/.*-free/i,
+          /ai21\/.*-free/i,
+          /deepinfra\/.*-free/i,
+          /together\/.*-free/i,
+          /perplexity\/.*-free/i,
+          /xai\/.*-free/i,
+          /cerebras\/.*-free/i,
+          /sambanova\/.*-free/i,
+          /fireworks\/.*-free/i,
+          /replicate\/.*-free/i,
+          /fal\/.*-free/i
+        ];
+        if (providerFreeIndicators.some(p => p.test(lower))) return true;
+
+        // Non-name-based: check catalog is_free flag (set by provider API)
+        // This is handled separately in the sync loop via m.is_free from API response
+
+        return false;
       };
 
       const syncCatalog = this.db.transaction((models) => {
@@ -954,7 +1048,10 @@ export class DiscountedUCB1Bandit {
 
           const provider = this._getProvider(modelId);
           const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
-          const isFree = isFreeModel(modelId) ? 1 : 0;
+          // Use API-provided is_free flag if available, otherwise fall back to pattern matching
+          const apiIsFree = (m && typeof m === "object" && m.is_free === true) ? 1 : 0;
+          const patternIsFree = isFreeModel(modelId) ? 1 : 0;
+          const isFree = apiIsFree || patternIsFree;
           const isPaid = isFree ? 0 : 1;
           const isFim = /fim|fill.?in.?the.?middle/i.test(modelId);
           let supportsTools = (m && typeof m === "object" && m.capabilities && m.capabilities.tool_calling === true) ? 1 : 0;
@@ -1285,6 +1382,28 @@ export class DiscountedUCB1Bandit {
     return cooldowns[Math.min(fails, 3)];
   }
 
+  _getGroupCooldownMs(groupFailures, isPaidGroup) {
+    const thresholds = this.getPunishmentThresholds();
+    const baseCooldown = isPaidGroup ? thresholds.groupPaidCooldownMs : thresholds.groupFreeCooldownMs;
+    const multiplier = thresholds.groupCooldownMultiplier || 2.0;
+    const escalationStep = thresholds.groupEscalationStepMs || 86400000;
+    
+    // Exponential backoff: base * multiplier^(failures-1) + escalationStep * (failures-1)
+    const failureLevel = Math.max(1, groupFailures);
+    return Math.min(
+      baseCooldown * Math.pow(multiplier, failureLevel - 1) + escalationStep * (failureLevel - 1),
+      7 * 24 * 3600000 // Cap at 7 days
+    );
+  }
+
+  _getGroupFreeCooldownMs(groupFailures) {
+    return this._getGroupCooldownMs(groupFailures, false);
+  }
+
+  _getGroupPaidCooldownMs(groupFailures) {
+    return this._getGroupCooldownMs(groupFailures, true);
+  }
+
   recordFeedback(modelId, success, reward = 1.0, errorDetails = null, opts = {}) {
     const sanitizedModelId = this._sanitizeModelId(modelId);
     if (!sanitizedModelId) {
@@ -1324,6 +1443,41 @@ export class DiscountedUCB1Bandit {
                 return;
               }
               slogInfo(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
+              
+              // Track group failures (free/paid pool)
+              const modelRow = this.db.prepare("SELECT is_paid FROM models WHERE id = ?").get(sanitizedModelId);
+              const isPaidModel = modelRow && modelRow.is_paid === 1;
+              const groupKey = isPaidModel ? "group_paid_failures" : "group_free_failures";
+              const cooldownKey = isPaidModel ? "group_paid_cooldown_until" : "group_free_cooldown_until";
+              
+              // Increment group failure counter
+              this.db.prepare(
+                `UPDATE provider_history SET ${groupKey} = ${groupKey} + 1 WHERE provider = ?`
+              ).run(provider);
+              
+              // Check if group threshold exceeded and apply group punishment
+              const thresholds = this.getPunishmentThresholds();
+              const groupThreshold = isPaidModel ? thresholds.groupPaidThreshold : thresholds.groupFreeThreshold;
+              const currentGroupFailures = this.db.prepare(`SELECT ${groupKey} FROM provider_history WHERE provider = ?`).get(provider)?.[groupKey] || 0;
+              const groupCooldownMs = isPaidModel ? this._getGroupPaidCooldownMs(currentGroupFailures) : this._getGroupFreeCooldownMs(currentGroupFailures);
+              
+              if (currentGroupFailures >= groupThreshold) {
+                // Apply group cooldown/ban
+                const groupCooldownEnd = Date.now() + groupCooldownMs;
+                this.db.prepare(
+                  `UPDATE provider_history SET ${cooldownKey} = ?, ${groupKey} = 0, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
+                ).run(groupCooldownEnd, `Group threshold exceeded (${groupThreshold} failures)`, `Group ${isPaidModel ? 'paid' : 'free'} model punishment`, provider);
+                
+                // Ban all models in the group for this provider
+                const groupType = isPaidModel ? "paid" : "free";
+                this.db.prepare(
+                  `UPDATE models SET permanent = 1, banned_since = ? WHERE provider = ? AND is_paid = ?`
+                ).run(Date.now(), provider, isPaidModel ? 1 : 0);
+                
+                slogInfo(`[BANDIT-CONSEQUENCE] group-punishment | provider=${provider} modelGroup=${groupType} threshold=${groupThreshold} failures=${currentGroupFailures} scope=group`);
+                logPunishment({ bandit: this, type: EVENT_TYPES.GROUP_PUNISHMENT, provider, modelId: sanitizedModelId, reason: `Group ${groupType} threshold exceeded`, cooldownMs: groupCooldownMs, failures: currentGroupFailures });
+              }
+              
               switch (c.action) {
               case "ban-provider":
                 if (source === 'training' || String(process.env.DEBUG_BANDIT || "").toLowerCase() === "true") {
@@ -1485,7 +1639,7 @@ export class DiscountedUCB1Bandit {
       // Reset consecutive provider failures on success
       if (provider && provider !== 'unknown') {
         this.db.prepare(
-          `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0, last_success_time = ?, cooldown_until = 0 WHERE provider = ?`
+          `UPDATE provider_history SET consecutive_failures = 0, circuit_breaker_until = 0, last_success_time = ?, cooldown_until = 0, group_free_failures = 0, group_paid_failures = 0 WHERE provider = ?`
         ).run(Date.now(), provider);
       }
       // Belt-and-suspenders: clear model cooldown on success

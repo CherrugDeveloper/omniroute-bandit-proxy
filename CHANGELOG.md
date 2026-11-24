@@ -5,6 +5,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.21] - 2026-11-24
+
+### Added
+- feat(bandit): implemented group punishment system for free/paid model pools with threshold-based escalation; added `groupPunishment` config with `freeGroupThreshold: 5`, `paidGroupThreshold: 3`, `cooldownMultiplier: 2.0`, `escalationStepMs: 86400000` (24h)
+- feat(bandit): enhanced free model recognition with multiple naming patterns (`:free`, `-free`, `free-`, `free:`, `gratis`, `no-cost`, `trial`, `community`, `lite`, `basic`, `starter`, `hobby`, `dev`, `sandbox`, `test`, `demo`, `preview`, `beta`, `alpha`, `experimental`, `open`, `public`, `unlimited`) and provider-specific indicators (OpenRouter `is_free` flag, Groq free tier, NVIDIA free tier, Gemini free tier, Mistral free tier, CFP/Oc/DVA/XAI free groups)
+- feat(bandit): added database columns `group_free_failures`, `group_paid_failures`, `group_free_cooldown_until`, `group_paid_cooldown_until` to `provider_history` table for tracking group-level punishment state
+- feat(bandit): added `_getGroupCooldownMs()`, `_getGroupFreeCooldownMs()`, `_getGroupPaidCooldownMs()` methods for exponential backoff cooldowns at group level
+- feat(events): added `GROUP_PUNISHMENT` event type for real-time dashboard updates on group-level punishments
+- feat(config): updated punishment thresholds - `consecutiveCriticalFailuresForBan: 5`, `circuitBreakerThreshold: 3`, `circuitBreakerCooldownMs: 120000`, `maxTotalFailuresBeforePermanentBan: 10` for better continuity with 1000+ models and 20 providers
+
+### Changed
+- refactor(bandit): group punishment logic in `recordFeedback()` - below threshold punishes individual model, above threshold punishes entire free/paid pool with escalating cooldowns
+- refactor(bandit): `isFreeModel()` now uses catalog `is_free` flag as primary indicator with naming patterns as fallback for comprehensive free model detection
+- refactor(bandit): on successful request, both individual model and group failure counters are reset
+- refactor(config): increased cooldown times to prevent models from being unlocked too quickly after coding tasks (group cooldowns start at 5min/10min and escalate by 24h per level)
+
+### Fixed
+- fix(bandit): resolved variable initialization order in group punishment block (`currentGroupFailures` declared before use)
+- fix(test): updated `paid-model-group-punishment.test.js` schema to include new group punishment columns
+
 ## [0.53.20] - 2026-11-24
 
 ### Added

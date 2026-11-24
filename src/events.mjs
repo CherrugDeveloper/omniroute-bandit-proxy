@@ -78,6 +78,7 @@ export const EVENT_TYPES = {
   COOLDOWN_PROVIDER: 'cooldown-provider',
   COOLDOWN_MODEL: 'cooldown-model',
   FLAG_PROVIDER: 'flag-provider',
+  GROUP_PUNISHMENT: 'group-punishment',
   DEGRADED_MODEL: 'degraded',
   CRITICAL_FAILURE: 'critical-failure'
 };
