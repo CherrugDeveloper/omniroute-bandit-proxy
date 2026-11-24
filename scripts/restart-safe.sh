@@ -514,40 +514,64 @@ restart_safe() {
 
 refresh_dashboard() {
   local dashboard_url="http://127.0.0.1:8080/dashboard"
+  local max_attempts=3
+  local attempt=1
   
   echo "→ Refresh della dashboard..."
   
-  # 1. Cerca di attivare la finestra esistente e inviare F5 (vero refresh)
-  if command -v wmctrl >/dev/null 2>&1; then
-    # Cerca una finestra con "dashboard" o "omniroute" nel titolo
-    local window_id=$(wmctrl -l 2>/dev/null | grep -i "dashboard\|omniroute" | head -1 | awk '{print $1}')
-    if [ -n "$window_id" ]; then
-      echo "  Trovata finestra dashboard (ID: $window_id), attivazione e invio F5..."
-      wmctrl -a "$window_id" 2>/dev/null || true
-      # Invia F5 alla finestra attiva
-      if command -v xdotool >/dev/null 2>&1; then
-        xdotool key --window "$window_id" F5 2>/dev/null || true
-        echo "  ✓ F5 inviato via xdotool"
-      elif command -v xte >/dev/null 2>&1; then
-        xte "key F5" 2>/dev/null || true
-        echo "  ✓ F5 inviato via xte"
-      else
-        echo "  ⚠ Nessun tool per inviare F5, solo attivazione finestra"
+  while [ $attempt -le $max_attempts ]; do
+    echo "  Tentativo $attempt/$max_attempts..."
+    
+    # 1. Cerca di attivare la finestra esistente e inviare F5 (vero refresh)
+    if command -v wmctrl >/dev/null 2>&1; then
+      # Cerca una finestra con "dashboard" o "omniroute" nel titolo
+      local window_id=$(wmctrl -l 2>/dev/null | grep -i "dashboard\|omniroute" | head -1 | awk '{print $1}')
+      if [ -n "$window_id" ]; then
+        echo "  Trovata finestra dashboard (ID: $window_id), attivazione e invio F5..."
+        wmctrl -a "$window_id" 2>/dev/null || true
+        sleep 0.5  # Wait for window activation
+        # Invia F5 alla finestra attiva
+        if command -v xdotool >/dev/null 2>&1; then
+          xdotool key --window "$window_id" F5 2>/dev/null || true
+          echo "  ✓ F5 inviato via xdotool"
+          return 0
+        elif command -v xte >/dev/null 2>&1; then
+          xte "key F5" 2>/dev/null || true
+          echo "  ✓ F5 inviato via xte"
+          return 0
+        else
+          echo "  ⚠ Nessun tool per inviare F5, solo attivazione finestra"
+        fi
       fi
+    fi
+    
+    # 2. Fallback: usa xdg-open per aprire la dashboard (se già aperta, molti browser fanno refresh)
+    if command -v xdg-open >/dev/null 2>&1; then
+      echo "  Apertura dashboard con xdg-open..."
+      xdg-open "$dashboard_url" >/dev/null 2>&1 || true
+      echo "  ✓ Dashboard aperta/refreshata via xdg-open"
       return 0
     fi
-  fi
+    
+    # 3. Fallback: prova con browser specifici
+    for browser in google-chrome chromium firefox; do
+      if command -v "$browser" >/dev/null 2>&1; then
+        echo "  Apertura dashboard con $browser..."
+        "$browser" "$dashboard_url" >/dev/null 2>&1 || true
+        echo "  ✓ Dashboard aperta/refreshata via $browser"
+        return 0
+      fi
+    done
+    
+    attempt=$((attempt + 1))
+    if [ $attempt -le $max_attempts ]; then
+      echo "  Attesa 2s prima del prossimo tentativo..."
+      sleep 2
+    fi
+  done
   
-  # 2. Fallback: usa xdg-open per aprire la dashboard (se già aperta, molti browser fanno refresh)
-  if command -v xdg-open >/dev/null 2>&1; then
-    echo "  Apertura dashboard con xdg-open..."
-    xdg-open "$dashboard_url" >/dev/null 2>&1 || true
-    echo "  ✓ Dashboard aperta/refreshata via xdg-open"
-    return 0
-  fi
-  
-  # 3. Nessun tool disponibile: non fallire, solo avvisa
-  echo "⚠ Nessun tool disponibile per il refresh della dashboard (wmctrl/xdg-open non trovati)"
+  # 4. Nessun tool disponibile: non fallire, solo avvisa
+  echo "⚠ Nessun tool disponibile per il refresh della dashboard (wmctrl/xdg-open/browser non trovati)"
   return 0
 }
 

@@ -6199,25 +6199,44 @@
         }
         
         // Helper: reload the browser after a restart script completes
-        // Uses active health check instead of a simple delay to ensure backend is ready
+        // Uses active health check with retry logic to ensure backend is ready before F5 reload
         async function reloadAfterRestart(scriptName) {
             console.log('[Restart] Script', scriptName, 'completed — scheduling browser reload');
             showToast('🔄 Riavvio completato, verifico lo stato del servizio...', 'success');
             
-            try {
-                // Active health check: poll until service is ready or timeout
-                await waitForServiceHealth(30000, 500);
-                console.log('[Restart] Service health check complete, reloading page');
+            let healthOk = false;
+            let lastError = null;
+            
+            // Retry health check up to 3 times with increasing delays
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    console.log(`[Restart] Health check attempt ${attempt}/3`);
+                    await waitForServiceHealth(30000, 500);
+                    healthOk = true;
+                    console.log('[Restart] Service health check complete');
+                    break;
+                } catch (e) {
+                    lastError = e.message;
+                    console.error(`[Restart] Health check attempt ${attempt} failed:`, e.message);
+                    if (attempt < 3) {
+                        const delay = attempt * 2000; // 2s, 4s
+                        console.log(`[Restart] Retrying in ${delay}ms...`);
+                        await new Promise(r => setTimeout(r, delay));
+                    }
+                }
+            }
+            
+            if (healthOk) {
                 showToast('✅ Servizio pronto, ricarica pagina...', 'success');
-            } catch (e) {
-                console.error('[Restart] Health check failed:', e.message);
-                showToast('⚠️ Prossima ricarica forzata...', 'warning');
+            } else {
+                console.error('[Restart] All health check attempts failed:', lastError);
+                showToast('⚠️ Health check fallito, ricarica forzata...', 'warning');
             }
             
             // Small additional delay for WebSocket connection re-establishment
             setTimeout(() => {
                 location.reload();
-            }, 500);
+            }, 1000);
         }
 
         function renderScripts() {

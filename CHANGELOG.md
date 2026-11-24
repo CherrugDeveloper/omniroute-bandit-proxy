@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.22] - 2026-11-24
+
+### Fixed
+- fix(dashboard): improved `reloadAfterRestart()` with retry logic (3 attempts with increasing delays) and better health check handling to ensure definitive F5 refresh after restart
+- fix(scripts): enhanced `refresh_dashboard()` in restart-safe.sh with retry logic (3 attempts), better window detection, and fallback to specific browsers (google-chrome, chromium, firefox) when wmctrl/xdg-open unavailable
+
+### Changed
+- refactor(dashboard): `reloadAfterRestart()` now uses 1s delay after health check (increased from 500ms) for better WebSocket re-establishment
+- refactor(scripts): `refresh_dashboard()` now waits 0.5s after window activation before sending F5, and retries up to 3 times with 2s delays between attempts
+
 ## [0.53.21] - 2026-11-24
 
 ### Added

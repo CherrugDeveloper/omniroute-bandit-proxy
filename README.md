@@ -15,6 +15,10 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
 
+### v0.53.22 Definitive Restart & Refresh
+- **Definitive F5 Refresh**: Improved `reloadAfterRestart()` with retry logic (3 attempts with increasing delays) and better health check handling to ensure the dashboard is definitively reloaded with F5 after service restart
+- **Enhanced Script Refresh**: `refresh_dashboard()` in restart-safe.sh now retries up to 3 times with 2s delays, better window detection, and fallback to specific browsers (google-chrome, chromium, firefox) when wmctrl/xdg-open unavailable
+
 ### v0.53.21 Group Punishment & Free Model Recognition
 - **Group Punishment**: Added threshold-based group-level punishment for free/paid model pools. When a model fails below the configured threshold (free: 5, paid: 3), only the individual model is punished. When failures exceed the threshold, the entire free or paid pool is punished with exponential backoff cooldowns (cooldown multiplier: 2.0, escalation step: 24h).
 - **Group Cooldowns**: New database columns (`group_free_failures`, `group_paid_failures`, `group_free_cooldown_until`, `group_paid_cooldown_until`) track group-level punishment state; new methods `_getGroupCooldownMs()`, `_getGroupFreeCooldownMs()`, `_getGroupPaidCooldownMs()` compute escalating cooldowns.
