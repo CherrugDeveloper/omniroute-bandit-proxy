@@ -9,10 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - feat(dashboard): added "🗑️ Reset All Stats & Logs" quick action button in the Quick Actions bar that resets all counters, punishment events, and request history via `/v1/reset/counters` and `/v1/reset/history` endpoints
+- feat(api): added POST `/v1/sync/models` endpoint to force catalog refresh from remote provider
+
+### Fixed
+- fix(model-prefetch): resolved SQL error "no such column: avg" in `getPopularModels()` by using `avg_score` alias in ORDER BY clause instead of non-existent `avg` column
+- fix(bandit): resolved same SQL error in `getDashboardStats()` topModel query by using `avg_score` alias in ORDER BY clause
+- fix(dashboard): reset now syncs models catalog after clearing data, preventing stale catalog state where catalog shows 0 models after reset
 
 ### Changed
 - refactor(scripts): `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode using Chrome/Chromium `--app` flag (minimal window without browser chrome) instead of regular browser; fallback chain: wmctrl F5 → Chrome --app → Firefox → xdg-open
-- refactor(dashboard): all reset buttons now execute immediately with toast feedback (no confirmation dialog); toast notifications now appear centered on screen instead of bottom-right
+- refactor(dashboard): resetAllStatsAndLogs() now calls `/v1/sync/models` after reset to ensure catalog data is refreshed
 
 ## [0.53.22] - 2026-11-24
 
