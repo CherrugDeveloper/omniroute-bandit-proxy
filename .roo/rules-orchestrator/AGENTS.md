@@ -20,8 +20,8 @@ Non-obvious, project-specific guidance for operational workflows.
 - `config/bandit.json` maps `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` to **cooldown-model** (transient, scope: model).
 - **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. Counter resets on success.
 - Timeout errors are **transient (cooldown-model)**, NOT critical.
-- `consecutive_5xx ≥ 3` triggers degraded mode.
-- Exponential backoff cooldowns: 15s → 5m → 30m → 2h → permanent.
+- `consecutive_5xx ≥ 5` triggers degraded mode.
+- Exponential backoff cooldowns: 30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent (10+).
 
 ## Dashboard
 - `public/dashboard.html`: table height 114px; column widths (Error Type 12%, Countermeasure 14%, Reason 30%); model names stripped of provider prefix.

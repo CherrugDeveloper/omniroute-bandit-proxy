@@ -20,6 +20,24 @@ This file provides guidance to agents when working with code in this repository.
 - Database migrations are additive-only - cannot drop columns, only ADD COLUMN
 - Health checks run every 15 minutes for model rehabilitation (not immediately after ban)
 
+## Bandit Algorithm (Non-Obvious)
+- `DiscountedUCB1Bandit` uses **0.99 discount per event**; `_rankCache` 30s TTL
+- `_sanitizeModelId()` strips a duplicated provider prefix (e.g. `mistral/mistral-x` → `mistral-x`) only if the sanitized id exists in `catalog`; otherwise returns the original id so it can be tracked/banned
+- Fallback chain in `config/bandit.json` **bypasses UCB1** entirely
+
+## Error Classification & Punishment (Non-Obvious)
+- `config/bandit.json` pattern order matters — first match wins; Playwright/Cloudflare 502/503 must precede generic `5xx|server-error`
+- `safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized` → **cooldown-model** (transient, scope: model) — NOT critical
+- **5-strike system**: 5 consecutive critical failures (403, 429) → permanent ban. Counter resets on success. `safeWrite` errors are NOT critical
+- Timeout errors are **transient (cooldown-model)**, NOT critical
+- `consecutive_5xx ≥ 5` triggers degraded mode (updated from 3 in v0.53.14)
+- Exponential backoff cooldowns: 30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent (10+)
+- Training daemon: `TRAIN_MAX_TIMEOUT_SKIP` (default: 3) and `TRAIN_MAX_FAIL_SKIP` (default: 5) env vars control provider skip thresholds
+- Structured logger: `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepts `debug|info|warn|error`
+- Cascade ban guard: paid-group-ban UPDATE includes `AND permanent = 0`
+- Cascade guard skip list covers capability-based rejections (`non_chat_model_excluded`, `no_tools_support`, `max_input_tokens_exceeded`, `exclude_thinking`, `dynamic_max_tokens_exceeded`) so capability mismatches never trigger cooldowns
+- Emergency rejection countermeasure downgraded from `ban-model` to `cooldown-model` (300000ms)
+
 ## Cascade Ban Prevention (v0.53.10)
 - 5-strike paid-group-ban now sets only `needs_attention = 1` on provider_history (NOT `permanent = 1`) — ban isolated to individual model
 - Escalation permanent-ban now sets only `needs_attention = 1` on provider_history (NOT `permanent = 1`) — prevents provider-wide cascade bans
@@ -36,20 +54,25 @@ This file provides guidance to agents when working with code in this repository.
 - Polling intervals increased (main loop 1s→2s, fetch intervals 5s→10s) with `requestIdleCallback` for DOM updates
 - `recentRequests` RingBuffer increased from 5 to 50 entries
 
-## Logging & Training Tuning (v0.53.14)
-- `_getModelCooldownMs` comment corrected to match actual array: 30s → 2min → 5min → 15min → 30min → 1hr → 2hr → 6hr → 12hr → permanent (10+)
-- `degradationThreshold` increased from 3 to 5 in `config/bandit.json` to prevent premature degradation on transient 5xx
-- Training daemon: `TRAIN_MAX_TIMEOUT_SKIP` (default: 3) and `TRAIN_MAX_FAIL_SKIP` (default: 5) env vars control provider skip thresholds
-- Structured logger: `LOG_LEVEL` env var (alias of `STRUCTURED_LOG_LEVEL`) accepts `debug|info|warn|error` to control minimum log level
+## Database (Non-Obvious)
+- `better-sqlite3`; migrations are additive-only (`ADD COLUMN` in `_migrateDB`)
+- Isolated `models_train` table; production reads `models` + `0.3*models_train` (when `N < 1`)
+- `models` and `provider_history` stay in sync on bans/cooldowns via `recordFeedback()`
+- `recordFeedback()` wraps non-object errorDetails into `{message, status}` so `_classifyError()` always runs
 
-## Dashboard Data Export (v0.53.15)
-- **Copy All Button**: Added "📋 Copia Tutti" button in dashboard header for bulk data export
-  - Exports metrics, model stats, provider stats, training status, and active tab data (logs/models/train/modes)
-  - Data formatted as TSV (Tab-Separated Values) with headers
-  - Copy confirmation feedback ("✅ Copiato") displayed for 2 seconds
-  - Button ID: `copy-all-btn` with class `btn btn-primary`
-  - Excludes WebSocket URL, Token, and other sensitive fields from export
-  - Active tab content dynamically included based on user selection
+## Proxy & Sessions (Non-Obvious)
+- `SESSION_TTL_MS` = 30m; `STREAM_IDLE_MS` = 60s (resets on any chunk/heartbeat)
+- Token estimation = 4 chars/token
+- Fallback chain in `config/bandit.json` **bypasses UCB1**
+
+## Profile Bias
+- `profileMultiplier` applies to UCB1 score; multipliers stack
+
+## Dashboard Features
+- **Copy All Button** (v0.53.15): "📋 Copia Tutti" exports metrics, model stats, provider stats, training status, and active tab data as TSV
+- **Reset All Stats & Logs** (v0.53.23): Quick action button calls `/v1/reset/counters` + `/v1/reset/history` (includes unified history)
+- **PWA Mode** (v0.53.23): Dashboard opens via Chrome `--app` flag for standalone window experience
+- Toast notifications appear bottom-right (no confirmation dialogs for reset actions)
 
 ## Top Model Reset API (v0.53.19)
 - Added `POST /v1/reset/top-model` endpoint to reset the top model (highest average reward)
