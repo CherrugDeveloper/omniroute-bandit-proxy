@@ -14,6 +14,13 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
   - **Model-Not-Found Classification**: 400 errors indicating a model is not found in the active live catalog (including "invalid model", "does not exist", "no longer available") are classified as `ban-model` (PERMANENT) instead of `cooldown-model` (TRANSIENT), preventing repeated attempts on unavailable models.
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
+- **Quick Action Reset**: "🗑️ Reset All Stats & Logs" button in the Quick Actions bar for resetting all counters, punishment events, and request history.
+- **Toast-based Confirmation**: All reset buttons use two-step toast confirmation instead of native browser dialogs (first click warns, second click confirms within 3 seconds).
+
+### v0.53.23 - 2026-11-24
+- **Added**: "🗑️ Reset All Stats & Logs" quick action button in Quick Actions bar
+- **Added**: Toast-based confirmation system replacing native `confirm()` dialogs
+- **Changed**: `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode
 
 ### v0.53.22 Definitive Restart & Refresh
 - **Definitive F5 Refresh**: Improved `reloadAfterRestart()` with retry logic (3 attempts with increasing delays) and better health check handling to ensure the dashboard is definitively reloaded with F5 after service restart

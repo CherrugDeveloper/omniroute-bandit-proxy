@@ -517,17 +517,17 @@ refresh_dashboard() {
   local max_attempts=3
   local attempt=1
   
-  echo "→ Refresh della dashboard..."
+  echo "→ Refresh della dashboard (PWA mode)..."
   
   while [ $attempt -le $max_attempts ]; do
     echo "  Tentativo $attempt/$max_attempts..."
     
-    # 1. Cerca di attivare la finestra esistente e inviare F5 (vero refresh)
+    # 1. Cerca di attivare la finestra PWA esistente e inviare F5 (vero refresh)
     if command -v wmctrl >/dev/null 2>&1; then
-      # Cerca una finestra con "dashboard" o "omniroute" nel titolo
+      # Cerca una finestra con "dashboard" o "omniroute" nel titolo (PWA window title = manifest name)
       local window_id=$(wmctrl -l 2>/dev/null | grep -i "dashboard\|omniroute" | head -1 | awk '{print $1}')
       if [ -n "$window_id" ]; then
-        echo "  Trovata finestra dashboard (ID: $window_id), attivazione e invio F5..."
+        echo "  Trovata finestra dashboard/PWA (ID: $window_id), attivazione e invio F5..."
         wmctrl -a "$window_id" 2>/dev/null || true
         sleep 0.5  # Wait for window activation
         # Invia F5 alla finestra attiva
@@ -545,23 +545,32 @@ refresh_dashboard() {
       fi
     fi
     
-    # 2. Fallback: usa xdg-open per aprire la dashboard (se già aperta, molti browser fanno refresh)
+    # 2. Fallback: apri in PWA mode usando Chrome/Chromium con --app flag
+    #    --app flag apre l'URL in una finestra minimale (PWA-like, senza barra browser)
+    for browser in google-chrome google-chrome-stable chromium chromium-browser; do
+      if command -v "$browser" >/dev/null 2>&1; then
+        echo "  Apertura dashboard in PWA mode con $browser --app..."
+        "$browser" --app="$dashboard_url" >/dev/null 2>&1 &
+        echo "  ✓ Dashboard aperta in PWA mode via $browser --app"
+        return 0
+      fi
+    done
+    
+    # 3. Fallback: prova con Firefox (non supporta --app, ma apre in finestra minimale)
+    if command -v firefox >/dev/null 2>&1; then
+      echo "  Apertura dashboard con firefox..."
+      firefox "$dashboard_url" >/dev/null 2>&1 &
+      echo "  ✓ Dashboard aperta via firefox"
+      return 0
+    fi
+    
+    # 4. Fallback: usa xdg-open (ultimo resort, apre nel browser predefinito)
     if command -v xdg-open >/dev/null 2>&1; then
-      echo "  Apertura dashboard con xdg-open..."
+      echo "  Apertura dashboard con xdg-open (fallback)..."
       xdg-open "$dashboard_url" >/dev/null 2>&1 || true
       echo "  ✓ Dashboard aperta/refreshata via xdg-open"
       return 0
     fi
-    
-    # 3. Fallback: prova con browser specifici
-    for browser in google-chrome chromium firefox; do
-      if command -v "$browser" >/dev/null 2>&1; then
-        echo "  Apertura dashboard con $browser..."
-        "$browser" "$dashboard_url" >/dev/null 2>&1 || true
-        echo "  ✓ Dashboard aperta/refreshata via $browser"
-        return 0
-      fi
-    done
     
     attempt=$((attempt + 1))
     if [ $attempt -le $max_attempts ]; then
@@ -570,8 +579,8 @@ refresh_dashboard() {
     fi
   done
   
-  # 4. Nessun tool disponibile: non fallire, solo avvisa
-  echo "⚠ Nessun tool disponibile per il refresh della dashboard (wmctrl/xdg-open/browser non trovati)"
+  # 5. Nessun tool disponibile: non fallire, solo avvisa
+  echo "⚠ Nessun tool disponibile per il refresh della dashboard (wmctrl/browser/xdg-open non trovati)"
   return 0
 }
 

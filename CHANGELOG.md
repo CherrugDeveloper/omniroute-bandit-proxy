@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.23] - 2026-11-24
+
+### Added
+- feat(dashboard): added "🗑️ Reset All Stats & Logs" quick action button in the Quick Actions bar that resets all counters, punishment events, and request history via `/v1/reset/counters` and `/v1/reset/history` endpoints
+- feat(dashboard): implemented toast-based confirmation system (`confirmReset()` helper) replacing all native `confirm()` dialogs for reset buttons; first click shows warning toast, second click within 3s executes the action
+
+### Changed
+- refactor(scripts): `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode using Chrome/Chromium `--app` flag (minimal window without browser chrome) instead of regular browser; fallback chain: wmctrl F5 → Chrome --app → Firefox → xdg-open
+- refactor(dashboard): all reset buttons (models, providers, training, top-model, unified history, quick action) now use toast-based two-step confirmation instead of native browser `confirm()` dialogs
+
 ## [0.53.22] - 2026-11-24
 
 ### Fixed
