@@ -12,7 +12,15 @@ import { info as slogInfo, error as slogError, warn as slogWarn, debug as slogDe
 
 export class DiscountedUCB1Bandit {
   _sanitizeModelId(modelId) {
-    if (typeof modelId !== 'string') return modelId;
+    if (typeof modelId !== 'string') return null;
+    
+    // First check if the model exists in catalog (exact match)
+    const exists = this.db.prepare("SELECT 1 FROM catalog WHERE id = ?").get(modelId);
+    if (exists) {
+      return modelId;
+    }
+    
+    // If modelId contains '/', try to sanitize the duplicate prefix
     if (modelId.includes('/')) {
       const parts = modelId.split('/');
       while (parts.length >= 2 && parts[0] === parts[1]) {
@@ -20,20 +28,18 @@ export class DiscountedUCB1Bandit {
       }
       if (parts.length >= 1) {
         const sanitized = parts.join('/');
-        const exists = this.db.prepare("SELECT 1 FROM catalog WHERE id = ?").get(sanitized);
-        if (exists) {
+        const sanitizedExists = this.db.prepare("SELECT 1 FROM catalog WHERE id = ?").get(sanitized);
+        if (sanitizedExists) {
           return sanitized;
         }
-        // 400 fallback: if sanitized id not in catalog, return original for tracking/banning
+        // If sanitized id not in catalog, return original for tracking/banning
         // This allows proper classification of model-not-found errors
       }
-      const originalExists = this.db.prepare("SELECT 1 FROM catalog WHERE id = ?").get(modelId);
-      if (originalExists) return modelId;
-      if (parts.length >= 1) {
-        return parts.join('/');
-      }
     }
-    return modelId;
+    
+    // Model ID not found in catalog - return null to indicate invalid model
+    // The caller can then handle this as a model-not-found error
+    return null;
   }
 
   constructor(dbPath = "bandit.db") {
@@ -144,7 +150,11 @@ export class DiscountedUCB1Bandit {
           degraded_since REAL DEFAULT 0,
           banned_since REAL DEFAULT 0,
           is_paid INTEGER DEFAULT 0,
-          dynamic_max_tokens INTEGER DEFAULT 0
+          dynamic_max_tokens INTEGER DEFAULT 0,
+          tpm_exceeded_count INTEGER DEFAULT 0,
+          tpm_last_exceeded REAL DEFAULT 0,
+          success_count INTEGER DEFAULT 0,
+          last_success_time REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS models_train (
           id TEXT PRIMARY KEY,
@@ -655,6 +665,51 @@ export class DiscountedUCB1Bandit {
         }
       }
 
+      // Add TPM exceeded tracking columns for exponential backoff
+      const hasTpmExceededCount = modelColumns.some(col => col.name === "tpm_exceeded_count");
+      if (!hasTpmExceededCount) {
+        slogInfo("[BANDIT] Migrazione: aggiungo tpm_exceeded_count a models");
+        try {
+          this.db.exec(`ALTER TABLE models ADD COLUMN tpm_exceeded_count INTEGER DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna tpm_exceeded_count:", err.message);
+          throw err;
+        }
+      }
+
+      const hasTpmLastExceeded = modelColumns.some(col => col.name === "tpm_last_exceeded");
+      if (!hasTpmLastExceeded) {
+        slogInfo("[BANDIT] Migrazione: aggiungo tpm_last_exceeded a models");
+        try {
+          this.db.exec(`ALTER TABLE models ADD COLUMN tpm_last_exceeded REAL DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna tpm_last_exceeded:", err.message);
+          throw err;
+        }
+      }
+
+      const hasSuccessCount = modelColumns.some(col => col.name === "success_count");
+      if (!hasSuccessCount) {
+        slogInfo("[BANDIT] Migrazione: aggiungo success_count a models");
+        try {
+          this.db.exec(`ALTER TABLE models ADD COLUMN success_count INTEGER DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna success_count:", err.message);
+          throw err;
+        }
+      }
+
+      const hasModelLastSuccessTime = modelColumns.some(col => col.name === "last_success_time");
+      if (!hasModelLastSuccessTime) {
+        slogInfo("[BANDIT] Migrazione: aggiungo last_success_time a models");
+        try {
+          this.db.exec(`ALTER TABLE models ADD COLUMN last_success_time REAL DEFAULT 0`);
+        } catch (err) {
+          slogError("[BANDIT] Errore aggiunta colonna last_success_time:", err.message);
+          throw err;
+        }
+      }
+
       slogInfo("[BANDIT] Migrazione database completata");
 
       // Create punishment_events table for persisting punishment events
@@ -710,6 +765,13 @@ export class DiscountedUCB1Bandit {
     const originalModelId = modelId;
     modelId = this._sanitizeModelId(modelId);
     slogInfo(`[DEBUG] _registerModelUse: original=${originalModelId}, sanitized=${modelId}`);
+    
+    // If model not found in catalog, skip registration
+    if (!modelId) {
+      slogWarn(`[BANDIT-REGISTER] Model non trovato nel catalogo: ${originalModelId} - registrazione saltata`);
+      return;
+    }
+    
     this.db.prepare(
       `INSERT OR IGNORE INTO provider_history (provider, fails, cooldown_until, pointer, permanent)
        VALUES (?, 0, 0, 0, 0)`
@@ -1030,7 +1092,9 @@ export class DiscountedUCB1Bandit {
   }
 
   getModelInfo(modelId) {
-    modelId = this._sanitizeModelId(modelId);
+    const sanitizedId = this._sanitizeModelId(modelId);
+    if (!sanitizedId) return null;
+    modelId = sanitizedId;
     const row = this.db.prepare(
       `SELECT id, provider, N, sum_reward, fails, degraded, cooldown_until, permanent
        FROM models WHERE id = ?`
@@ -1200,6 +1264,12 @@ export class DiscountedUCB1Bandit {
     return this._rankCache.map.get(modelId) ?? null;
   }
 
+  invalidateRankCache() {
+    this._rankCache.at = 0;
+    this._rankCache.map.clear();
+    slogDebug("[BANDIT] Rank cache invalidated");
+  }
+
   getLastSelectionHistory() {
     return this.lastSelectionHistory || [];
   }
@@ -1217,6 +1287,10 @@ export class DiscountedUCB1Bandit {
 
   recordFeedback(modelId, success, reward = 1.0, errorDetails = null, opts = {}) {
     const sanitizedModelId = this._sanitizeModelId(modelId);
+    if (!sanitizedModelId) {
+      slogWarn(`[BANDIT-RECORD-FEEDBACK] Model ID non trovato nel catalogo: ${modelId} - feedback ignorato`);
+      return { success, reward, errorDetails: { message: `Model not found: ${modelId}`, category: "catalog-not-found" } };
+    }
     slogInfo(`[DEBUG] recordFeedback: modelId=${modelId}, sanitized=${sanitizedModelId}`);
     slogInfo(`[BANDIT-RECORD-FEEDBACK] modelId=${modelId} success=${success} reward=${reward} source=${opts.source}`);
     try {
@@ -1722,7 +1796,7 @@ export class DiscountedUCB1Bandit {
     if (status === 401 && /authentication expired/i.test(message)) {
       return { action: "flag-provider", reason: "auth-expired", cooldownMs: 24 * 3600 * 1000, category: "TRANSIENT" };
     }
-    // 413 / TPM / ITPM / tokens per minute / Request too large / context length / token limit -> cooldown-model
+    // 413 / TPM / ITPM / tokens per minute / Request too large / context length / token limit -> cooldown-model with exponential backoff
     if (status === 413 || /413|ITPM|tokens?\s*per\s*minute|TPM|Request too large|Requested \d+.*Limit \d+|Limit \d+.*Requested \d+|context\s*(?:window|length|exceeded)|token\s*limit|payload\s*too\s*large/i.test(message)) {
       const m = message.match(/reset after (\d+)(s|m|h)/i);
       let cooldownMs = 300000;
@@ -1733,6 +1807,19 @@ export class DiscountedUCB1Bandit {
         else if (u === 'm') cooldownMs = v * 60 * 1000;
         else if (u === 'h') cooldownMs = v * 3600 * 1000;
       }
+      
+      // Exponential backoff based on consecutive 413 errors
+      const modelId = this._sanitizeModelId(errorDetails.modelId) || "";
+      const model = this.db.prepare("SELECT tpm_exceeded_count FROM models WHERE id = ?").get(modelId);
+      const tpmCount = model && model.tpm_exceeded_count ? model.tpm_exceeded_count : 0;
+      
+      if (tpmCount > 0) {
+        // Exponential backoff: 30s -> 1min -> 2min -> 4min -> 8min -> 16min -> 32min -> 64min -> 128min -> 256min
+        const backoffLevels = [30000, 60000, 120000, 240000, 480000, 960000, 1920000, 3840000, 7680000, 15360000];
+        const idx = Math.min(tpmCount - 1, backoffLevels.length - 1);
+        cooldownMs = Math.max(cooldownMs, backoffLevels[idx]);
+      }
+      
       return { action: "cooldown-model", scope: "model", reason: "tpm-exceeded", cooldownMs, category: "TRANSIENT" };
     }
     // No auth provided -> flag-provider

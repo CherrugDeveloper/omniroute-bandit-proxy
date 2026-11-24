@@ -38,6 +38,7 @@
         { "pattern": "high demand|service.unavailable|service unavailable", "action": "cooldown-model", "duration": 30000 },
         { "pattern": "413|ITPM|tokens.?per.?minute|TPM|Request too large|context.?(?:window|length|exceeded)|token.?limit|payload.?too.?large", "action": "cooldown-model", "duration": 300000, "reason": "tpm-exceeded" },
         { "pattern": "403.*lifetime limit|403.*never resets|403.*total limit|403.*does not reset|403.*no reset|lifetime limit|never resets|total limit|does not reset|no reset", "action": "cooldown-model", "duration": 300000, "reason": "key-limit-exceeded", "status": 403 },
+        { "pattern": "403.*access denied|403.*permission denied|403.*forbidden|403.*insufficient permissions|403.*not authorized", "action": "cooldown-model", "duration": 60000, "reason": "access-denied", "status": 403 },
         { "pattern": "401|authentication expired|No active credentials", "action": "flag-provider", "duration": 86400000, "reason": "auth-expired" },
         { "pattern": "402|insufficient.?funds|credit.?exhausted|payment.?required|billing_error", "action": "flag-provider", "duration": 86400000 },
         { "pattern": "418|anti.abuse", "action": "cooldown-provider", "duration": 3600000 },

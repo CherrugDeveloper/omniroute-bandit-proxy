@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.20] - 2026-11-24
+
+### Added
+- feat(bandit): added exponential backoff for rate limit 413 errors with new database columns `tpm_exceeded_count` and `tpm_last_exceeded` to track consecutive TPM violations; cooldown increases progressively (30s → 1min → 2min → 4min → 8min → 16min → 32min → 64min → 128min → 256min)
+- feat(bandit): added `invalidateRankCache()` method to clear rank cache when model state changes (punishments, cooldowns, provider status changes)
+- feat(config): added specific 403 error pattern for "access denied", "permission denied", "forbidden", "insufficient permissions", "not authorized" with 60s cooldown (distinct from key-limit-exceeded 300s cooldown)
+- feat(index): implemented dynamic timeout for unknown models using `baseTimeoutEnv` from `UPSTREAM_TIMEOUT_MS` environment variable instead of hardcoded 60000ms
+- feat(bandit): enhanced `scoreFallbackModel()` to include provider health metrics (fails, cooldown, needs_attention) in scoring calculation
+
+### Fixed
+- fix(bandit): fixed `_sanitizeModelId()` to return null when model ID not found in catalog, preventing "model='b'" errors in logs and queries
+- fix(index): fixed variable reference bug where `model` was used before assignment in timeout calculation (line 2157)
+- fix(bandit): fixed duplicate variable declaration `hasLastSuccessTime` in `_migrateDB()` by renaming to `hasModelLastSuccessTime` for models table migration
+
+### Changed
+- refactor(bandit): improved error classification for 413/TPM errors with exponential backoff based on consecutive violation count
+- refactor(index): timeout calculation now uses environment variable `UPSTREAM_TIMEOUT_MS` as base value for better configurability
+
 ## [0.53.18] - 2026-11-23
 
 ### Added

@@ -14,6 +14,15 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Real-time Dashboard**: PWA-enabled interface for monitoring metrics, logs, provider health, and bandit rankings.
 - **Comprehensive Data Export**: New "📋 Copia Tutti" button in the Unified History panel allows exporting all dashboard data (metrics, models, providers, logs, training status, and unified history) in structured TSV format for analysis and reporting.
 
+### v0.53.20 Bug Fixes & Improvements
+- **Fixed `_sanitizeModelId()`**: Now returns null when model ID not found in catalog, preventing "model='b'" errors in logs and queries.
+- **Fixed variable reference bug**: Removed premature `model` usage before assignment in timeout calculation (line 2157).
+- **Exponential backoff for rate limit 413**: Added tracking columns `tpm_exceeded_count` and `tpm_last_exceeded` to database; cooldown increases progressively (30s → 1min → 2min → 4min → 8min → 16min → 32min → 64min → 128min → 256min).
+- **Cache invalidation**: Added `invalidateRankCache()` method to clear rank cache when model state changes.
+- **403 error classification**: Added specific pattern for "access denied", "permission denied", "forbidden", "insufficient permissions", "not authorized" with 60s cooldown.
+- **Dynamic timeout**: Timeout now uses `UPSTREAM_TIMEOUT_MS` environment variable as base value instead of hardcoded 60000ms.
+- **Enhanced fallback scoring**: `scoreFallbackModel()` now includes provider health metrics (fails, cooldown, needs_attention) in scoring calculation.
+
 ### v0.53.19 Top Model Reset API
 - **Top Model Reset endpoint**: New `POST /v1/reset/top-model` endpoint allows resetting the top model (model with the highest average reward). Added `getTopModelId()` method that returns the model with highest `sum_reward / N` ratio (with `N >= 1`) among available models, and `resetTopModel()` method that resets the top model's statistics and clears provider attention flags.
 
