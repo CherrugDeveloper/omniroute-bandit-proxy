@@ -2916,20 +2916,23 @@ export class DiscountedUCB1Bandit {
 
       let topModel = null;
       let topModelDetails = null;
+      // Get top model by average reward (score)
+      // Note: SQLite allows ORDER BY alias, but we use the calculated value for clarity
       try {
         const topRes = this.db.prepare(`
-          SELECT id, provider, N, cooldown_until, (sum_reward / NULLIF(N, 0)) as avg, (sum_reward / NULLIF(N, 0)) as score
+          SELECT id, provider, N, cooldown_until,
+                 (sum_reward / NULLIF(N, 0)) as avg_score
           FROM models
           WHERE N >= 1
-          ORDER BY avg DESC
+          ORDER BY avg_score DESC
           LIMIT 1
         `).get();
         if (!topRes) {
           // Fallback: any model in catalog even without observations
           const fallbackRes = this.db.prepare(`
-            SELECT id, provider, N, cooldown_until, 0 as avg, 0 as score
+            SELECT id, provider, N, cooldown_until, 0 as avg_score
             FROM models
-            ORDER BY id ASC
+            ORDER BY N DESC
             LIMIT 1
           `).get();
           if (fallbackRes) {
@@ -2941,8 +2944,7 @@ export class DiscountedUCB1Bandit {
               provider: fallbackRes.provider,
               N: fallbackRes.N,
               cooldown: fallbackRes.cooldown_until || 0,
-              avg: fallbackRes.avg,
-              score: fallbackRes.score
+              avg_score: fallbackRes.avg_score
             };
           }
         } else {
@@ -2954,8 +2956,7 @@ export class DiscountedUCB1Bandit {
             provider: topRes.provider,
             N: topRes.N,
             cooldown: topRes.cooldown_until || 0,
-            avg: topRes.avg,
-            score: topRes.score
+            avg_score: topRes.avg_score
           };
         }
       } catch (e) {

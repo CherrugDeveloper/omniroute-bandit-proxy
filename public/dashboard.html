@@ -2477,6 +2477,18 @@
                             throw new Error('Reset history failed: ' + err);
                         }
                         
+                        // Sync models to refresh catalog after reset
+                        showToast('🔄 Sincronizzazione catalogo modelli...', 'info');
+                        const syncRes = await fetch('/v1/sync/models', {
+                            method: 'POST',
+                            headers: { ...authHeaders(), 'Content-Type': 'application/json' }
+                        });
+                        
+                        if (!syncRes.ok) {
+                            const syncErr = await syncRes.text();
+                            console.warn('Sync catalog failed (continuando):', syncErr);
+                        }
+                        
                         showToast('✓ Tutte le statistiche, i log e la cronologia unificata sono stati resettati', 'success');
                         await refreshAll();
                         

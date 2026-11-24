@@ -1864,6 +1864,21 @@ app.post("/v1/reset/history", requireAuth, (req, res) => {
   }
 });
 
+// ========================================
+// SYNC MODELS ENDPOINT
+// ========================================
+
+app.post("/v1/sync/models", requireAuth, async (req, res) => {
+  try {
+    const result = await bandit.fetchAndSyncModels();
+    const catalogCount = bandit.db?.prepare("SELECT COUNT(*) as count FROM catalog").get()?.count || 0;
+    res.json({ ok: true, catalogCount });
+  } catch (e) {
+    slogError("[API] Errore sync models:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/v1/provider/ignore/:p", requireAuth, (req, res) => {
   try {
     const ok = bandit.ignoreProvider(req.params.p);

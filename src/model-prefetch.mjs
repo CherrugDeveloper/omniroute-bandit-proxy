@@ -130,7 +130,7 @@ export function getPopularModels(bandit) {
       SELECT id, provider, N, sum_reward, (sum_reward / NULLIF(N, 0)) as avg_score
       FROM models 
       WHERE N >= ? AND permanent = 0 AND degraded = 0
-      ORDER BY N DESC, avg DESC
+      ORDER BY N DESC, avg_score DESC
       LIMIT ?
     `).all(MIN_OBSERVATIONS, TOP_MODELS_COUNT);
     
