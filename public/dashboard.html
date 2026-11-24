@@ -2376,12 +2376,12 @@
                     if (!container) {
                         container = document.createElement('div');
                         container.id = 'toast-container';
-                        container.style.cssText = 'position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px; max-width:350px;';
+                        container.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:9999; display:flex; flex-direction:column; gap:10px; max-width:350px; pointer-events:none;';
                         document.body.appendChild(container);
                     }
                     const toast = document.createElement('div');
                     const bg = type === 'success' ? '#238636' : type === 'error' ? '#da3633' : type === 'warning' ? '#d29922' : '#1f6feb';
-                    toast.style.cssText = `background:${bg}; color:#ffffff; padding:12px 16px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.3); font-size:13px; font-weight:500; opacity:0; transition:opacity 0.3s ease;`;
+                    toast.style.cssText = `background:${bg}; color:#ffffff; padding:12px 16px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.3); font-size:13px; font-weight:500; opacity:0; transition:opacity 0.3s ease; pointer-events:auto;`;
                     toast.textContent = message;
                     container.appendChild(toast);
                     setTimeout(() => toast.style.opacity = '1', 10);
@@ -2389,19 +2389,6 @@
                         toast.style.opacity = '0';
                         setTimeout(() => toast.remove(), 300);
                     }, 4000);
-                }
-
-                // Toast-based confirmation helper (replaces confirm() dialogs)
-                const pendingConfirmations = new Map();
-                function confirmReset(key, message, onConfirm) {
-                    if (pendingConfirmations.has(key)) {
-                        pendingConfirmations.delete(key);
-                        onConfirm();
-                        return;
-                    }
-                    pendingConfirmations.set(key, true);
-                    setTimeout(() => pendingConfirmations.delete(key), 3000);
-                    showToast('⚠️ ' + message + ' — Clicca di nuovo per confermare', 'warning');
                 }
 
                 async function quickAction(scriptName, arg = '') {
@@ -2465,29 +2452,7 @@
                     }
                 }
 
-                let pendingReset = false;
-                let pendingResetTimer = null;
-
                 async function resetAllStatsAndLogs() {
-                    if (!pendingReset) {
-                        // First click: show confirmation toast
-                        pendingReset = true;
-                        if (pendingResetTimer) clearTimeout(pendingResetTimer);
-                        pendingResetTimer = setTimeout(() => {
-                            pendingReset = false;
-                            pendingResetTimer = null;
-                        }, 3000);
-                        showToast('⚠️ Clicca di nuovo per confermare il reset di tutte le statistiche e i log', 'warning');
-                        return;
-                    }
-                    
-                    // Second click: proceed with reset
-                    pendingReset = false;
-                    if (pendingResetTimer) {
-                        clearTimeout(pendingResetTimer);
-                        pendingResetTimer = null;
-                    }
-                    
                     showToast('🗑️ Reset all statistics and logs...', 'info');
                     
                     try {
@@ -3859,9 +3824,7 @@
                     if (btn.dataset.id) {
                         resetModel(btn.dataset.id);
                     } else {
-                        confirmReset('reset-all-models', 'Sei sicuro di voler resettare tutti i modelli? Questa azione reimpostera N, sum_reward, fails e stato cooldown per tutti i modelli.', () => {
-                            apiFetch('/v1/reset/model', { method: 'POST' }).then(() => refreshAll());
-                        });
+                        apiFetch('/v1/reset/model', { method: 'POST' }).then(() => refreshAll());
                     }
                 }
                 else if (a === 'block-model') blockModel(btn.dataset.id);
@@ -3869,9 +3832,7 @@
                     if (btn.dataset.name) {
                         resetProvider(btn.dataset.name);
                     } else {
-                        confirmReset('reset-all-providers', 'Sei sicuro di voler resettare tutti i provider? Questa azione reimpostera stato cooldown e ban per tutti i provider.', () => {
-                            apiFetch('/v1/reset/provider', { method: 'POST' }).then(() => refreshAll());
-                        });
+                        apiFetch('/v1/reset/provider', { method: 'POST' }).then(() => refreshAll());
                     }
                 }
                 else if (a === 'retry-provider') retryProvider(btn.dataset.name);
@@ -3883,14 +3844,10 @@
                     apiFetch('/v1/reset/counters', { method: 'POST' }).then(() => refreshAll());
                 }
                 else if (a === 'reset-training') {
-                    confirmReset('reset-training', 'Sei sicuro di voler resettare lo stato del training?', () => {
-                        apiFetch('/v1/reset/training', { method: 'POST' }).then(() => refreshAll());
-                    });
+                    apiFetch('/v1/reset/training', { method: 'POST' }).then(() => refreshAll());
                 }
                 else if (a === 'reset-top-model') {
-                    confirmReset('reset-top-model', 'Sei sicuro di voler resettare lo stato del modello top?', () => {
-                        apiFetch('/v1/reset/top-model', { method: 'POST' }).then(() => refreshAll());
-                    });
+                    apiFetch('/v1/reset/top-model', { method: 'POST' }).then(() => refreshAll());
                 }
                 else if (a === 'copy-box-content') {
                     const targetId = btn.dataset.target;
@@ -5252,25 +5209,23 @@
 
     // Reset unified history button
 document.getElementById('reset-unified-btn')?.addEventListener('click', async () => {
-    confirmReset('reset-unified', 'Sei sicuro di voler resettare la cronologia unificata? Questa azione cancella tutti gli eventi di punizione e i log delle richieste storici.', async () => {
-        try {
-            const r = await apiFetch('/v1/reset/history', { method: 'POST' });
-            if (r.ok) {
-                const tbody = document.getElementById('unified-cronologia-tbody');
-                if (tbody) tbody.innerHTML = '';
-                const btn = document.getElementById('reset-unified-btn');
-                const orig = btn.textContent;
-                btn.textContent = '✅ Resettato';
-                setTimeout(() => btn.textContent = orig, 1000);
-                await fetchActive();
-            } else {
-                showToast('✗ Errore nel reset della cronologia unificata.', 'error');
-            }
-        } catch(e) {
-            console.error('Reset unified history failed', e);
+    try {
+        const r = await apiFetch('/v1/reset/history', { method: 'POST' });
+        if (r.ok) {
+            const tbody = document.getElementById('unified-cronologia-tbody');
+            if (tbody) tbody.innerHTML = '';
+            const btn = document.getElementById('reset-unified-btn');
+            const orig = btn.textContent;
+            btn.textContent = '✅ Resettato';
+            setTimeout(() => btn.textContent = orig, 1000);
+            await fetchActive();
+        } else {
             showToast('✗ Errore nel reset della cronologia unificata.', 'error');
         }
-    });
+    } catch(e) {
+        console.error('Reset unified history failed', e);
+        showToast('✗ Errore nel reset della cronologia unificata.', 'error');
+    }
 });
 
         // Attach debounced filter event listeners to filter elements
@@ -5299,16 +5254,12 @@ document.getElementById('reset-unified-btn')?.addEventListener('click', async ()
 
         // Reset buttons for models and providers
         document.getElementById('models-reset-all')?.addEventListener('click', async () => {
-            confirmReset('models-reset-all', 'Sei sicuro di voler resettare tutti i modelli? Questa azione reimpostera N, sum_reward, fails e stato cooldown per tutti i modelli.', async () => {
-                await apiFetch('/v1/reset/model', { method: 'POST' });
-                refreshAll();
-            });
+            await apiFetch('/v1/reset/model', { method: 'POST' });
+            refreshAll();
         });
         document.getElementById('providers-reset-all')?.addEventListener('click', async () => {
-            confirmReset('providers-reset-all', 'Sei sicuro di voler resettare tutti i provider? Questa azione reimpostera stato cooldown e ban per tutti i provider.', async () => {
-                await apiFetch('/v1/reset/provider', { method: 'POST' });
-                refreshAll();
-            });
+            await apiFetch('/v1/reset/provider', { method: 'POST' });
+            refreshAll();
         });
 
         // Event listener for selection history checkbox
