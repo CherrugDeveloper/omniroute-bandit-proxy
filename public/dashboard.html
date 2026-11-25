@@ -5024,7 +5024,20 @@
                         }
                     }
                 }
-                
+
+                // Process punishment events from database (historical events on page load)
+                // These are returned by /v1/active but were previously ignored, causing
+                // the unified history to appear empty until new WebSocket events arrived.
+                const punishmentEvents = filterSrc(d.punishmentEvents);
+                for (const evt of punishmentEvents) {
+                    allRows.push({
+                        html: fmtPunishmentRow(evt),
+                        timestamp: evt.timestamp || Date.now(),
+                        isSelectionHistory: false,
+                        key: `pun-${evt.timestamp || Date.now()}`
+                    });
+                }
+
                 // Sort all rows by timestamp descending (newest first)
                 allRows.sort((a, b) => b.timestamp - a.timestamp);
 

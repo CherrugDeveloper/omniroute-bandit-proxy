@@ -22,6 +22,11 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Changed**: `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode
 - **Changed**: All reset buttons now execute immediately with centered toast feedback (no confirmation dialogs)
 
+### v0.53.26 - 2026-11-25
+- **Fixed**: Unified history now renders `punishmentEvents` from `/v1/active` — historical punishment events were previously ignored, leaving the unified table empty until new WebSocket events arrived
+- **Fixed**: Cascade guard now skips punishment for `model_permanent_ban` and `provider_permanent_ban`, preventing cascade punishment storms across provider groups
+- **Fixed**: HTTP 410 (end-of-life) model shutdown handling — EOL models are excluded from retries and return 410 to the client immediately
+
 ### v0.53.25 - 2026-11-25
 - **Fixed**: `provider-misconfigured` errors (Playwright, ENOENT, transport not configured) now classify as `cooldown-model` (60s, scope model) instead of `cooldown-provider` (30min, scope provider), preventing a single model's misconfiguration from nuking the entire provider pool
 - **Fixed**: `devin_agentic_error` / `Historical tool_use references undeclared tool` split from `unsupported_image_block` permanent pattern — tool-capability errors now treated as transient `cooldown-model` (60s) instead of permanent `ban-model`

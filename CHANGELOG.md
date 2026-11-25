@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.26] - 2026-11-25
+
+### Fixed
+- fix(dashboard): unified history now renders `punishmentEvents` from `/v1/active` in `fetchActive()` — historical punishment events were previously ignored, leaving the unified table empty until new WebSocket events arrived
+- fix(bandit): added `model_permanent_ban` and `provider_permanent_ban` to cascade guard skip list in `src/bandit.mjs` to prevent cascade punishment storms where hundreds of models receive simultaneous cooldowns from a single provider failure
+- fix(proxy): added explicit HTTP 410 (end-of-life) model shutdown handling in `src/index.mjs` — EOL models are excluded from retries and return 410 to the client immediately
+
 ## [0.53.25] - 2026-11-25
 
 ### Fixed

@@ -516,25 +516,25 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
   });
 
   /**
-   * @test Cascade guard logs at INFO level when applying punishment
-   * Verifies that BANDIT-CASCADE-GUARD messages are logged at INFO level when punishment is applied
-   * Uses a rejection reason that is NOT in the cascade guard skip list (e.g., 'model_permanent_ban')
-   * Note: The absolute last resort tier may still select the model, but the cascade guard
-   * should have been triggered during the emergency tier.
+   * @test Cascade guard SKIPS punishment for model_permanent_ban (cascade prevention)
+   * Verifies that BANDIT-CASCADE-GUARD messages are logged at DEBUG level when punishment is SKIPPED
+   * Uses a rejection reason that IS in the cascade guard skip list ('model_permanent_ban')
+   * This prevents cascade punishment storms where hundreds of models get simultaneous cooldowns
+   * from a single provider failure.
    */
-  test("cascade guard logs at INFO level when applying punishment", async () => {
+  test("cascade guard skips punishment for model_permanent_ban", async () => {
     // Seed a catalog model
     bandit.db.prepare("INSERT INTO catalog (id, provider, max_input_tokens, is_free) VALUES (?, ?, ?, ?)")
       .run("test-provider/model-a", "test-provider", 100000, 1);
 
     // Insert model into db tables with permanent ban
     bandit.db.prepare(
-      `INSERT INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, total_failures, permanent, degraded) 
+      `INSERT INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, total_failures, permanent, degraded)
        VALUES (?, ?, 0, 0, 0, 0, 0, 0, 1, 0)`
     ).run("test-provider/model-a", "test-provider");
 
     // Select a model - the model is permanently banned, so rejectionReason = 'model_permanent_ban'
-    // This is NOT in the cascade guard skip list, so it should apply punishment (INFO level)
+    // This IS in the cascade guard skip list, so it should SKIP punishment (DEBUG level)
     const selectedModel = await bandit.selectModel(new Set(), 0, false, false, false, null, new Set());
 
     // The absolute last resort tier may still select the model (it ignores all constraints)
@@ -542,24 +542,24 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
     assert.ok(selectedModel === "test-provider/model-a" || selectedModel === null,
       "Model may be selected by absolute last resort or return null");
 
-    // Verify that cascade guard logs at INFO level when applying punishment
+    // Verify that cascade guard logs at DEBUG level when SKIPPING punishment
     // Note: The model is rejected in multiple tiers (tier0, tier1, tier2, tier3, emergency),
-    // so the cascade guard may be triggered multiple times. We verify at least one INFO log.
+    // so the cascade guard may be triggered multiple times. We verify at least one DEBUG log.
     const cascadeGuardLogs = loggedMessages
       .map(parseLogEntry)
       .filter(entry => entry && entry.message.includes("[BANDIT-CASCADE-GUARD]"));
     assert.ok(cascadeGuardLogs.length >= 1,
       "Should have at least one BANDIT-CASCADE-GUARD log message");
     
-    // At least one log should be at INFO level (applying punishment)
-    const infoLogs = cascadeGuardLogs.filter(entry => entry.level === "INFO" || entry.message.includes('[INFO]'));
-    assert.ok(infoLogs.length >= 1,
-      "Should have at least one BANDIT-CASCADE-GUARD log at INFO level (applying punishment)");
+    // At least one log should be at DEBUG level (skipping punishment)
+    const debugLogs = cascadeGuardLogs.filter(entry => entry.level === "DEBUG" || entry.message.includes('[DEBUG]'));
+    assert.ok(debugLogs.length >= 1,
+      "Should have at least one BANDIT-CASCADE-GUARD log at DEBUG level (skipping punishment)");
     
     // Verify the log message contains the expected content
-    const logMessage = infoLogs[0];
-    assert.ok(logMessage.message.includes("Applying punishment"),
-      "Log message should indicate punishment is being applied");
+    const logMessage = debugLogs[0];
+    assert.ok(logMessage.message.includes("Skipping ALL punishment"),
+      "Log message should indicate punishment is being skipped for cascade prevention");
   });
 
   /**
@@ -609,19 +609,20 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
   });
 
   /**
-   * @test Cascade guard apply counter is incremented when punishment is applied
-   * Uses a rejection reason that is NOT in the cascade guard skip list (e.g., 'model_permanent_ban')
-   * Note: The absolute last resort tier may still select the model, but the cascade guard
-   * should have been triggered during the emergency tier.
+   * @test Cascade guard SKIPS punishment for model_permanent_ban (cascade prevention)
+   * Verifies that cascadeGuardApplyCount stays at 0 when model_permanent_ban is in the skip list
+   * Uses a rejection reason that IS in the cascade guard skip list ('model_permanent_ban')
+   * This prevents cascade punishment storms where hundreds of models get simultaneous cooldowns
+   * from a single provider failure.
    */
-  test("cascade guard apply counter is incremented when punishment is applied", async () => {
+  test("cascade guard skips punishment for model_permanent_ban", async () => {
     // Seed a catalog model
     bandit.db.prepare("INSERT INTO catalog (id, provider, max_input_tokens, is_free) VALUES (?, ?, ?, ?)")
       .run("apply-test/model-a", "apply-test", 100000, 1);
 
     // Insert model into db tables with permanent ban
     bandit.db.prepare(
-      `INSERT INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, total_failures, permanent, degraded) 
+      `INSERT INTO models (id, provider, N, sum_reward, fails, cooldown_until, last_used_index, total_failures, permanent, degraded)
        VALUES (?, ?, 0, 0, 0, 0, 0, 0, 1, 0)`
     ).run("apply-test/model-a", "apply-test");
 
@@ -630,7 +631,7 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
     assert.strictEqual(bandit.cascadeGuardApplyCount, 0, "cascadeGuardApplyCount should start at 0");
 
     // Select a model - the model is permanently banned, so rejectionReason = 'model_permanent_ban'
-    // This is NOT in the cascade guard skip list, so it should apply punishment (INFO level)
+    // This IS in the cascade guard skip list, so it should SKIP punishment (apply counter stays at 0)
     const selectedModel = await bandit.selectModel(new Set(), 0, false, false, false, null, new Set());
 
     // The absolute last resort tier may still select the model (it ignores all constraints)
@@ -638,13 +639,12 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
     assert.ok(selectedModel === "apply-test/model-a" || selectedModel === null,
       "Model may be selected by absolute last resort or return null");
 
-    // Verify that cascadeGuardApplyCount was incremented.
-    // Note: The model is rejected in multiple tiers (tier0, tier1, tier2, tier3, emergency),
-    // so the cascade guard apply counter is incremented once per tier rejection.
-    assert.ok(bandit.cascadeGuardApplyCount >= 1,
-      `cascadeGuardApplyCount should be incremented when cascade guard applies punishment (got ${bandit.cascadeGuardApplyCount})`);
-    assert.strictEqual(bandit.cascadeGuardSkipCount, 0,
-      "cascadeGuardSkipCount should NOT be incremented when cascade guard applies punishment");
+    // Verify that cascadeGuardApplyCount stays at 0 when punishment is SKIPPED
+    assert.strictEqual(bandit.cascadeGuardApplyCount, 0,
+      `cascadeGuardApplyCount should stay at 0 when cascade guard skips punishment (got ${bandit.cascadeGuardApplyCount})`);
+    // cascadeGuardSkipCount IS incremented for each tier rejection (model rejected in multiple tiers)
+    assert.ok(bandit.cascadeGuardSkipCount >= 1,
+      `cascadeGuardSkipCount should be incremented when cascade guard skips punishment (got ${bandit.cascadeGuardSkipCount})`);
   });
 
   /**

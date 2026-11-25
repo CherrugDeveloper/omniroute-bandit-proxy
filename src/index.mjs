@@ -3012,6 +3012,25 @@ trackRequestUpdate(requestId, {
           });
         }
 
+        // 410 model shutdown (end of life) - model is permanently dead, exclude from retries
+        if (r.status === 410 || /model_shutdown|model is gone|end of life/i.test(txt)) {
+          slogError(`[FATAL] Model ${model} is end-of-life (status ${r.status}). Excluding from retries - returning 410 to client.`);
+          if (sessionKey) {
+            sessionModels.delete(sessionKey);
+            slogInfo(`[AFFINITY] ✗ pin ${model} rimosso (model end-of-life, status 410)`);
+          }
+          excluded.add(model);
+          trackRequestUpdate(requestId, { status: `error-${r.status}`, lastError: txt.slice(0, 200), model });
+          cleanup();
+          return res.status(410).json({
+            error: {
+              message: `Modello ${model} non più disponibile (end-of-life): ${txt.substring(0, 200)}`,
+              status: 410,
+              type: "invalid_request_error"
+            }
+          });
+        }
+
         if (sessionKey) {
           const entry = sessionModels.get(sessionKey);
           if (entry && entry.model === model) {
