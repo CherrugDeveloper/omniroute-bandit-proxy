@@ -1749,8 +1749,31 @@
         const activeControllers = {};
 
         let apiFetchRetryCount = 0;
-        const maxApiFetchRetries = 3;
+        const maxApiFetchRetries = 5;
         let connectionErrorBannerShown = false;
+
+        async function waitForBackend(timeoutMs = 30000) {
+            const start = Date.now();
+            const intervalMs = 1000;
+            while (Date.now() - start < timeoutMs) {
+                try {
+                    const r = await fetch('/v1/dashboard/stats', {
+                        method: 'GET',
+                        headers: API_TOKEN ? { 'x-api-token': API_TOKEN } : {},
+                        signal: AbortSignal.timeout(2000)
+                    });
+                    if (r.ok || r.status === 401) {
+                        console.log('[Dashboard] Backend reachable after', Date.now() - start, 'ms');
+                        return true;
+                    }
+                } catch (e) {
+                    // Backend not ready yet, keep polling
+                }
+                await new Promise(resolve => setTimeout(resolve, intervalMs));
+            }
+            console.warn('[Dashboard] Backend not reachable within', timeoutMs, 'ms');
+            return false;
+        }
 
         async function apiFetch(url, opts = { }) {
             if (!API_TOKEN) {
@@ -1998,9 +2021,11 @@
             const btnRetry = document.getElementById('btn-retry');
             const btnEnterToken = document.getElementById('btn-enter-token');
             if (btnRetry) {
-                btnRetry.onclick = () => {
+                btnRetry.onclick = async () => {
                     div.remove();
                     connectionErrorBannerShown = false;
+                    // Wait for backend to be ready before refreshing
+                    await waitForBackend(30000);
                     if (typeof refreshAll === 'function') refreshAll();
                 };
             }
@@ -3946,6 +3971,8 @@
             if (refreshing) return;
             refreshing = true;
             const currentStatsId = ++statsFetchId;
+            // Wait for backend to be ready before making API calls (handles post-restart scenario)
+            await waitForBackend(30000);
             try {
                 console.log('[DEBUG dashboard] Fetching /v1/dashboard/stats with token:', API_TOKEN ? 'present' : 'missing');
                 const r = await apiFetch('/v1/dashboard/stats');
