@@ -2477,6 +2477,13 @@
                             throw new Error('Reset history failed: ' + err);
                         }
                         
+                        // Clear client-side punishment event buffer
+                        punishmentEventBuffer.length = 0;
+                        
+                        // Clear unified history table immediately
+                        const unifiedTbody = document.getElementById('unified-cronologia-tbody');
+                        if (unifiedTbody) unifiedTbody.innerHTML = '';
+                        
                         // Sync models to refresh catalog after reset
                         showToast('🔄 Sincronizzazione catalogo modelli...', 'info');
                         const syncRes = await fetch('/v1/sync/models', {
@@ -2491,6 +2498,7 @@
                         
                         showToast('✓ Tutte le statistiche, i log e la cronologia unificata sono stati resettati', 'success');
                         await refreshAll();
+                        await fetchActive();
                         
                     } catch (e) {
                         showToast('✗ Errore nel reset: ' + e.message, 'error');
