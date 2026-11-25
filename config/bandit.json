@@ -33,8 +33,8 @@
     "classification": {
       "transientErrors": [
         { "pattern": "timeout", "action": "cooldown-model", "duration": 600000 },
-        { "pattern": "No auth provided|Please log in|Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright|is not configured|missing url or token|browserType.launch|Executable doesn't exist", "action": "cooldown-provider", "duration": 1800000, "reason": "provider-misconfigured" },
-        { "pattern": "ENOENT|spawn.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured", "action": "cooldown-provider", "duration": 1800000 },
+        { "pattern": "No auth provided|Please log in|Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright|is not configured|missing url or token|browserType.launch|Executable doesn't exist", "action": "cooldown-model", "duration": 60000, "reason": "provider-misconfigured" },
+        { "pattern": "ENOENT|spawn.*ENOENT|command not found|CLI not found|bridge sandbox|transport is not configured", "action": "cooldown-model", "duration": 60000, "reason": "provider-misconfigured" },
         { "pattern": "502|503|504", "action": "cooldown-model", "duration": 60000, "reason": "upstream-error" },
         { "pattern": "502.*timeout|503.*timeout|504 timeout|504 gateway timeout|gateway timeout", "action": "cooldown-model", "duration": 60000, "reason": "gateway-timeout" },
         { "pattern": "502.*high demand|502.*overloaded|502.*temporarily unavailable|503.*high demand|503.*overloaded|503.*temporarily unavailable", "action": "cooldown-model", "duration": 30000, "reason": "upstream-overloaded" },
@@ -60,7 +60,8 @@
         { "pattern": "account disabled|banned", "action": "ban-provider", "scope": "provider" },
         { "pattern": "no.tool.call.but.required", "action": "ban-model", "scope": "model" },
         { "pattern": "image generation model|cannot be used for chat|not a chat model|image.only|incompatible", "action": "ban-model", "scope": "model" },
-        { "pattern": "unsupported_image_block|devin_agentic_error", "action": "ban-model", "scope": "model" },
+        { "pattern": "unsupported_image_block", "action": "ban-model", "scope": "model" },
+        { "pattern": "devin_agentic_error|Historical tool_use references undeclared tool", "action": "cooldown-model", "scope": "model", "duration": 60000, "reason": "tool-capability-error" },
         { "pattern": "not supported.*(?:image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported)", "action": "ban-model", "scope": "model" },
         { "pattern": "Assignment to constant variable", "action": "ban-model", "scope": "model" },
         { "pattern": "OpenCode's free tier can only be used from within OpenCode", "action": "ban-model", "scope": "model" },

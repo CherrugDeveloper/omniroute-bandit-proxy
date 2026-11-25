@@ -1847,24 +1847,22 @@ export class DiscountedUCB1Bandit {
       return { action: "ban-model", scope: "model", reason: "no-tool-call-but-required", category: "PERMANENT" };
     }
 
-    // Status 502 misconfiguration / gateway errors -> cooldown-provider ONLY for explicit misconfiguration patterns
-    // Generic 502/503 without specific misconfiguration indicators should be treated as transient upstream errors
+    // Status 502 misconfiguration / gateway errors
+    // FIX (v0.53.x): cooldown-model instead of cooldown-provider.
+    // With ~1000 models / 20 providers, a single model's config error must NOT
+    // nuke an entire provider pool for 30 minutes. Cool only the failed model
+    // for 60s and immediately try the next model (strict + fast).
     if (status === 502 && /No auth provided|Please log in|missing url or token|is not configured/i.test(message)) {
-      if (resolvedProvider === 'cfp' || resolvedProvider === 'zc') {
-        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
-      }
       if (resolvedProvider) {
-        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
+        return { action: "cooldown-model", scope: "model", reason: "provider-misconfigured", cooldownMs: 60000, category: "TRANSIENT" };
       }
       return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
-    // Playwright / Cloudflare Playground / browser launch errors -> cooldown-provider (infrastructure issues)
+    // Playwright / Cloudflare Playground / browser launch errors
+    // FIX (v0.53.x): cooldown-model instead of cooldown-provider (see above).
     if ((status === 502 || status === 503) && /Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright|browserType\.launch|Executable doesn't exist|ENOENT/i.test(message)) {
-      if (resolvedProvider === 'cfp' || resolvedProvider === 'zc') {
-        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
-      }
       if (resolvedProvider) {
-        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
+        return { action: "cooldown-model", scope: "model", reason: "provider-misconfigured", cooldownMs: 60000, category: "TRANSIENT" };
       }
       return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
@@ -1874,16 +1872,12 @@ export class DiscountedUCB1Bandit {
     }
 
     // Sandbox, Missing Binary, and Environment Configuration Errors (including Playwright / Cloudflare Playground)
+    // FIX (v0.53.x): cooldown-model instead of cooldown-provider. A missing binary /
+    // transport config on one model must not remove the whole provider pool.
     if (/ENOENT|spawn\s+.*ENOENT|command not found|CLI not found|Executable doesn't exist|browserType\.launch|must be an absolute path|bridge sandbox|transport is not configured|Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright/i.test(message)) {
-      const isProviderLevel = resolvedProvider === 'zc' || resolvedProvider === 'cfp' || !!resolvedProvider || /CLI not found|command not found|bridge sandbox|transport is not configured|spawn\s+/i.test(message);
-      if (isProviderLevel) {
-        if (resolvedProvider === 'cfp') {
-          return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
-        }
-        return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
-      } else {
-        return { action: "ban-model", scope: "model", reason: "environment-error", category: "PERMANENT" };
-      }
+      // DIAGNOSTIC: Log provider-misconfigured classification to validate cascade impact
+      slogInfo(`[BANDIT-CLASSIFY-DIAG-MISCONFIG] Matched env/misconfig pattern | model=${errorDetails.modelId || 'unknown'} | provider=${resolvedProvider} | status=${status} | message=${message.substring(0, 200)}`);
+      return { action: "cooldown-model", scope: "model", reason: "provider-misconfigured", cooldownMs: 60000, category: "TRANSIENT" };
     }
 
     // ============================================================================
@@ -1904,10 +1898,19 @@ export class DiscountedUCB1Bandit {
       return { action: "ban-model", scope: "model", reason: "model-incompatible", category: "PERMANENT" };
     }
 
-    // 400: unsupported_image_block / devin_agentic_error -> model-incompatible (PERMANENT)
-    // These are REAL capability mismatches - the model cannot handle image blocks.
-    if (status === 400 && (/unsupported_image_block/i.test(message) || /devin_agentic_error/i.test(message) || (errorDetails.code && /unsupported_image_block/i.test(errorDetails.code)))) {
+    // 400: unsupported_image_block -> model-incompatible (PERMANENT)
+    // This is a REAL capability mismatch - the model cannot handle image blocks.
+    if (status === 400 && (/unsupported_image_block/i.test(message) || (errorDetails.code && /unsupported_image_block/i.test(errorDetails.code)))) {
+      // REAL: Model explicitly does not support the requested image format
       return { action: "ban-model", scope: "model", reason: "model-incompatible", category: "PERMANENT" };
+    }
+    // 400: devin_agentic_error / Historical tool_use references undeclared tool -> cooldown-model (TRANSIENT)
+    // This is a TOOL CAPABILITY mismatch - the model failed on a specific tool call,
+    // not a permanent incompatibility. The model may work on retry without that tool.
+    if (status === 400 && (/devin_agentic_error/i.test(message) || /Historical tool_use references undeclared tool/i.test(message || ""))) {
+      // DIAGNOSTIC: Log that we're treating this as transient instead of permanent ban
+      slogInfo(`[BANDIT-CLASSIFY-DIAG-TRANSIENT] devin_agentic_error matched → cooldown-model (tool-capability error) | model=${errorDetails.modelId || 'unknown'} | provider=${provider} | status=${status}`);
+      return { action: "cooldown-model", scope: "model", reason: "tool-capability-error", category: "TRANSIENT" };
     }
 
     // 400: Model not supported / capability mismatch -> ban-model (PERMANENT)
@@ -1990,13 +1993,13 @@ export class DiscountedUCB1Bandit {
     if (status === 502 && /No auth provided|Please log in/i.test(message)) {
       return { action: "flag-provider", reason: "provider-misconfigured", category: "TRANSIENT" };
     }
-    // Playwright / Cloudflare Playground / 502 / 503 errors -> cooldown-provider
+    // Playwright / Cloudflare Playground / 502 / 503 errors -> cooldown-model (FIX: no provider-wide nuke)
     if ((status === 502 || status === 503) && /Playwright is not available|Playwright.*Chromium|Cloudflare Playground needs Playwright/i.test(message)) {
-      return { action: "cooldown-provider", scope: "provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
+      return { action: "cooldown-model", scope: "model", reason: "provider-misconfigured", cooldownMs: 60000, category: "TRANSIENT" };
     }
-    // CLI / binario mancante o non configurato -> cooldown-provider
+    // CLI / binario mancante o non configurato -> cooldown-model (FIX: no provider-wide nuke)
     if (status === 502 && /is not configured|missing url or token/i.test(message)) {
-      return { action: "cooldown-provider", reason: "provider-misconfigured", cooldownMs: 30 * 60 * 1000, category: "TRANSIENT" };
+      return { action: "cooldown-model", scope: "model", reason: "provider-misconfigured", cooldownMs: 60000, category: "TRANSIENT" };
     }
     // 403 banned -> ban-provider
     if (status === 403 && /account disabled|banned/i.test(message)) {

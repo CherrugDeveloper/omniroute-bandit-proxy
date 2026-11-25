@@ -16,14 +16,17 @@ test('Proxy Improvements & Error Classification', async (t) => {
   await t.test('should classify Playwright / Cloudflare Playground runtime errors correctly', () => {
     const errorMsg = 'Cloudflare Playground needs Playwright and its Chromium browser';
     const classification = bandit._classifyError({ status: 502, message: errorMsg }, 'cfp');
-    assert.strictEqual(classification.action, 'cooldown-provider');
+    assert.strictEqual(classification.action, 'cooldown-model');
     assert.strictEqual(classification.reason, 'provider-misconfigured');
+    assert.strictEqual(classification.cooldownMs, 60000);
   });
 
   await t.test('should classify missing binary / ENOENT errors correctly', () => {
     const errorMsg = 'spawn chromium ENOENT';
     const classification = bandit._classifyError({ status: 500, message: errorMsg }, 'zc');
-    assert.strictEqual(classification.action, 'cooldown-provider');
+    assert.strictEqual(classification.action, 'cooldown-model');
+    assert.strictEqual(classification.reason, 'provider-misconfigured');
+    assert.strictEqual(classification.cooldownMs, 60000);
   });
 
   await t.test('should classify 401 auth-expired errors as flag-provider with 24h cooldown', () => {

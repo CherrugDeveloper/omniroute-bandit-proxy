@@ -5,7 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.25] - 2026-11-25
+
+### Fixed
+- fix(bandit): changed `provider-misconfigured` error classification from `cooldown-provider` (30min, scope provider) to `cooldown-model` (60s, scope model) in `src/bandit.mjs` `_classifyError()` and `config/bandit.json` transient patterns, so a single model's misconfiguration no longer nukes the entire provider pool
+- fix(bandit): split `devin_agentic_error` / `Historical tool_use references undeclared tool` from `unsupported_image_block` permanent pattern so tool-capability errors are treated as transient `cooldown-model` (60s) instead of permanent `ban-model`
+
 ## [0.53.24] - 2026-11-25
+
 
 ### Fixed
 - fix(bandit): removed `"status": 400` from model-not-found transient error pattern in `config/bandit.json` so that hardcoded classification in `src/bandit.mjs` `_classifyError()` can properly distinguish between catalog mismatch (permanent ban) and generic model-not-found (transient cooldown)

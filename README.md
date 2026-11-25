@@ -22,6 +22,10 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Changed**: `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode
 - **Changed**: All reset buttons now execute immediately with centered toast feedback (no confirmation dialogs)
 
+### v0.53.25 - 2026-11-25
+- **Fixed**: `provider-misconfigured` errors (Playwright, ENOENT, transport not configured) now classify as `cooldown-model` (60s, scope model) instead of `cooldown-provider` (30min, scope provider), preventing a single model's misconfiguration from nuking the entire provider pool
+- **Fixed**: `devin_agentic_error` / `Historical tool_use references undeclared tool` split from `unsupported_image_block` permanent pattern — tool-capability errors now treated as transient `cooldown-model` (60s) instead of permanent `ban-model`
+
 ### v0.53.24 - 2026-11-25
 - **Fixed**: Removed `"status": 400` from model-not-found transient error pattern in `config/bandit.json` so that hardcoded classification in `_classifyError()` can properly distinguish between catalog mismatch (permanent ban) and generic model-not-found (transient cooldown)
 - **Fixed**: `_classifyError()` now correctly classifies specific catalog mismatch messages (`catalog mismatch`, `active live catalog empty`, `no models available`) as `ban-model` (PERMANENT) while generic model-not-found errors fall through to `cooldown-model` (TRANSIENT) with 300s cooldown
