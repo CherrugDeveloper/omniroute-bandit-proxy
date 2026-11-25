@@ -1930,11 +1930,15 @@ export class DiscountedUCB1Bandit {
     // This requires user intervention (config update) to fix.
     // NOTE: 404 status alone (without specific message) is transient - handled by config patterns.
     // Only catalog mismatch messages trigger permanent ban-model.
-    if (/catalog mismatch|unknown model|model_not_found|not available in active live catalog/i.test(message)) {
+    // FIX: Richiedi contesto specifico per ban permanente - evita falsi positivi
+    const modelNotFoundMsg = message.toLowerCase();
+    if (/catalog mismatch|active live catalog.*empty|no.*models? available/i.test(modelNotFoundMsg)) {
       return { action: "ban-model", scope: "model", reason: "model-not-found", category: "PERMANENT" };
     }
-    if (/does not exist|no longer available/i.test(message)) {
-      return { action: "ban-model", scope: "model", reason: "model-not-found", category: "PERMANENT" };
+    // Altrimenti, tratta come transient cooldown per evitare ban a cascata
+    // FIX: "not available" da solo non deve corrispondere - richiedi contesto specifico
+    if (/unknown model|model_not_found|model not found|not available in active live catalog|not found in active live catalog|does not exist|no longer available|invalid model/i.test(modelNotFoundMsg) && !/^not available$/i.test(modelNotFoundMsg)) {
+      return { action: "cooldown-model", scope: "model", reason: "model-not-found", cooldownMs: 300000, category: "TRANSIENT" };
     }
     // Upstream bug (Assignment to constant) -> ban-model
     if (/Assignment to constant variable/i.test(message)) {
@@ -2153,8 +2157,14 @@ export class DiscountedUCB1Bandit {
     // The model no longer exists in the provider's catalog and will never recover
     // on its own; it requires user intervention (config update). Treat as critical
     // so the 5-strike counter stays consistent with the ban-model classification.
-    if (/catalog mismatch|unknown model|model_not_found|does not exist|not found|no longer available|not available|invalid model|not available in active live catalog/i.test(message)) {
+    // FIX: Richiedi contesto specifico per evitare falsi positivi
+    const modelNotFoundMsg = message.toLowerCase();
+    if (/catalog mismatch|active live catalog.*empty|no.*models? available/i.test(modelNotFoundMsg)) {
       return true;
+    }
+    // Generic "not found" errors are NOT critical - they are transient cooldowns
+    if (/unknown model|model_not_found|model not found|not available in active live catalog|not found in active live catalog|does not exist|no longer available|invalid model/i.test(modelNotFoundMsg) && !/^not available$/i.test(modelNotFoundMsg)) {
+      return false; // NOT critical - transient cooldown
     }
 
     // Timeout errors - NOT critical per AGENTS.md

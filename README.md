@@ -22,6 +22,12 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Changed**: `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode
 - **Changed**: All reset buttons now execute immediately with centered toast feedback (no confirmation dialogs)
 
+### v0.53.24 - 2026-11-25
+- **Fixed**: Removed `"status": 400` from model-not-found transient error pattern in `config/bandit.json` so that hardcoded classification in `_classifyError()` can properly distinguish between catalog mismatch (permanent ban) and generic model-not-found (transient cooldown)
+- **Fixed**: `_classifyError()` now correctly classifies specific catalog mismatch messages (`catalog mismatch`, `active live catalog empty`, `no models available`) as `ban-model` (PERMANENT) while generic model-not-found errors fall through to `cooldown-model` (TRANSIENT) with 300s cooldown
+- **Fixed**: `_isCriticalFailure()` updated with same logic to keep 5-strike counter consistent with ban classification
+- **Test**: Updated `model-not-found-classification.test.js` to reflect critical vs transient model-not-found error handling
+
 ### v0.53.23-patch - 2026-11-25
 - **Fixed**: Reset operations now fully sync catalog from OmniRoute after clearing provider_history, preventing "already_tried" model rejection after restart/reset
 - **Fixed**: `refresh_dashboard()` in restart-safe.sh now properly detects and activates existing PWA window (title contains "OmniRoute Bandit Dashboard" or "Bandit Dashboard") before attempting to send F5 refresh

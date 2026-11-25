@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.24] - 2026-11-25
+
+### Fixed
+- fix(bandit): removed `"status": 400` from model-not-found transient error pattern in `config/bandit.json` so that hardcoded classification in `src/bandit.mjs` `_classifyError()` can properly distinguish between catalog mismatch (permanent ban) and generic model-not-found (transient cooldown)
+- fix(bandit): `_classifyError()` now correctly classifies specific catalog mismatch messages (`catalog mismatch`, `active live catalog empty`, `no models available`) as `ban-model` (PERMANENT) while generic model-not-found errors fall through to `cooldown-model` (TRANSIENT) with 300s cooldown
+- fix(bandit): `_isCriticalFailure()` updated with same logic to keep 5-strike counter consistent with ban classification
+- test: updated `model-not-found-classification.test.js` to reflect critical vs transient model-not-found error handling
+
 ## [0.53.23] - 2026-11-24
 
 ### Added

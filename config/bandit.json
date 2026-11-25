@@ -14,15 +14,15 @@
     "xao/grok-3-mini"
   ],
   "punishmentThresholds": {
-    "consecutiveCriticalFailuresForBan": 5,
-    "circuitBreakerThreshold": 3,
+    "consecutiveCriticalFailuresForBan": 7,
+    "circuitBreakerThreshold": 5,
     "circuitBreakerCooldownMs": 120000,
-    "maxTotalFailuresBeforePermanentBan": 10,
+    "maxTotalFailuresBeforePermanentBan": 15,
     "degradationThreshold": 5,
     "groupPunishment": {
       "enabled": true,
-      "freeGroupThreshold": 5,
-      "paidGroupThreshold": 3,
+      "freeGroupThreshold": 7,
+      "paidGroupThreshold": 5,
       "cooldownMultiplier": 2.0,
       "escalationStepMs": 86400000
     }
@@ -52,7 +52,8 @@
         { "pattern": "safeWrite|cannot access safeWrite|safeWrite before initialization|safeWrite is not initialized", "action": "cooldown-model", "duration": 300000, "reason": "safeWrite-init-error" },
         { "pattern": "400.*validation|400.*bad request|400.*invalid request|400.*parameter|400.*request.*invalid|400.*missing.*field|400.*invalid.*input", "action": "cooldown-model", "duration": 30000, "reason": "transient-400-error" },
         { "pattern": "^404$", "action": "cooldown-model", "duration": 30000, "reason": "transient-404", "status": 404 },
-        { "pattern": "SSE contains error|SSE chunk error|stream error|keepalive|connection|chunk", "action": "cooldown-model", "duration": 30000, "reason": "stream-error" }
+        { "pattern": "SSE contains error|SSE chunk error|stream error|keepalive|connection|chunk", "action": "cooldown-model", "duration": 30000, "reason": "stream-error" },
+        { "pattern": "unknown model|model_?not.?found|model not found|invalid model|does not exist|no longer available|not available in active live catalog", "action": "cooldown-model", "duration": 300000, "reason": "model-not-found" }
       ],
       "permanentErrors": [
         { "pattern": "account.?(?:disabled|suspended|banned|terminated|closed|deactivated)|organization.?(?:disabled|suspended|banned|deleted|deactivated)|project.?(?:deleted|disabled|suspended)|workspace.?(?:disabled|suspended|deleted)|policy.?violation|provider.?banned|banned|suspended", "action": "ban-provider", "scope": "provider" },
@@ -63,7 +64,7 @@
         { "pattern": "not supported.*(?:image.?block|vision|visual.?input|picture.?format|base64.?image|image.?unsupported)", "action": "ban-model", "scope": "model" },
         { "pattern": "Assignment to constant variable", "action": "ban-model", "scope": "model" },
         { "pattern": "OpenCode's free tier can only be used from within OpenCode", "action": "ban-model", "scope": "model" },
-        { "pattern": "catalog.?mismatch|unknown.?model|model_?not.?found|model not found|invalid model|does not exist|no longer available|not available in active live catalog", "action": "ban-model", "scope": "model", "reason": "model-not-found" }
+        { "pattern": "catalog.?mismatch|active live catalog.*empty|no.*models? available", "action": "ban-model", "scope": "model", "reason": "model-not-found" }
       ]
     }
   }

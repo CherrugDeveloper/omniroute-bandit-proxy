@@ -71,11 +71,11 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
   /**
    * @test Model-not-found errors are classified as ban-model (permanent) instead of cooldown-model (transient)
    */
-  test("model-not-found errors are classified as ban-model (permanent) instead of cooldown-model (transient)", () => {
-    // Only test messages that SHOULD match the pattern (not "not found" bare 404)
-    const errorMessages = [
+  test("model-not-found errors are classified as cooldown-model (transient) instead of ban-model (permanent)", () => {
+    // FIX: Generic model-not-found errors are now transient cooldowns to prevent cascade bans
+    // Only specific catalog mismatch messages trigger permanent bans
+    const transientErrorMessages = [
       "Model not found in active live catalog",
-      "catalog mismatch",
       "unknown model",
       "model_not_found",
       "does not exist",
@@ -84,15 +84,32 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
       "not available in active live catalog"
     ];
 
-    errorMessages.forEach(errorMsg => {
+    transientErrorMessages.forEach(errorMsg => {
       const classification = bandit._classifyError({ status: 400, message: errorMsg }, "test-provider");
-      assert.strictEqual(classification.action, "ban-model", 
-        `Error "${errorMsg}" should be classified as ban-model (permanent), not cooldown-model (transient)`);
-      assert.strictEqual(classification.reason, "model-not-found", 
+      assert.strictEqual(classification.action, "cooldown-model",
+        `Error "${errorMsg}" should be classified as cooldown-model (transient), not ban-model`);
+      assert.strictEqual(classification.reason, "model-not-found",
         `Error "${errorMsg}" should have reason "model-not-found"`);
-      assert.strictEqual(classification.category, "PERMANENT", 
+      assert.strictEqual(classification.category, "TRANSIENT",
+        `Error "${errorMsg}" should be classified as TRANSIENT category`);
+    });
+
+    // Only specific catalog mismatch messages should trigger permanent ban
+    const permanentErrorMessages = [
+      "catalog mismatch",
+      "active live catalog empty",
+      "no models available"
+    ];
+
+    permanentErrorMessages.forEach(errorMsg => {
+      const classification = bandit._classifyError({ status: 400, message: errorMsg }, "test-provider");
+      assert.strictEqual(classification.action, "ban-model",
+        `Error "${errorMsg}" should be classified as ban-model (permanent)`);
+      assert.strictEqual(classification.reason, "model-not-found",
+        `Error "${errorMsg}" should have reason "model-not-found"`);
+      assert.strictEqual(classification.category, "PERMANENT",
         `Error "${errorMsg}" should be classified as PERMANENT category`);
-      assert.strictEqual(classification.scope, "model", 
+      assert.strictEqual(classification.scope, "model",
         `Error "${errorMsg}" should have scope "model"`);
     });
   });
@@ -131,9 +148,22 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
    * @test Model-not-found errors are classified as critical failures in _isCriticalFailure()
    */
   test("model-not-found errors are classified as critical failures in _isCriticalFailure()", () => {
-    const errorMessages = [
-      "Model not found in active live catalog",
+    // Only specific catalog mismatch messages trigger permanent ban (critical)
+    const criticalErrorMessages = [
       "catalog mismatch",
+      "active live catalog empty",
+      "no models available"
+    ];
+
+    criticalErrorMessages.forEach(errorMsg => {
+      const isCritical = bandit._isCriticalFailure(400, errorMsg, {});
+      assert.strictEqual(isCritical, true,
+        `Error "${errorMsg}" should be classified as critical failure`);
+    });
+
+    // Generic model-not-found errors are NOT critical - they are transient cooldowns
+    const nonCriticalModelNotFoundErrors = [
+      "Model not found in active live catalog",
       "unknown model",
       "model_not_found",
       "does not exist",
@@ -142,10 +172,10 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
       "not available in active live catalog"
     ];
 
-    errorMessages.forEach(errorMsg => {
+    nonCriticalModelNotFoundErrors.forEach(errorMsg => {
       const isCritical = bandit._isCriticalFailure(400, errorMsg, {});
-      assert.strictEqual(isCritical, true, 
-        `Error "${errorMsg}" should be classified as critical failure`);
+      assert.strictEqual(isCritical, false,
+        `Error "${errorMsg}" should NOT be classified as critical failure (transient cooldown)`);
     });
 
     // Test that non-model-not-found errors are NOT critical
@@ -158,7 +188,7 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
 
     nonCriticalErrors.forEach(errorMsg => {
       const isCritical = bandit._isCriticalFailure(400, errorMsg, {});
-      assert.strictEqual(isCritical, false, 
+      assert.strictEqual(isCritical, false,
         `Error "${errorMsg}" should NOT be classified as critical failure`);
     });
   });
@@ -176,22 +206,20 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
     );
 
     assert.ok(modelNotFoundPattern, "Should find model-not-found pattern in config");
-    assert.strictEqual(modelNotFoundPattern.action, "ban-model", 
+    assert.strictEqual(modelNotFoundPattern.action, "ban-model",
       "model-not-found pattern should have action 'ban-model'");
-    assert.strictEqual(modelNotFoundPattern.scope, "model", 
+    assert.strictEqual(modelNotFoundPattern.scope, "model",
       "model-not-found pattern should have scope 'model'");
-    assert.strictEqual(modelNotFoundPattern.reason, "model-not-found", 
+    assert.strictEqual(modelNotFoundPattern.reason, "model-not-found",
       "model-not-found pattern should have reason 'model-not-found'");
 
+    // FIX: Pattern should ONLY match specific catalog mismatch messages
+    // Generic "model not found" errors are now handled as transient cooldowns
     const shouldMatch = [
       "catalog mismatch",
-      "unknown model",
-      "model_not_found",
-      "does not exist",
-      "no longer available",
-      "invalid model",
-      "not available in active live catalog",
-      "Model not found in active live catalog"
+      "active live catalog empty",
+      "no models available",
+      "no model available"
     ];
 
     shouldMatch.forEach(errorMsg => {
@@ -201,12 +229,24 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
         `Pattern "${modelNotFoundPattern.pattern}" should match error "${errorMsg}"`);
     });
 
-    // Test that the pattern does NOT match "not found" bare 404
-    const shouldNotMatch = "not found";
-    const regex = new RegExp(modelNotFoundPattern.pattern, 'i');
-    const matches = regex.test(shouldNotMatch);
-    assert.strictEqual(matches, false,
-      `Pattern "${modelNotFoundPattern.pattern}" should NOT match bare "not found"`);
+    // Test that the pattern does NOT match generic "not found" errors
+    const shouldNotMatch = [
+      "not found",
+      "unknown model",
+      "model_not_found",
+      "does not exist",
+      "no longer available",
+      "invalid model",
+      "not available in active live catalog",
+      "Model not found in active live catalog"
+    ];
+
+    shouldNotMatch.forEach(errorMsg => {
+      const regex = new RegExp(modelNotFoundPattern.pattern, 'i');
+      const matches = regex.test(errorMsg);
+      assert.strictEqual(matches, false,
+        `Pattern "${modelNotFoundPattern.pattern}" should NOT match error "${errorMsg}"`);
+    });
   });
 
   /**
@@ -341,25 +381,47 @@ describe("Model-Not-Found Classification and Punishment Logic", () => {
   /**
    * @test Model-not-found error triggers ban-model action in recordFeedback
    */
-  test("model-not-found error triggers ban-model action in recordFeedback", async () => {
+  test("model-not-found error triggers cooldown-model action in recordFeedback (transient)", async () => {
     // Seed catalog with a model
     bandit.db.prepare("INSERT INTO catalog (id, provider, max_input_tokens, is_free) VALUES (?, ?, ?, ?)")
       .run("feedback-provider/model-1", "feedback-provider", 100000, 1);
 
-    // Record a model-not-found error
+    // Record a generic model-not-found error (should be transient cooldown, not permanent ban)
     await bandit.recordFeedback("feedback-provider/model-1", false, 0, {
       status: 400,
       message: "Model not found in active live catalog"
     });
 
-    // Verify that the model is permanently banned (ban-model action)
+    // Verify that the model is in cooldown, NOT permanently banned
     const modelRow = bandit.db.prepare(
-      "SELECT permanent, banned_since FROM models WHERE id = ?"
+      "SELECT permanent, cooldown_until FROM models WHERE id = ?"
     ).get("feedback-provider/model-1");
 
-    assert.strictEqual(modelRow.permanent, 1, 
-      "Model should be permanently banned after model-not-found error");
-    assert.ok(modelRow.banned_since > Date.now() - 10000, 
+    assert.strictEqual(modelRow.permanent, 0,
+      "Model should NOT be permanently banned after generic model-not-found error");
+    assert.ok(modelRow.cooldown_until > Date.now(),
+      "Model should have a cooldown_until timestamp in the future");
+  });
+
+  test("catalog mismatch error triggers ban-model action in recordFeedback (permanent)", async () => {
+    // Seed catalog with a model
+    bandit.db.prepare("INSERT INTO catalog (id, provider, max_input_tokens, is_free) VALUES (?, ?, ?, ?)")
+      .run("feedback-provider/model-2", "feedback-provider", 100000, 1);
+
+    // Record a SPECIFIC catalog mismatch error (should be permanent ban)
+    await bandit.recordFeedback("feedback-provider/model-2", false, 0, {
+      status: 400,
+      message: "catalog mismatch: model not in active live catalog"
+    });
+
+    // Verify that the model is permanently banned
+    const modelRow = bandit.db.prepare(
+      "SELECT permanent, banned_since FROM models WHERE id = ?"
+    ).get("feedback-provider/model-2");
+
+    assert.strictEqual(modelRow.permanent, 1,
+      "Model should be permanently banned after catalog mismatch error");
+    assert.ok(modelRow.banned_since > Date.now() - 10000,
       "Model should have a recent banned_since timestamp");
   });
 
