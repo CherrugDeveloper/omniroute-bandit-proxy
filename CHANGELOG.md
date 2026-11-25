@@ -25,9 +25,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 - fix(bandit): `resetUnifiedHistory()` now fully async and resets `provider_history` table (clearing all `needs_attention` flags) before syncing catalog from OmniRoute to prevent "already_tried" model rejection after reset
 - fix(api): updated `/v1/reset/history` and `/v1/debug/reset-history` endpoints to properly await the async `resetUnifiedHistory()` function
+- fix(scripts): `refresh_dashboard()` in restart-safe.sh now properly detects and activates existing PWA window (title contains "OmniRoute Bandit Dashboard" or "Bandit Dashboard") before attempting to send F5 refresh; added proper `wmctrl -i` flag for window ID activation
 
 ### Changed
 - refactor(bandit): `resetUnifiedHistory()` now calls `resetProviderHistoryAll()` and `fetchAndSyncModels()` internally, eliminating the need for separate `/v1/sync/models` post-reset call
+- refactor(scripts): `refresh_dashboard()` browser fallback order updated to prioritize `chromium-browser` before `google-chrome`; improved window detection patterns to include manifest names
 
 ## [0.53.22] - 2026-11-24
 

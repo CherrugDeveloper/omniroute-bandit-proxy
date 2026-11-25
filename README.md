@@ -24,10 +24,11 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 
 ### v0.53.23-patch - 2026-11-25
 - **Fixed**: Reset operations now fully sync catalog from OmniRoute after clearing provider_history, preventing "already_tried" model rejection after restart/reset
+- **Fixed**: `refresh_dashboard()` in restart-safe.sh now properly detects and activates existing PWA window (title contains "OmniRoute Bandit Dashboard" or "Bandit Dashboard") before attempting to send F5 refresh
 
 ### v0.53.22 Definitive Restart & Refresh
 - **Definitive F5 Refresh**: Improved `reloadAfterRestart()` with retry logic (3 attempts with increasing delays) and better health check handling to ensure the dashboard is definitively reloaded with F5 after service restart
-- **Enhanced Script Refresh**: `refresh_dashboard()` in restart-safe.sh now retries up to 3 times with 2s delays, better window detection, and fallback to specific browsers (google-chrome, chromium, firefox) when wmctrl/xdg-open unavailable
+- **Enhanced Script Refresh**: `refresh_dashboard()` in restart-safe.sh now tries `chromium-browser` before `google-chrome`, uses proper `wmctrl -i` flag for window ID activation, and improves window detection patterns for PWA windows
 
 ### v0.53.21 Group Punishment & Free Model Recognition
 - **Group Punishment**: Added threshold-based group-level punishment for free/paid model pools. When a model fails below the configured threshold (free: 5, paid: 3), only the individual model is punished. When failures exceed the threshold, the entire free or paid pool is punished with exponential backoff cooldowns (cooldown multiplier: 2.0, escalation step: 24h).

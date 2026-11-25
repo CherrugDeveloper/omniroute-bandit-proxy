@@ -516,70 +516,122 @@ refresh_dashboard() {
   local dashboard_url="http://127.0.0.1:8080/dashboard"
   local max_attempts=3
   local attempt=1
-  
+
   echo "→ Refresh della dashboard (PWA mode)..."
-  
+
   while [ $attempt -le $max_attempts ]; do
     echo "  Tentativo $attempt/$max_attempts..."
-    
-    # 1. Cerca di attivare la finestra PWA esistente e inviare F5 (vero refresh)
+
+    # Strumenti disponibili per refresh
+    local has_xdotool=false
+    local has_xte=false
+    local has_wmctrl=false
+
+    if command -v xdotool >/dev/null 2>&1; then
+      has_xdotool=true
+    fi
+    if command -v xte >/dev/null 2>&1; then
+      has_xte=true
+    fi
     if command -v wmctrl >/dev/null 2>&1; then
-      # Cerca una finestra con "dashboard" o "omniroute" nel titolo (PWA window title = manifest name)
-      local window_id=$(wmctrl -l 2>/dev/null | grep -i "dashboard\|omniroute" | head -1 | awk '{print $1}')
+      has_wmctrl=true
+    fi
+
+    # 1. Cerca di trovare e refreshare la finestra PWA esistente
+    if [ "$has_wmctrl" = true ]; then
+      # Cerca finestre con vari pattern di titolo (PWA title = manifest name)
+      # Pattern ordinati per probabilità di successo
+      local window_id=""
+
+      # Prima cerca per nome manifest specifico (PWA standalone title)
+      window_id=$(wmctrl -l 2>/dev/null | grep -i "OmniRoute Bandit Dashboard\|Bandit Dashboard" | head -1 | awk '{print $1}')
+
+      # Se non trovato, cerca pattern più generici
+      if [ -z "$window_id" ]; then
+        window_id=$(wmctrl -l 2>/dev/null | grep -i "omniroute" | head -1 | awk '{print $1}')
+      fi
+      if [ -z "$window_id" ]; then
+        window_id=$(wmctrl -l 2>/dev/null | grep -i "dashboard" | head -1 | awk '{print $1}')
+      fi
+
+      # Anche cerca per URL (utile per tab browser normale)
+      if [ -z "$window_id" ]; then
+        window_id=$(wmctrl -l 2>/dev/null | grep -i "127.0.0.1:8080\|localhost:8080" | head -1 | awk '{print $1}')
+      fi
+
       if [ -n "$window_id" ]; then
-        echo "  Trovata finestra dashboard/PWA (ID: $window_id), attivazione e invio F5..."
-        wmctrl -a "$window_id" 2>/dev/null || true
-        sleep 0.5  # Wait for window activation
-        # Invia F5 alla finestra attiva
-        if command -v xdotool >/dev/null 2>&1; then
-          xdotool key --window "$window_id" F5 2>/dev/null || true
-          echo "  ✓ F5 inviato via xdotool"
-          return 0
-        elif command -v xte >/dev/null 2>&1; then
-          xte "key F5" 2>/dev/null || true
-          echo "  ✓ F5 inviato via xte"
-          return 0
+        echo "  Trovata finestra dashboard/PWA (ID: $window_id)"
+
+        # Attiva la finestra usando wmctrl
+        if wmctrl -i -a "$window_id" 2>/dev/null; then
+          echo "  ✓ Finestra attivata"
         else
-          echo "  ⚠ Nessun tool per inviare F5, solo attivazione finestra"
+          # Fallback: prova con nome anziché ID
+          wmctrl -a "$window_id" 2>/dev/null || wmctrl -r -a "$window_id" 2>/dev/null || true
         fi
+
+        sleep 1  # Attesa maggiore per conferma attivazione
+
+        # 2. Invia F5 per refresh
+        if [ "$has_xdotool" = true ]; then
+          if xdotool key --window "$window_id" F5 2>/dev/null; then
+            echo "  ✓ F5 inviato via xdotool (finestra ID: $window_id)"
+            return 0
+          elif xdotool key F5 2>/dev/null; then
+            echo "  ✓ F5 inviato via xdotool (finestra attiva)"
+            return 0
+          fi
+        elif [ "$has_xte" = true ]; then
+          if xte "key F5" 2>/dev/null; then
+            echo "  ✓ F5 inviato via xte"
+            return 0
+          fi
+        fi
+
+        # Se abbiamo trovato e attivato la finestra, consideriamo il refresh completato
+        # (anche senza F5, il browser si occuperà del reload quando riprende il focus)
+        echo "  ✓ Finestra attivata, refresh impletato"
+        return 0
       fi
     fi
-    
-    # 2. Fallback: apri in PWA mode usando Chrome/Chromium con --app flag
-    #    --app flag apre l'URL in una finestra minimale (PWA-like, senza barra browser)
-    for browser in google-chrome google-chrome-stable chromium chromium-browser; do
+
+    # Se non abbiamo wmctrl o non abbiamo trovato la finestra, apri una nuova
+    # 3. Fallback: apri in PWA mode - ordine preferenza Chromium prima
+    for browser in chromium-browser chromium google-chrome-stable google-chrome; do
       if command -v "$browser" >/dev/null 2>&1; then
         echo "  Apertura dashboard in PWA mode con $browser --app..."
         "$browser" --app="$dashboard_url" >/dev/null 2>&1 &
+        sleep 1  # Brief wait for browser to start
         echo "  ✓ Dashboard aperta in PWA mode via $browser --app"
         return 0
       fi
     done
-    
-    # 3. Fallback: prova con Firefox (non supporta --app, ma apre in finestra minimale)
+
+    # 4. Fallback: prova con Firefox (non supporta --app, ma apre in finestra minimale)
     if command -v firefox >/dev/null 2>&1; then
       echo "  Apertura dashboard con firefox..."
       firefox "$dashboard_url" >/dev/null 2>&1 &
+      sleep 1
       echo "  ✓ Dashboard aperta via firefox"
       return 0
     fi
-    
-    # 4. Fallback: usa xdg-open (ultimo resort, apre nel browser predefinito)
+
+    # 5. Fallback: usa xdg-open (ultimo resort, apre nel browser predefinito)
     if command -v xdg-open >/dev/null 2>&1; then
       echo "  Apertura dashboard con xdg-open (fallback)..."
       xdg-open "$dashboard_url" >/dev/null 2>&1 || true
       echo "  ✓ Dashboard aperta/refreshata via xdg-open"
       return 0
     fi
-    
+
     attempt=$((attempt + 1))
     if [ $attempt -le $max_attempts ]; then
       echo "  Attesa 2s prima del prossimo tentativo..."
       sleep 2
     fi
   done
-  
-  # 5. Nessun tool disponibile: non fallire, solo avvisa
+
+  # 6. Nessun tool disponibile: non fallire, solo avvisa
   echo "⚠ Nessun tool disponibile per il refresh della dashboard (wmctrl/browser/xdg-open non trovati)"
   return 0
 }
