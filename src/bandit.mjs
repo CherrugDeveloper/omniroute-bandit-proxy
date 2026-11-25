@@ -2701,12 +2701,19 @@ export class DiscountedUCB1Bandit {
     this.db.prepare("DELETE FROM punishment_events").run();
   }
 
-  resetUnifiedHistory() {
+  async resetUnifiedHistory() {
     // Clear in-memory recent requests buffer (handled by caller via recentRequests.clear())
     // Clear punishment events and old request logs to reset unified history view
     this.db.prepare("DELETE FROM punishment_events").run();
     this.db.prepare("DELETE FROM request_logs WHERE ended_at IS NOT NULL AND ended_at < ?").run(Date.now() - 24 * 3600000);
-    slogInfo("[BANDIT] resetUnifiedHistory: cleared punishment_events and old request_logs");
+    
+    // Reset provider history to clear all attention flags, cooldowns, bans
+    this.resetProviderHistoryAll();
+    
+    // Sync catalog from OmniRoute to ensure models are correctly recognized
+    await this.fetchAndSyncModels();
+    
+    slogInfo("[BANDIT] resetUnifiedHistory: cleared punishment_events, request_logs, provider_history, and synced catalog");
   }
 
   resetGlobalCounters() {

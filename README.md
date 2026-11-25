@@ -22,6 +22,9 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Changed**: `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode
 - **Changed**: All reset buttons now execute immediately with centered toast feedback (no confirmation dialogs)
 
+### v0.53.23-patch - 2026-11-25
+- **Fixed**: Reset operations now fully sync catalog from OmniRoute after clearing provider_history, preventing "already_tried" model rejection after restart/reset
+
 ### v0.53.22 Definitive Restart & Refresh
 - **Definitive F5 Refresh**: Improved `reloadAfterRestart()` with retry logic (3 attempts with increasing delays) and better health check handling to ensure the dashboard is definitively reloaded with F5 after service restart
 - **Enhanced Script Refresh**: `refresh_dashboard()` in restart-safe.sh now retries up to 3 times with 2s delays, better window detection, and fallback to specific browsers (google-chrome, chromium, firefox) when wmctrl/xdg-open unavailable

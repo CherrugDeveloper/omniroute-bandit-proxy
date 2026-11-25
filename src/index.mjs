@@ -1170,9 +1170,10 @@ app.post('/v1/debug/reset-model/:id', requireAuth, (req, res) => {
 });
 
 // POST /v1/debug/reset-history - Clear unified history (punishment events and old logs)
-app.post('/v1/debug/reset-history', requireAuth, (async (req, res) => {
+// Also resets provider_history and syncs catalog from OmniRoute
+app.post('/v1/debug/reset-history', requireAuth, async (req, res) => {
   try {
-    bandit.resetUnifiedHistory();
+    await bandit.resetUnifiedHistory();
     recentRequests.clear();
     slogInfo('[DEBUG] reset unified history');
     res.json({ success: true });
@@ -1180,7 +1181,7 @@ app.post('/v1/debug/reset-history', requireAuth, (async (req, res) => {
     slogError(`[DEBUG] reset history error: ${e.message}`);
     res.status(500).json({ error: e.message });
   }
-}).bind(this));
+});
 
 // GET /v1/debug/providers - Get all providers with optional filters
 app.get('/v1/debug/providers', requireAuth, (req, res) => {
@@ -1852,10 +1853,12 @@ app.post("/v1/reset/config", requireAuth, (req, res) => {
   }
 });
 
-app.post("/v1/reset/history", requireAuth, (req, res) => {
+app.post("/v1/reset/history", requireAuth, async (req, res) => {
   try {
     // Clear unified history: punishment events, old request logs, and in-memory buffers
-    bandit.resetUnifiedHistory();
+    // Reset provider history to clear all attention flags, cooldowns, bans
+    // Sync catalog from OmniRoute to ensure models are correctly recognized
+    await bandit.resetUnifiedHistory();
     recentRequests.clear();
     res.json({ ok: true });
   } catch (e) {

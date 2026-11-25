@@ -20,6 +20,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - refactor(scripts): `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode using Chrome/Chromium `--app` flag (minimal window without browser chrome) instead of regular browser; fallback chain: wmctrl F5 → Chrome --app → Firefox → xdg-open
 - refactor(dashboard): resetAllStatsAndLogs() now calls `/v1/sync/models` after reset to ensure catalog data is refreshed
 
+## [0.53.23-patch] - 2026-11-25
+
+### Fixed
+- fix(bandit): `resetUnifiedHistory()` now fully async and resets `provider_history` table (clearing all `needs_attention` flags) before syncing catalog from OmniRoute to prevent "already_tried" model rejection after reset
+- fix(api): updated `/v1/reset/history` and `/v1/debug/reset-history` endpoints to properly await the async `resetUnifiedHistory()` function
+
+### Changed
+- refactor(bandit): `resetUnifiedHistory()` now calls `resetProviderHistoryAll()` and `fetchAndSyncModels()` internally, eliminating the need for separate `/v1/sync/models` post-reset call
+
 ## [0.53.22] - 2026-11-24
 
 ### Fixed
