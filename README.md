@@ -25,6 +25,7 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 ### v0.53.23-patch - 2026-11-25
 - **Fixed**: Reset operations now fully sync catalog from OmniRoute after clearing provider_history, preventing "already_tried" model rejection after restart/reset
 - **Fixed**: `refresh_dashboard()` in restart-safe.sh now properly detects and activates existing PWA window (title contains "OmniRoute Bandit Dashboard" or "Bandit Dashboard") before attempting to send F5 refresh
+- **Fixed**: `fetchAndSyncModels()` now bypasses `_sanitizeModelId()` catalog-existence check during sync to prevent "chicken-and-egg" bug where catalog was emptied before validation, resulting in 0 models inserted despite 1030+ models retrieved from OmniRoute
 
 ### v0.53.22 Definitive Restart & Refresh
 - **Definitive F5 Refresh**: Improved `reloadAfterRestart()` with retry logic (3 attempts with increasing delays) and better health check handling to ensure the dashboard is definitively reloaded with F5 after service restart

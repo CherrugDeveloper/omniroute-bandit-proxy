@@ -1037,14 +1037,20 @@ export class DiscountedUCB1Bandit {
 
         for (const m of models) {
           let modelId = typeof m === "string" ? m : (m.id || m.name);
-          modelId = this._sanitizeModelId(modelId);
-          if (!modelId) continue;
-          raw++;
 
+          // During catalog sync, bypass _sanitizeModelId() since the catalog is being
+          // rebuilt (DELETE FROM catalog ran above). _sanitizeModelId() checks catalog
+          // existence and would return null for every model, causing 0 insertions.
+          // Validate the modelId format directly instead.
+          if (!modelId || typeof modelId !== 'string') continue;
+
+          // Skip auto/ and gh/ prefixed models
           if (modelId.startsWith("auto/") || modelId.startsWith("gh/")) {
             skipped++;
             continue;
           }
+
+          raw++;
 
           const provider = this._getProvider(modelId);
           const maxInput = Number(m?.max_input_tokens || m?.context_length || 0) || 0;
