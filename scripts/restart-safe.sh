@@ -506,9 +506,10 @@ restart_safe() {
   # Mostra ultimi log (ultima ora per evitare log storici)
   run_journalctl -u "$SERVICE" --since "1 hour ago" -n 15 --no-pager 2>/dev/null || journalctl -u "$SERVICE" -n 15 --no-pager 2>/dev/null || true
   
-  # NOTE: Dashboard refresh is now handled client-side by reloadAfterRestart() in dashboard.html
-  # which performs proper health checks before reloading. The server-side refresh_dashboard()
-  # function is kept for backward compatibility but no longer called automatically.
+  # Refresh dashboard after backend restart (se non disabilitato)
+  if [ "$NO_REFRESH" != true ]; then
+    refresh_dashboard
+  fi
 }
 
 refresh_dashboard() {
