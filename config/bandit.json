@@ -21,8 +21,8 @@
     "degradationThreshold": 5,
     "groupPunishment": {
       "enabled": true,
-      "freeGroupThreshold": 7,
-      "paidGroupThreshold": 5,
+      "freeGroupThreshold": 15,
+      "paidGroupThreshold": 10,
       "cooldownMultiplier": 2.0,
       "escalationStepMs": 86400000
     }

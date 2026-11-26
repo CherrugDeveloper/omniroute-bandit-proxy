@@ -1449,17 +1449,37 @@ export class DiscountedUCB1Bandit {
                 return;
               }
               slogInfo(`[BANDIT] Error classified: ${JSON.stringify(c)}`);
+
+              // Fix A: provider misconfigured cascade - se tutti i modelli del provider
+              // falliscono per misconfigurazione, applica cooldown-provider invece di cooldown-model
+              // per evitare di punire ogni modello singolarmente in un loop infinito.
+              if (c.reason === "provider-misconfigured" && this._isProviderFullyMisconfigured(provider)) {
+                slogInfo(`[BANDIT-CASCADE-FIX] Provider ${provider} completamente misconfigurato: applico cooldown-provider invece di cooldown-model`);
+                c.action = "cooldown-provider";
+                c.scope = "provider";
+                c.cooldownMs = c.cooldownMs || 300000;
+              }
               
               // Track group failures (free/paid pool)
+              // ONLY increment group counter for CRITICAL failures, not transient errors
+              // Transient errors (key-limit-exceeded, rate-limit, timeout, etc.) are model-specific cooldowns
+              // Group punishment is for GENUINE systemic provider issues (provider-banned, etc.)
+              // NOT for transient/flag-provider reasons (auth-expired, provider-misconfigured, quota-exhausted, access-denied, provider-blocked)
               const modelRow = this.db.prepare("SELECT is_paid FROM models WHERE id = ?").get(sanitizedModelId);
               const isPaidModel = modelRow && modelRow.is_paid === 1;
               const groupKey = isPaidModel ? "group_paid_failures" : "group_free_failures";
               const cooldownKey = isPaidModel ? "group_paid_cooldown_until" : "group_free_cooldown_until";
               
-              // Increment group failure counter
-              this.db.prepare(
-                `UPDATE provider_history SET ${groupKey} = ${groupKey} + 1 WHERE provider = ?`
-              ).run(provider);
+              // Determine if this is a critical failure for group punishment
+              // Transient errors AND flag-provider reasons should NOT trigger group punishment to avoid cascade bans
+              const isGroupFailure = c.reason && !/key-limit-exceeded|rate-limit|timeout|upstream-error|queue-timeout|high-demand|stream-error|tpm-exceeded|server-error|classification-fallback|transient-400-error|transient-404|auth-expired|provider-misconfigured|quota-exhausted|access-denied|provider-blocked/.test(c.reason);
+              
+              // Only increment group failure counter for critical failures
+              if (isGroupFailure) {
+                this.db.prepare(
+                  `UPDATE provider_history SET ${groupKey} = ${groupKey} + 1 WHERE provider = ?`
+                ).run(provider);
+              }
               
               // Check if group threshold exceeded and apply group punishment
               const thresholds = this.getPunishmentThresholds();
@@ -2006,7 +2026,10 @@ export class DiscountedUCB1Bandit {
       return { action: "ban-provider", scope: "provider", reason: "provider-banned", category: "PERMANENT" };
     }
     // Key limit exceeded / total limit / hard limit / lifetime limit
-    if (status === 403 || /Key limit exceeded|total limit|hard limit|lifetime limit/i.test(message)) {
+    // Richiede frasi specifiche nel messaggio: evita che un 403 generico
+    // (senza indicazione di key-limit) scatti un cooldown 5min su ogni modello.
+    if (/Key limit exceeded|total limit|hard limit|lifetime limit/i.test(message)) {
+      slogInfo(`[BANDIT-CLASSIFY-DIAG-403] Matched key-limit pattern | status=${status} | provider=${resolvedProvider} | message=${message.substring(0, 200)}`);
       // Check if this is a non-resetting permanent limit
       const isNonResetting = /does not reset|never resets|no reset|lifetime|permanent/i.test(message);
       
@@ -2107,8 +2130,8 @@ export class DiscountedUCB1Bandit {
       return { action: "cooldown-provider", reason: "provider-blocked", cooldownMs: 1 * 3600 * 1000, category: "TRANSIENT" };
     }
 
-    // Default case
     const defaultReason = reason === "unknown" ? "classification-fallback" : reason;
+    slogInfo(`[BANDIT-CLASSIFY-DIAG-FALLBACK] Nessun pattern matchato | status=${status} | provider=${resolvedProvider} | reason=${reason} | message=${message.substring(0, 200)}`);
     slogInfo(`[BANDIT-CLASSIFY-RESULT] action=cooldown-model reason=${defaultReason} cooldownMs=15000`);
     return {
       action: "cooldown-model",
@@ -2313,6 +2336,25 @@ export class DiscountedUCB1Bandit {
     this.db.prepare(
       `UPDATE provider_history SET cooldown_until = ?, needs_attention = 1, attention_reason = ?, attention_message = ? WHERE provider = ?`
     ).run(now + cooldownMs, reason, "Quota esaurita", provider);
+  }
+
+  /**
+   * Fix A: Verifica se TUTTI i modelli di un provider sono in stato misconfigurato
+   * (cooldown attivo con reason provider-misconfigured). Se sì, conviene applicare
+   * un cooldown-provider invece di punire ogni modello singolarmente in loop.
+   * @param {string} provider - Provider name
+   * @returns {boolean} - True se tutti i modelli del provider sono in cooldown misconfig
+   */
+  _isProviderFullyMisconfigured(provider) {
+    const now = Date.now();
+    const models = this.db.prepare(
+      `SELECT id, cooldown_until FROM models WHERE provider = ? AND permanent = 0`
+    ).all(provider);
+    if (!models || models.length === 0) return false;
+    const inCooldown = models.filter(m => m.cooldown_until && m.cooldown_until > now).length;
+    const ratio = inCooldown / models.length;
+    slogInfo(`[BANDIT-CASCADE-FIX] Provider ${provider} misconfig check: ${inCooldown}/${models.length} models in cooldown (ratio=${ratio.toFixed(2)})`);
+    return ratio >= 0.8;
   }
 
   _resetProviderCooldown(provider) {

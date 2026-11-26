@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
+## [0.53.27] - 2026-11-26
+
+### Fixed
+- fix(dashboard): pollScriptOutput() now detects connection-refused errors (`Failed to fetch`, `ECONNREFUSED`, `network`, `abort`) during restart and stops polling so `reloadAfterRestart()` can execute — previously the page was stuck in an infinite `ERR_CONNECTION_REFUSED` loop because polling errors were silently ignored
+- fix(dashboard): `reloadAfterRestart()` now detects PWA standalone mode (`display-mode: standalone`, `navigator.standalone`, `window-controls-overlay`) and unregisters the service worker before `location.reload()` for a clean PWA restart
+- fix(bandit): added cascade fix for provider misconfiguration — when >= 80% of a provider's models are in cooldown with `provider-misconfigured` reason, applies `cooldown-provider` instead of `cooldown-model` to prevent infinite per-model punishment loops
+- fix(bandit): group failure counter now only increments for critical failures — transient errors (`key-limit-exceeded`, `rate-limit`, `timeout`, `upstream-error`, `auth-expired`, `provider-misconfigured`, `quota-exhausted`, `access-denied`, `provider-blocked`, etc.) no longer trigger group punishment
+- fix(bandit): 403 key-limit pattern now requires specific phrases (`Key limit exceeded`, `total limit`, `hard limit`, `lifetime limit`) instead of bare `status === 403`, preventing generic 403 errors from triggering 5-minute cooldowns on every model
+
+### Changed
+- refactor(config): increased group punishment thresholds — `freeGroupThreshold` from 7 to 15, `paidGroupThreshold` from 5 to 10 — to reduce false-positive group punishments with large model pools
+
 ## [0.53.26] - 2026-11-25
 
 ### Fixed

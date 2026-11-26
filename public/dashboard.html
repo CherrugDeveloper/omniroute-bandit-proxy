@@ -6281,8 +6281,44 @@ document.getElementById('reset-unified-btn')?.addEventListener('click', async ()
             return false;
         }
         
-        // Helper: reload the browser after a restart script completes
+        // Helper: detect if running as PWA in standalone mode
+        function isPWAStandalone() {
+            // Check for standalone display mode (PWA installed)
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                return true;
+            }
+            // Check for iOS PWA (no matchMedia support for standalone)
+            if (window.navigator.standalone === true) {
+                return true;
+            }
+            // Check for window-controls-overlay (PWA with titlebar overlay)
+            if (window.matchMedia('(display-mode: window-controls-overlay)').matches) {
+                return true;
+            }
+            return false;
+        }
+
+        // Helper: unregister service worker for clean PWA restart
+        async function unregisterServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (const registration of registrations) {
+                        console.log('[PWA] Unregistering service worker:', registration.scope);
+                        await registration.unregister();
+                    }
+                    console.log('[PWA] All service workers unregistered');
+                    return true;
+                } catch (e) {
+                    console.warn('[PWA] Failed to unregister service worker:', e.message);
+                    return false;
+                }
+            }
+            return false;
+        }
+
         // Uses active health check with retry logic to ensure backend is ready before F5 reload
+        // For PWA in standalone mode, unregisters service worker first for clean restart
         async function reloadAfterRestart(scriptName) {
             console.log('[Restart] Script', scriptName, 'completed — scheduling browser reload');
             showToast('🔄 Riavvio completato, verifico lo stato del servizio...', 'success');
@@ -6317,7 +6353,16 @@ document.getElementById('reset-unified-btn')?.addEventListener('click', async ()
             }
             
             // Small additional delay for WebSocket connection re-establishment
-            setTimeout(() => {
+            setTimeout(async () => {
+                // If running as PWA in standalone mode, unregister service worker first
+                // This ensures a clean restart of the PWA application
+                if (isPWAStandalone()) {
+                    console.log('[Restart] PWA standalone mode detected, unregistering service worker...');
+                    showToast('🔄 Riavvio PWA in corso...', 'info');
+                    await unregisterServiceWorker();
+                    // Small delay to let unregistration complete
+                    await new Promise(r => setTimeout(r, 500));
+                }
                 location.reload();
             }, 1000);
         }
@@ -6516,7 +6561,11 @@ document.getElementById('reset-unified-btn')?.addEventListener('click', async ()
                         return;
                     }
                 } catch (e) {
-                    // Ignore polling errors
+                    // Detect connection refused or network errors - resolve polling so reloadAfterRestart can run
+                    if (e.message && (e.message.includes('Failed to fetch') || e.message.includes('ECONNREFUSED') || e.message.includes('network') || e.message.includes('abort'))) {
+                        console.log('[Poll] Connection error detected during restart, stopping poll to allow reload');
+                        isStopped = true;
+                    }
                 }
             }
             

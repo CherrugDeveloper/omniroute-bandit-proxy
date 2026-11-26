@@ -22,6 +22,14 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Changed**: `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode
 - **Changed**: All reset buttons now execute immediately with centered toast feedback (no confirmation dialogs)
 
+### v0.53.27 - 2026-11-26
+- **Fixed**: `pollScriptOutput()` now detects connection-refused errors during restart and stops polling so `reloadAfterRestart()` can execute — previously the page was stuck in an infinite `ERR_CONNECTION_REFUSED` loop
+- **Fixed**: `reloadAfterRestart()` now detects PWA standalone mode and unregisters the service worker before reload for a clean PWA restart
+- **Fixed**: Cascade fix for provider misconfiguration — when >= 80% of a provider's models are in cooldown with `provider-misconfigured`, applies `cooldown-provider` instead of per-model `cooldown-model`
+- **Fixed**: Group failure counter now only increments for critical failures — transient errors no longer trigger group punishment
+- **Fixed**: 403 key-limit pattern now requires specific phrases instead of bare `status === 403`
+- **Changed**: Increased group punishment thresholds (`freeGroupThreshold`: 7→15, `paidGroupThreshold`: 5→10)
+
 ### v0.53.26 - 2026-11-25
 - **Fixed**: Unified history now renders `punishmentEvents` from `/v1/active` — historical punishment events were previously ignored, leaving the unified table empty until new WebSocket events arrived
 - **Fixed**: Cascade guard now skips punishment for `model_permanent_ban` and `provider_permanent_ban`, preventing cascade punishment storms across provider groups
