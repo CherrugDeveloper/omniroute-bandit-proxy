@@ -2521,7 +2521,19 @@
                             console.warn('Sync catalog failed (continuando):', syncErr);
                         }
                         
-                        showToast('✓ Tutte le statistiche, i log e la cronologia unificata sono stati resettati', 'success');
+                        // Reset top model statistics
+                        showToast('🔄 Reset top model...', 'info');
+                        const topModelRes = await fetch('/v1/reset/top-model', {
+                            method: 'POST',
+                            headers: { ...authHeaders(), 'Content-Type': 'application/json' }
+                        });
+                        
+                        if (!topModelRes.ok) {
+                            const topModelErr = await topModelRes.text();
+                            console.warn('Reset top model failed (continuando):', topModelErr);
+                        }
+                        
+                        showToast('✓ Tutte le statistiche, i log, la cronologia unificata e il top model sono stati resettati', 'success');
                         await refreshAll();
                         await fetchActive();
                         

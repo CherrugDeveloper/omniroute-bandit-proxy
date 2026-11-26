@@ -23,6 +23,9 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Changed**: All reset buttons now execute immediately with centered toast feedback (no confirmation dialogs)
 
 ### v0.53.27 - 2026-11-26
+
+### v0.53.28 - 2026-11-26
+- **Fixed**: `resetAllStatsAndLogs()` now also resets top model statistics via `POST /v1/reset/top-model` — previously only counters, history, and unified history were reset
 - **Fixed**: `pollScriptOutput()` now detects connection-refused errors during restart and stops polling so `reloadAfterRestart()` can execute — previously the page was stuck in an infinite `ERR_CONNECTION_REFUSED` loop
 - **Fixed**: `reloadAfterRestart()` now detects PWA standalone mode and unregisters the service worker before reload for a clean PWA restart
 - **Fixed**: Cascade fix for provider misconfiguration — when >= 80% of a provider's models are in cooldown with `provider-misconfigured`, applies `cooldown-provider` instead of per-model `cooldown-model`

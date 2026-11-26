@@ -7,6 +7,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [0.53.27] - 2026-11-26
 
+## [0.53.28] - 2026-11-26
+
+### Fixed
+- fix(dashboard): resetAllStatsAndLogs() now also resets top model statistics via  — previously only counters, history, and unified history were reset, leaving top model statistics intact
+
+## [0.53.27] - 2026-11-26
+
 ### Fixed
 - fix(dashboard): pollScriptOutput() now detects connection-refused errors (`Failed to fetch`, `ECONNREFUSED`, `network`, `abort`) during restart and stops polling so `reloadAfterRestart()` can execute — previously the page was stuck in an infinite `ERR_CONNECTION_REFUSED` loop because polling errors were silently ignored
 - fix(dashboard): `reloadAfterRestart()` now detects PWA standalone mode (`display-mode: standalone`, `navigator.standalone`, `window-controls-overlay`) and unregisters the service worker before `location.reload()` for a clean PWA restart
