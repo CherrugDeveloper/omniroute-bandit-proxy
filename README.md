@@ -22,7 +22,9 @@ A high-performance, multi-armed bandit (MAB) reverse proxy for LLM traffic. This
 - **Changed**: `refresh_dashboard()` in restart-safe.sh now opens dashboard in PWA mode
 - **Changed**: All reset buttons now execute immediately with centered toast feedback (no confirmation dialogs)
 
-### v0.53.27 - 2026-11-26
+### v0.53.29 - 2026-11-26
+- **Fixed**: `quickAction()` and `executeScript()` now set `isRestartInProgress = true` before executing restart scripts, silencing all background pollers to prevent `ERR_CONNECTION_REFUSED` flood during backend restart
+- **Fixed**: `quickAction()` and `executeScript()` catch blocks now call `reloadAfterRestart()` when a restart script encounters a connection error (backend already down), ensuring the page reloads even when the initial fetch fails
 
 ### v0.53.28 - 2026-11-26
 - **Fixed**: `resetAllStatsAndLogs()` now also resets top model statistics via `POST /v1/reset/top-model` — previously only counters, history, and unified history were reset

@@ -5,7 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Version History
 
-## [0.53.27] - 2026-11-26
+## [0.53.29] - 2026-11-26
+
+### Fixed
+- fix(dashboard): `quickAction()` and `executeScript()` now set `isRestartInProgress = true` before executing restart scripts, silencing all background pollers (`refreshAll`, `runPoll`, training status interval) to prevent `ERR_CONNECTION_REFUSED` flood during backend restart
+- fix(dashboard): `quickAction()` and `executeScript()` catch blocks now call `reloadAfterRestart()` when a restart script encounters a connection error (backend already down), instead of just showing a message — ensures the page reloads even when the initial `/v1/scripts/execute` fetch fails
+- fix(dashboard): `resetAllStatsAndLogs()` now also resets top model statistics via `POST /v1/reset/top-model` — previously only counters, history, and unified history were reset, leaving top model statistics intact
 
 ## [0.53.28] - 2026-11-26
 

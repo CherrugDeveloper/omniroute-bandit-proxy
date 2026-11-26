@@ -1711,6 +1711,7 @@
         let trainData = { providers: [], models: [] };
         let statsFetchId = 0;
         let modelsFetchId = 0;
+        let isRestartInProgress = false;
         let sortCol = null;
         let sortDir = 'asc';
         let trainSortCol = null;
@@ -2437,6 +2438,12 @@
                         outputDiv.textContent = '';
                     }
                     
+                    // Set restart flag early to stop background pollers
+                    const isRestart = isRestartScript(scriptName);
+                    if (isRestart) {
+                        isRestartInProgress = true;
+                    }
+                    
                     try {
                         const args = arg ? [arg] : [];
                         const res = await fetch('/v1/scripts/execute', {
@@ -2459,13 +2466,18 @@
                         
                         showToast('✓ ' + actionLabel + ' avviato con successo', 'success');
                         await pollScriptOutput(result.pid).then(() => {
-                            if (isRestartScript(scriptName)) {
+                            if (isRestart) {
                                 reloadAfterRestart(scriptName);
                             }
                         });
                         
                     } catch (e) {
-                        if (e.message.includes('Failed to fetch') || e.message.includes('network') || e.message.includes('ECONNREFUSED')) {
+                        // For restart scripts, connection errors mean the backend is restarting
+                        // Trigger reload instead of just showing a message
+                        if (isRestart && (e.message.includes('Failed to fetch') || e.message.includes('network') || e.message.includes('ECONNREFUSED'))) {
+                            console.log('[QuickAction] Connection error during restart, triggering reload');
+                            reloadAfterRestart(scriptName);
+                        } else if (e.message.includes('Failed to fetch') || e.message.includes('network') || e.message.includes('ECONNREFUSED')) {
                             statusDiv.innerHTML = '<span style="color:#3fb950;">✓ Servizio in riavvio (systemctl restart)... Ricarica tra qualche secondo.</span>';
                             outputDiv.textContent = 'Il servizio proxy si sta riavviando (es. ' + scriptName + '). La disconnessione momentanea è normale durante il riavvio del demone. Attendi 2-3 secondi e ricarica la pagina.';
                             showToast('✓ Servizio in riavvio (' + actionLabel + ')', 'success');
@@ -2574,6 +2586,7 @@
         // === Training Status Polling ===
         setInterval(() => {
             if (document.hidden) return;
+            if (isRestartInProgress) return;
             updateTrainingStatus();
         }, 15000);
         // === Tabs ===
@@ -3981,6 +3994,7 @@
 
         async function refreshAll() {
             if (refreshing) return;
+            if (isRestartInProgress) return;
             refreshing = true;
             const currentStatsId = ++statsFetchId;
             // Wait for backend to be ready before making API calls (handles post-restart scenario)
@@ -5405,6 +5419,7 @@ document.getElementById('reset-unified-btn')?.addEventListener('click', async ()
         }
 
         async function runPoll(pollName) {
+            if (isRestartInProgress) return;
             try {
                 switch (pollName) {
                     case 'refreshAll': await refreshAll(); break;
@@ -6448,6 +6463,12 @@ document.getElementById('reset-unified-btn')?.addEventListener('click', async ()
             // Scroll to output
             container.scrollIntoView({ behavior: 'smooth' });
             
+            // Set restart flag early to stop background pollers
+            const isRestart = isRestartScript(scriptName);
+            if (isRestart) {
+                isRestartInProgress = true;
+            }
+            
             try {
                 const res = await fetch('/v1/scripts/execute', {
                     method: 'POST',
@@ -6469,14 +6490,21 @@ document.getElementById('reset-unified-btn')?.addEventListener('click', async ()
                 
                 // Poll for completion and reload after restart scripts
                 await pollScriptOutput(result.pid).then(() => {
-                    if (isRestartScript(scriptName)) {
+                    if (isRestart) {
                         reloadAfterRestart(scriptName);
                     }
                 });
                 
             } catch (e) {
-                status.innerHTML = `<span style="color:#f85149;">✗ Errore: ${escapeHtml(e.message)}</span>`;
-                output.textContent = e.message;
+                // For restart scripts, connection errors mean the backend is restarting
+                // Trigger reload instead of just showing an error
+                if (isRestart && (e.message.includes('Failed to fetch') || e.message.includes('network') || e.message.includes('ECONNREFUSED'))) {
+                    console.log('[ExecuteScript] Connection error during restart, triggering reload');
+                    reloadAfterRestart(scriptName);
+                } else {
+                    status.innerHTML = `<span style="color:#f85149;">✗ Errore: ${escapeHtml(e.message)}</span>`;
+                    output.textContent = e.message;
+                }
             } finally {
                 // Hide running badge when script completes
                 updateRunningBadge(false);
